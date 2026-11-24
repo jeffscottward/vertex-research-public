@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   FlowHedgingPressureSchema,
+  FlowOptionBubblesSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
@@ -121,6 +122,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readBookSnapshots: vi.fn(async () => []),
     readEvents: vi.fn(async () => []),
     readHedgingPrints: vi.fn(async () => []),
+    readLargeOptionPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
     readMinutes: vi.fn(async () => []),
@@ -1862,6 +1864,145 @@ describe("flow.strikeHeatmap", () => {
     });
     await expectStorageError(
       clientFor(repository).strikeHeatmap({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
+  });
+});
+
+describe("flow.optionBubbles", () => {
+  const FRIDAY = new Date("2026-11-20T16:00:00.000Z");
+  const SESSION_FROM = new Date("2026-11-20T14:30:00.000Z");
+  const SESSION_TO = new Date("2026-11-20T21:15:00.000Z");
+
+  it("reads option print minutes, large prints, gaps and options sample for the newest session", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      readLargeOptionPrints: vi.fn<FlowRepository["readLargeOptionPrints"]>(
+        async () => [
+          {
+            ask: 3.4,
+            bid: 3.3,
+            consolidation: "sweep",
+            dte: 4,
+            expiry: "2026-11-24",
+            goldenSweep: true,
+            id: "bub-1",
+            iv: 17.5,
+            moneyness: "otm",
+            moneynessPct: 0.4,
+            openInterest: 1000,
+            opening: true,
+            premium: 850_000,
+            price: 3.4,
+            right: "call",
+            sentiment: "bullish",
+            side: "above_ask",
+            size: 2500,
+            strike: 686,
+            symbol: "SPY",
+            ticker: "SPY",
+            tradedAt: new Date("2026-11-20T15:10:15.000Z"),
+            underlyingPrice: 683.8,
+            unusual: true,
+            volume: 3200,
+            volumeOverOi: true,
+          },
+        ]
+      ),
+      readOptionPrintMinutes: vi.fn(async () => [
+        {
+          callPremium: 900_000,
+          callPrints: 3,
+          callVolume: 2800,
+          lastPrice: 683.8,
+          lastTradedAt: new Date("2026-11-20T15:10:45.000Z"),
+          minute: new Date("2026-11-20T15:10:00.000Z"),
+          putPremium: 120_000,
+          putPrints: 1,
+          putVolume: 400,
+        },
+      ]),
+    });
+    const response = await clientFor(repository).optionBubbles({
+      minPremiumUsd: 500_000,
+      symbol: "SPY",
+    });
+    expect(repository.newestOptionPrintAt).toHaveBeenCalledWith("SPY");
+    expect(repository.readOptionPrintMinutes).toHaveBeenCalledWith({
+      from: SESSION_FROM,
+      symbol: "SPY",
+      to: SESSION_TO,
+    });
+    expect(repository.readLargeOptionPrints).toHaveBeenCalledWith({
+      from: SESSION_FROM,
+      limit: 121,
+      minPremiumUsd: 500_000,
+      symbol: "SPY",
+      to: SESSION_TO,
+    });
+    expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      minPremiumUsd: 500_000,
+      schemaVersion: "flow-option-bubbles.v1",
+      session: "2026-11-20",
+      symbol: "SPY",
+      ticker: "SPY",
+    });
+    expect(response.bubbles).toHaveLength(1);
+    expect(response.pricePoints).toHaveLength(1);
+  });
+
+  it("returns an empty response without print reads when no option print is stored", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => null),
+    });
+    const response = await clientFor(repository).optionBubbles({
+      symbol: "ES",
+    });
+    expect(repository.readOptionPrintMinutes).not.toHaveBeenCalled();
+    expect(repository.readLargeOptionPrints).not.toHaveBeenCalled();
+    expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      bubbles: [],
+      minPremiumUsd: 250_000,
+      pricePoints: [],
+      session: null,
+      symbol: "ES",
+      ticker: "SPX",
+    });
+  });
+
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "optionBubbles"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.optionBubbles")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "optionBubbles"])).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.optionBubbles({ symbol: "SPY" }), "FORBIDDEN");
+    expect(repository.newestOptionPrintAt).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository and on a failed read", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    await expectStorageError(
+      clientFor(undefined).optionBubbles({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      readLargeOptionPrints: vi.fn(async () => {
+        throw new Error("db timeout");
+      }),
+    });
+    await expectStorageError(
+      clientFor(repository).optionBubbles({ symbol: "SPY" }),
       DATABASE_FAILED
     );
   });

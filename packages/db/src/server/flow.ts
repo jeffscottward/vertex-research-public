@@ -157,6 +157,17 @@ export type FlowHedgingPrintsQuery = Readonly<{
   to: Date;
   limit: number;
 }>;
+/** Big option prints of one symbol with from <= traded_at < to and premium >= minPremiumUsd. */
+export type FlowLargeOptionPrintsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+  /** Inclusive minimum print premium in US dollars. */
+  minPremiumUsd: number;
+  limit: number;
+}>;
 /** Per-minute option print aggregates of one symbol with from <= traded_at < to. */
 export type FlowOptionPrintMinutesQuery = Readonly<{
   symbol: FlowSymbolValue;
@@ -366,6 +377,13 @@ export type FlowRepository = Readonly<{
   readHedgingPrints: (
     query: FlowHedgingPrintsQuery
   ) => Promise<FlowHedgingPrintRecord[]>;
+  /**
+   * Big option prints of a symbol with from <= traded_at < to and premium >= minPremiumUsd,
+   * ordered by premium desc, traded_at desc, id desc, at most `limit` rows.
+   */
+  readLargeOptionPrints: (
+    query: FlowLargeOptionPrintsQuery
+  ) => Promise<FlowOptionPrintRecord[]>;
   /**
    * Per-minute call and put sums of a symbol with from <= traded_at < to, ascending by minute.
    */
@@ -935,6 +953,24 @@ export const createFlowRepository = (
           )
         )
         .orderBy(asc(flowOptionPrints.tradedAt), asc(flowOptionPrints.id))
+        .limit(limit),
+    readLargeOptionPrints: ({ symbol, from, to, minPremiumUsd, limit }) =>
+      database
+        .select()
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to),
+            gte(flowOptionPrints.premium, minPremiumUsd)
+          )
+        )
+        .orderBy(
+          desc(flowOptionPrints.premium),
+          desc(flowOptionPrints.tradedAt),
+          desc(flowOptionPrints.id)
+        )
         .limit(limit),
     readLargeTrades: ({ symbol, from, to }) =>
       database

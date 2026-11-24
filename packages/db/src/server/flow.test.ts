@@ -751,6 +751,46 @@ describe("createFlowRepository.readHedgingPrints", () => {
     expect(operation?.limit).toBe(200_001);
   });
 });
+describe("createFlowRepository.readLargeOptionPrints", () => {
+  it("reads big option prints of a symbol and range above minPremiumUsd, ordered by premium desc, traded_at desc, id desc", async () => {
+    const row = {
+      id: "big-1",
+      premium: 500_000,
+      right: "call",
+      strike: 685,
+      symbol: "SPY",
+      tradedAt: FROM,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readLargeOptionPrints({
+        from: FROM,
+        limit: 121,
+        minPremiumUsd: 250_000,
+        symbol: "SPY",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString(), TO.toISOString(), 250_000],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3 and "flow_option_prints"."premium" >= $4)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."premium" desc',
+      '"flow_option_prints"."traded_at" desc',
+      '"flow_option_prints"."id" desc',
+    ]);
+    expect(operation?.limit).toBe(121);
+  });
+});
 
 describe("createFlowRepository.readOptionStrikeTotals", () => {
   it("groups a symbol's prints of a range and expiry floor by strike, right and sentiment", async () => {

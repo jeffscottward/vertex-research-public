@@ -165,9 +165,13 @@ describe("scripts", () => {
     expect(install).toContain(
       "uv pip install --quiet --no-config --no-deps --no-build-isolation"
     );
+    expect(install.indexOf("worktree unlock")).toBeLessThan(
+      install.indexOf("worktree prune")
+    );
     expect(install.indexOf("worktree prune")).toBeLessThan(
       install.indexOf("worktree add")
     );
+    expect(install).toContain("worktree lock --reason");
   });
 });
 
@@ -356,5 +360,143 @@ describe("install.sh preflight", () => {
         join(host.home, ".local/state/tick-runner/vertex-openbb/run.lock")
       )
     ).toBe(true);
+  });
+});
+
+describe("install.sh worktree lock", () => {
+  it("locks the checkout worktree on fresh install, re-install, unlocked upgrade, and manual delete recovery", () => {
+    const host = fakeHome();
+    host.addTickRunner();
+    // fakeHome pre-creates an empty checkout dir; start clean for a real fresh install.
+    const checkout = join(host.home, ".local/share/vertex-openbb/checkout");
+    rmSync(checkout, { force: true, recursive: true });
+
+    const bin = join(host.home, "fake-bin");
+    const addFake = (name: string, body: string) => {
+      writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
+      chmodSync(join(bin, name), 0o755);
+    };
+    addFake("pnpm", "exit 0");
+    addFake("systemctl", "exit 0");
+    addFake(
+      "uv",
+      [
+        'if [[ "${1:-}" == "venv" ]]; then',
+        '  dest="${@: -1}"',
+        '  mkdir -p "$dest/bin"',
+        '  printf "#!/usr/bin/env bash\necho warm: ok\n" >"$dest/bin/python"',
+        '  chmod +x "$dest/bin/python"',
+        "fi",
+        "exit 0",
+      ].join("\n")
+    );
+
+    const repo = mkdtempSync(join(tmpdir(), "vertex-openbb-repo-"));
+    roots.push(repo);
+    const git = (...args: string[]) => {
+      const res = spawnSync("git", ["-C", repo, ...args], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_AUTHOR_EMAIL: "test@example.test",
+          GIT_AUTHOR_NAME: "test",
+          GIT_COMMITTER_EMAIL: "test@example.test",
+          GIT_COMMITTER_NAME: "test",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_CONFIG_NOSYSTEM: "1",
+          HOME: host.home,
+        },
+      });
+      if (res.status !== 0)
+        throw new Error(`git ${args.join(" ")} failed: ${res.stderr}`);
+      return res.stdout.trim();
+    };
+    git("init", "-q");
+    mkdirSync(join(repo, "infra/openbb/rig"), { recursive: true });
+    mkdirSync(join(repo, "services/openbb"), { recursive: true });
+    for (const file of [
+      "install.sh",
+      "vertex-openbb-run.sh",
+      "vertex-openbb.service",
+      "vertex-openbb.steps",
+      "vertex-openbb.timer",
+    ])
+      writeFileSync(join(repo, "infra/openbb/rig", file), read(file));
+    chmodSync(join(repo, "infra/openbb/rig/install.sh"), 0o755);
+    writeFileSync(
+      join(repo, "services/openbb/requirements-openbb-linux-py312.lock"),
+      "# lock\n"
+    );
+    git("add", ".");
+    git("commit", "-qm", "initial");
+    const sha1 = git("rev-parse", "HEAD");
+
+    writeFileSync(
+      join(repo, "services/openbb/requirements-openbb-linux-py312.lock"),
+      "# lock v2\n"
+    );
+    git("add", ".");
+    git("commit", "-qm", "second");
+    const sha2 = git("rev-parse", "HEAD");
+
+    const runInstall = (sha: string) =>
+      spawnSync("bash", [join(repo, "infra/openbb/rig/install.sh"), sha], {
+        encoding: "utf8",
+        env: {
+          HOME: host.home,
+          PATH: `${bin}:/usr/bin:/bin`,
+        },
+      });
+
+    // 1. Fresh install creates and locks the detached worktree.
+    const fresh = runInstall(sha1);
+    expect(fresh.status, fresh.stderr).toBe(0);
+    expect(
+      spawnSync("git", ["-C", checkout, "rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).stdout.trim()
+    ).toBe(sha1);
+    expect(git("worktree", "list", "--porcelain")).toContain(
+      "locked Live deploy worktree for vertex-openbb.service"
+    );
+
+    // Bulk cleanup (`git worktree remove --force`) refuses to delete the locked checkout.
+    const forcedRemove = spawnSync(
+      "git",
+      ["-C", repo, "worktree", "remove", "--force", checkout],
+      { encoding: "utf8" }
+    );
+    expect(forcedRemove.status).not.toBe(0);
+    expect(existsSync(checkout)).toBe(true);
+
+    // 2. Re-install on an already-locked worktree succeeds and updates the SHA.
+    const upgrade = runInstall(sha2);
+    expect(upgrade.status, upgrade.stderr).toBe(0);
+    expect(
+      spawnSync("git", ["-C", checkout, "rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).stdout.trim()
+    ).toBe(sha2);
+    expect(git("worktree", "list", "--porcelain")).toContain(
+      "locked Live deploy worktree for vertex-openbb.service"
+    );
+
+    // 3. Re-install on an existing unlocked worktree re-locks it.
+    git("worktree", "unlock", checkout);
+    expect(git("worktree", "list", "--porcelain")).not.toContain("locked");
+    const relock = runInstall(sha2);
+    expect(relock.status, relock.stderr).toBe(0);
+    expect(git("worktree", "list", "--porcelain")).toContain(
+      "locked Live deploy worktree for vertex-openbb.service"
+    );
+
+    // 4. Recovery after manual removal of a locked checkout unlocks, prunes, recreates, and relocks.
+    rmSync(checkout, { force: true, recursive: true });
+    const recovered = runInstall(sha2);
+    expect(recovered.status, recovered.stderr).toBe(0);
+    expect(existsSync(checkout)).toBe(true);
+    expect(git("worktree", "list", "--porcelain")).toContain(
+      "locked Live deploy worktree for vertex-openbb.service"
+    );
   });
 });

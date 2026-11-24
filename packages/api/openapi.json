@@ -106567,10 +106567,10 @@
                         }
                       },
                       "required": [
+                        "ibkrLimit",
+                        "ibkrRecent",
                         "quantDataFree",
                         "quantDataReserve",
-                        "ibkrRecent",
-                        "ibkrLimit",
                         "runSeconds"
                       ],
                       "type": "object"
@@ -106642,12 +106642,12 @@
                           }
                         },
                         "required": [
-                          "symbol",
+                          "events",
+                          "items",
+                          "message",
                           "source",
                           "status",
-                          "items",
-                          "events",
-                          "message"
+                          "symbol"
                         ],
                         "type": "object"
                       },
@@ -106656,11 +106656,11 @@
                   },
                   "required": [
                     "at",
+                    "budget",
                     "busy",
                     "dryRun",
-                    "runs",
-                    "budget",
-                    "pruned"
+                    "pruned",
+                    "runs"
                   ],
                   "type": "object"
                 }
@@ -106983,11 +106983,11 @@
                         }
                       },
                       "required": [
-                        "state",
+                        "detail",
                         "direction",
                         "label",
-                        "detail",
-                        "since"
+                        "since",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -107039,12 +107039,12 @@
                         }
                       },
                       "required": [
-                        "ticker",
+                        "detail",
+                        "oldestUnreadAt",
                         "result",
                         "storedPrints",
-                        "unreadRanges",
-                        "oldestUnreadAt",
-                        "detail"
+                        "ticker",
+                        "unreadRanges"
                       ],
                       "type": "object"
                     },
@@ -107084,9 +107084,9 @@
                             },
                             "required": [
                               "at",
+                              "detail",
                               "direction",
-                              "price",
-                              "detail"
+                              "price"
                             ],
                             "type": "object"
                           },
@@ -107128,8 +107128,8 @@
                           },
                           "required": [
                             "seenSeconds",
-                            "windowSeconds",
-                            "share"
+                            "share",
+                            "windowSeconds"
                           ],
                           "type": "object"
                         },
@@ -107164,10 +107164,10 @@
                               }
                             },
                             "required": [
-                              "minute",
                               "buyVolume",
-                              "sellVolume",
-                              "coveredSeconds"
+                              "coveredSeconds",
+                              "minute",
+                              "sellVolume"
                             ],
                             "type": "object"
                           },
@@ -107214,9 +107214,9 @@
                           },
                           "required": [
                             "buyVolume",
-                            "sellVolume",
+                            "cumulativeFrom",
                             "netVolume",
-                            "cumulativeFrom"
+                            "sellVolume"
                           ],
                           "type": "object"
                         },
@@ -107265,10 +107265,10 @@
                             },
                             "required": [
                               "at",
-                              "side",
-                              "size",
                               "price",
-                              "signing"
+                              "side",
+                              "signing",
+                              "size"
                             ],
                             "type": "object"
                           },
@@ -107277,16 +107277,16 @@
                         }
                       },
                       "required": [
-                        "symbol",
-                        "limitSize",
-                        "signing",
+                        "absorptions",
                         "capture",
                         "coverage",
-                        "sums",
-                        "trades",
-                        "totalTrades",
+                        "limitSize",
                         "minutes",
-                        "absorptions"
+                        "signing",
+                        "sums",
+                        "symbol",
+                        "totalTrades",
+                        "trades"
                       ],
                       "type": "object"
                     },
@@ -107354,12 +107354,12 @@
                           }
                         },
                         "required": [
-                          "source",
-                          "instrument",
-                          "state",
-                          "lastOkAt",
                           "ageSeconds",
-                          "message"
+                          "instrument",
+                          "lastOkAt",
+                          "message",
+                          "source",
+                          "state"
                         ],
                         "type": "object"
                       },
@@ -107442,8 +107442,8 @@
                             }
                           },
                           "required": [
-                            "numerator",
                             "denominator",
+                            "numerator",
                             "rows"
                           ],
                           "type": "object"
@@ -107537,19 +107537,19 @@
                         }
                       },
                       "required": [
-                        "instrument",
-                        "state",
-                        "noDataReason",
-                        "direction",
-                        "label",
-                        "detail",
-                        "since",
                         "asOf",
-                        "ratio",
+                        "detail",
+                        "direction",
                         "enterRatio",
-                        "windowStart",
-                        "windowEnd",
                         "inputs",
+                        "instrument",
+                        "label",
+                        "noDataReason",
+                        "ratio",
+                        "since",
+                        "state",
+                        "windowEnd",
+                        "windowStart",
                         "hold",
                         "trades"
                       ],
@@ -107603,12 +107603,12 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "windowMinutes",
                         "enterRatio",
                         "exitRatio",
-                        "minMinutes",
                         "minBuckets",
+                        "minMinutes",
+                        "version",
+                        "windowMinutes",
                         "maxMissingMinutes",
                         "minCoveredSeconds",
                         "minTrades"
@@ -107685,12 +107685,12 @@
                             }
                           },
                           "required": [
-                            "ticker",
-                            "sessionOpen",
+                            "previousClose",
                             "sessionHigh",
                             "sessionLow",
-                            "previousClose",
-                            "source"
+                            "sessionOpen",
+                            "source",
+                            "ticker"
                           ],
                           "type": "object"
                         },
@@ -107819,11 +107819,11 @@
                                 }
                               },
                               "required": [
+                                "longer",
                                 "minute",
                                 "total",
-                                "zeroDte",
-                                "longer",
-                                "underlyingPrice"
+                                "underlyingPrice",
+                                "zeroDte"
                               ],
                               "type": "object"
                             },
@@ -107890,10 +107890,10 @@
                                       }
                                     },
                                     "required": [
-                                      "netCallPremiumUsd",
-                                      "netPutPremiumUsd",
                                       "callMinusPutUsd",
+                                      "netCallPremiumUsd",
                                       "netCallVolume",
+                                      "netPutPremiumUsd",
                                       "netPutVolume"
                                     ],
                                     "type": "object"
@@ -107925,10 +107925,10 @@
                                       }
                                     },
                                     "required": [
-                                      "netCallPremiumUsd",
-                                      "netPutPremiumUsd",
                                       "callMinusPutUsd",
+                                      "netCallPremiumUsd",
                                       "netCallVolume",
+                                      "netPutPremiumUsd",
                                       "netPutVolume"
                                     ],
                                     "type": "object"
@@ -107960,10 +107960,10 @@
                                       }
                                     },
                                     "required": [
-                                      "netCallPremiumUsd",
-                                      "netPutPremiumUsd",
                                       "callMinusPutUsd",
+                                      "netCallPremiumUsd",
                                       "netCallVolume",
+                                      "netPutPremiumUsd",
                                       "netPutVolume"
                                     ],
                                     "type": "object"
@@ -107976,24 +107976,24 @@
                             },
                             "required": [
                               "cumulativeFrom",
+                              "longer",
                               "total",
-                              "zeroDte",
-                              "longer"
+                              "zeroDte"
                             ],
                             "type": "object"
                           }
                         },
                         "required": [
-                          "ticker",
-                          "role",
                           "asOf",
                           "filterProfile",
-                          "totals",
-                          "partsStatus",
                           "partsDetail",
+                          "partsStatus",
+                          "points",
+                          "role",
                           "slopeUsdPerMinute",
                           "slopeWindowMinutes",
-                          "points"
+                          "ticker",
+                          "totals"
                         ],
                         "type": "object"
                       },
@@ -108088,8 +108088,8 @@
                             }
                           },
                           "required": [
-                            "numerator",
                             "denominator",
+                            "numerator",
                             "rows"
                           ],
                           "type": "object"
@@ -108187,22 +108187,22 @@
                         }
                       },
                       "required": [
-                        "instrument",
-                        "state",
-                        "noDataReason",
-                        "direction",
-                        "label",
-                        "detail",
-                        "since",
                         "asOf",
-                        "ratio",
+                        "detail",
+                        "direction",
                         "enterRatio",
-                        "windowStart",
-                        "windowEnd",
                         "inputs",
-                        "primaryTicker",
+                        "instrument",
+                        "label",
+                        "noDataReason",
+                        "ratio",
+                        "since",
+                        "state",
+                        "windowEnd",
+                        "windowStart",
+                        "checkState",
                         "checkTicker",
-                        "checkState"
+                        "primaryTicker"
                       ],
                       "type": "object"
                     },
@@ -108240,12 +108240,12 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "windowMinutes",
                         "enterRatio",
                         "exitRatio",
+                        "minBuckets",
                         "minMinutes",
-                        "minBuckets"
+                        "version",
+                        "windowMinutes"
                       ],
                       "type": "object"
                     },
@@ -108284,10 +108284,10 @@
                       },
                       "required": [
                         "date",
-                        "open",
-                        "optionsOpen",
+                        "event",
                         "futuresOpen",
-                        "event"
+                        "open",
+                        "optionsOpen"
                       ],
                       "type": "object"
                     },
@@ -108339,33 +108339,33 @@
                         }
                       },
                       "required": [
+                        "agreementDetail",
+                        "detail",
+                        "rulesVersion",
                         "status",
                         "strategyId",
-                        "testedOn",
-                        "rulesVersion",
-                        "detail",
-                        "agreementDetail"
+                        "testedOn"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "schemaVersion",
-                    "group",
-                    "generatedAt",
-                    "session",
-                    "levels",
-                    "rules",
-                    "futuresRules",
-                    "futures",
-                    "options",
                     "agreement",
-                    "netDrift",
-                    "deepTrades",
                     "crossCheck",
-                    "study",
+                    "deepTrades",
                     "freshness",
-                    "notes"
+                    "futures",
+                    "futuresRules",
+                    "generatedAt",
+                    "group",
+                    "levels",
+                    "netDrift",
+                    "notes",
+                    "options",
+                    "rules",
+                    "schemaVersion",
+                    "session",
+                    "study"
                   ],
                   "type": "object"
                 }
@@ -108628,34 +108628,7 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "symbol",
-            "required": true,
-            "schema": {
-              "enum": [
-                "SPY",
-                "ES",
-                "QQQ",
-                "NQ"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "from",
-            "required": true,
-            "schema": {
-              "maxLength": 40,
-              "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
-            "name": "to",
             "required": true,
             "schema": {
               "maxLength": 40,
@@ -108701,6 +108674,33 @@
               "maximum": 200,
               "minimum": 1,
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES",
+                "QQQ",
+                "NQ"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
             }
           }
         ],
@@ -108780,12 +108780,12 @@
                         },
                         "required": [
                           "at",
-                          "kind",
+                          "detail",
                           "direction",
-                          "price",
-                          "size",
+                          "kind",
                           "premium",
-                          "detail"
+                          "price",
+                          "size"
                         ],
                         "type": "object"
                       },
@@ -108817,11 +108817,11 @@
                     }
                   },
                   "required": [
+                    "events",
+                    "from",
                     "schemaVersion",
                     "symbol",
-                    "from",
                     "to",
-                    "events",
                     "truncated"
                   ],
                   "type": "object"
@@ -109179,13 +109179,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -109226,13 +109226,13 @@
                           }
                         },
                         "required": [
-                          "minute",
-                          "net",
                           "calls",
-                          "puts",
+                          "minute",
                           "minuteNet",
+                          "net",
+                          "price",
                           "prints",
-                          "price"
+                          "puts"
                         ],
                         "type": "object"
                       },
@@ -109259,9 +109259,9 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "rate",
                         "dividendYield",
+                        "rate",
+                        "version",
                         "volFallback"
                       ],
                       "type": "object"
@@ -109398,17 +109398,17 @@
                         }
                       },
                       "required": [
-                        "prints",
-                        "signed",
-                        "notSigned",
-                        "notPriced",
-                        "ivAdjusted",
-                        "net",
                         "calls",
-                        "puts",
                         "gross",
+                        "ivAdjusted",
+                        "largestFall",
                         "largestRise",
-                        "largestFall"
+                        "net",
+                        "notPriced",
+                        "notSigned",
+                        "prints",
+                        "puts",
+                        "signed"
                       ],
                       "type": "object"
                     },
@@ -109436,8 +109436,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -109448,17 +109448,17 @@
                     }
                   },
                   "required": [
+                    "options",
+                    "points",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "storedUntil",
                     "symbol",
                     "ticker",
-                    "session",
-                    "rules",
-                    "options",
-                    "storedUntil",
-                    "truncated",
-                    "unread",
                     "totals",
-                    "points"
+                    "truncated",
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -110005,13 +110005,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -110552,6 +110552,907 @@
         ]
       }
     },
+    "/flow/option-bubbles": {
+      "get": {
+        "operationId": "flow.optionBubbles",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "minPremiumUsd",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": 100000
+                },
+                {
+                  "const": 250000
+                },
+                {
+                  "const": 500000
+                },
+                {
+                  "const": 1000000
+                },
+                {
+                  "const": "100000"
+                },
+                {
+                  "const": "250000"
+                },
+                {
+                  "const": "500000"
+                },
+                {
+                  "const": "1000000"
+                }
+              ],
+              "default": 250000
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bubbles": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "consolidation": {
+                            "enum": [
+                              "sweep",
+                              "block",
+                              "split",
+                              "other"
+                            ],
+                            "type": "string"
+                          },
+                          "contract": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "directionalSign": {
+                            "anyOf": [
+                              {
+                                "const": -1
+                              },
+                              {
+                                "const": 0
+                              },
+                              {
+                                "const": 1
+                              }
+                            ]
+                          },
+                          "dte": {
+                            "anyOf": [
+                              {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiry": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "goldenSweep": {
+                            "type": "boolean"
+                          },
+                          "id": {
+                            "maxLength": 64,
+                            "type": "string"
+                          },
+                          "iv": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "moneyness": {
+                            "enum": [
+                              "itm",
+                              "atm",
+                              "otm",
+                              "not_reported"
+                            ],
+                            "type": "string"
+                          },
+                          "opening": {
+                            "type": "boolean"
+                          },
+                          "premium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "price": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "right": {
+                            "enum": [
+                              "call",
+                              "put"
+                            ],
+                            "type": "string"
+                          },
+                          "sentiment": {
+                            "enum": [
+                              "bullish",
+                              "bearish",
+                              "neutral"
+                            ],
+                            "type": "string"
+                          },
+                          "side": {
+                            "enum": [
+                              "above_ask",
+                              "ask",
+                              "mid",
+                              "bid",
+                              "below_bid",
+                              "not_classified"
+                            ],
+                            "type": "string"
+                          },
+                          "size": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "strike": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "underlyingPrice": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "unusual": {
+                            "type": "boolean"
+                          },
+                          "volumeOverOi": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "consolidation",
+                          "contract",
+                          "directionalSign",
+                          "dte",
+                          "expiry",
+                          "goldenSweep",
+                          "id",
+                          "iv",
+                          "moneyness",
+                          "opening",
+                          "premium",
+                          "price",
+                          "right",
+                          "sentiment",
+                          "side",
+                          "size",
+                          "strike",
+                          "underlyingPrice",
+                          "unusual",
+                          "volumeOverOi"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 120,
+                      "type": "array"
+                    },
+                    "gaps": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "end": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "start": {
+                            "maxLength": 40,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "end",
+                          "start"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 50,
+                      "type": "array"
+                    },
+                    "minPremiumUsd": {
+                      "anyOf": [
+                        {
+                          "const": 100000
+                        },
+                        {
+                          "const": 250000
+                        },
+                        {
+                          "const": 500000
+                        },
+                        {
+                          "const": 1000000
+                        }
+                      ]
+                    },
+                    "options": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ageSeconds",
+                        "lastOkAt",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen",
+                        "source",
+                        "state"
+                      ],
+                      "type": "object"
+                    },
+                    "pricePoints": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "minute": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "unread": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "minute",
+                          "price",
+                          "unread"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 405,
+                      "type": "array"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "defaultMinPremiumUsd": {
+                          "anyOf": [
+                            {
+                              "const": 100000
+                            },
+                            {
+                              "const": 250000
+                            },
+                            {
+                              "const": 500000
+                            },
+                            {
+                              "const": 1000000
+                            }
+                          ]
+                        },
+                        "maxBubbles": {
+                          "maximum": 120,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "retentionDays": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "storedMinPremiumUsd": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "version": {
+                          "const": "option-bubbles.v1"
+                        }
+                      },
+                      "required": [
+                        "defaultMinPremiumUsd",
+                        "maxBubbles",
+                        "retentionDays",
+                        "storedMinPremiumUsd",
+                        "version"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-option-bubbles.v1"
+                    },
+                    "session": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sessionEnd": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sessionStart": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "storedUntil": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "enum": [
+                        "SPY",
+                        "ES"
+                      ],
+                      "type": "string"
+                    },
+                    "ticker": {
+                      "enum": [
+                        "SPY",
+                        "SPX",
+                        "QQQ",
+                        "NDX"
+                      ],
+                      "type": "string"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "askSidePremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bearishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bidSidePremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bullishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "callBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "callPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "latestPrice": {
+                          "anyOf": [
+                            {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxBubblePremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "plottedBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "putBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "putPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "sessionGrossPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "sessionPrints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "shownBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "unplottedBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "unsignedPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "askSidePremium",
+                        "bearishPremium",
+                        "bidSidePremium",
+                        "bullishPremium",
+                        "callBubbles",
+                        "callPremium",
+                        "latestPrice",
+                        "maxBubblePremium",
+                        "plottedBubbles",
+                        "putBubbles",
+                        "putPremium",
+                        "sessionGrossPremium",
+                        "sessionPrints",
+                        "shownBubbles",
+                        "unplottedBubbles",
+                        "unsignedPremium"
+                      ],
+                      "type": "object"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "unread": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "from": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "ranges": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "to": {
+                              "maxLength": 40,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "from",
+                            "ranges",
+                            "to"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "bubbles",
+                    "gaps",
+                    "minPremiumUsd",
+                    "options",
+                    "pricePoints",
+                    "rules",
+                    "schemaVersion",
+                    "session",
+                    "sessionEnd",
+                    "sessionStart",
+                    "storedUntil",
+                    "symbol",
+                    "ticker",
+                    "totals",
+                    "truncated",
+                    "unread"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "SPY or ES: big option prints as bubbles on the intraday underlying price chart over the newest options session (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
     "/flow/put-call-ratio": {
       "get": {
         "operationId": "flow.putCallRatio",
@@ -110656,18 +111557,18 @@
                           }
                         },
                         "required": [
-                          "session",
-                          "prints",
-                          "callPrints",
-                          "putPrints",
                           "callPremium",
-                          "putPremium",
+                          "callPrints",
                           "callVolume",
-                          "putVolume",
+                          "incomplete",
                           "premiumRatio",
-                          "volumeRatio",
                           "price",
-                          "incomplete"
+                          "prints",
+                          "putPremium",
+                          "putPrints",
+                          "putVolume",
+                          "session",
+                          "volumeRatio"
                         ],
                         "type": "object"
                       },
@@ -110750,13 +111651,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -110825,15 +111726,15 @@
                           }
                         },
                         "required": [
+                          "callPremium",
+                          "callVolume",
                           "minute",
                           "premiumRatio",
-                          "volumeRatio",
-                          "callPremium",
-                          "putPremium",
-                          "callVolume",
-                          "putVolume",
+                          "price",
                           "prints",
-                          "price"
+                          "putPremium",
+                          "putVolume",
+                          "volumeRatio"
                         ],
                         "type": "object"
                       },
@@ -110860,10 +111761,10 @@
                         }
                       },
                       "required": [
-                        "version",
                         "minPremiumUsd",
+                        "parity",
                         "retentionDays",
-                        "parity"
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -111068,19 +111969,19 @@
                         }
                       },
                       "required": [
-                        "prints",
-                        "callPrints",
-                        "putPrints",
                         "callPremium",
-                        "putPremium",
+                        "callPrints",
                         "callVolume",
-                        "putVolume",
-                        "premiumRatio",
-                        "volumeRatio",
                         "premiumHigh",
                         "premiumLow",
+                        "premiumRatio",
+                        "prints",
+                        "putPremium",
+                        "putPrints",
+                        "putVolume",
                         "volumeHigh",
-                        "volumeLow"
+                        "volumeLow",
+                        "volumeRatio"
                       ],
                       "type": "object"
                     },
@@ -111105,8 +112006,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -111117,17 +112018,17 @@
                     }
                   },
                   "required": [
+                    "days",
+                    "options",
+                    "points",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "storedUntil",
                     "symbol",
                     "ticker",
-                    "session",
-                    "rules",
-                    "options",
-                    "storedUntil",
-                    "unread",
                     "totals",
-                    "points",
-                    "days"
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -111390,6 +112291,19 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 390,
+              "minimum": 15,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
             "name": "symbol",
             "required": true,
             "schema": {
@@ -111400,19 +112314,6 @@
                 "NQ"
               ],
               "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
-            "name": "minutes",
-            "required": false,
-            "schema": {
-              "default": 120,
-              "maximum": 390,
-              "minimum": 15,
-              "type": "integer"
             }
           }
         ],
@@ -111473,11 +112374,11 @@
                               }
                             },
                             "required": [
+                              "detail",
                               "key",
                               "label",
-                              "vote",
                               "value",
-                              "detail"
+                              "vote"
                             ],
                             "type": "object"
                           },
@@ -111504,12 +112405,12 @@
                         }
                       },
                       "required": [
-                        "summary",
-                        "label",
-                        "bullish",
                         "bearish",
+                        "bullish",
+                        "factors",
                         "known",
-                        "factors"
+                        "label",
+                        "summary"
                       ],
                       "type": "object"
                     },
@@ -111582,12 +112483,12 @@
                         },
                         "required": [
                           "at",
-                          "kind",
+                          "detail",
                           "direction",
-                          "price",
-                          "size",
+                          "kind",
                           "premium",
-                          "detail"
+                          "price",
+                          "size"
                         ],
                         "type": "object"
                       },
@@ -111671,13 +112572,13 @@
                           }
                         },
                         "required": [
-                          "source",
-                          "state",
-                          "lastOkAt",
                           "ageSeconds",
+                          "lastOkAt",
                           "lastStatus",
                           "message",
-                          "sessionOpen"
+                          "sessionOpen",
+                          "source",
+                          "state"
                         ],
                         "type": "object"
                       },
@@ -111760,10 +112661,10 @@
                                 }
                               },
                               "required": [
-                                "flip",
                                 "callWall",
-                                "putWall",
-                                "maxPain"
+                                "flip",
+                                "maxPain",
+                                "putWall"
                               ],
                               "type": "object"
                             },
@@ -111843,10 +112744,10 @@
                                     }
                                   },
                                   "required": [
-                                    "flip",
                                     "callWall",
-                                    "putWall",
-                                    "maxPain"
+                                    "flip",
+                                    "maxPain",
+                                    "putWall"
                                   ],
                                   "type": "object"
                                 },
@@ -111887,16 +112788,16 @@
                           },
                           "required": [
                             "at",
-                            "ticker",
-                            "spot",
                             "basis",
-                            "regime",
-                            "totalGex",
-                            "netDex",
-                            "zeroDteShare",
                             "ivRegime",
                             "levels",
-                            "symbolLevels"
+                            "netDex",
+                            "regime",
+                            "spot",
+                            "symbolLevels",
+                            "ticker",
+                            "totalGex",
+                            "zeroDteShare"
                           ],
                           "type": "object"
                         },
@@ -111994,22 +112895,22 @@
                           }
                         },
                         "required": [
-                          "minute",
-                          "trades",
-                          "volume",
+                          "bearishPremium",
+                          "bookPressure",
+                          "bullishPremium",
                           "buyVolume",
-                          "sellVolume",
-                          "delta",
-                          "cvd",
-                          "vwap",
+                          "callPremium",
                           "close",
                           "coveredSeconds",
-                          "bookPressure",
+                          "cvd",
+                          "delta",
+                          "minute",
                           "optionTrades",
-                          "callPremium",
                           "putPremium",
-                          "bullishPremium",
-                          "bearishPremium"
+                          "sellVolume",
+                          "trades",
+                          "volume",
+                          "vwap"
                         ],
                         "type": "object"
                       },
@@ -112203,21 +113104,21 @@
                             },
                             "required": [
                               "at",
-                              "contract",
-                              "right",
-                              "strike",
-                              "expiry",
-                              "size",
-                              "price",
-                              "premium",
-                              "side",
-                              "sentiment",
                               "consolidation",
-                              "moneyness",
-                              "unusual",
+                              "contract",
+                              "expiry",
                               "goldenSweep",
-                              "volumeOverOi",
-                              "opening"
+                              "moneyness",
+                              "opening",
+                              "premium",
+                              "price",
+                              "right",
+                              "sentiment",
+                              "side",
+                              "size",
+                              "strike",
+                              "unusual",
+                              "volumeOverOi"
                             ],
                             "type": "object"
                           },
@@ -112251,25 +113152,25 @@
                         }
                       },
                       "required": [
-                        "ticker",
-                        "trades",
-                        "callPremium",
-                        "putPremium",
-                        "putCallPremiumRatio",
-                        "bullishPremium",
-                        "bearishPremium",
                         "askSidePremium",
+                        "bearishPremium",
                         "bidSidePremium",
-                        "sweeps",
-                        "sweepPremium",
-                        "blocks",
                         "blockPremium",
+                        "blocks",
+                        "bullishPremium",
+                        "callPremium",
+                        "openingPremiumShare",
+                        "otmPremiumShare",
+                        "putCallPremiumRatio",
+                        "putPremium",
+                        "sweepPremium",
+                        "sweeps",
+                        "ticker",
+                        "topPrints",
+                        "trades",
                         "unusual",
                         "volumeOverOi",
-                        "otmPremiumShare",
-                        "zeroDtePremiumShare",
-                        "openingPremiumShare",
-                        "topPrints"
+                        "zeroDtePremiumShare"
                       ],
                       "type": "object"
                     },
@@ -112330,13 +113231,13 @@
                                 }
                               },
                               "required": [
-                                "at",
-                                "bestBid",
-                                "bestAsk",
-                                "bidSize",
                                 "askSize",
-                                "pressure",
-                                "levels"
+                                "at",
+                                "bestAsk",
+                                "bestBid",
+                                "bidSize",
+                                "levels",
+                                "pressure"
                               ],
                               "type": "object"
                             },
@@ -112409,16 +113310,16 @@
                         }
                       },
                       "required": [
-                        "volume",
+                        "book",
+                        "coveredSeconds",
                         "delta",
                         "deltaRatio",
-                        "coveredSeconds",
-                        "windowSeconds",
                         "largePrints",
-                        "offExchangeShare",
                         "lastPrice",
+                        "offExchangeShare",
+                        "volume",
                         "vwap",
-                        "book"
+                        "windowSeconds"
                       ],
                       "type": "object"
                     },
@@ -112444,19 +113345,19 @@
                     }
                   },
                   "required": [
+                    "confluence",
+                    "events",
+                    "freshness",
+                    "generatedAt",
+                    "gex",
+                    "minutes",
+                    "notes",
+                    "optionsFlow",
+                    "orderFlow",
                     "schemaVersion",
                     "symbol",
-                    "generatedAt",
-                    "windowStart",
                     "windowEnd",
-                    "freshness",
-                    "minutes",
-                    "orderFlow",
-                    "optionsFlow",
-                    "gex",
-                    "events",
-                    "confluence",
-                    "notes"
+                    "windowStart"
                   ],
                   "type": "object"
                 }
@@ -112833,15 +113734,15 @@
                           }
                         },
                         "required": [
-                          "strike",
-                          "slotIndex",
-                          "netPremium",
-                          "bullishPremium",
                           "bearishPremium",
+                          "bullishPremium",
                           "callPremium",
-                          "putPremium",
                           "grossPremium",
+                          "netPremium",
                           "prints",
+                          "putPremium",
+                          "slotIndex",
+                          "strike",
                           "unsignedPrints",
                           "volume"
                         ],
@@ -112926,13 +113827,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -112971,11 +113872,11 @@
                         }
                       },
                       "required": [
-                        "version",
+                        "defaultBucketMinutes",
+                        "maxStrikes",
                         "minPremiumUsd",
                         "retentionDays",
-                        "maxStrikes",
-                        "defaultBucketMinutes"
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -113056,18 +113957,18 @@
                           }
                         },
                         "required": [
-                          "index",
-                          "start",
-                          "end",
-                          "netPremium",
-                          "bullishPremium",
                           "bearishPremium",
+                          "bullishPremium",
+                          "end",
                           "grossPremium",
-                          "prints",
-                          "unsignedPrints",
-                          "volume",
+                          "index",
+                          "netPremium",
                           "price",
-                          "unread"
+                          "prints",
+                          "start",
+                          "unread",
+                          "unsignedPrints",
+                          "volume"
                         ],
                         "type": "object"
                       },
@@ -113133,14 +114034,14 @@
                           }
                         },
                         "required": [
-                          "strike",
-                          "netPremium",
-                          "bullishPremium",
                           "bearishPremium",
+                          "bullishPremium",
                           "callPremium",
-                          "putPremium",
                           "grossPremium",
+                          "netPremium",
                           "prints",
+                          "putPremium",
+                          "strike",
                           "unsignedPrints",
                           "volume"
                         ],
@@ -113246,22 +114147,22 @@
                         }
                       },
                       "required": [
-                        "netPremium",
-                        "bullishPremium",
                         "bearishPremium",
+                        "bullishPremium",
                         "callPremium",
-                        "putPremium",
                         "grossPremium",
-                        "prints",
-                        "unsignedPrints",
-                        "volume",
-                        "totalStrikes",
-                        "shownStrikes",
-                        "omittedStrikes",
+                        "latestPrice",
+                        "netPremium",
                         "omittedGrossPremium",
                         "omittedNetPremium",
                         "omittedPrints",
-                        "latestPrice"
+                        "omittedStrikes",
+                        "prints",
+                        "putPremium",
+                        "shownStrikes",
+                        "totalStrikes",
+                        "unsignedPrints",
+                        "volume"
                       ],
                       "type": "object"
                     },
@@ -113286,8 +114187,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -113298,19 +114199,19 @@
                     }
                   },
                   "required": [
+                    "bucketMinutes",
+                    "cells",
+                    "options",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "slots",
+                    "storedUntil",
+                    "strikes",
                     "symbol",
                     "ticker",
-                    "session",
-                    "bucketMinutes",
-                    "storedUntil",
-                    "options",
-                    "unread",
-                    "rules",
-                    "slots",
-                    "strikes",
-                    "cells",
-                    "totals"
+                    "totals",
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -113573,6 +114474,19 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 390,
+              "minimum": 15,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
             "name": "symbol",
             "required": true,
             "schema": {
@@ -113581,19 +114495,6 @@
                 "NQ"
               ],
               "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
-            "name": "minutes",
-            "required": false,
-            "schema": {
-              "default": 120,
-              "maximum": 390,
-              "minimum": 15,
-              "type": "integer"
             }
           }
         ],
@@ -113656,14 +114557,14 @@
                           }
                         },
                         "required": [
+                          "burstSeconds",
+                          "contracts",
+                          "coveredSeconds",
+                          "peakContracts",
+                          "peakTrades",
                           "start",
                           "state",
-                          "coveredSeconds",
-                          "trades",
-                          "contracts",
-                          "peakTrades",
-                          "peakContracts",
-                          "burstSeconds"
+                          "trades"
                         ],
                         "type": "object"
                       },
@@ -113714,12 +114615,12 @@
                           }
                         },
                         "required": [
-                          "start",
-                          "seconds",
-                          "peakTrades",
-                          "contracts",
                           "baseline",
-                          "multiple"
+                          "contracts",
+                          "multiple",
+                          "peakTrades",
+                          "seconds",
+                          "start"
                         ],
                         "type": "object"
                       },
@@ -113765,11 +114666,11 @@
                         }
                       },
                       "required": [
-                        "version",
                         "baselineSeconds",
+                        "floorTrades",
                         "minBaselineCoveredSeconds",
                         "multiple",
-                        "floorTrades"
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -113870,13 +114771,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -113900,25 +114801,25 @@
                         }
                       },
                       "required": [
+                        "bursts",
                         "coveredSeconds",
-                        "evaluatedSeconds",
-                        "bursts"
+                        "evaluatedSeconds"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "schemaVersion",
-                    "symbol",
-                    "contract",
                     "axisStart",
-                    "bucketSeconds",
-                    "storedUntil",
-                    "rules",
-                    "tape",
-                    "totals",
                     "bars",
-                    "bursts"
+                    "bucketSeconds",
+                    "bursts",
+                    "contract",
+                    "rules",
+                    "schemaVersion",
+                    "storedUntil",
+                    "symbol",
+                    "tape",
+                    "totals"
                   ],
                   "type": "object"
                 }
@@ -114493,13 +115394,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -181857,8 +182758,26 @@
                               }
                             ]
                           },
+                          "dataDate": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "dataRevision": {
                             "pattern": "^[0-9a-f]{64}$",
+                            "type": "string"
+                          },
+                          "dataSource": {
+                            "enum": [
+                              "market_bars",
+                              "revision"
+                            ],
                             "type": "string"
                           },
                           "exchange": {
@@ -181870,6 +182789,62 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "freshness": {
+                            "properties": {
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "expectedSession": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "isStale": {
+                                "type": "boolean"
+                              },
+                              "maxSessionsBehind": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "sessionsBehind": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "enum": [
+                                  "fresh",
+                                  "stale",
+                                  "no_date"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "asOf",
+                              "expectedSession",
+                              "isStale",
+                              "maxSessionsBehind",
+                              "sessionsBehind",
+                              "status"
+                            ],
+                            "type": "object"
                           },
                           "id": {
                             "pattern": "^[A-Z0-9]{1,10}$",
@@ -181912,8 +182887,11 @@
                           "assetType",
                           "companyResearch",
                           "currency",
+                          "dataDate",
                           "dataRevision",
+                          "dataSource",
                           "exchange",
+                          "freshness",
                           "id",
                           "identityStatus",
                           "importedAt",
@@ -182893,13 +183871,21 @@
                             "lastDate": {
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
+                            },
+                            "source": {
+                              "enum": [
+                                "market_bars",
+                                "revision"
+                              ],
+                              "type": "string"
                             }
                           },
                           "required": [
                             "collectedAt",
                             "count",
                             "firstDate",
-                            "lastDate"
+                            "lastDate",
+                            "source"
                           ],
                           "type": "object"
                         },
@@ -182931,6 +183917,324 @@
                         "status"
                       ],
                       "type": "object"
+                    },
+                    "current": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "asOf": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "atr14": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "latestClose": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maximumObservedHigh": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "date": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "drawdownPct": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "price": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "date",
+                                    "drawdownPct",
+                                    "price"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "range52Week": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "high": {
+                                      "type": "number"
+                                    },
+                                    "highDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "low": {
+                                      "type": "number"
+                                    },
+                                    "lowDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "sampleCount": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "high",
+                                    "highDate",
+                                    "low",
+                                    "lowDate",
+                                    "sampleCount"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "rsi14": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sampleCount": {
+                              "anyOf": [
+                                {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma150": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma20": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma200": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma200Slope": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "change": {
+                                      "type": "number"
+                                    },
+                                    "changePct": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "fromDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "toDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "change",
+                                    "changePct",
+                                    "fromDate",
+                                    "toDate"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma50": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "trendChecks": {
+                              "items": {
+                                "properties": {
+                                  "key": {
+                                    "enum": [
+                                      "closeAboveSma20",
+                                      "closeAboveSma50",
+                                      "closeAboveSma150",
+                                      "closeAboveSma200",
+                                      "sma50AboveSma150",
+                                      "sma50AboveSma200",
+                                      "sma150AboveSma200",
+                                      "sma200Rising20Sessions"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "passed": {
+                                    "anyOf": [
+                                      {
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "passed"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 8,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "asOf",
+                            "atr14",
+                            "latestClose",
+                            "rsi14",
+                            "sampleCount",
+                            "sma20",
+                            "sma50",
+                            "sma150",
+                            "sma200",
+                            "maximumObservedHigh",
+                            "range52Week",
+                            "sma200Slope",
+                            "trendChecks"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dataDate": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "dataRevision": {
                       "pattern": "^[0-9a-f]{64}$",
@@ -183065,12 +184369,73 @@
                         }
                       ]
                     },
+                    "freshness": {
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "expectedSession": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "isStale": {
+                          "type": "boolean"
+                        },
+                        "maxSessionsBehind": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "sessionsBehind": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "no_date"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "asOf",
+                        "expectedSession",
+                        "isStale",
+                        "maxSessionsBehind",
+                        "sessionsBehind",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
                     "method": {
                       "properties": {
                         "fibonacciWindowSessions": {
                           "exclusiveMinimum": 0,
                           "maximum": 9007199254740991,
                           "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "freshnessMaxSessionsBehind": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "pivotLookbackSessions": {
@@ -183159,6 +184524,7 @@
                       },
                       "required": [
                         "fibonacciWindowSessions",
+                        "freshnessMaxSessionsBehind",
                         "pivotLookbackSessions",
                         "version",
                         "volumeProfile",
@@ -183830,18 +185196,25 @@
                       "items": {
                         "type": "string"
                       },
-                      "maxItems": 10,
+                      "maxItems": 12,
                       "type": "array"
                     },
                     "weinstein": {
                       "anyOf": [
                         {
                           "properties": {
+                            "asOf": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
                             "completeWeeks": {
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991,
                               "minimum": -9007199254740991,
                               "type": "integer"
+                            },
+                            "isStale": {
+                              "type": "boolean"
                             },
                             "label": {
                               "type": "string"
@@ -183875,6 +185248,16 @@
                                 }
                               ]
                             },
+                            "staleReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "weekEnding": {
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
@@ -183884,11 +185267,14 @@
                             }
                           },
                           "required": [
+                            "asOf",
                             "completeWeeks",
+                            "isStale",
                             "label",
                             "sma30",
                             "sma30ChangePct",
                             "stage",
+                            "staleReason",
                             "weekEnding",
                             "weeklyClose"
                           ],
@@ -183903,8 +185289,11 @@
                   "required": [
                     "bars",
                     "check",
+                    "current",
+                    "dataDate",
                     "dataRevision",
                     "fibonacci",
+                    "freshness",
                     "method",
                     "pivots",
                     "recomputed",

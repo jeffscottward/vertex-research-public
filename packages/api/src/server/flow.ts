@@ -21,6 +21,8 @@ import {
   type FlowControlInput,
   type FlowHedgingPressureInput,
   type FlowLiquidityHeatmapParsedInput,
+  FLOW_OPTION_BUBBLES_MAX_BUBBLES,
+  type FlowOptionBubblesParsedInput,
   type FlowPutCallRatioInput,
   type FlowSnapshot,
   type FlowSnapshotParsedInput,
@@ -67,6 +69,10 @@ import {
   buildFlowLiquidityHeatmapFromRows,
   readFlowLiquidityHeatmapRows,
 } from "./flow-liquidity-heatmap.ts";
+import {
+  buildFlowOptionBubbles,
+  type FlowOptionBubblesRows,
+} from "./flow-option-bubbles.ts";
 import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
@@ -537,6 +543,62 @@ const strikeHeatmap = api.flow.strikeHeatmap
     return assemble(failures, buildFlowStrikeHeatmap, rows);
   });
 
+const readFlowOptionBubblesRows = async (
+  repository: FlowRepository,
+  input: FlowOptionBubblesParsedInput,
+  now: Date
+): Promise<FlowOptionBubblesRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  if (session === null) {
+    const samples = await repository.latestSamples(input.symbol, ["options"]);
+    return {
+      ...samples,
+      gaps: [],
+      minPremiumUsd: input.minPremiumUsd,
+      minutes: [],
+      now,
+      prints: [],
+      session: null,
+      symbol: input.symbol,
+    };
+  }
+  const range = optionsSessionRange(session);
+  const [minutes, prints, gaps, samples] = await Promise.all([
+    repository.readOptionPrintMinutes({ ...range, symbol: input.symbol }),
+    repository.readLargeOptionPrints({
+      ...range,
+      limit: FLOW_OPTION_BUBBLES_MAX_BUBBLES + 1,
+      minPremiumUsd: input.minPremiumUsd,
+      symbol: input.symbol,
+    }),
+    repository.optionGaps(input.symbol),
+    repository.latestSamples(input.symbol, ["options"]),
+  ]);
+  return {
+    ...samples,
+    gaps,
+    minPremiumUsd: input.minPremiumUsd,
+    minutes,
+    now,
+    prints,
+    session,
+    symbol: input.symbol,
+  };
+};
+
+const optionBubbles = api.flow.optionBubbles
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowOptionBubblesRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowOptionBubbles, rows);
+  });
+
 /** The stored study of the options-side rule, or not_tested. */
 const readFlowStudy = async (
   researchStudies: ResearchStudyRepository | undefined
@@ -787,6 +849,7 @@ export const flowRouter = {
   events,
   hedgingPressure,
   liquidityHeatmap,
+  optionBubbles,
   putCallRatio,
   snapshot,
   strikeHeatmap,
