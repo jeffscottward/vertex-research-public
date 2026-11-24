@@ -305,6 +305,7 @@ const REVIEWED_READS: readonly string[] = [
   "openbb.volContext",
   "optionsAnalytics.snapshot",
   "optionsChain.chain",
+  "optionsChain.expectedMove",
   "optionsChain.expiries",
   "optionsChain.snapshot",
   "optionsChain.spread",

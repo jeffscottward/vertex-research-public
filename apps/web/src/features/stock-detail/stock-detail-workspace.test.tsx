@@ -73,6 +73,7 @@ const spies = () => {
     analytics: pendingAnalytics(),
     chain: {
       chain: vi.fn(chain.chain),
+      expectedMove: vi.fn(chain.expectedMove),
       expiries: vi.fn(chain.expiries),
     } satisfies OptionsChainGateway,
     market: { bars: vi.fn(market.bars) } satisfies MarketDataGateway,
@@ -812,6 +813,52 @@ describe("chain request deadline", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("expected move on stock chart tab", () => {
+  it("shows ExpectedMoveBar by default, toggles off/on, and syncs expiry switches", async () => {
+    const gateways = spies();
+    const host = await mount(workspace("SPY", gateways));
+    const bar = host.querySelector("[data-expected-move-bar]");
+    expect(bar).not.toBeNull();
+    expect(bar?.textContent).toContain("±1σ move");
+    const expirySelect = host.querySelector<HTMLSelectElement>(
+      "[data-expected-move-expiry]"
+    );
+    expect(expirySelect).not.toBeNull();
+    const secondDate = expirySelect?.options[1]?.value ?? "";
+    expect(secondDate).not.toBe("");
+    await run(() => {
+      if (expirySelect) {
+        expirySelect.value = secondDate;
+        expirySelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    expect(gateways.chain.chain).toHaveBeenLastCalledWith({
+      expiry: secondDate,
+      symbol: "SPY",
+    });
+
+    const toggle = host.querySelector<HTMLInputElement>(
+      "[data-expected-move-toggle]"
+    )!;
+    expect(toggle.checked).toBe(true);
+    await run(() => toggle.click());
+    expect(host.querySelector("[data-expected-move-bar]")).toBeNull();
+    await run(() => toggle.click());
+    expect(host.querySelector("[data-expected-move-bar]")).not.toBeNull();
+
+    // Retry from ExpectedMoveBar re-requests the chain
+    const failed = spies();
+    const failHost = await mount(workspace("FAIL", failed));
+    const retryBtn = failHost.querySelector<HTMLButtonElement>(
+      "[data-expected-move-bar] button"
+    );
+    expect(retryBtn).not.toBeNull();
+    const beforeCalls = failed.chain.chain.mock.calls.length;
+    await run(() => retryBtn?.click());
+    expect(failed.chain.chain.mock.calls.length).toBe(beforeCalls + 1);
   });
 });
 

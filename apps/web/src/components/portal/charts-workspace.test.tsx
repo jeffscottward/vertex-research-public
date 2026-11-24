@@ -31,6 +31,7 @@ vi.mock("../../features/charts/market-chart.tsx", () => ({
 
 import type { OpenbbGateway } from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
+import { createFakeOptionsChainGateway } from "../../features/stock-detail/fake-gateways.ts";
 import type { BacktestsGateway } from "./agent-ops-client.tsx";
 import { ChartsWorkspace } from "./charts-workspace.tsx";
 import type { FlowEventsGateway } from "./flow-events-client.ts";
@@ -1482,5 +1483,35 @@ describe("ChartsWorkspace order-flow marks", () => {
     );
     expect(ivHistory).toHaveBeenCalledWith("SPY", 252);
     expect(host.querySelector('[data-iv-history="SPY"]')).not.toBeNull();
+  });
+
+  it("toggles expected move bands on a US equity chart and passes the cone to MarketBarsChart", async () => {
+    const fakeChain = createFakeOptionsChainGateway();
+    const expectedMove = vi.fn(fakeChain.expectedMove);
+    const market = marketGateway(async () => output());
+    const host = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={pendingFlowEventsGateway()}
+        jevVerdict={jevGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+        optionsChain={{ expectedMove }}
+      />
+    );
+    const toggle = host.querySelector<HTMLInputElement>(
+      "[data-expected-move-toggle]"
+    );
+    expect(toggle).not.toBeNull();
+    expect(toggle?.checked).toBe(false);
+    expect(expectedMove).not.toHaveBeenCalled();
+
+    await act(async () => {
+      toggle?.click();
+      await flush();
+    });
+    expect(expectedMove).toHaveBeenCalledWith({ symbol: "SPY" });
+    expect(host.querySelector("[data-expected-move-bar]")).not.toBeNull();
+    expect(chartProps.last?.["expectedMove"]).not.toBeNull();
   });
 });
