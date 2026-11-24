@@ -113,10 +113,9 @@ const sanitizeCandles = (
       continue;
     const high = Math.max(bar.open, bar.high, bar.low, bar.close);
     const low = Math.min(bar.open, bar.high, bar.low, bar.close);
-    const coveredSeconds = Math.min(
-      60,
-      Math.max(0, Math.round(bar.coveredSeconds))
-    );
+    const coveredSeconds = Number.isFinite(bar.coveredSeconds)
+      ? Math.min(60, Math.max(0, Math.round(bar.coveredSeconds)))
+      : 0;
     const volume =
       Number.isFinite(bar.volume) && bar.volume > 0 ? bar.volume : 0;
     valid.push({
@@ -163,7 +162,7 @@ const sanitizeBubbles = (
       limitSize: trade.limitSize,
       price: trade.price,
       second: new Date(ms).toISOString(),
-      seq: Math.max(0, Math.trunc(trade.seq)),
+      seq: Number.isFinite(trade.seq) ? Math.max(0, Math.trunc(trade.seq)) : 0,
       side: trade.side,
       signing: trade.signing,
       size: trade.size,

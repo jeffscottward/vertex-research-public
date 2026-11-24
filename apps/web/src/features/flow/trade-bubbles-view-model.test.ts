@@ -245,27 +245,60 @@ describe("trade-bubbles-view-model", () => {
     ]);
     expect(rows[3]?.captureLabel).toBe("Sampled");
     expect(rows[3]?.signingLabel).toBe("Tick");
-    expect(describeTradeBubble(doc.bubbles[0]!)).toContain("Buy 60 contracts");
+    const buyDesc = describeTradeBubble(doc.bubbles[0]!);
+    expect(buyDesc).toContain("Buy 60 contracts (1.50×)");
+    expect(buyDesc).not.toContain("ET ET");
     expect(describeTradeBubble(doc.bubbles[1]!)).toContain(
-      "Sell 160 contracts"
+      "Sell 160 contracts (4.00×)"
     );
+    expect(rows[0]?.multipleLabel).toBe("2.00×");
 
-    const summaryAll = summarizeTradeBubbles(doc, [
-      doc.bubbles[1]!,
-      doc.bubbles[0]!,
-    ]);
+    const plotCheck = buildTradeBubblesPlot(doc, doc.bubbles);
+    expect(plotCheck?.timeTicks[0]?.anchor).toBe("start");
+    expect(plotCheck?.timeTicks[2]?.anchor).toBe("middle");
+    expect(plotCheck?.timeTicks[4]?.anchor).toBe("end");
+    expect(plotCheck?.candles[0]?.label).not.toMatch(/E[SD]T ET/);
+
+    // Unfiltered truncated document uses full-window doc.totals (not only shown bubbles).
+    const truncatedDoc = makeDoc({
+      totals: {
+        ...doc.totals,
+        buyTrades: 300,
+        buyVolume: 18_500,
+        netVolume: 2500,
+        sellTrades: 300,
+        sellVolume: 16_000,
+        shownTrades: 2,
+        totalTrades: 600,
+        truncated: true,
+      },
+    });
+    const summaryUnfiltered = summarizeTradeBubbles(
+      truncatedDoc,
+      truncatedDoc.bubbles,
+      false
+    );
+    expect(summaryUnfiltered.buyContracts).toBe("18.5K");
+    expect(summaryUnfiltered.sellContracts).toBe("16K");
+    expect(summaryUnfiltered.netTone).toBe("success");
+    expect(summaryUnfiltered.shownLabel).toBe("2 of 600 prints");
+
+    const summaryAll = summarizeTradeBubbles(
+      doc,
+      [doc.bubbles[1]!, doc.bubbles[0]!],
+      true
+    );
     expect(summaryAll.netTone).toBe("destructive");
     expect(summaryAll.shownLabel).toBe("2 prints");
     expect(summaryAll.largestPrint).toContain("Sell 160");
-    const summaryBuy = summarizeTradeBubbles(doc, [doc.bubbles[0]!]);
+    const summaryBuy = summarizeTradeBubbles(doc, [doc.bubbles[0]!], true);
     expect(summaryBuy.netTone).toBe("success");
     expect(summaryBuy.shownLabel).toBe("1 of 2 prints");
     expect(summaryBuy.largestPrint).toContain("Buy 60");
 
-    const summaryEmpty = summarizeTradeBubbles(doc, []);
+    const summaryEmpty = summarizeTradeBubbles(doc, [], true);
     expect(summaryEmpty.netTone).toBe("neutral");
     expect(summaryEmpty.largestPrint).toBe("None");
-
     const keys = ["a", "b", "c"];
     expect(moveBubbleSelection([], null, "next")).toBeNull();
     expect(moveBubbleSelection(keys, null, "first")).toBe("a");

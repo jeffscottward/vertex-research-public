@@ -55,10 +55,11 @@ export const TRADE_BUBBLES_TABLE_HEADERS = Object.freeze([
 
 const PLOT_WIDTH = 880;
 const PLOT_HEIGHT = 320;
-const MARGIN_LEFT = 68;
-const MARGIN_RIGHT = 20;
+const MARGIN_LEFT = 72;
+const MARGIN_RIGHT = 32;
 const MARGIN_TOP = 16;
 const MARGIN_BOTTOM = 30;
+const PLOT_INSET_X = 26;
 const MIN_BUBBLE_RADIUS = 5.5;
 const MAX_BUBBLE_RADIUS = 22;
 const LABEL_MIN_RADIUS = 11.5;
@@ -170,6 +171,7 @@ export type TradeBubblePlotPoint = Readonly<{
 }>;
 
 export type TradeBubblesPlotTick = Readonly<{
+  anchor?: "start" | "middle" | "end";
   label: string;
   pos: number;
 }>;
@@ -236,9 +238,11 @@ export const buildTradeBubblesPlot = (
   const timeSpan = Math.max(60_000, endMs - startMs);
   const priceSpan = Math.max(doc.tickSize, bounds.max - bounds.min);
 
+  const innerX = chartX + PLOT_INSET_X;
+  const innerWidth = Math.max(1, chartWidth - PLOT_INSET_X * 2);
   const xOf = (ms: number): number => {
     const ratio = Math.max(0, Math.min(1, (ms - startMs) / timeSpan));
-    return round1(chartX + ratio * chartWidth);
+    return round1(innerX + ratio * innerWidth);
   };
   const yOf = (price: number): number => {
     const ratio = Math.max(0, Math.min(1, (price - bounds.min) / priceSpan));
@@ -261,15 +265,17 @@ export const buildTradeBubblesPlot = (
   for (let i = 0; i < timeTickCount; i += 1) {
     const frac = i / (timeTickCount - 1);
     const ms = startMs + frac * timeSpan;
+    const anchor =
+      i === 0 ? "start" : i === timeTickCount - 1 ? "end" : "middle";
     timeTicks.push({
+      anchor,
       label: formatNyTime(new Date(ms).toISOString()),
-      pos: round1(chartX + frac * chartWidth),
+      pos: round1(innerX + frac * innerWidth),
     });
   }
 
-  const minuteWidth = (60_000 / timeSpan) * chartWidth;
+  const minuteWidth = (60_000 / timeSpan) * innerWidth;
   const bodyWidth = round1(Math.max(2, Math.min(10, minuteWidth * 0.68)));
-
   const candles: TradeBubblePlotCandle[] = doc.candles.map((candle) => {
     const centerMs = Date.parse(candle.minute) + 30_000;
     const wickX = xOf(centerMs);
@@ -290,7 +296,7 @@ export const buildTradeBubblesPlot = (
       bodyY: round1(Math.min(yOpen, yClose)),
       direction,
       key: candle.minute,
-      label: `${formatNyTime(candle.minute)} ET · O ${formatPrice(candle.open)} H ${formatPrice(candle.high)} L ${formatPrice(candle.low)} C ${formatPrice(candle.close)} · VWAP ${formatPrice(candle.vwap)}`,
+      label: `${formatNyTime(candle.minute)} · O ${formatPrice(candle.open)} H ${formatPrice(candle.high)} L ${formatPrice(candle.low)} C ${formatPrice(candle.close)} · VWAP ${formatPrice(candle.vwap)}`,
       wickX,
       wickY1: yHigh,
       wickY2: yLow,
@@ -365,7 +371,7 @@ export const buildTradeBubblesPlot = (
 };
 
 export const describeTradeBubble = (bubble: FlowTradeBubble): string =>
-  `${formatEtSeconds(bubble.second)} ET · ${bubble.side === "buy" ? "Buy" : "Sell"} ${formatCount(bubble.size)} contracts (${bubble.sizeMultiple.toFixed(1)}×) at ${formatPrice(bubble.price)} · ${bubble.signing}-signed · ${bubble.capture}`;
+  `${formatEtSeconds(bubble.second)} · ${bubble.side === "buy" ? "Buy" : "Sell"} ${formatCount(bubble.size)} contracts (${bubble.sizeMultiple.toFixed(2)}×) at ${formatPrice(bubble.price)} · ${bubble.signing}-signed · ${bubble.capture}`;
 
 export type TradeBubbleTableRow = Readonly<{
   captureLabel: string;
@@ -395,7 +401,7 @@ export const tradeBubblesTableRows = (
       captureLabel: bubble.capture === "streamed" ? "Streamed" : "Sampled",
       contractsLabel: formatCount(bubble.size),
       key: tradeBubblesKey(bubble),
-      multipleLabel: `${bubble.sizeMultiple.toFixed(1)}×`,
+      multipleLabel: `${bubble.sizeMultiple.toFixed(2)}×`,
       priceLabel: formatPrice(bubble.price),
       side: bubble.side,
       sideLabel: bubble.side === "buy" ? "Buy" : "Sell",
@@ -416,26 +422,34 @@ export type TradeBubblesSummary = Readonly<{
 
 export const summarizeTradeBubbles = (
   doc: FlowTradeBubbles,
-  filteredBubbles: readonly FlowTradeBubble[]
+  filteredBubbles: readonly FlowTradeBubble[],
+  filtersActive = false
 ): TradeBubblesSummary => {
-  let buyTrades = 0;
-  let sellTrades = 0;
-  let buyVolume = 0;
-  let sellVolume = 0;
-  let largest: FlowTradeBubble | null = null;
+  let buyTrades = doc.totals.buyTrades;
+  let sellTrades = doc.totals.sellTrades;
+  let buyVolume = doc.totals.buyVolume;
+  let sellVolume = doc.totals.sellVolume;
+  let largest: FlowTradeBubble | null = doc.totals.largestBubble;
 
-  for (const bubble of filteredBubbles) {
-    if (bubble.side === "buy") {
-      buyTrades += 1;
-      buyVolume += bubble.size;
-    } else {
-      sellTrades += 1;
-      sellVolume += bubble.size;
+  if (filtersActive) {
+    buyTrades = 0;
+    sellTrades = 0;
+    buyVolume = 0;
+    sellVolume = 0;
+    largest = null;
+    for (const bubble of filteredBubbles) {
+      if (bubble.side === "buy") {
+        buyTrades += 1;
+        buyVolume += bubble.size;
+      } else {
+        sellTrades += 1;
+        sellVolume += bubble.size;
+      }
+      if (largest === null || bubble.size >= largest.size) largest = bubble;
     }
-    if (largest === null || bubble.size >= largest.size) largest = bubble;
   }
 
-  const net = buyVolume - sellVolume;
+  const net = filtersActive ? buyVolume - sellVolume : doc.totals.netVolume;
   const netTone: Tone =
     net > 0 ? "success" : net < 0 ? "destructive" : "neutral";
   const shownLabel =

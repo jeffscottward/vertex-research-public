@@ -175,6 +175,11 @@ describe("FlowTradeBubblesPanel", () => {
     const doc = sampleDocument({
       totals: {
         ...sampleDocument().totals,
+        buyTrades: 300,
+        buyVolume: 18_500,
+        netVolume: 2500,
+        sellTrades: 300,
+        sellVolume: 16_000,
         shownTrades: 2,
         totalTrades: 600,
         truncated: true,
@@ -194,9 +199,16 @@ describe("FlowTradeBubblesPanel", () => {
     expect(
       el.querySelector("[data-flow-trade-bubbles-error]")?.textContent
     ).toContain("Refresh failed: temporary blip");
+    expect(el.textContent).not.toMatch(/E[SD]T ET|ET ET/);
+    expect(
+      el.querySelector("[data-flow-trade-bubbles-summary]")?.textContent
+    ).toContain("18.5K");
     expect(
       el.querySelector("[data-flow-trade-bubbles-truncated]")?.textContent
     ).toContain("largest 2 of 600");
+    expect(
+      el.querySelector("[data-flow-trade-bubbles-truncated]")?.textContent
+    ).toContain("totals cover all stored prints");
     expect(el.querySelectorAll("[data-flow-trade-bubbles-candle]").length).toBe(
       3
     );
@@ -204,6 +216,16 @@ describe("FlowTradeBubblesPanel", () => {
     expect(el.querySelector("[data-flow-trade-bubbles-close]")).not.toBeNull();
     expect(el.querySelectorAll("[data-flow-trade-bubble]").length).toBe(2);
     expect(el.querySelectorAll("[data-flow-trade-bubble-row]").length).toBe(2);
+
+    // Filtering a truncated window updates the truncation caveat to clarify subset totals.
+    act(() => {
+      el.querySelector<HTMLButtonElement>(
+        '[data-flow-trade-bubbles-side="buy"]'
+      )?.click();
+    });
+    expect(
+      el.querySelector("[data-flow-trade-bubbles-truncated]")?.textContent
+    ).toContain("filtered totals cover only the returned top 2 prints");
   });
 
   it("supports side and size filtering, bubble & table selection, keyboard navigation, and empty states", () => {
@@ -214,12 +236,21 @@ describe("FlowTradeBubblesPanel", () => {
       refreshMs: 60_000,
       symbol: "ES",
     });
+    // Slider ARIA invariants hold when unselected (0 <= valuenow <= valuemax).
+    const initialSlider = el.querySelector<HTMLDivElement>(
+      "[data-flow-trade-bubbles-interactive]"
+    );
+    expect(initialSlider?.getAttribute("aria-valuemin")).toBe("0");
+    expect(initialSlider?.getAttribute("aria-valuenow")).toBe("0");
+    expect(initialSlider?.getAttribute("aria-valuemax")).toBe("2");
+    expect(initialSlider?.getAttribute("aria-valuetext")).toBe(
+      "No print selected"
+    );
 
     // Click a bubble in SVG -> pins inspector + crosshair.
     const buyBubble = el.querySelector<SVGGElement>(
       '[data-flow-trade-bubble="buy"]'
     );
-    expect(buyBubble).not.toBeNull();
     act(() => {
       buyBubble?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -260,9 +291,10 @@ describe("FlowTradeBubblesPanel", () => {
     expect(el.querySelector("[data-flow-trade-bubbles-crosshair]")).toBeNull();
 
     // Select via table row, then clear selection button.
-    const sellRow = el.querySelector<HTMLTableRowElement>(
-      '[data-flow-trade-bubble-row="sell"]'
+    const sellRow = el.querySelector<HTMLButtonElement>(
+      'button[data-flow-trade-bubble-row="sell"]'
     );
+    expect(sellRow).not.toBeNull();
     act(() => {
       sellRow?.click();
     });
@@ -306,6 +338,7 @@ describe("FlowTradeBubblesPanel", () => {
         candles: [],
         captureMode: "none",
         priceRange: null,
+        symbol: "NQ",
         totals: {
           buyTrades: 0,
           buyVolume: 0,
@@ -325,6 +358,18 @@ describe("FlowTradeBubblesPanel", () => {
       symbol: "NQ",
     });
     expect(el.querySelector("[data-flow-trade-bubbles-empty]")).not.toBeNull();
+    expect(el.querySelector("[data-flow-trade-bubbles-svg]")).toBeNull();
+
+    // Mismatched document symbol while switching ES -> NQ renders loading instead of stale ES data.
+    renderPanel({
+      document: sampleDocument({ symbol: "ES" }),
+      failure: null,
+      refreshMs: 60_000,
+      symbol: "NQ",
+    });
+    expect(
+      el.querySelector("[data-flow-trade-bubbles-loading]")
+    ).not.toBeNull();
     expect(el.querySelector("[data-flow-trade-bubbles-svg]")).toBeNull();
   });
 

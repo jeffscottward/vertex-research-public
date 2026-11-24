@@ -906,7 +906,7 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed, hedging pressure, put/call ratio or strike heatmap answer stays in force.
+    // A forbidden tape speed, trade bubbles, liquidity heatmap, hedging pressure, put/call ratio or strike heatmap answer stays in force.
     if (
       tapeForbidden.current ||
       tradeBubblesForbidden.current ||

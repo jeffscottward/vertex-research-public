@@ -178,12 +178,23 @@ describe("buildFlowTradeBubbles", () => {
         makeTrade(10, { capture: "sampled", price: 0, size: 50 }), // non-positive price
         makeTrade(11, { capture: "sampled", limitSize: 0, size: 50 }), // non-positive limit
         makeTrade(12, { capture: "sampled", size: Number.NaN }), // non-finite size
-        makeTrade(15, { capture: "sampled", price: 6005, size: 55 }),
+        makeTrade(13, { capture: "sampled", second: new Date("invalid") }), // invalid Date
+        makeTrade(15, {
+          capture: "sampled",
+          price: 6005,
+          seq: Number.NaN,
+          size: 55,
+        }),
       ],
       minuteBars: [
         makeCandle(-1), // before window
         makeCandle(60), // at windowEnd (exclusive)
-        makeCandle(1, { close: 0 }), // invalid OHLC
+        makeCandle(0, { minute: new Date("invalid") }), // invalid Date
+        makeCandle(1, { open: 0 }),
+        makeCandle(1, { high: 0 }),
+        makeCandle(1, { low: 0 }),
+        makeCandle(1, { close: 0 }),
+        makeCandle(1, { vwap: 0 }),
         makeCandle(2, {
           close: 6002,
           high: 5999,
@@ -192,6 +203,7 @@ describe("buildFlowTradeBubbles", () => {
           vwap: 6001.5,
         }), // swapped high/low normalized
         makeCandle(3, { coveredSeconds: 99, volume: -5 }), // clamped coveredSeconds & volume
+        makeCandle(4, { coveredSeconds: Number.NaN }), // non-finite coveredSeconds -> 0
       ],
       minutes: 60,
       symbol: "ES",
@@ -202,11 +214,13 @@ describe("buildFlowTradeBubbles", () => {
     expect(FlowTradeBubblesSchema.parse(sampledDoc)).toEqual(sampledDoc);
     expect(sampledDoc.captureMode).toBe("sampled");
     expect(sampledDoc.bubbles).toHaveLength(1);
-    expect(sampledDoc.candles).toHaveLength(2);
+    expect(sampledDoc.bubbles[0]?.seq).toBe(0);
+    expect(sampledDoc.candles).toHaveLength(3);
     expect(sampledDoc.candles[0]?.low).toBe(5999);
     expect(sampledDoc.candles[0]?.high).toBe(6005);
     expect(sampledDoc.candles[1]?.coveredSeconds).toBe(60);
     expect(sampledDoc.candles[1]?.volume).toBe(0);
+    expect(sampledDoc.candles[2]?.coveredSeconds).toBe(0);
 
     const mixedDoc = buildFlowTradeBubbles({
       largeTrades: [

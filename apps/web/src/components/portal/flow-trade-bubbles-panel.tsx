@@ -125,11 +125,12 @@ const BubbleChartSvg = ({
   return (
     <div
       aria-label={`Inspect ${symbol} deep futures trade bubbles with Left, Right, Home, End, or Escape`}
-      aria-valuemax={Math.max(1, plot.chronologicalKeys.length)}
-      aria-valuemin={1}
+      aria-valuemax={plot.chronologicalKeys.length}
+      aria-valuemin={0}
       aria-valuenow={activeIndex + 1}
-      aria-valuetext={selectedPoint === null ? undefined : selectedPoint.label}
-      className="w-full overflow-x-auto rounded-md border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-valuetext={
+        selectedPoint === null ? "No print selected" : selectedPoint.label
+      }
       data-flow-trade-bubbles-interactive=""
       onClick={handleClick}
       onKeyDown={onKeyDown}
@@ -187,7 +188,7 @@ const BubbleChartSvg = ({
               fill="currentColor"
               fillOpacity={0.72}
               fontSize={10}
-              textAnchor="middle"
+              textAnchor={tick.anchor}
               x={tick.pos}
               y={plot.chartY + plot.chartHeight + 18}
             >
@@ -387,18 +388,19 @@ const PrintsTable = ({
           const selected = row.key === selectedKey;
           return (
             <TableRow
-              aria-selected={selected}
-              className={
-                selected
-                  ? "cursor-pointer bg-muted/70"
-                  : "cursor-pointer hover:bg-muted/40"
-              }
-              data-flow-trade-bubble-row={row.side}
+              className={selected ? "bg-muted/70" : "hover:bg-muted/40"}
               key={row.key}
-              onClick={() => onSelect(row.key)}
             >
-              <TableCell className="font-mono text-xs">
-                {row.timeLabel}
+              <TableCell className="p-0">
+                <button
+                  aria-pressed={selected}
+                  className="inline-flex min-h-11 w-full items-center px-3 text-left font-mono text-xs underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-flow-trade-bubble-row={row.side}
+                  onClick={() => onSelect(row.key)}
+                  type="button"
+                >
+                  {row.timeLabel}
+                </button>
               </TableCell>
               <TableCell>
                 <StatusBadge
@@ -448,9 +450,10 @@ const TradeBubblesDocument = ({
     [document, filteredBubbles]
   );
 
+  const filtersActive = sideFilter !== "all" || sizeFilter !== "all";
   const summary = useMemo(
-    () => summarizeTradeBubbles(document, filteredBubbles),
-    [document, filteredBubbles]
+    () => summarizeTradeBubbles(document, filteredBubbles, filtersActive),
+    [document, filteredBubbles, filtersActive]
   );
 
   const tableRows = useMemo(
@@ -502,7 +505,7 @@ const TradeBubblesDocument = ({
             {captureBadge.label}
           </StatusBadge>
           <span className="text-muted-foreground text-xs">
-            Window end: {formatNyDateTime(document.windowEnd)} ET
+            Window end: {formatNyDateTime(document.windowEnd)}
           </span>
         </div>
 
@@ -588,9 +591,9 @@ const TradeBubblesDocument = ({
           className="text-muted-foreground text-xs"
           data-flow-trade-bubbles-truncated=""
         >
-          Showing the largest {formatCount(document.totals.shownTrades)} of{" "}
-          {formatCount(document.totals.totalTrades)} stored deep trades in this
-          window (totals cover all stored prints).
+          {filtersActive
+            ? `Showing filtered prints from the largest ${formatCount(document.totals.shownTrades)} of ${formatCount(document.totals.totalTrades)} stored deep trades in this window (filtered totals cover only the returned top ${formatCount(document.totals.shownTrades)} prints).`
+            : `Showing the largest ${formatCount(document.totals.shownTrades)} of ${formatCount(document.totals.totalTrades)} stored deep trades in this window (totals cover all stored prints).`}
         </p>
       ) : null}
 
@@ -691,14 +694,16 @@ export const FlowTradeBubblesPanel = ({
 }: FlowTradeBubblesPanelProps) => {
   const futureSymbol = tapeSymbolOf(symbol);
   const title = tradeBubblesTitle(symbol, futureSymbol);
+  const activeDocument =
+    document !== null && document.symbol === futureSymbol ? document : null;
 
   return (
     <Panel
       data-flow-trade-bubbles=""
       description={
-        document === null
+        activeDocument === null
           ? `Deep futures trades on the ${futureSymbol} 1-minute price chart (stored IBKR streamed tape).`
-          : tradeBubblesRuleLine(document)
+          : tradeBubblesRuleLine(activeDocument)
       }
       title={title}
     >
@@ -708,13 +713,13 @@ export const FlowTradeBubblesPanel = ({
           data-flow-trade-bubbles-error=""
           role="alert"
         >
-          {document === null
+          {activeDocument === null
             ? `${loadFailedLabel(failure.failedAt)} · Big futures trades not loaded: ${failure.message} · retrying every ${Math.round(refreshMs / 1000)} s`
-            : `${loadFailedLabel(failure.failedAt)} · Refresh failed: ${failure.message} · showing data as of ${formatNyDateTime(document.windowEnd)} · retrying every ${Math.round(refreshMs / 1000)} s`}
+            : `${loadFailedLabel(failure.failedAt)} · Refresh failed: ${failure.message} · showing data as of ${formatNyDateTime(activeDocument.windowEnd)} · retrying every ${Math.round(refreshMs / 1000)} s`}
         </p>
       )}
 
-      {document === null ? (
+      {activeDocument === null ? (
         failure === null ? (
           <p
             className="text-muted-foreground text-sm"
@@ -724,7 +729,10 @@ export const FlowTradeBubblesPanel = ({
           </p>
         ) : null
       ) : (
-        <TradeBubblesDocument document={document} />
+        <TradeBubblesDocument
+          document={activeDocument}
+          key={activeDocument.symbol}
+        />
       )}
     </Panel>
   );
