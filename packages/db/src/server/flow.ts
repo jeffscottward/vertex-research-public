@@ -463,6 +463,8 @@ export type FlowRepository = Readonly<{
       latestOk: FlowSampleRecord[];
     }>
   >;
+  /** Newest flow collector samples across all symbols and sources, newest first (bounded 1..500). */
+  recentSamples: (limit: number) => Promise<FlowSampleRecord[]>;
   readWindow: (query: FlowWindowQuery) => Promise<FlowWindowRows>;
   /** Stored flow events for a symbol in [from, to], optionally filtered by kind, newest first. */
   readEvents: (query: FlowEventsQuery) => Promise<FlowEventRecord[]>;
@@ -661,6 +663,14 @@ export const createFlowRepository = (
         if (ok) latestOk.push(ok);
       }
       return { latest, latestOk };
+    },
+    recentSamples: async (limit) => {
+      const bounded = Math.min(Math.max(Math.trunc(limit), 1), 500);
+      return await database
+        .select()
+        .from(flowSamples)
+        .orderBy(desc(flowSamples.at))
+        .limit(bounded);
     },
     marketPremiumLedger: async ({ from, to }) =>
       await database

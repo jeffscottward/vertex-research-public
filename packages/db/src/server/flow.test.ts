@@ -1822,3 +1822,25 @@ describe("createFlowRepository readMinutes", () => {
     expect(whereOf(select).sql).toContain('"minute" < $3');
   });
 });
+
+describe("createFlowRepository recentSamples", () => {
+  it("reads newest flow samples across symbols/sources with a bounded limit", async () => {
+    const sample: FlowSampleRecord = {
+      at: FROM,
+      items: 0,
+      message: "QuantData orderFlow: HTTP 401.",
+      source: "options",
+      status: "unavailable",
+      symbol: "SPY",
+    };
+    const double = createDouble([[sample], [sample], [sample]]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.recentSamples(200)).resolves.toEqual([sample]);
+    expect(double.operations[0]?.table).toBe(flowSamples);
+    expect(double.operations[0]?.limit).toBe(200);
+    await repository.recentSamples(0);
+    expect(double.operations[1]?.limit).toBe(1);
+    await repository.recentSamples(999);
+    expect(double.operations[2]?.limit).toBe(500);
+  });
+});

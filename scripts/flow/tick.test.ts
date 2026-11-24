@@ -211,4 +211,81 @@ describe("runFlowTick", () => {
     await expect(runFlowTick(harness.io)).resolves.toBe(1);
     expect(harness.err).toEqual(["flow tick failed: body lost\n"]);
   });
+
+  it("triggers connectivity.checkAlerts on unavailable runs and fails closed if an auth failure cannot be alerted", async () => {
+    const authResult = {
+      ...RESULT,
+      runs: [
+        {
+          events: 0,
+          items: 0,
+          message:
+            "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+          source: "options",
+          status: "unavailable",
+          symbol: "SPY",
+        },
+      ],
+    };
+    // 1. Server ntfy delivers -> alerts sent, exits 0 (deduplicated alert already reached owner)
+    const deliveredHarness = harnessFor(env);
+    deliveredHarness.post
+      .mockResolvedValueOnce(Response.json({ json: authResult }))
+      .mockResolvedValueOnce(
+        Response.json({
+          json: {
+            action: "alert",
+            activeAlertKeys: ["flow:SPY:options:auth_failed"],
+            alertableIssues: [{}],
+            delivery: "sent",
+            dryRun: false,
+            issues: [{}],
+            needsOwnerAsk: true,
+            newlyAlerted: [{}],
+            ntfyConfigured: true,
+            overallStatus: "auth_failed",
+            pendingChat: null,
+            plannedAlert: null,
+          },
+        })
+      );
+    await expect(runFlowTick(deliveredHarness.io)).resolves.toBe(0);
+    expect(deliveredHarness.err[0]).toContain(
+      "flow tick auth failure: SPY options"
+    );
+    expect(deliveredHarness.post).toHaveBeenCalledTimes(2);
+
+    // 2. Alert check fails -> auth failure is NOT swallowed, exits 1
+    const undeliveredHarness = harnessFor(env);
+    undeliveredHarness.post
+      .mockResolvedValueOnce(Response.json({ json: authResult }))
+      .mockRejectedValueOnce(new Error("alert endpoint down"));
+    await expect(runFlowTick(undeliveredHarness.io)).resolves.toBe(1);
+    expect(undeliveredHarness.err.join("")).toContain(
+      "flow tick alert check failed: connectivity.checkAlerts unreachable: alert endpoint down"
+    );
+
+    // 3. Non-Error rejection in alert check on non-auth unavailable run -> logs and exits 0
+    const nonAuthResult = {
+      ...RESULT,
+      runs: [
+        {
+          events: 0,
+          items: 0,
+          message: "History endpoint returned HTTP 503",
+          source: "ticks",
+          status: "unavailable",
+          symbol: "ES",
+        },
+      ],
+    };
+    const nonAuthHarness = harnessFor(env);
+    nonAuthHarness.post
+      .mockResolvedValueOnce(Response.json({ json: nonAuthResult }))
+      .mockRejectedValueOnce("raw-err");
+    await expect(runFlowTick(nonAuthHarness.io)).resolves.toBe(0);
+    expect(nonAuthHarness.err.join("")).toContain(
+      "flow tick alert check failed: connectivity.checkAlerts unreachable: raw-err"
+    );
+  });
 });

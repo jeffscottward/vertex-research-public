@@ -134,6 +134,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readOptionStrikeTotals: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
+    recentSamples: vi.fn(async () => []),
     recordSample: vi.fn(async () => undefined),
     storeMarketPremium: vi.fn(async () => 0),
     upsertBookSnapshots: vi.fn(async (rows: readonly unknown[]) => rows.length),

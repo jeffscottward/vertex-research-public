@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { OptionsAnalyticsInputSchema } from "./contracts/options-analytics.ts";
 import { buildOptionsAnalytics } from "./server/options-analytics.ts";
-import { createQuantDataOptionsSource } from "./server/options-chain-quantdata.ts";
 import { parseFlow } from "./server/options-analytics-engine.ts";
+import { createQuantDataOptionsSource } from "./server/options-chain-quantdata.ts";
 import {
   type OptionsAnalyticsSnapshot,
   OptionsChainSourceError,
@@ -20,6 +20,8 @@ const EXPIRY = "2026-11-06";
 
 // Fictional values in the provider's shapes.
 const chainData = {
+  // Before the New York day of NOW: left out.
+  "2026-11-03": { "100.0": { CALL: { delta: 0.5, iv: 30 } } },
   "2026-11-06": {
     "100.0": { CALL: { delta: 0.55, iv: 31 }, PUT: { delta: -0.45, iv: 29 } },
     "105": { CALL: { delta: 0.2 } },
@@ -27,8 +29,6 @@ const chainData = {
   "2026-11-20": { "100.0": { CALL: { delta: 0.5, iv: 33 } } },
   // Listed without any value: not a row, so the expiry is not listed.
   "2026-12-18": { "100.0": { CALL: {}, PUT: { iv: 0 } } },
-  // Before the New York day of NOW: left out.
-  "2026-11-03": { "100.0": { CALL: { delta: 0.5, iv: 30 } } },
 };
 
 const print = (overrides: Record<string, unknown> = {}) => ({
@@ -157,6 +157,14 @@ describe("createQuantDataOptionsSource", () => {
     expect(at(snapshot.rows)).toHaveLength(4);
     expect(byContract(snapshot.rows)).toEqual(
       ofExpiry({
+        "95put": {
+          delta: null,
+          flow: { premium: 900, trades: 1, volume: 2 },
+          iv: null,
+          openInterest: null,
+          right: "put",
+          strike: 95,
+        },
         "100call": {
           delta: 0.55,
           flow: { premium: 125_600, trades: 4, volume: 416 },
@@ -180,14 +188,6 @@ describe("createQuantDataOptionsSource", () => {
           openInterest: null,
           right: "call",
           strike: 105,
-        },
-        "95put": {
-          delta: null,
-          flow: { premium: 900, trades: 1, volume: 2 },
-          iv: null,
-          openInterest: null,
-          right: "put",
-          strike: 95,
         },
       })
     );
@@ -371,14 +371,6 @@ describe("createQuantDataOptionsSource", () => {
     expect(noChain.expiries).toEqual(["2026-11-06", "2026-11-20"]);
     expect(byContract(noChain.rows)).toEqual(
       ofExpiry({
-        "100call": {
-          delta: null,
-          flow: { premium: 125_600, trades: 4, volume: 416 },
-          iv: null,
-          openInterest: 2500,
-          right: "call",
-          strike: 100,
-        },
         "95put": {
           delta: null,
           flow: { premium: 900, trades: 1, volume: 2 },
@@ -387,7 +379,63 @@ describe("createQuantDataOptionsSource", () => {
           right: "put",
           strike: 95,
         },
+        "100call": {
+          delta: null,
+          flow: { premium: 125_600, trades: 4, volume: 416 },
+          iv: null,
+          openInterest: 2500,
+          right: "call",
+          strike: 100,
+        },
       })
+    );
+  });
+
+  it("prioritizes auth_failed errors over non-auth errors in both throws and warnings", async () => {
+    const authFail = (
+      endpoint: "orderFlow" | "termStructure"
+    ): QuantDataResult => ({
+      httpStatus: 401,
+      message: `QuantData ${endpoint}: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).`,
+      ok: false,
+      reason: "auth_failed",
+      retryAfterSeconds: 300,
+    });
+    // Both fail: termStructure 500 + orderFlow 401 -> throws the 401 message.
+    await expect(
+      createQuantDataOptionsSource(
+        fakeClient({
+          orderFlow: authFail("orderFlow"),
+          termStructure: failed("termStructure"),
+        }),
+        () => NOW
+      ).read("DEMO")
+    ).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+      message:
+        "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+    });
+    // termStructure succeeds + orderFlow 401 -> warning carries the 401 message.
+    const flowAuth = await createQuantDataOptionsSource(
+      fakeClient({
+        orderFlow: authFail("orderFlow"),
+        termStructure: ok({ data: chainData, stockPrice: 100.2 }),
+      }),
+      () => NOW
+    ).read("DEMO");
+    expect(flowAuth.warning).toBe(
+      "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY)."
+    );
+    // termStructure 401 + orderFlow succeeds -> warning carries the 401 message.
+    const chainAuth = await createQuantDataOptionsSource(
+      fakeClient({
+        orderFlow: ok({ data: flowRows }),
+        termStructure: authFail("termStructure"),
+      }),
+      () => NOW
+    ).read("DEMO");
+    expect(chainAuth.warning).toBe(
+      "QuantData termStructure: HTTP 401 (authentication failed — check QUANTDATA_API_KEY)."
     );
   });
 

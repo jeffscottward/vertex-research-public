@@ -19,6 +19,23 @@ export {
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export type { ApiClient, ApiClientOptions } from "./client.ts";
 export { createApiClient } from "./client.ts";
+export {
+  alertableConnectivityIssues,
+  CONNECTIVITY_ALERT_MONITOR,
+  CONNECTIVITY_FLOW_REPEAT_THRESHOLD,
+  CONNECTIVITY_IN_FLIGHT_LEASE_MS,
+  type ConnectivityAlertDiff,
+  type ConnectivityAlertPersistedState,
+  type ConnectivityFlowSampleInput,
+  type ConnectivityMessageClassification,
+  type ConnectivityOpenbbRunInput,
+  type ConnectivityRuntimeConfigSummary,
+  classifyConnectivityMessage,
+  diffConnectivityAlerts,
+  evaluateConnectivityHealth,
+  formatConnectivityAlert,
+  formatConnectivityRecovery,
+} from "./connectivity-health.ts";
 export type {
   AccountProfileOutput,
   AddressCreateInput,
@@ -107,6 +124,22 @@ export * from "./contracts/baskets.ts";
 export * from "./contracts/breadth-90.ts";
 export * from "./contracts/click-log.ts";
 export * from "./contracts/congress-trades.ts";
+export {
+  CONNECTIVITY_ALERT_ACTIONS,
+  CONNECTIVITY_ESCALATIONS,
+  CONNECTIVITY_ISSUE_CATEGORIES,
+  CONNECTIVITY_OVERALL_STATUSES,
+  CONNECTIVITY_PROVIDER_STATUSES,
+  type ConnectivityCheckAlertsOutput,
+  type ConnectivityEscalation,
+  type ConnectivityHealthOutput,
+  type ConnectivityIssue,
+  type ConnectivityIssueCategory,
+  type ConnectivityOverallStatus,
+  type ConnectivityPendingChatAlert,
+  type ConnectivityPlannedAlert,
+  type ConnectivityProviderStatus,
+} from "./contracts/connectivity.ts";
 export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/engine-comparison.ts";
 export * from "./contracts/engines.ts";
