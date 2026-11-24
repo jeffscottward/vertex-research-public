@@ -2,23 +2,28 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CandleRendererOptions, DisplayCandle } from "./types.ts";
 
 const mocks = vi.hoisted(() => ({
-  CandleType: {
-    CandleUpStroke: "candle_up_stroke",
-    CandleSolid: "candle_solid",
-    Ohlc: "ohlc",
-    Area: "area",
-  },
   ActionType: { OnCrosshairChange: "onCrosshairChange" },
+  CandleType: {
+    Area: "area",
+    CandleSolid: "candle_solid",
+    CandleUpStroke: "candle_up_stroke",
+    Ohlc: "ohlc",
+  },
+  dispose: vi.fn(),
+  init: vi.fn(),
   LineType: { Dashed: "dashed", Solid: "solid" },
+  registerIndicator: vi.fn(),
   registerOverlay: vi.fn(),
   version: vi.fn(() => "9.8.12"),
-  init: vi.fn(),
-  dispose: vi.fn(),
-  registerIndicator: vi.fn(),
 }));
 vi.mock("klinecharts", () => mocks);
+
 import {
   barSpacing,
+  EXPECTED_MOVE_GROUP_ID,
+  EXPECTED_MOVE_OVERLAY,
+} from "./expected-move-overlay.ts";
+import {
   createKLineRenderer,
   DRAWING_GROUP_ID,
   drawingFromOverlay,
@@ -32,28 +37,29 @@ import {
   VOLUME_PANE_ID,
   validDisplayCandles,
 } from "./kline-adapter.ts";
+import type { ExpectedMoveCone } from "./types.ts";
 import { VERTEX_STUDY_IDS, type VertexStudyId } from "./vertex-studies.ts";
 
 const bar: DisplayCandle = {
-  id: "fixture-bar",
-  timestamp: 1000,
-  open: 10,
-  high: 11,
-  low: 9,
   close: 10.5,
+  high: 11,
+  id: "fixture-bar",
+  low: 9,
+  open: 10,
+  timestamp: 1000,
   volume: 20,
 };
 const options = (signal: AbortSignal): CandleRendererOptions => ({
-  signal,
   palette: {
-    foreground: "#222222",
+    accent: "#feda00",
     background: "#ffffff",
+    falling: "#666666",
+    foreground: "#222222",
     grid: "#ddddd6",
     rising: "#222222",
-    falling: "#666666",
-    accent: "#feda00",
   },
   pricePrecision: 2,
+  signal,
   volumePrecision: 0,
 });
 const stubBrowser = () => {
@@ -61,22 +67,25 @@ const stubBrowser = () => {
   return vi.stubGlobal("document", {});
 };
 const chart = () => ({
-  getDom: vi.fn(() => null),
-  setPriceVolumePrecision: vi.fn(),
   applyNewData: vi.fn(),
-  updateData: vi.fn(),
   clearData: vi.fn(),
+  getDom: vi.fn(() => null),
   resize: vi.fn(),
+  setPriceVolumePrecision: vi.fn(),
+  updateData: vi.fn(),
 });
 const studyChart = () => ({
   ...chart(),
   createIndicator: vi.fn(() => "pane"),
-  removeIndicator: vi.fn(),
   createOverlay: vi.fn(() => []),
+  getBarSpace: vi.fn(() => 8),
+  getConvertPictureUrl: vi.fn(() => "data:image/png;base64,AA"),
+  getOffsetRightDistance: vi.fn(() => 50),
+  removeIndicator: vi.fn(),
   removeOverlay: vi.fn(),
+  setOffsetRightDistance: vi.fn(),
   setStyles: vi.fn(),
   subscribeAction: vi.fn(),
-  getConvertPictureUrl: vi.fn(() => "data:image/png;base64,AA"),
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -122,11 +131,11 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(instance.applyNewData).toHaveBeenCalledWith(
       [
         {
-          timestamp: 1000,
-          open: 10,
+          close: 10.5,
           high: 11,
           low: 9,
-          close: 10.5,
+          open: 10,
+          timestamp: 1000,
           volume: 20,
         },
       ],
@@ -169,25 +178,25 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       {} as HTMLElement,
       options(controller.signal)
     );
-    renderer.setStudies!({ volume: true, sma: [20, 50], ema: [20] });
+    renderer.setStudies!({ ema: [20], sma: [20, 50], volume: true });
     expect(instance.createIndicator).toHaveBeenCalledWith(
-      { name: "VOL", shortName: "Volume", calcParams: [] },
+      { calcParams: [], name: "VOL", shortName: "Volume" },
       false,
-      { id: VOLUME_PANE_ID, height: 96 }
+      { height: 96, id: VOLUME_PANE_ID }
     );
     expect(instance.createIndicator).toHaveBeenCalledWith(
-      { name: "MA", calcParams: [20, 50] },
+      { calcParams: [20, 50], name: "MA" },
       true,
       { id: "candle_pane" }
     );
     expect(instance.createIndicator).toHaveBeenCalledWith(
-      { name: "EMA", calcParams: [20] },
+      { calcParams: [20], name: "EMA" },
       true,
       { id: "candle_pane" }
     );
-    renderer.setStudies!({ volume: true, sma: [20, 50], ema: [20] });
+    renderer.setStudies!({ ema: [20], sma: [20, 50], volume: true });
     expect(instance.createIndicator).toHaveBeenCalledTimes(3);
-    renderer.setStudies!({ volume: false, sma: [], ema: [20] });
+    renderer.setStudies!({ ema: [20], sma: [], volume: false });
     expect(instance.removeIndicator).toHaveBeenCalledWith(
       VOLUME_PANE_ID,
       "VOL"
@@ -195,28 +204,28 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(instance.removeIndicator).toHaveBeenCalledWith("candle_pane", "MA");
     expect(instance.removeIndicator).toHaveBeenCalledTimes(2);
     expect(instance.createIndicator).toHaveBeenCalledTimes(3);
-    renderer.setStudies!({ volume: false, sma: [50], ema: [] });
+    renderer.setStudies!({ ema: [], sma: [50], volume: false });
     expect(instance.removeIndicator).toHaveBeenCalledWith("candle_pane", "EMA");
     expect(instance.createIndicator).toHaveBeenLastCalledWith(
-      { name: "MA", calcParams: [50] },
+      { calcParams: [50], name: "MA" },
       true,
       { id: "candle_pane" }
     );
     expect(() =>
-      renderer.setStudies!({ volume: false, sma: [0], ema: [] })
+      renderer.setStudies!({ ema: [], sma: [0], volume: false })
     ).toThrow(RangeError);
     expect(() =>
-      renderer.setStudies!({ volume: false, sma: [1.5], ema: [] })
+      renderer.setStudies!({ ema: [], sma: [1.5], volume: false })
     ).toThrow(RangeError);
     expect(() =>
       renderer.setStudies!({
-        volume: false,
-        sma: [5, 10, 20, 50, 100],
         ema: [],
+        sma: [5, 10, 20, 50, 100],
+        volume: false,
       })
     ).toThrow(RangeError);
     renderer.dispose();
-    renderer.setStudies!({ volume: true, sma: [], ema: [] });
+    renderer.setStudies!({ ema: [], sma: [], volume: true });
     return expect(instance.createIndicator).toHaveBeenCalledTimes(4);
   });
   it("registers Vertex studies and toggles them on the candle pane or their own pane", async () => {
@@ -237,10 +246,10 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       expect.objectContaining({ name: "VX_BOLL", precision: 2 })
     );
     renderer.setStudies!({
-      volume: false,
-      sma: [],
       ema: [],
       extra: ["boll", "macd"],
+      sma: [],
+      volume: false,
     });
     expect(instance.createIndicator).toHaveBeenCalledWith(
       { name: "VX_BOLL", shortName: "BB" },
@@ -250,16 +259,16 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(instance.createIndicator).toHaveBeenCalledWith(
       { name: "VX_MACD", shortName: "MACD" },
       false,
-      { id: "vx_macd_pane", height: 96 }
+      { height: 96, id: "vx_macd_pane" }
     );
     renderer.setStudies!({
-      volume: false,
-      sma: [],
       ema: [],
       extra: ["boll", "macd"],
+      sma: [],
+      volume: false,
     });
     expect(instance.createIndicator).toHaveBeenCalledTimes(2);
-    renderer.setStudies!({ volume: false, sma: [], ema: [] });
+    renderer.setStudies!({ ema: [], sma: [], volume: false });
     expect(instance.removeIndicator).toHaveBeenCalledWith(
       "candle_pane",
       "VX_BOLL"
@@ -269,10 +278,10 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       "VX_MACD"
     );
     renderer.setStudies!({
-      volume: false,
-      sma: [],
       ema: [],
       extra: ["vwap"],
+      sma: [],
+      volume: false,
     });
     expect(instance.createIndicator).toHaveBeenLastCalledWith(
       {
@@ -321,17 +330,17 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       true,
       { id: "candle_pane" }
     );
-    renderer.setStudies!({ volume: false, sma: [], ema: [] });
+    renderer.setStudies!({ ema: [], sma: [], volume: false });
     expect(instance.removeIndicator).toHaveBeenLastCalledWith(
       "candle_pane",
       "VX_VWAP"
     );
     expect(() =>
       renderer.setStudies!({
-        volume: false,
-        sma: [],
         ema: [],
         extra: ["ichimoku" as VertexStudyId],
+        sma: [],
+        volume: false,
       })
     ).toThrow("Unknown Vertex study");
     return expect(instance.createIndicator).toHaveBeenCalledTimes(3);
@@ -349,17 +358,17 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     };
     expect(init.customApi.formatBigNumber(2_500_000)).toBe("2.5M");
     renderer.setStudies!({
-      volume: false,
-      sma: [],
       ema: [],
       panes: ["RSI", "WR"],
+      sma: [],
+      volume: false,
     });
     expect(instance.createIndicator).toHaveBeenCalledWith(
       { name: "RSI" },
       false,
-      { id: "vx_rsi_builtin_pane", height: 96 }
+      { height: 96, id: "vx_rsi_builtin_pane" }
     );
-    renderer.setStudies!({ volume: false, sma: [], ema: [], panes: ["WR"] });
+    renderer.setStudies!({ ema: [], panes: ["WR"], sma: [], volume: false });
     expect(instance.createIndicator).toHaveBeenCalledTimes(2);
     expect(instance.removeIndicator).toHaveBeenCalledWith(
       "vx_rsi_builtin_pane",
@@ -367,10 +376,10 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     );
     expect(() =>
       renderer.setStudies!({
-        volume: false,
-        sma: [],
         ema: [],
         panes: ["CCI" as "RSI"],
+        sma: [],
+        volume: false,
       })
     ).toThrow("Unknown built-in study");
   });
@@ -383,31 +392,31 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       options(new AbortController().signal)
     );
     renderer.setMarkers!([
-      { id: "m1", timestamp: 1000, value: 10.5, text: "Long" },
-      { id: "m2", timestamp: 2000, value: 11, text: "Exit" },
+      { id: "m1", text: "Long", timestamp: 1000, value: 10.5 },
+      { id: "m2", text: "Exit", timestamp: 2000, value: 11 },
     ]);
     expect(instance.removeOverlay).toHaveBeenCalledWith({
       groupId: MARKER_GROUP_ID,
     });
     expect(instance.createOverlay).toHaveBeenCalledWith([
       {
-        name: "simpleAnnotation",
+        extendData: "Long",
         groupId: MARKER_GROUP_ID,
         lock: true,
+        name: "simpleAnnotation",
         points: [{ timestamp: 1000, value: 10.5 }],
-        extendData: "Long",
       },
       {
-        name: "simpleAnnotation",
+        extendData: "Exit",
         groupId: MARKER_GROUP_ID,
         lock: true,
+        name: "simpleAnnotation",
         points: [{ timestamp: 2000, value: 11 }],
-        extendData: "Exit",
       },
     ]);
     renderer.setMarkers!([
-      { id: "m1", timestamp: 1000, value: 10.5, text: "Long" },
-      { id: "m2", timestamp: 2000, value: 11, text: "Exit" },
+      { id: "m1", text: "Long", timestamp: 1000, value: 10.5 },
+      { id: "m2", text: "Exit", timestamp: 2000, value: 11 },
     ]);
     expect(instance.createOverlay).toHaveBeenCalledTimes(1);
     renderer.setMarkers!([]);
@@ -415,12 +424,12 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(instance.createOverlay).toHaveBeenCalledTimes(1);
     expect(() =>
       renderer.setMarkers!([
-        { id: "bad", timestamp: Number.NaN, value: 1, text: "x" },
+        { id: "bad", text: "x", timestamp: Number.NaN, value: 1 },
       ])
     ).toThrow(TypeError);
     return expect(() =>
       renderer.setMarkers!([
-        { id: "long", timestamp: 1, value: 1, text: "x".repeat(41) },
+        { id: "long", text: "x".repeat(41), timestamp: 1, value: 1 },
       ])
     ).toThrow(TypeError);
   });
@@ -856,5 +865,130 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         },
       ])
     ).toThrow(TypeError);
+  });
+
+  it("renders, updates, and clears expected move cones with right-offset lifecycle", async () => {
+    stubBrowser();
+    const fake = studyChart();
+    mocks.init.mockReturnValue(fake);
+    const controller = new AbortController();
+    const mountEl = { clientWidth: 1000 };
+    const renderer = await createKLineRenderer(
+      mountEl as HTMLElement,
+      options(controller.signal)
+    );
+    const day = 86_400_000;
+    const t0 = Date.parse("2026-11-02T16:00:00.000Z");
+    const t1 = t0 + day;
+    const expiryMs = Date.parse("2026-11-12T21:00:00.000Z");
+    const cone: ExpectedMoveCone = {
+      basis: "atm_straddle_mid",
+      dte: 9,
+      expectedMove: 2.5,
+      expectedMovePct: 0.25,
+      expiry: "2026-11-12",
+      expiryCloseMs: expiryMs,
+      lowerBand: 8,
+      spot: 10.5,
+      straddleLower: 8.5,
+      straddlePrice: 2,
+      straddleUpper: 12.5,
+      upperBand: 13,
+    };
+    renderer.replace([
+      { ...bar, id: "b0", timestamp: t0 },
+      { ...bar, id: "b1", timestamp: t1 },
+    ]);
+    renderer.setExpectedMove!(cone);
+    expect(fake.setOffsetRightDistance).toHaveBeenLastCalledWith(
+      expect.any(Number)
+    );
+    expect(fake.createOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupId: EXPECTED_MOVE_GROUP_ID,
+        lock: true,
+        name: EXPECTED_MOVE_OVERLAY,
+      })
+    );
+    const templateCall = mocks.registerOverlay.mock.calls.find(
+      (call) => (call[0] as { name?: string })?.name === EXPECTED_MOVE_OVERLAY
+    );
+    const template = templateCall?.[0] as {
+      createPointFigures: (args: {
+        bounding: { width: number; height: number };
+        coordinates: { x: number; y: number }[];
+        overlay: { extendData: unknown };
+      }) => unknown[];
+    };
+    const overlayCalls = fake.createOverlay.mock.calls as unknown[][];
+    const createdOverlay = overlayCalls.at(-1)?.[0] as {
+      extendData: unknown;
+    };
+    expect(
+      template.createPointFigures({
+        bounding: { height: 300, width: 400 },
+        coordinates: [
+          { x: 200, y: 150 },
+          { x: 300, y: 80 },
+          { x: 300, y: 220 },
+          { x: 300, y: 100 },
+          { x: 300, y: 200 },
+        ],
+        overlay: { extendData: createdOverlay.extendData },
+      })
+    ).toHaveLength(12);
+
+    // Identical cone value is a no-op (no redundant redraw/offset snap)
+    fake.createOverlay.mockClear();
+    renderer.setExpectedMove!({ ...cone });
+    expect(fake.createOverlay).not.toHaveBeenCalled();
+
+    // Adding a bar re-applies the cone
+    fake.createOverlay.mockClear();
+    renderer.replace([
+      { ...bar, id: "b0", timestamp: t0 },
+      { ...bar, id: "b1", timestamp: t1 },
+      { ...bar, id: "b2", timestamp: t1 + day },
+    ]);
+    expect(fake.createOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({ name: EXPECTED_MOVE_OVERLAY })
+    );
+
+    // Replacing bars with a different spacing (same count and last timestamp) re-applies the cone
+    fake.createOverlay.mockClear();
+    const hour = 3_600_000;
+    const lastTs = t1 + day;
+    renderer.replace([
+      { ...bar, id: "h0", timestamp: lastTs - 2 * hour },
+      { ...bar, id: "h1", timestamp: lastTs - hour },
+      { ...bar, id: "h2", timestamp: lastTs },
+    ]);
+    expect(fake.createOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({ name: EXPECTED_MOVE_OVERLAY })
+    );
+    // Zoomed-in barSpace scales offset above 260 px on wide containers and caps at 260 when width is 0
+    fake.getBarSpace.mockReturnValue(14);
+    fake.setOffsetRightDistance.mockClear();
+    renderer.setExpectedMove!({ ...cone, dte: 10 });
+    expect(fake.setOffsetRightDistance).toHaveBeenLastCalledWith(420);
+    mountEl.clientWidth = 0;
+    renderer.setExpectedMove!({ ...cone, dte: 11 });
+    expect(fake.setOffsetRightDistance).toHaveBeenLastCalledWith(260);
+    fake.getBarSpace.mockReturnValue(8);
+
+    // Clearing bars clears the cone and restores right offset
+    renderer.replace([]);
+    expect(fake.removeOverlay).toHaveBeenCalledWith({
+      groupId: EXPECTED_MOVE_GROUP_ID,
+    });
+    expect(fake.setOffsetRightDistance).toHaveBeenLastCalledWith(50);
+
+    // Null clears and invalid cone throws TypeError; disposed is a no-op
+    renderer.setExpectedMove!(null);
+    expect(() => renderer.setExpectedMove!({ ...cone, spot: -1 })).toThrow(
+      TypeError
+    );
+    renderer.dispose();
+    renderer.setExpectedMove!(cone);
   });
 });

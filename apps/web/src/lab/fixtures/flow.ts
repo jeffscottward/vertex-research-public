@@ -7,6 +7,7 @@
 // Used by: apps/web/src/lab/entries/research.tsx.
 import {
   buildFlowLiquidityHeatmap,
+  buildFlowLiveDom,
   buildFlowTradeBubbles,
   FLOW_TAPE_SPEED_RULES,
   type FlowControl,
@@ -14,6 +15,9 @@ import {
   type FlowHedgingPressure,
   type FlowHedgingSymbol,
   type FlowLiquidityHeatmap,
+  type FlowLiveDom,
+  type FlowLiveDomStreamEvent,
+  type FlowLiveDomWindowSeconds,
   type FlowOptionBubbles,
   type FlowOptionBubblesMinPremiumUsd,
   type FlowOptionBubblesSymbol,
@@ -1534,6 +1538,90 @@ export const labFlowStrikeHeatmap = (
       : null,
   };
 };
+
+/** Deterministic Jigsaw-style Live DOM ladder fixture for /lab/flow and tests (ES or NQ). */
+export const labFlowLiveDom = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null
+): FlowLiveDom => {
+  const isEs = symbol === "ES";
+  const baseBid = isEs ? 6012.25 : 21_140.25;
+  const scale = since === null ? 1 : 0.25;
+  return buildFlowLiveDom({
+    asks: [
+      [baseBid + 0.25, isEs ? 52 : 18],
+      [baseBid + 0.5, isEs ? 86 : 24],
+      [baseBid + 0.75, isEs ? 215 : 42],
+      [baseBid + 1.0, isEs ? 148 : 31],
+      [baseBid + 1.25, isEs ? 94 : 19],
+    ],
+    bids: [
+      [baseBid, isEs ? 68 : 22],
+      [baseBid - 0.25, isEs ? 264 : 58],
+      [baseBid - 0.5, isEs ? 112 : 29],
+      [baseBid - 0.75, isEs ? 140 : 35],
+      [baseBid - 1.0, isEs ? 95 : 21],
+    ],
+    capturedAt: "2026-10-30T15:00:00.000Z",
+    contract: isEs ? "ESZ6" : "NQZ6",
+    depthFeed: {
+      error: null,
+      lastAt: "2026-10-30T15:00:00.000Z",
+      state: "live",
+    },
+    depthUpdates: isEs ? 1240 : 890,
+    lastTrade: {
+      price: baseBid + 0.25,
+      side: "buy",
+      size: isEs ? 6 : 2,
+      t: "2026-10-30T14:59:59.000Z",
+    },
+    minTick: 0.25,
+    seq: isEs ? 1540 : 1090,
+    since,
+    source: "live_stream",
+    symbol,
+    tapeFeed: {
+      error: null,
+      lastAt: "2026-10-30T14:59:59.000Z",
+      state: "live",
+    },
+    tapeSeq: isEs ? 300 : 200,
+    volumeByPrice: [
+      [baseBid + 0.75, Math.round(168 * scale), Math.round(84 * scale), 0, 14],
+      [baseBid + 0.5, Math.round(110 * scale), Math.round(72 * scale), 0, 11],
+      [baseBid + 0.25, Math.round(240 * scale), Math.round(60 * scale), 0, 24],
+      [baseBid, Math.round(45 * scale), Math.round(195 * scale), 0, 19],
+      [baseBid - 0.25, Math.round(310 * scale), Math.round(290 * scale), 0, 42],
+      [baseBid - 0.5, Math.round(125 * scale), Math.round(140 * scale), 0, 16],
+    ],
+    volumeSource: "streamed_tape",
+    windowSeconds,
+  });
+};
+
+/** Deterministic single-frame async stream for /lab/flow and workspace tests. */
+export const labFlowLiveDomStream = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null,
+  signal?: AbortSignal
+): AsyncIterable<FlowLiveDomStreamEvent> => ({
+  async *[Symbol.asyncIterator]() {
+    yield {
+      frame: labFlowLiveDom(symbol, windowSeconds, since),
+      type: "frame",
+    };
+    await new Promise<void>((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      signal?.addEventListener("abort", () => resolve(), { once: true });
+    });
+  },
+});
 
 export const labFlowTradeBubbles = (
   symbol: FlowTapeSymbol,

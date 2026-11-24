@@ -16,12 +16,14 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
+  FLOW_OPTION_BUBBLES_MAX_BUBBLES,
   FLOW_PUT_CALL_RATIO_MAX_DAYS,
   type FlowControl,
   type FlowControlInput,
   type FlowHedgingPressureInput,
   type FlowLiquidityHeatmapParsedInput,
-  FLOW_OPTION_BUBBLES_MAX_BUBBLES,
+  type FlowLiveDomParsedInput,
+  type FlowLiveDomStreamParsedInput,
   type FlowOptionBubblesParsedInput,
   type FlowPutCallRatioInput,
   type FlowSnapshot,
@@ -70,6 +72,11 @@ import {
   readFlowLiquidityHeatmapRows,
 } from "./flow-liquidity-heatmap.ts";
 import {
+  type FlowLiveDomDeps,
+  openFlowLiveDomStream,
+  readFlowLiveDomSnapshot,
+} from "./flow-live-dom.ts";
+import {
   buildFlowOptionBubbles,
   type FlowOptionBubblesRows,
 } from "./flow-option-bubbles.ts";
@@ -100,6 +107,7 @@ import {
 import {
   fetchMarketDepth,
   fetchMarketDepthHistory,
+  fetchMarketDom,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -827,6 +835,42 @@ const liquidityHeatmap = api.flow.liquidityHeatmap
     return assemble(failures, buildFlowLiquidityHeatmapFromRows, rows);
   });
 
+const liveDomDepsFor = (
+  context: ApiContext,
+  failures: Failures
+): FlowLiveDomDeps => {
+  const repository = repositoryFor(context, failures);
+  const marketHistory = context.marketHistory ?? null;
+  return {
+    fetchDom:
+      marketHistory === null
+        ? null
+        : (input, options) => fetchMarketDom(marketHistory, input, options),
+    now: clock,
+    repository,
+  };
+};
+
+const liveDom = api.flow.liveDom
+  .use(requireOperator)
+  .handler(async ({ context, input, errors, signal }) => {
+    const failures = errors as unknown as Failures;
+    const deps = liveDomDepsFor(context, failures);
+    return await readRows(failures, () =>
+      readFlowLiveDomSnapshot(deps, input as FlowLiveDomParsedInput, signal)
+    );
+  });
+
+const liveDomStream = api.flow.liveDomStream
+  .use(requireOperator)
+  .handler(async ({ context, input, errors, signal }) => {
+    const failures = errors as unknown as Failures;
+    const deps = liveDomDepsFor(context, failures);
+    return await readRows(failures, () =>
+      openFlowLiveDomStream(deps, input as FlowLiveDomStreamParsedInput, signal)
+    );
+  });
+
 const tradeBubbles = api.flow.tradeBubbles
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -849,6 +893,8 @@ export const flowRouter = {
   events,
   hedgingPressure,
   liquidityHeatmap,
+  liveDom,
+  liveDomStream,
   optionBubbles,
   putCallRatio,
   snapshot,

@@ -182,6 +182,8 @@ describe("flow-tape-speed.v1", () => {
       "events",
       "hedgingPressure",
       "liquidityHeatmap",
+      "liveDom",
+      "liveDomStream",
       "optionBubbles",
       "putCallRatio",
       "snapshot",

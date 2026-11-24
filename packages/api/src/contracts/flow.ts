@@ -1,4 +1,4 @@
-import { oc } from "@orpc/contract";
+import { eventIterator, oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
@@ -1819,6 +1819,252 @@ const liquidityHeatmap = flow
   .input(FlowLiquidityHeatmapInputSchema)
   .output(FlowLiquidityHeatmapSchema);
 
+export const FLOW_LIVE_DOM_VERSION = "flow-live-dom.v1" as const;
+export const FLOW_LIVE_DOM_RULES_VERSION = "flow-live-dom-rules.v1" as const;
+export const FLOW_LIVE_DOM_MAX_LEVELS = 80;
+export const FLOW_LIVE_DOM_ROWS_MIN = 1;
+export const FLOW_LIVE_DOM_ROWS_MAX = 10;
+export const FLOW_LIVE_DOM_ROWS_DEFAULT = 10;
+export const FLOW_LIVE_DOM_WINDOW_SECONDS = [300, 900, 1800, 3600] as const;
+export const FLOW_LIVE_DOM_WINDOW_SECONDS_DEFAULT = 900 as const;
+export const FLOW_LIVE_DOM_CADENCE_MS = [500, 1000, 2000] as const;
+export const FLOW_LIVE_DOM_CADENCE_MS_DEFAULT = 500 as const;
+export const FLOW_LIVE_DOM_STREAM_LEASE_MS = 20_000;
+export const FLOW_LIVE_DOM_MAX_POLLS_PER_LEASE = 40;
+export const FLOW_LIVE_DOM_HEARTBEAT_MS = 5000;
+export const FLOW_LIVE_DOM_SOURCES = [
+  "live_stream",
+  "recorded_fallback",
+  "empty",
+] as const;
+export const FLOW_LIVE_DOM_VOLUME_SOURCES = [
+  "streamed_tape",
+  "large_trades_only",
+  "none",
+] as const;
+export const FLOW_LIVE_DOM_BOOK_STATES = [
+  "normal",
+  "locked",
+  "crossed",
+  "one_sided",
+  "empty",
+] as const;
+export const FLOW_LIVE_DOM_FEED_STATES = [
+  "live",
+  "starting",
+  "down",
+  "off",
+  "halted",
+  "recorded",
+  "never",
+] as const;
+export const FLOW_LIVE_DOM_TRADE_SIDES = ["buy", "sell", "unsigned"] as const;
+export const FLOW_LIVE_DOM_IMBALANCE_SIDES = ["buy", "sell"] as const;
+export const FLOW_LIVE_DOM_RECONNECT_REASONS = [
+  "lease_expired",
+  "recorded_fallback",
+  "upstream_interrupted",
+] as const;
+
+export type FlowLiveDomWindowSeconds =
+  (typeof FLOW_LIVE_DOM_WINDOW_SECONDS)[number];
+export type FlowLiveDomCadenceMs = (typeof FLOW_LIVE_DOM_CADENCE_MS)[number];
+export type FlowLiveDomSource = (typeof FLOW_LIVE_DOM_SOURCES)[number];
+export type FlowLiveDomVolumeSource =
+  (typeof FLOW_LIVE_DOM_VOLUME_SOURCES)[number];
+export type FlowLiveDomBookState = (typeof FLOW_LIVE_DOM_BOOK_STATES)[number];
+export type FlowLiveDomFeedState = (typeof FLOW_LIVE_DOM_FEED_STATES)[number];
+export type FlowLiveDomTradeSide = (typeof FLOW_LIVE_DOM_TRADE_SIDES)[number];
+export type FlowLiveDomImbalanceSide =
+  (typeof FLOW_LIVE_DOM_IMBALANCE_SIDES)[number];
+export type FlowLiveDomReconnectReason =
+  (typeof FLOW_LIVE_DOM_RECONNECT_REASONS)[number];
+
+const domWindowSeconds = z.coerce
+  .number()
+  .int()
+  .refine(
+    (value): value is FlowLiveDomWindowSeconds =>
+      (FLOW_LIVE_DOM_WINDOW_SECONDS as readonly number[]).includes(value),
+    {
+      message: "windowSeconds must be one of 300, 900, 1800, 3600",
+    }
+  )
+  .default(FLOW_LIVE_DOM_WINDOW_SECONDS_DEFAULT);
+
+const domCadenceMs = z.coerce
+  .number()
+  .int()
+  .refine(
+    (value): value is FlowLiveDomCadenceMs =>
+      (FLOW_LIVE_DOM_CADENCE_MS as readonly number[]).includes(value),
+    {
+      message: "cadenceMs must be one of 500, 1000, 2000",
+    }
+  )
+  .default(FLOW_LIVE_DOM_CADENCE_MS_DEFAULT);
+
+export const FlowLiveDomInputSchema = z
+  .object({
+    rows: z.coerce
+      .number()
+      .int()
+      .min(FLOW_LIVE_DOM_ROWS_MIN)
+      .max(FLOW_LIVE_DOM_ROWS_MAX)
+      .default(FLOW_LIVE_DOM_ROWS_DEFAULT),
+    since: z.coerce.number().int().min(1).max(9_999_999_999).optional(),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    windowSeconds: domWindowSeconds,
+  })
+  .strict();
+
+export const FlowLiveDomStreamInputSchema = FlowLiveDomInputSchema.extend({
+  cadenceMs: domCadenceMs,
+}).strict();
+
+export const FlowLiveDomRowSchema = z
+  .object({
+    askSize: z.number().nonnegative(),
+    bidSize: z.number().nonnegative(),
+    cumAskSize: z.number().nonnegative(),
+    cumBidSize: z.number().nonnegative(),
+    imbalance: z.enum(FLOW_LIVE_DOM_IMBALANCE_SIDES).nullable(),
+    isBestAsk: z.boolean(),
+    isBestBid: z.boolean(),
+    isLastTrade: z.boolean(),
+    isPoc: z.boolean(),
+    price: z.number().positive(),
+    tickIndex: z.number().int(),
+    tradedBuy: z.number().nonnegative(),
+    tradedDelta: z.number().finite(),
+    tradedSell: z.number().nonnegative(),
+    tradedTotal: z.number().nonnegative(),
+    tradedUnsigned: z.number().nonnegative(),
+    trades: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const FlowLiveDomLastTradeSchema = z
+  .object({
+    price: z.number().positive(),
+    side: z.enum(FLOW_LIVE_DOM_TRADE_SIDES),
+    size: z.number().positive(),
+    t: timestamp,
+  })
+  .strict();
+
+export const FlowLiveDomTotalsSchema = z
+  .object({
+    askSize: z.number().nonnegative(),
+    bidSharePct: z.number().min(0).max(100).nullable(),
+    bidSize: z.number().nonnegative(),
+    tradedBuy: z.number().nonnegative(),
+    tradedDelta: z.number().finite(),
+    tradedSell: z.number().nonnegative(),
+    tradedTotal: z.number().nonnegative(),
+    tradedUnsigned: z.number().nonnegative(),
+    trades: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const FlowLiveDomFeedSchema = z
+  .object({
+    error: z.string().max(200).nullable(),
+    lastAt: timestamp.nullable(),
+    state: z.enum(FLOW_LIVE_DOM_FEED_STATES),
+  })
+  .strict();
+
+export const FlowLiveDomRulesSchema = z
+  .object({
+    heartbeatMs: z.number().int().positive(),
+    imbalanceMinContracts: z.number().int().positive(),
+    imbalanceRatio: z.number().positive(),
+    maxLevels: z.number().int().positive(),
+    maxPollsPerLease: z.number().int().positive(),
+    streamLeaseMs: z.number().int().positive(),
+    version: z.literal(FLOW_LIVE_DOM_RULES_VERSION),
+  })
+  .strict();
+
+export const FlowLiveDomSchema = z
+  .object({
+    bestAsk: z.number().positive().nullable(),
+    bestBid: z.number().positive().nullable(),
+    bookState: z.enum(FLOW_LIVE_DOM_BOOK_STATES),
+    capturedAt: timestamp,
+    contract: z.string().min(1).max(20).nullable(),
+    depthFeed: FlowLiveDomFeedSchema,
+    depthUpdates: z.number().int().nonnegative(),
+    lastTrade: FlowLiveDomLastTradeSchema.nullable(),
+    mid: z.number().positive().nullable(),
+    minTick: z.number().positive(),
+    pocPrice: z.number().positive().nullable(),
+    pocVolume: z.number().nonnegative(),
+    rows: z.array(FlowLiveDomRowSchema).max(FLOW_LIVE_DOM_MAX_LEVELS),
+    rules: FlowLiveDomRulesSchema,
+    schemaVersion: z.literal(FLOW_LIVE_DOM_VERSION),
+    seq: z.number().int().nonnegative(),
+    since: z.number().int().min(1).nullable(),
+    source: z.enum(FLOW_LIVE_DOM_SOURCES),
+    spread: z.number().finite().nullable(),
+    spreadTicks: z.number().int().nullable(),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    tapeFeed: FlowLiveDomFeedSchema,
+    tapeSeq: z.number().int().nonnegative(),
+    totals: FlowLiveDomTotalsSchema,
+    volumeSource: z.enum(FLOW_LIVE_DOM_VOLUME_SOURCES),
+    windowSeconds: z.number().int().positive(),
+  })
+  .strict();
+
+export const FlowLiveDomStreamEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      frame: FlowLiveDomSchema,
+      type: z.literal("frame"),
+    })
+    .strict(),
+  z
+    .object({
+      at: timestamp,
+      seq: z.number().int().nonnegative(),
+      type: z.literal("heartbeat"),
+    })
+    .strict(),
+  z
+    .object({
+      at: timestamp,
+      reason: z.enum(FLOW_LIVE_DOM_RECONNECT_REASONS),
+      retryAfterMs: z.number().int().min(0).max(30_000),
+      type: z.literal("reconnect"),
+    })
+    .strict(),
+]);
+
+const liveDom = flow
+  .route({
+    method: "GET",
+    operationId: "flow.liveDom",
+    path: "/flow/live-dom",
+    summary:
+      "ES or NQ: single live CME L2 DOM ladder frame with per-price traded volume and recorded fallback (research input)",
+    tags,
+  })
+  .input(FlowLiveDomInputSchema)
+  .output(FlowLiveDomSchema);
+
+const liveDomStream = flow
+  .route({
+    method: "GET",
+    operationId: "flow.liveDomStream",
+    path: "/flow/live-dom/stream",
+    summary:
+      "ES or NQ: streaming SSE CME L2 DOM ladder with per-price traded volume over a bounded lease (research input)",
+    tags,
+  })
+  .input(FlowLiveDomStreamInputSchema)
+  .output(eventIterator(FlowLiveDomStreamEventSchema));
 const tradeBubbles = flow
   .route({
     method: "GET",
@@ -1837,6 +2083,8 @@ export const flowContract = {
   events,
   hedgingPressure,
   liquidityHeatmap,
+  liveDom,
+  liveDomStream,
   optionBubbles,
   putCallRatio,
   snapshot,
@@ -1956,6 +2204,23 @@ export type FlowLiquidityHeatmapWall = z.infer<
 >;
 export type FlowLiquidityHeatmapRules = z.infer<
   typeof FlowLiquidityHeatmapRulesSchema
+>;
+export type FlowLiveDomInput = z.input<typeof FlowLiveDomInputSchema>;
+export type FlowLiveDomParsedInput = z.output<typeof FlowLiveDomInputSchema>;
+export type FlowLiveDomStreamInput = z.input<
+  typeof FlowLiveDomStreamInputSchema
+>;
+export type FlowLiveDomStreamParsedInput = z.output<
+  typeof FlowLiveDomStreamInputSchema
+>;
+export type FlowLiveDomRow = z.infer<typeof FlowLiveDomRowSchema>;
+export type FlowLiveDomLastTrade = z.infer<typeof FlowLiveDomLastTradeSchema>;
+export type FlowLiveDomTotals = z.infer<typeof FlowLiveDomTotalsSchema>;
+export type FlowLiveDomFeed = z.infer<typeof FlowLiveDomFeedSchema>;
+export type FlowLiveDomRules = z.infer<typeof FlowLiveDomRulesSchema>;
+export type FlowLiveDom = z.infer<typeof FlowLiveDomSchema>;
+export type FlowLiveDomStreamEvent = z.infer<
+  typeof FlowLiveDomStreamEventSchema
 >;
 export type FlowOptionBubblesInput = z.input<
   typeof FlowOptionBubblesInputSchema

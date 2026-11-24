@@ -32,6 +32,9 @@ describe("browser options chain gateway", () => {
     await gateway
       .chain({ expiry: "2026-11-20", symbol: "NVDA" })
       .catch(() => undefined);
+    await gateway
+      .expectedMove({ expiry: "2026-11-20", symbol: "NVDA" })
+      .catch(() => undefined);
     const urls = fetchSpy.mock.calls.map(([input]) =>
       input instanceof Request ? input.url : String(input)
     );
@@ -39,6 +42,9 @@ describe("browser options chain gateway", () => {
       true
     );
     expect(urls.some((url) => url.includes("optionsChain/chain"))).toBe(true);
+    expect(urls.some((url) => url.includes("optionsChain/expectedMove"))).toBe(
+      true
+    );
   });
 
   it("is the workspace default, with the browser market data gateway", async () => {

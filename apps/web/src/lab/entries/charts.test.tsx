@@ -194,4 +194,24 @@ describe("charts lab entry", () => {
       "0 / 252 own ATM IV sessions stored"
     );
   });
+
+  it("enables expected move cone in /lab/charts aligned to lab candles", async () => {
+    window.history.replaceState(null, "", "/lab/charts");
+    const entry = CHARTS_LAB_ENTRIES.find((item) => item.id === "charts");
+    const host = await mountLab(entry?.render(new URLSearchParams()));
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-expected-move-toggle]")).not.toBeNull()
+    );
+    const toggle = host.querySelector<HTMLInputElement>(
+      "[data-expected-move-toggle]"
+    )!;
+    await act(async () => {
+      toggle.click();
+    });
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector('[data-expected-move-status="ready"]')
+      ).not.toBeNull()
+    );
+  });
 });

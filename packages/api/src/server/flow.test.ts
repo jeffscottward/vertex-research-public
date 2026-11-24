@@ -2033,6 +2033,63 @@ describe("flow.liquidityHeatmap handler", () => {
   });
 });
 
+describe("flow.liveDom and flow.liveDomStream handlers", () => {
+  it("serves recorded fallback when marketHistory is null, maps DB failures, and enforces session-only auth", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository);
+
+    const frame = await client.liveDom({ symbol: "ES" });
+    expect(frame.symbol).toBe("ES");
+    expect(frame.source).toBe("empty");
+    expect(repository.readBookSnapshots).toHaveBeenCalledTimes(1);
+
+    const stream = await client.liveDomStream({ symbol: "ES" });
+    const events: string[] = [];
+    for await (const event of stream) events.push(event.type);
+    expect(events).toEqual(["frame", "reconnect"]);
+
+    // Configured marketHistory calls fetchMarketDom and gracefully falls back on network failure
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+    try {
+      const withHistory = clientFor(repository, {
+        marketHistory: {
+          token: "t".repeat(40),
+          url: "https://history.example.test/vertex-history/v1",
+        },
+      });
+      const out = await withHistory.liveDom({ symbol: "NQ" });
+      expect(out.symbol).toBe("NQ");
+      expect(out.source).toBe("empty");
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    expect(isAgentApiKeyProcedurePath(["flow", "liveDom"])).toBe(false);
+    expect(isAgentApiKeyProcedurePath(["flow", "liveDomStream"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.liveDom")).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.liveDomStream")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "liveDom"])).toBe(true);
+    expect(isAgentViewerReadProcedure(["flow", "liveDomStream"])).toBe(true);
+
+    const broken = fakeRepository({
+      readBookSnapshots: vi.fn(async () => {
+        throw new Error("db timeout");
+      }),
+    });
+    await expectStorageError(
+      clientFor(broken).liveDom({ symbol: "ES" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(broken).liveDomStream({ symbol: "ES" }),
+      DATABASE_FAILED
+    );
+  });
+});
+
 describe("flow.tradeBubbles handler", () => {
   it("reads stored minute bars and deep trades for operators, allows agent viewers, refuses API keys, and maps failures to STORAGE_ERROR", async () => {
     expect(isAgentApiKeyProcedurePath(["flow", "tradeBubbles"])).toBe(false);

@@ -398,6 +398,36 @@ Panel "Tape speed" on `/flow` (below the control panel):
   bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
   390-minute window: nothing stored).
 
+## Live DOM ladder (ES, NQ)
+
+Design: [vertex-viz-live-dom/design.md](designs/vertex-viz-live-dom/design.md).
+Research only: resting depth, pulling/stacking queue deltas, and traded-volume counts describe
+the CME book and tape, never a trade signal.
+
+- **Uncached live endpoint (`vertex-history` 1.8.0).** `GET /vertex-history/v1/dom?symbol=ES|NQ&rows=10&windowSeconds=900[&since=<epoch>]`
+  reads directly from the already-running in-memory `DepthStream` and `TapeStream` with zero extra
+  IBKR subscriptions and zero disk cache. `DepthFeed.live_dom_book` filters positive finite levels
+  and aggregates duplicate prices before slicing `rows`; `TapeFeed.attach` clears `self.prints` on
+  contract rollover (`conId` change); `TapeFeed.live_volume` copies the bounded print slice
+  (`<= 50,000` prints plus `TAPE_SEED_SCAN` zero-tick seeds) under `self.lock`, signs outside the
+  lock (quote rule first, tick rule fallback, else `"unsigned"`), caps returned levels to 200
+  (preserving POC), and caches by `(tapeSeq, effectiveCutoff)`.
+- **oRPC streaming and recorded fallback (`packages/api`).** `flow.liveDom` (`GET /flow/live-dom`,
+  `flow-live-dom.v1`) returns a single contiguous 1-tick ladder frame; `flow.liveDomStream`
+  (`GET /flow/live-dom/stream`, oRPC `eventIterator` SSE) streams live updates at `500 ms` / `1 s`
+  or `2 s` over a bounded `20 s` lease (`<= 40` polls per lease, `5 s` quiet heartbeats). Auth and
+  any PostgreSQL fallback read (`flow_book_snapshots` 72 h lookback `limit: 1` + `flow_large_trades`
+  and `latestSamples(["depth", "ticks"])`) run before returning the async generator, so zero DB
+  connections are held while streaming. Both procedures are session-only (`requireOperator`,
+  read-only agent viewer permitted via GET; excluded from `AGENT_API_KEY_PROCEDURE_PATHS` and
+  `AGENT_API_KEY_READ_PROCEDURES`).
+- **Portal UI (`FlowLiveDomPanel`).** Rendered on `/flow` below Tape speed (paired by index group:
+  `SPY`/`ES` -> `ES`, `QQQ`/`NQ` -> `NQ`) with desktop 8-column Jigsaw layout (`Bid Δ`, `Bid`,
+  `Bid T`, `Price` with `ASK`/`BID`/`LTP`/`POC` badges, `Ask T`, `Ask`, `Ask Δ`, `Volume · Net Δ`)
+  and compact 375 px layout (`Bid`, `Price`, `Ask`, `Volume`), `3x` aggressive imbalance markers
+  (`>= 15` contracts), server-side Reset vol (`since`), Lock axis + Re-center, Pause/Resume,
+  hidden-tab auto-pause, exponential backoff, and keyboard row inspection.
+
 ## Liquidity heatmap (ES, NQ)
 
 Design: [vertex-viz-liquidity-heatmap/design.md](designs/vertex-viz-liquidity-heatmap/design.md).
@@ -1219,6 +1249,20 @@ locks no existing table.
 5. Rollback: `sudo touch /etc/vertex-history/depth-off` disables continuous L2 streaming within
    1 s without restart; optional DB rollback uses
    `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
+
+### Live DOM ladder (service 1.8.0)
+
+No PostgreSQL migration is required. Deploy off-hours (after 16:00 ET or before 08:30 ET, owner
+rule 2026-11-16):
+
+1. Deploy `vertex-web` via `infra/quantvps/restart-when-idle.sh`. Until `vertex-history` upgrades
+   to `1.8.0`, `/flow` Live DOM gracefully shows the latest recorded `flow_book_snapshots` +
+   `flow_large_trades` fallback and retries every 5 s.
+2. Upgrade `vertex-history` to `1.8.0` under `/opt/vertex-history` (backup first, run
+   `test_vertex_history.py`, copy `vertex_history.py`, restart `vertex-history` off-hours,
+   verify `/vertex-history/v1/dom?symbol=ES` returns `vertex-history-dom-v1`).
+3. Rollback: no schema change to revert; restoring `vertex_history.py` `1.7.0` drops `/dom` back
+   to `404` and `FlowLiveDomPanel` returns cleanly to recorded fallback.
 
 ### Big futures trade bubbles (ES, NQ)
 
