@@ -192,6 +192,40 @@ describe("GexSpotCurve", () => {
     });
     expect(view.querySelector("[data-gex-spot-marker]")).not.toBeNull();
     expect(view.querySelector("[data-gex-flip-marker]")).toBeNull();
+    act(() => root?.unmount());
+
+    // Unsorted profile is ordered ascending by spot for plotting, interpolation and the table.
+    view = await renderCurve({
+      flip: 95,
+      profile: [
+        { gex: 200_000, spot: 130 },
+        { gex: -200_000, spot: 70 },
+        { gex: 50_000, spot: 100 },
+      ],
+      spot: 100,
+    });
+    const sortedSpots = [
+      ...view.querySelectorAll("[data-gex-spot-curve-table] tbody tr"),
+    ].map((row) => row.querySelectorAll("td")[0]?.textContent);
+    expect(sortedSpots).toEqual(["$70.00", "$100.00", "$130.00"]);
+    expect(view.querySelector("[data-gex-spot-marker]")).not.toBeNull();
+    expect(view.querySelector("[data-gex-flip-marker]")).not.toBeNull();
+    act(() => root?.unmount());
+
+    // Sub-dollar GEX range does not emit duplicate "$0" Y-axis ticks, and non-finite markers are omitted cleanly.
+    view = await renderCurve({
+      flip: Number.NaN,
+      profile: [
+        { gex: -0.2, spot: 70 },
+        { gex: 0.2, spot: 130 },
+      ],
+      spot: Number.NaN,
+    });
+    const zeroTicks = [...view.querySelectorAll("svg[role='img'] text")].filter(
+      (node) => node.textContent === "$0"
+    );
+    expect(zeroTicks).toHaveLength(1);
+    expect(view.textContent).not.toContain("NaN");
   });
 
   it("renders a no-data state naming why when the profile cannot be drawn", async () => {
@@ -236,7 +270,7 @@ describe("GexSpotCurve", () => {
       flip: null,
       noDataReason: "Caller fallback that should not hide 1-point reason.",
       profile: [{ gex: 100, spot: 100 }],
-      spot: 100,
+      spot: null,
     });
     expect(view.querySelector("[role='status']")?.textContent).toContain(
       "at least two hypothetical spot points"

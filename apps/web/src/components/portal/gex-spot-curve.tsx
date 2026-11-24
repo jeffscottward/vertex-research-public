@@ -71,12 +71,15 @@ const defaultNoDataReason = (
   spot: number | null,
   pointCount: number
 ): string => {
-  if (spot === null || spot <= 0)
-    return "Not computed: no spot price was received from QuantData.";
   if (pointCount === 1)
     return "Not computed: at least two hypothetical spot points are required to draw the curve.";
+  if (spot === null || spot <= 0)
+    return "Not computed: no spot price was received from QuantData.";
   return "Not computed: GEX spot sweep needs a spot price, strike open interest and front ATM IV.";
 };
+
+const finiteOrNull = (value: number | null): number | null =>
+  value !== null && Number.isFinite(value) ? value : null;
 
 const EmptyCurve = ({
   headingId,
@@ -105,6 +108,8 @@ export const GexSpotCurve = ({
 }: GexSpotCurveProps) => {
   const id = useId();
   const headingId = `${id}-heading`;
+  const validSpot = finiteOrNull(spot);
+  const validFlip = finiteOrNull(flip);
 
   if (profile.length < 2) {
     return (
@@ -112,15 +117,16 @@ export const GexSpotCurve = ({
         headingId={headingId}
         reason={
           profile.length === 1
-            ? defaultNoDataReason(spot, 1)
-            : (noDataReason ?? defaultNoDataReason(spot, 0))
+            ? defaultNoDataReason(validSpot, 1)
+            : (noDataReason ?? defaultNoDataReason(validSpot, 0))
         }
       />
     );
   }
 
-  const first = profile[0] as GexProfilePoint;
-  const last = profile.at(-1) as GexProfilePoint;
+  const ordered = [...profile].sort((a, b) => a.spot - b.spot);
+  const first = ordered[0] as GexProfilePoint;
+  const last = ordered.at(-1) as GexProfilePoint;
   if (last.spot <= first.spot) {
     return (
       <EmptyCurve
@@ -133,7 +139,7 @@ export const GexSpotCurve = ({
   const minSpot = first.spot;
   const maxSpot = last.spot;
   const spotSpan = maxSpot - minSpot;
-  const gexValues = profile.map((point) => point.gex);
+  const gexValues = ordered.map((point) => point.gex);
   const rawMin = Math.min(0, ...gexValues);
   const rawMax = Math.max(0, ...gexValues);
   const maxAbs = Math.max(Math.abs(rawMin), Math.abs(rawMax));
@@ -148,7 +154,7 @@ export const GexSpotCurve = ({
     PLOT_TOP + (1 - (gex - yMin) / ySpan) * PLOT_H;
 
   const zeroY = yOf(0);
-  const linePath = profile
+  const linePath = ordered
     .map(
       (point, index) =>
         `${index === 0 ? "M" : "L"}${xOf(point.spot).toFixed(1)},${yOf(point.gex).toFixed(1)}`
@@ -162,12 +168,13 @@ export const GexSpotCurve = ({
     readonly y: number;
   }[] = [{ id: "zero", label: "$0", y: zeroY }];
   const maxY = yOf(rawMax);
-  if (rawMax > 0 && zeroY - maxY >= MIN_TICK_GAP)
-    yTicks.unshift({ id: "max", label: formatMoney(rawMax), y: maxY });
+  const maxLabel = formatMoney(rawMax);
+  if (rawMax > 0 && maxLabel !== "$0" && zeroY - maxY >= MIN_TICK_GAP)
+    yTicks.unshift({ id: "max", label: maxLabel, y: maxY });
   const minY = yOf(rawMin);
-  if (rawMin < 0 && minY - zeroY >= MIN_TICK_GAP)
-    yTicks.push({ id: "min", label: formatMoney(rawMin), y: minY });
-
+  const minLabel = formatMoney(rawMin);
+  if (rawMin < 0 && minLabel !== "$0" && minY - zeroY >= MIN_TICK_GAP)
+    yTicks.push({ id: "min", label: minLabel, y: minY });
   const xTicks = X_TICK_RATIOS.map((ratio) => {
     const price = minSpot + spotSpan * ratio;
     return {
@@ -184,19 +191,19 @@ export const GexSpotCurve = ({
   });
 
   const spotMarker =
-    spot !== null && spot >= minSpot && spot <= maxSpot
+    validSpot !== null && validSpot >= minSpot && validSpot <= maxSpot
       ? {
-          spot,
-          x: xOf(spot),
-          y: yOf(interpolateGex(profile, spot)),
+          spot: validSpot,
+          x: xOf(validSpot),
+          y: yOf(interpolateGex(ordered, validSpot)),
         }
       : null;
 
   const flipMarker =
-    flip !== null && flip >= minSpot && flip <= maxSpot
+    validFlip !== null && validFlip >= minSpot && validFlip <= maxSpot
       ? {
-          flip,
-          x: xOf(flip),
+          flip: validFlip,
+          x: xOf(validFlip),
         }
       : null;
 
@@ -204,11 +211,11 @@ export const GexSpotCurve = ({
     zeroY > (PLOT_TOP + PLOT_BOTTOM) / 2 ? PLOT_TOP + 14 : PLOT_BOTTOM - 6;
 
   const summaryParts = [
-    `Estimated net GEX vs hypothetical spot from ${formatSpot(minSpot)} to ${formatSpot(maxSpot)} (${profile.length} points).`,
-    spot === null ? null : `Spot ${formatSpot(spot)}.`,
-    flip === null
+    `Estimated net GEX vs hypothetical spot from ${formatSpot(minSpot)} to ${formatSpot(maxSpot)} (${ordered.length} points).`,
+    validSpot === null ? null : `Spot ${formatSpot(validSpot)}.`,
+    validFlip === null
       ? "No zero-gamma crossing in sweep."
-      : `Zero-gamma flip ${formatSpot(flip)}.`,
+      : `Zero-gamma flip ${formatSpot(validFlip)}.`,
     `Range ${formatMoney(rawMin)} to ${formatMoney(rawMax)}.`,
   ].filter((part): part is string => part !== null);
 
@@ -227,7 +234,7 @@ export const GexSpotCurve = ({
           GEX vs hypothetical spot
         </h4>
         <p className="font-mono text-muted-foreground text-xs tabular-nums">
-          {formatSpot(minSpot)} to {formatSpot(maxSpot)} ({profile.length}{" "}
+          {formatSpot(minSpot)} to {formatSpot(maxSpot)} ({ordered.length}{" "}
           points)
         </p>
       </div>
@@ -275,7 +282,7 @@ export const GexSpotCurve = ({
           </svg>
           <span>Zero GEX ($0)</span>
         </li>
-        {spot === null ? null : (
+        {validSpot === null ? null : (
           <li className="flex items-center gap-1.5">
             <svg
               aria-hidden="true"
@@ -295,7 +302,7 @@ export const GexSpotCurve = ({
               />
             </svg>
             <span className="font-mono tabular-nums">
-              Spot {formatSpot(spot)}
+              Spot {formatSpot(validSpot)}
               {spotMarker === null ? " (outside sweep)" : ""}
             </span>
           </li>
@@ -327,9 +334,9 @@ export const GexSpotCurve = ({
             />
           </svg>
           <span className="font-mono tabular-nums">
-            {flip === null
+            {validFlip === null
               ? "Zero-gamma flip: no zero crossing"
-              : `Zero-gamma flip ${formatSpot(flip)}${flipMarker === null ? " (outside sweep)" : ""}`}
+              : `Zero-gamma flip ${formatSpot(validFlip)}${flipMarker === null ? " (outside sweep)" : ""}`}
           </span>
         </li>
       </ul>
@@ -515,7 +522,7 @@ export const GexSpotCurve = ({
             </tr>
           </thead>
           <tbody>
-            {profile.map((point, index) => (
+            {ordered.map((point, index) => (
               <tr key={`${point.spot}-${index}`}>
                 <td>{formatSpot(point.spot)}</td>
                 <td>{formatMoney(point.gex)}</td>
