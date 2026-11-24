@@ -325,5 +325,42 @@ class DefiniteStateTest(unittest.TestCase):
         self.assertEqual(files, ["file data/KILL_SWITCH", "file portfolio-ui/data/KILL_SWITCH"])
 
 
+class LegacyZoneNameTest(unittest.TestCase):
+    def test_us_eastern_parses_and_sorts_without_legacy_tzdata(self):
+        import zoneinfo
+
+        ny_src = None
+        for root in zoneinfo.TZPATH:
+            candidate = os.path.join(root, "America", "New_York")
+            if os.path.isfile(candidate):
+                ny_src = candidate
+                break
+        self.assertIsNotNone(ny_src, "America/New_York zoneinfo file not found in TZPATH")
+
+        old_tzpath = zoneinfo.TZPATH
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as tmp_tzdir:
+            ny_dst = os.path.join(tmp_tzdir, "America", "New_York")
+            os.makedirs(os.path.dirname(ny_dst), exist_ok=True)
+            shutil.copyfile(ny_src, ny_dst)
+            zoneinfo.reset_tzpath([tmp_tzdir])
+            zoneinfo.ZoneInfo.clear_cache()
+            try:
+                with self.assertRaises(zoneinfo.ZoneInfoNotFoundError):
+                    zoneinfo.ZoneInfo("US/Eastern")
+                self.assertEqual(collect.iso("20260911 15:30:01 US/Eastern"), "2026-09-11T19:30:01Z")
+                self.assertEqual(collect.iso("20260115 15:30:01 US/Eastern"), "2026-01-15T20:30:01Z")
+                self.assertEqual(collect.iso("20260911 15:30:01 America/New_York"), "2026-09-11T19:30:01Z")
+                self.assertIsNone(collect.parse_time("20260911 15:30:01 Mars/Olympus"))
+                self.assertIsNone(collect.parse_time("20260911 15:30:01 US/eastern"))
+
+                _, v2_text = run_fixture()
+                fills = json.loads(v2_text)["fills"]["items"]
+                self.assertEqual([f["time"] for f in fills], ["2026-09-11T19:45:00Z", "2026-09-11T19:30:01Z"])
+                self.assertEqual([f["side"] for f in fills], ["sell", "buy"])
+            finally:
+                zoneinfo.reset_tzpath(old_tzpath)
+                zoneinfo.ZoneInfo.clear_cache()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

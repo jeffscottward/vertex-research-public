@@ -46,6 +46,8 @@ import {
   OpenbbFactorsInputSchema,
   OpenbbInsiderClustersInputSchema,
   OpenbbInsiderClustersOutputSchema,
+  OpenbbIvHistoryInputSchema,
+  OpenbbIvHistoryOutputSchema,
   OpenbbMacroInputSchema,
   OpenbbSecInputSchema,
   OpenbbShortsInputSchema,
@@ -391,6 +393,44 @@ const presentInsiderClusters = (value: unknown): unknown => {
   };
 };
 
+const MCP_IV_HISTORY_MAX_POINTS = 63;
+
+const presentIvHistory = (value: unknown): unknown => {
+  const parsed = OpenbbIvHistoryOutputSchema.safeParse(value);
+  if (!parsed.success)
+    return {
+      context:
+        "The response did not match the openbb.ivHistory payload schema.",
+      points: [],
+    };
+  const { points, ...rest } = parsed.data;
+  const [first] = points;
+  if (first === undefined) {
+    return {
+      ...rest,
+      highPoint: null,
+      lowPoint: null,
+      points: [],
+      pointsOmitted: 0,
+      totalPoints: 0,
+    };
+  }
+  let highPoint = first;
+  let lowPoint = first;
+  for (const point of points) {
+    if (point.iv > highPoint.iv) highPoint = point;
+    if (point.iv < lowPoint.iv) lowPoint = point;
+  }
+  return {
+    ...rest,
+    highPoint,
+    lowPoint,
+    points: points.slice(-MCP_IV_HISTORY_MAX_POINTS),
+    pointsOmitted: Math.max(0, points.length - MCP_IV_HISTORY_MAX_POINTS),
+    totalPoints: points.length,
+  };
+};
+
 export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
   {
     name: "summary",
@@ -647,10 +687,20 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "openbb_vol_context",
     title: "Vol term structure, VX curve and Core 7 IV",
     description:
-      "Cboe data: latest vol index closes (VIX, VIX9D, VIX3M, VIX6M, VVIX, SKEW, ...) with VIX9D/VIX, VIX/VIX3M and VIX3M/VIX6M ratios (null unless both closes are from the same session), the VX futures curve (latest and 5 sessions earlier), Core 7 ETF option IV rows (ATM IV 30d, 25-delta IVs, GEX, gamma flip, walls) (IV as decimals, 0.15 = 15%) with a 252-session IV percentile (ivPercentile, 0-100) (null under 20 sessions) and the latest IV term rows. Optional asOf (YYYY-MM-DD); every row carries its own date. Cboe delayed data. Research input only, not a trade signal; nothing here places or changes orders.",
+      "Cboe data: latest vol index closes (VIX, VIX9D, VIX3M, VIX6M, VVIX, SKEW, ...) with VIX9D/VIX, VIX/VIX3M and VIX3M/VIX6M ratios (null unless both closes are from the same session), the VX futures curve (latest and 5 sessions earlier), Core 7 ETF option IV rows (ATM IV 30d, 25-delta IVs, GEX, gamma flip, walls; IV as decimals, 0.15 = 15%; own ivPercentile null under 252 sessions), ivOneYear 1-year (252-session) IV percentile and IV rank per Core 7 ETF (SPY/QQQ/DIA/IWM/GLD/SLV/USO) with explicit basis (own_atm_iv once 252 sessions exist, else vol_index_proxy using VIX/VXN/VXD/RVX/GVZ/VXSLV/OVX), windowSessions, sessions, asOf, and null with reason when a basis has fewer than 252 sessions, plus the latest IV term rows. Optional asOf (YYYY-MM-DD); every row carries its own date. Cboe delayed data. Research input only, not a trade signal; nothing here places or changes orders.",
     procedure: "openbb/volContext",
     input: OpenbbVolContextInputSchema,
     readOnly: true,
+  },
+  {
+    name: "openbb_iv_history",
+    title: "Rolling 1-year IV rank and percentile history",
+    description:
+      "Daily rolling 252-session IV rank (0-100, null when flat) and IV percentile (0-100) history for one ticker over 63, 126, 252 (default) or 504 trading sessions, with explicit basis (own_atm_iv from openbb_option_iv_daily in decimal once own history covers the horizon or no proxy exists; else vol_index_proxy from Cboe volatility indices in vol_points for Core 7 ETFs; else null with reason). Optional asOf (YYYY-MM-DD >= 1900-01-01). MCP returns full metadata, horizon high/low milestones, and up to the newest 63 daily points (pointsOmitted notes older truncated points). Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "openbb/ivHistory",
+    input: OpenbbIvHistoryInputSchema,
+    readOnly: true,
+    present: (value) => presentIvHistory(value),
   },
   {
     name: "openbb_cot",

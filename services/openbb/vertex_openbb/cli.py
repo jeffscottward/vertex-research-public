@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 from . import rows as row_rules
 from . import sec_guard
 from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_blocked, all_failed, parse_list
-from .jobs import cboe, cftc, congress, daily_prices, fed, finra, form4, sec, series, treasury
+from .jobs import cboe, cftc, cme, congress, daily_prices, fed, finra, form4, sec, series, treasury
 from .upstream import Upstream
 
 SCHEMA_VERSION = "openbb-batch.v1"
@@ -58,6 +58,7 @@ JOBS: dict[str, Job] = {
     "congress-house": congress.house,
     "congress-senate": congress.senate,
     "daily-prices": daily_prices.daily_prices,
+    "cme-futures-oi": cme.futures_oi,
 }
 # Tables each job prints (always present, possibly empty).
 JOB_TABLES: dict[str, tuple[str, ...]] = {
@@ -85,6 +86,7 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     "congress-house": ("congress_trades", "congress_filings"),
     "congress-senate": ("congress_trades", "congress_filings"),
     "daily-prices": ("daily_series", "daily_bars"),
+    "cme-futures-oi": ("macro_points",),
 }
 # Every OpenBB provider fetcher a job calls (checked by --warm).
 FETCHERS_USED = (
@@ -121,6 +123,7 @@ PROVIDER_MODULES = (
     "openbb_sec.models.form_13FHR",
     "openbb_government_us.treasury",
     "pdfplumber",
+    "openpyxl",
     "yfinance",
     # Shiller workbook of daily-prices (EY_TNX_RATIO).
     "xlrd",
@@ -175,6 +178,7 @@ UNTIL_JOBS = {
     "congress-house": congress.DEFAULT_DAYS,
     "congress-senate": congress.DEFAULT_DAYS,
     "sec-form4": form4.DEFAULT_DAYS,
+    "cme-futures-oi": cme.DEFAULT_DAYS,
 }
 STATE_JOBS = ("sec-form4", "cboe-option-iv", "daily-prices")
 SYMBOL_JOBS = {

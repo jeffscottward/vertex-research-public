@@ -46,6 +46,15 @@ SERIES: dict[str, tuple[str, str, str, str]] = {
     "DTWEXBGS": ("fred", "Nominal broad U.S. dollar index (DTWEXBGS)", "index", "daily"),
     "ICSA": ("fred", "Initial jobless claims, seasonally adjusted (ICSA)", "number", "weekly"),
     "STLFSI4": ("fred", "St. Louis Fed Financial Stress Index (STLFSI4)", "index", "weekly"),
+    # cme-futures-oi (product total of the daily workbook; the final figure would get its own id)
+    "CME_ES_OI": (
+        "cme", "E-mini S&P 500 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+        "contracts", "daily",
+    ),
+    "CME_NQ_OI": (
+        "cme", "E-mini Nasdaq-100 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+        "contracts", "daily",
+    ),
 }
 
 

@@ -1,4 +1,4 @@
--- Guarded reversal of 0093_common_mikhail_rasputin only.
+-- Guarded reversal of 0095_common_mikhail_rasputin only.
 -- Refuse to discard known source provenance. Export it or get approval to accept the loss before changing this guard.
 -- Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
 -- Run with `psql -v ON_ERROR_STOP=1` WITHOUT `--single-transaction` (this file owns BEGIN/COMMIT).

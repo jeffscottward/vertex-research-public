@@ -1,0 +1,530 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 480"
+  width="1200"
+  height="480"
+  role="img"
+  aria-label="Data flow for 1-year IV percentile and IV rank in openbb.volContext"
+>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <marker
+      id="arr"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#e5b84b" />
+    </marker>
+    <marker
+      id="arrGray"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="480" fill="url(#bg2)" />
+  <text
+    x="44"
+    y="46"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    Data Flow &amp; Basis Selection · openbb.volContext
+  </text>
+  <text
+    x="44"
+    y="70"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    Two separate 252-session calculations (never mixed) → explicit selected
+    basis → oRPC, MCP, and /markets
+  </text>
+
+  <!-- Column 1: Postgres Sources -->
+  <g transform="translate(44, 108)">
+    <!-- Cylinder 1: openbb_option_iv_daily -->
+    <rect
+      width="236"
+      height="126"
+      rx="12"
+      fill="#131a26"
+      stroke="#3b82f6"
+      stroke-width="1.5"
+    />
+    <ellipse cx="118" cy="22" rx="34" ry="8" fill="#1e3a5f" stroke="#60a5fa" />
+    <path
+      d="M 84 22 L 84 40 A 34 8 0 0 0 152 40 L 152 22"
+      fill="none"
+      stroke="#60a5fa"
+    />
+    <text
+      x="118"
+      y="68"
+      text-anchor="middle"
+      fill="#f8fafc"
+      font-family="system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      openbb_option_iv_daily
+    </text>
+    <text
+      x="118"
+      y="88"
+      text-anchor="middle"
+      fill="#93c5fd"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      atm_iv_30d (decimal)
+    </text>
+    <text
+      x="118"
+      y="108"
+      text-anchor="middle"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      Newest 252 rows / ETF
+    </text>
+
+    <!-- Cylinder 2: market_daily_series -->
+    <g transform="translate(0, 174)">
+      <rect
+        width="236"
+        height="134"
+        rx="12"
+        fill="#131a26"
+        stroke="#c99b2e"
+        stroke-width="1.5"
+      />
+      <ellipse
+        cx="118"
+        cy="22"
+        rx="34"
+        ry="8"
+        fill="#3a2d12"
+        stroke="#f0c85a"
+      />
+      <path
+        d="M 84 22 L 84 40 A 34 8 0 0 0 152 40 L 152 22"
+        fill="none"
+        stroke="#f0c85a"
+      />
+      <text
+        x="118"
+        y="68"
+        text-anchor="middle"
+        fill="#f8fafc"
+        font-family="system-ui, sans-serif"
+        font-size="14"
+        font-weight="700"
+      >
+        market_daily_series
+      </text>
+      <text
+        x="118"
+        y="88"
+        text-anchor="middle"
+        fill="#fde68a"
+        font-family="system-ui, sans-serif"
+        font-size="12"
+      >
+        VIX · VXN · RVX · VXD (+3)
+      </text>
+      <text
+        x="118"
+        y="108"
+        text-anchor="middle"
+        fill="#94a3b8"
+        font-family="system-ui, sans-serif"
+        font-size="11"
+      >
+        420d lookback → slice(-252)
+      </text>
+    </g>
+  </g>
+
+  <!-- Arrows Col 1 -> Col 2 -->
+  <line
+    x1="280"
+    y1="171"
+    x2="340"
+    y2="171"
+    stroke="#64748b"
+    stroke-width="2"
+    marker-end="url(#arrGray)"
+  />
+  <line
+    x1="280"
+    y1="349"
+    x2="340"
+    y2="349"
+    stroke="#e5b84b"
+    stroke-width="2"
+    marker-end="url(#arr)"
+  />
+
+  <!-- Column 2: Pure evaluators -->
+  <g transform="translate(348, 108)">
+    <!-- Own evaluator -->
+    <rect
+      width="240"
+      height="126"
+      rx="12"
+      fill="#131a26"
+      stroke="#475569"
+      stroke-width="1.5"
+    />
+    <text
+      x="120"
+      y="30"
+      text-anchor="middle"
+      fill="#e2e8f0"
+      font-family="system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      own Basis Check
+    </text>
+    <text
+      x="120"
+      y="54"
+      text-anchor="middle"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      validSessions ≥ 252?
+    </text>
+    <rect
+      x="18"
+      y="68"
+      width="96"
+      height="40"
+      rx="6"
+      fill="#172b20"
+      stroke="#22c55e"
+    />
+    <text
+      x="66"
+      y="86"
+      text-anchor="middle"
+      fill="#86efac"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+      font-weight="700"
+    >
+      YES (252)
+    </text>
+    <text
+      x="66"
+      y="101"
+      text-anchor="middle"
+      fill="#bbf7d0"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      pctl + rank
+    </text>
+    <rect
+      x="126"
+      y="68"
+      width="96"
+      height="40"
+      rx="6"
+      fill="#2a161b"
+      stroke="#ef4444"
+    />
+    <text
+      x="174"
+      y="86"
+      text-anchor="middle"
+      fill="#fca5a5"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+      font-weight="700"
+    >
+      NO (&lt; 252)
+    </text>
+    <text
+      x="174"
+      y="101"
+      text-anchor="middle"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      null + reason
+    </text>
+
+    <!-- Proxy evaluator -->
+    <g transform="translate(0, 174)">
+      <rect
+        width="240"
+        height="134"
+        rx="12"
+        fill="#131a26"
+        stroke="#c99b2e"
+        stroke-width="1.5"
+      />
+      <text
+        x="120"
+        y="30"
+        text-anchor="middle"
+        fill="#fde68a"
+        font-family="system-ui, sans-serif"
+        font-size="14"
+        font-weight="700"
+      >
+        proxy Basis Check
+      </text>
+      <text
+        x="120"
+        y="54"
+        text-anchor="middle"
+        fill="#94a3b8"
+        font-family="system-ui, sans-serif"
+        font-size="12"
+      >
+        indexSessions ≥ 252?
+      </text>
+      <rect
+        x="18"
+        y="72"
+        width="96"
+        height="44"
+        rx="6"
+        fill="#172b20"
+        stroke="#22c55e"
+      />
+      <text
+        x="66"
+        y="90"
+        text-anchor="middle"
+        fill="#86efac"
+        font-family="system-ui, sans-serif"
+        font-size="11"
+        font-weight="700"
+      >
+        YES (252)
+      </text>
+      <text
+        x="66"
+        y="106"
+        text-anchor="middle"
+        fill="#bbf7d0"
+        font-family="system-ui, sans-serif"
+        font-size="10"
+      >
+        pctl + rank
+      </text>
+      <rect
+        x="126"
+        y="72"
+        width="96"
+        height="44"
+        rx="6"
+        fill="#2a161b"
+        stroke="#ef4444"
+      />
+      <text
+        x="174"
+        y="90"
+        text-anchor="middle"
+        fill="#fca5a5"
+        font-family="system-ui, sans-serif"
+        font-size="11"
+        font-weight="700"
+      >
+        NO (&lt; 252)
+      </text>
+      <text
+        x="174"
+        y="106"
+        text-anchor="middle"
+        fill="#fecaca"
+        font-family="system-ui, sans-serif"
+        font-size="10"
+      >
+        null + reason
+      </text>
+    </g>
+  </g>
+
+  <!-- Arrows Col 2 -> Col 3 (Diamond selector) -->
+  <path
+    d="M 588 171 L 638 171 L 638 242 L 664 242"
+    fill="none"
+    stroke="#64748b"
+    stroke-width="2"
+    marker-end="url(#arrGray)"
+  />
+  <path
+    d="M 588 349 L 638 349 L 638 278 L 664 278"
+    fill="none"
+    stroke="#e5b84b"
+    stroke-width="2"
+    marker-end="url(#arr)"
+  />
+
+  <!-- Column 3: Basis Selector -->
+  <g transform="translate(672, 166)">
+    <rect
+      width="212"
+      height="188"
+      rx="14"
+      fill="#182132"
+      stroke="#f0c85a"
+      stroke-width="2"
+    />
+    <text
+      x="106"
+      y="32"
+      text-anchor="middle"
+      fill="#f8fafc"
+      font-family="system-ui, sans-serif"
+      font-size="15"
+      font-weight="700"
+    >
+      Select 1y Basis
+    </text>
+    <text
+      x="106"
+      y="64"
+      text-anchor="middle"
+      fill="#93c5fd"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+      font-weight="600"
+    >
+      1. own ready → own_atm_iv
+    </text>
+    <text
+      x="106"
+      y="96"
+      text-anchor="middle"
+      fill="#f0c85a"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+      font-weight="600"
+    >
+      2. else proxy → vol_index_proxy
+    </text>
+    <text
+      x="106"
+      y="128"
+      text-anchor="middle"
+      fill="#fca5a5"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+      font-weight="600"
+    >
+      3. else → null + reasons
+    </text>
+    <line x1="20" y1="146" x2="192" y2="146" stroke="#334155" />
+    <text
+      x="106"
+      y="168"
+      text-anchor="middle"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      Both own &amp; proxy attached
+    </text>
+  </g>
+
+  <!-- Arrows Col 3 -> Col 4 -->
+  <path
+    d="M 884 220 L 928 164"
+    fill="none"
+    stroke="#e5b84b"
+    stroke-width="2"
+    marker-end="url(#arr)"
+  />
+  <line
+    x1="884"
+    y1="260"
+    x2="928"
+    y2="260"
+    stroke="#e5b84b"
+    stroke-width="2"
+    marker-end="url(#arr)"
+  />
+  <path
+    d="M 884 300 L 928 356"
+    fill="none"
+    stroke="#e5b84b"
+    stroke-width="2"
+    marker-end="url(#arr)"
+  />
+
+  <!-- Column 4: Consumers -->
+  <g transform="translate(936, 118)" font-family="system-ui, sans-serif">
+    <rect width="220" height="82" rx="10" fill="#131a26" stroke="#334155" />
+    <text x="16" y="28" fill="#f8fafc" font-size="14" font-weight="700">
+      oRPC openbb.volContext
+    </text>
+    <text x="16" y="48" fill="#cbd5e1" font-size="11">
+      ivOneYear[] + ivDaily[]
+    </text>
+    <text x="16" y="66" fill="#94a3b8" font-size="11">
+      Agent read key &amp; session
+    </text>
+
+    <rect
+      y="102"
+      width="220"
+      height="82"
+      rx="10"
+      fill="#131a26"
+      stroke="#334155"
+    />
+    <text x="16" y="130" fill="#f8fafc" font-size="14" font-weight="700">
+      MCP openbb_vol_context
+    </text>
+    <text x="16" y="150" fill="#cbd5e1" font-size="11">
+      Consults &amp; research tools
+    </text>
+    <text x="16" y="168" fill="#94a3b8" font-size="11">
+      Rates QQQ/SPY/IWM/DIA 1y IV
+    </text>
+
+    <rect
+      y="204"
+      width="220"
+      height="82"
+      rx="10"
+      fill="#131a26"
+      stroke="#334155"
+    />
+    <text x="16" y="232" fill="#f8fafc" font-size="14" font-weight="700">
+      /markets Core 7 IV Table
+    </text>
+    <text x="16" y="252" fill="#cbd5e1" font-size="11">
+      IV pctl / rank (1y) + 1y basis
+    </text>
+    <text x="16" y="270" fill="#94a3b8" font-size="11">
+      Basis + sessions + as-of date
+    </text>
+  </g>
+</svg>

@@ -398,6 +398,40 @@ Panel "Tape speed" on `/flow` (below the control panel):
   bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
   390-minute window: nothing stored).
 
+## Liquidity heatmap (ES, NQ)
+
+Design: [vertex-viz-liquidity-heatmap/design.md](designs/vertex-viz-liquidity-heatmap/design.md).
+Research only: resting book size and trade dots describe market depth and prints, never a trade
+signal.
+
+- **Streamed depth (`vertex-history` 1.7.0).** `DepthStream` maintains continuous CME L2
+  subscriptions (`reqMktDepth`, 10 rows per side, `isSmartDepth=false`) for ES and NQ, staying
+  within 2 of IBKR's 3 simultaneous L2 slots. Every 5 s it records a settled snapshot into a
+  720-entry memory ring (1 hour) and serves `GET /vertex-history/v1/depth-history?symbol=ES|NQ&since=<epoch>`
+  with zero extra IBKR requests. `/v1/depth` reuses the live stream snapshot for ES and NQ when
+  ready. Kill switch: `/etc/vertex-history/depth-off` cancels both L2 subscriptions within ~1 s
+  without a restart; IBKR error 309 halts both subscriptions until restart.
+- **Storage (`flow_book_snapshots`, migration 0094).** One row per `(symbol, captured_at)` for
+  ES and NQ holding finite positive 1D arrays (`bid_prices`, `bid_sizes`, `ask_prices`,
+  `ask_sizes`, max 20 levels per side), `best_bid`, `best_ask`, `min_tick`, `contract`, and
+  `capture` (`'streamed'` or `'sampled'`). `upsertBookSnapshots` keeps `'streamed'` over
+  `'sampled'` on key conflict. Retention: 7 days, pruned on the hourly collector sweep.
+- **Dual-mode collector.** `flow.collect` reads `/v1/depth-history` first for ES and NQ; if the
+  stream is `off`, `down`, or unreachable, it falls back to one-shot `/v1/depth` and stores a
+  1-minute `'sampled'` snapshot. While the stream is `starting` (or `live` with no settled snapshot
+  yet), the collector records `empty` and `/v1/depth` refuses one-shot `fetch_depth` so no
+  duplicate L2 slot is opened. When the stream reports `halted`, the collector records
+  `unavailable` and avoids adding another L2 request.
+- **Read procedure and page.** `flow.liquidityHeatmap` (`GET /flow/liquidity-heatmap`, schema
+  `flow-liquidity-heatmap.v1`) bins snapshots into up to 240 time columns (`15m -> 5s`,
+  `30m -> 10s`, `60m -> 15s`, `120m -> 30s`, `240m -> 60s`, `390m -> 120s`; 60 s minimum when
+  sampled-only) and up to 80 price buckets, normalizes intensity to the window 95th percentile,
+  detects up to 10 persistent resting walls, projects the newest snapshot as right-edge DOM bars,
+  and overlays large futures prints from `flow_large_trades` (up to 500). `FlowLiquidityHeatmapPanel`
+  sits below Tape speed on `/flow` with dark/light-safe tokens, keyboard column scrubbing
+  (`ArrowLeft`/`ArrowRight`/`Home`/`End`/`Escape`), `aria-live="polite"` inspection strip,
+  and accessible wall and print tables.
+
 ## Hedging pressure (SPY, ES)
 
 Design: [vertex-viz-hedging-pressure/design.md](designs/vertex-viz-hedging-pressure/design.md).
@@ -482,6 +516,112 @@ Panel "Hedging pressure" on `/flow` (below the Tape speed panel, SPY and ES only
   prints, the 09:30 start, research only, the version).
 - **Fixtures.** `/lab/flow` shows the SPY case (a rise, then a fall, one open gap) and the ES case
   (prints that are not signed, not priced and IV adjusted).
+
+## Put/call ratio (SPY, ES)
+
+Design: [vertex-viz-pc-ratio-line/design.md](designs/vertex-viz-pc-ratio-line/design.md).
+Research only: the lines describe gross put/call premium and volume ratios of the stored option
+prints. They are not a trade signal and no engine reads them. Nothing here places, changes or
+cancels an order.
+
+Data: the stored rows of `flow_option_prints` only (no new table, no migration, no vendor call).
+Symbol SPY reads SPY options; symbol ES reads SPX options, and its price is the SPX index. QQQ
+and NQ have no stored option prints and no panel. `flow_net_drift` stores signed net values
+(ask minus bid) and is not used.
+
+Rules (`PUT_CALL_RATIO_RULES`, version `put-call-ratio.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `minPremiumUsd` | 10000 | minimum print premium stored by the collector ($10,000) |
+| `retentionDays` | 14 | retention window of `flow_option_prints` (calendar days) |
+| `parity` | 1 | equal put and call reference line (1.00) |
+
+- **Session range.** Regular options hours (09:30 to 16:15 New York, end-exclusive) of the newest
+  stored print's session date (`flowSessionDate`). All stored prints in those hours count
+  regardless of aggressor side.
+- **Ratios.** Gross `putPremium / callPremium` and `putVolume / callVolume`; `null` when the call
+  denominator is 0 (never `Infinity` or `NaN`).
+- **Session series (`points`).** One point per minute with at least one print (at most 405):
+  running cumulative sums and ratios from 09:30 ET, the minute's print count, and the carried-forward
+  newest positive underlying price. `totals` records the session totals and the first-win high and
+  low minutes of each running ratio.
+- **Daily series (`days`).** One entry per stored weekday options session (09:30 to 16:15 New York,
+  at most 20 sessions over a 20-day lookback, oldest first), aggregated directly in Postgres
+  (`readOptionPrintMinutes` and `readOptionPrintDays`), with `incomplete: true` when any open
+  `flow_option_gaps` range overlaps that session or its 09:30 ET open precedes the rolling 14-day
+  retention cutoff (`now - 14 days`).
+
+Procedure `flow.putCallRatio` (`GET /flow/put-call-ratio`, input `symbol` SPY or ES; operator
+session; no API key; the read-only viewer account can call it as a GET procedure) returns
+`flow-put-call-ratio.v1`.
+
+Panel "Put/call ratio" on `/flow` (below the Hedging pressure panel, SPY and ES only):
+
+- **Own call.** Starts with each load independently of the other panels, with its own loading,
+  failure-with-retry, and forbidden hold states. Switching symbols clears the panel; changing the
+  window does not.
+- **Views.** Toggle between **Session** (stepped running premium and volume P/C lines with a 1.00
+  parity line, open collector gap shade, underlying price, totals, session range and print counts)
+  and **Days (N)** (daily session P/C lines with distinct circle/square markers, incomplete-session
+  bands, underlying price and daily table).
+- **Fixtures.** `/lab/flow` shows the SPY case (starts below parity, turns above parity, 8 stored
+  sessions, one open gap on the newest session) and the ES case (SPX options, 8 stored sessions,
+  no open gap).
+
+## Options flow heatmap (SPY, ES)
+
+Design: [vertex-viz-flow-strike-time-heatmap/design.md](designs/vertex-viz-flow-strike-time-heatmap/design.md).
+Research only: the heatmap shows signed net option premium by strike and time bucket from stored
+option prints. It is not a trade signal, and no trading engine reads it. Nothing here places,
+changes, or cancels an order.
+
+Data: stored rows of `flow_option_prints` and open `flow_option_gaps` only (no new table, no
+migration, and no vendor call). Symbol SPY reads SPY options; symbol ES reads SPX options. QQQ and
+NQ have no stored option prints and no panel.
+
+Rules (`STRIKE_HEATMAP_RULES`, version `strike-heatmap.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `minPremiumUsd` | 10000 | minimum print premium stored by the collector ($10,000) |
+| `retentionDays` | 14 | retention window of `flow_option_prints` (calendar days) |
+| `maxStrikes` | 20 | maximum strike rows returned, ranked by session gross premium |
+| `defaultBucketMinutes` | 15 | default time bucket width (`5`, `15`, or `30` minutes) |
+
+- **Session range.** Regular options hours (09:30 to 16:15 New York, end-exclusive) of the newest
+  stored print's session date (`flowSessionDate`).
+- **Signed net premium.** `readOptionPrintStrikeBuckets` groups rows in Postgres by
+  `(strike, slotIndex, right, side)`. `packages/api/src/flow-strike-heatmap-rules.ts` classifies
+  direction using `OPTION_SIDE_SIGN` from `packages/api/src/flow-options.ts`: bullish is call at
+  ask/above ask or put at bid/below bid (`+1`), bearish is put at ask/above ask or call at
+  bid/below bid (`-1`), and mid/unknown fills are unsigned (`0`, counted in `unsignedPrints` and
+  included in `grossPremium`).
+- **Slot prices and gaps.** `readOptionPrintSlotPrices` reads the newest positive finite
+  `underlying_price` per slot via `DISTINCT ON` the slot expression ordered by `(slotIndex ASC,
+  traded_at DESC, id DESC)`, and `foldStrikeHeatmap` carries prices forward across later slots. Any
+  slot overlapping an open `flow_option_gaps` range is flagged `unread: true`.
+- **Strike cap.** `strikes` and `cells` include the top 20 strikes by session `grossPremium`
+  (sorted descending by strike). `slots` and `totals` aggregate all strikes in the session and
+  report `omittedStrikes`, `omittedGrossPremium`, `omittedNetPremium`, and `omittedPrints`.
+
+Procedure `flow.strikeHeatmap` (`GET /flow/strike-heatmap`, input `symbol` SPY or ES and optional
+`bucketMinutes` `5 | 15 | 30`, default `15`; operator session; no API key; read-only viewer account
+can call it as a GET procedure) returns `flow-strike-heatmap.v1`.
+
+Panel "Options flow heatmap" on `/flow` (below the Put/call ratio panel, SPY and ES only):
+
+- **Own call.** Runs in its own `loadStrikeHeatmap` sequence. Switching `5m` / `15m` / `30m` or
+  clicking **Retry** refetches only `flow.strikeHeatmap` without refetching other panels or
+  resetting the 60 s refresh timer.
+- **Matrix and controls.** Scrollable strike × time table (`TableScroll`) with a sticky `Strike`
+  column, diverging `oklab` semantic cell tints (`--color-success` / `--color-destructive`,
+  10%–42% mix) plus explicit `+` / `-` / `$0` labels, dashed neutral borders for flat/unsigned
+  active cells, hatched unread-gap shading, latest spot reference marker, roving-`tabIndex` arrow
+  navigation, and a live cell inspector readout bar.
+- **Fixtures.** `/lab/flow` renders deterministic SPY (23 strikes with 3 omitted, open collector
+  gap, unsigned flat cell, spot between strikes) and ES (12 SPX strikes, exact-strike spot, no gap)
+  responses across 5m, 15m, and 30m buckets.
 
 ## Net drift
 
@@ -713,6 +853,9 @@ its counts cannot be collected again, and a later burst study sets the cutoff. E
 0.65 kB per row and 2,760 rows per trading day (two symbols), so about 0.45 GB per year without
 index and backup overhead. The deploy subsection "Tape speed (migration 0091)" has the size query;
 set a cutoff before the table passes 2 GB. A build from before the table does not write or read it.
+
+`flow_book_snapshots` is pruned at 7 days (`FLOW_RETENTION_DAYS.flow_book_snapshots = 7`) on the hourly
+collector sweep so continuous 5 s L2 history stays bounded.
 
 ## Options paging and gaps
 
@@ -999,6 +1142,42 @@ locks no existing table. The tick script and `vertex-history` do not change.
    `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not a rollback path: it drops the
    stored counts, which cannot be collected again. It runs only on an owner decision, after
    `systemctl stop vertex-flow.timer`.
+
+### Liquidity heatmap (service 1.7.0, migration 0094)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The migration adds one table and
+locks no existing table.
+
+1. Apply `packages/db/migrations/0094_flow_book_snapshots.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+2. Write probe as `vertex_research` in `psql -v ON_ERROR_STOP=1` (must print `1` then `0`):
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE vertex_research;
+   INSERT INTO flow_book_snapshots (
+     ask_prices, ask_sizes, best_ask, best_bid, bid_prices, bid_sizes,
+     capture, captured_at, contract, min_tick, symbol
+   ) VALUES (
+     ARRAY[6000.25], ARRAY[10], 6000.25, 6000.0, ARRAY[6000.0], ARRAY[12],
+     'streamed', '2000-01-03 00:00:00+00', 'PROBE', 0.25, 'ES'
+   ) ON CONFLICT (symbol, captured_at) DO UPDATE SET capture = excluded.capture;
+   SELECT count(*) FROM flow_book_snapshots WHERE captured_at = '2000-01-03 00:00:00+00';
+   DELETE FROM flow_book_snapshots WHERE captured_at = '2000-01-03 00:00:00+00';
+   SELECT count(*) FROM flow_book_snapshots WHERE captured_at = '2000-01-03 00:00:00+00';
+   ROLLBACK;
+   ```
+
+3. Deploy `vertex-web` with `infra/quantvps/restart-when-idle.sh`. The collector immediately
+   records 1-minute `sampled` L2 snapshots even before `vertex-history` upgrades.
+4. Upgrade `vertex-history` to 1.7.0 under `/opt/vertex-history` (backup first, run
+   `test_vertex_history.py`, copy `vertex_history.py`, restart `vertex-history` off-hours,
+   verify `/vertex-history/v1/health` shows `depth.off = false`, `depth.halted = null`, and
+   `depth.feeds.ES`/`NQ` live).
+5. Rollback: `sudo touch /etc/vertex-history/depth-off` disables continuous L2 streaming within
+   1 s without restart; optional DB rollback uses
+   `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
 
 ## Agent semantic layer
 

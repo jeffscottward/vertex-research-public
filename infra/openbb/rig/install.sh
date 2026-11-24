@@ -3,7 +3,7 @@
 # Usage: infra/openbb/rig/install.sh <deployed-sha> [--enable]
 # Run this script from a rig checkout of vertex-research-public that contains <deployed-sha> (git fetch
 # first); the repository is the one this script lives in, whatever the current directory.
-# It makes ~/.local/share/vertex-openbb/{checkout,venv,vertex-openbb.steps}: a detached worktree at
+# It makes ~/.local/share/vertex-openbb/{checkout,venv,vertex-openbb.steps}: a locked detached worktree at
 # the SHA with its node modules, a Python 3.12 venv from the hash-locked OpenBB lock file, and the steps
 # file; it copies the run wrapper to ~/.local/bin and the units to ~/.config/systemd/user.
 # --enable also enables and starts vertex-openbb.timer. Needs ~/.config/vertex/openbb.env and
@@ -62,9 +62,15 @@ mkdir -p "$base"
 if [[ -d "$base/checkout/.git" || -f "$base/checkout/.git" ]]; then
   git -C "$base/checkout" checkout --detach --quiet "$sha"
 else
-  # A checkout folder deleted by hand leaves a stale worktree entry; prune it first.
+  # A checkout folder deleted by hand leaves a stale (possibly locked) worktree entry; unlock and prune it first.
+  git -C "$repo" worktree unlock "$base/checkout" 2>/dev/null || true
   git -C "$repo" worktree prune
   git -C "$repo" worktree add --detach "$base/checkout" "$sha"
+fi
+# Lock the deploy worktree so bulk worktree cleanup (`git worktree remove --force`) leaves it intact.
+wt_git_dir="$(git -C "$base/checkout" rev-parse --absolute-git-dir)"
+if [[ ! -f "$wt_git_dir/locked" ]]; then
+  git -C "$repo" worktree lock --reason "Live deploy worktree for vertex-openbb.service" "$base/checkout"
 fi
 (cd "$base/checkout" && pnpm install --frozen-lockfile --silent)
 

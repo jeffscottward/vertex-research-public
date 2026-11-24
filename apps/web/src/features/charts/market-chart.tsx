@@ -2,7 +2,12 @@
 
 import { ChartWorkstation } from "./chart-workstation.tsx";
 import { createKLineRenderer } from "./kline-adapter.ts";
-import type { ChartMarker, ChartStudies, DisplayCandle } from "./types.ts";
+import type {
+  ChartMarker,
+  ChartStudies,
+  DisplayCandle,
+  SeriesPane,
+} from "./types.ts";
 
 // Lazy-loaded entry for the /charts page: KLineCharts workstation with chart types,
 // drawings, data window, object tree and PNG screenshot.
@@ -13,6 +18,7 @@ export type MarketBarsChartProps = Readonly<{
   pricePrecision: number;
   studies: ChartStudies;
   markers: readonly ChartMarker[];
+  seriesPane?: SeriesPane | null;
 }>;
 
 export const MARKET_CHART_CAPTIONS = Object.freeze({
@@ -29,6 +35,7 @@ export const MarketBarsChart = ({
   pricePrecision,
   studies,
   markers,
+  seriesPane,
 }: MarketBarsChartProps) => {
   if (typeof window === "undefined")
     return (
@@ -44,6 +51,7 @@ export const MarketBarsChart = ({
       label={label}
       markers={markers}
       pricePrecision={pricePrecision}
+      seriesPane={seriesPane ?? null}
       studies={studies}
       symbol={symbol}
     />

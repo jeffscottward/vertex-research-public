@@ -14,6 +14,9 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // flow.hedgingPressure reads the stored SPY or SPX option prints of the newest options session as
 // a running sum of estimated dealer hedge notional (flow-hedging-pressure.v1): an estimate, never
 // a trade signal.
+// flow.putCallRatio reads the stored SPY or SPX option prints as gross put/call premium and volume
+// ratios over the newest options session and over stored sessions (flow-put-call-ratio.v1):
+// research context only, never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
@@ -230,6 +233,37 @@ export const FLOW_HEDGING_PRESSURE_VERSION =
 /** One point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
 export const FLOW_HEDGING_MAX_POINTS = 405;
 export type FlowHedgingSymbol = (typeof FLOW_HEDGING_SYMBOLS)[number];
+
+// Put/call ratio document (flow.putCallRatio): gross put/call premium and volume ratios of stored
+// option prints over the newest options session (running) and over stored sessions (daily).
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_PUT_CALL_RATIO_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_PUT_CALL_RATIO_VERSION = "flow-put-call-ratio.v1" as const;
+/** One point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
+export const FLOW_PUT_CALL_RATIO_MAX_POINTS = 405;
+/** Daily sessions returned (14-day option print retention holds at most ~10-14 sessions). */
+export const FLOW_PUT_CALL_RATIO_MAX_DAYS = 20;
+export type FlowPutCallRatioSymbol =
+  (typeof FLOW_PUT_CALL_RATIO_SYMBOLS)[number];
+
+// Strike × time options flow heatmap (flow.strikeHeatmap): directional signed net premium of
+// stored option prints across strikes and intraday time buckets of the newest options session.
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_STRIKE_HEATMAP_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_STRIKE_HEATMAP_VERSION = "flow-strike-heatmap.v1" as const;
+/** Supported time bucket widths in minutes (all divide 09:30 New York open cleanly). */
+export const FLOW_STRIKE_HEATMAP_BUCKETS = [5, 15, 30] as const;
+/** 09:30 to 16:15 New York (405 minutes) at 5-minute granularity = 81 slots. */
+export const FLOW_STRIKE_HEATMAP_MAX_SLOTS = 81;
+/** Maximum displayed strikes per session (top strikes by gross premium). */
+export const FLOW_STRIKE_HEATMAP_MAX_STRIKES = 20;
+/** Maximum sparse cells returned (20 strikes × 81 slots). */
+export const FLOW_STRIKE_HEATMAP_MAX_CELLS =
+  FLOW_STRIKE_HEATMAP_MAX_STRIKES * FLOW_STRIKE_HEATMAP_MAX_SLOTS;
+export type FlowStrikeHeatmapSymbol =
+  (typeof FLOW_STRIKE_HEATMAP_SYMBOLS)[number];
+export type FlowStrikeHeatmapBucketMinutes =
+  (typeof FLOW_STRIKE_HEATMAP_BUCKETS)[number];
 
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
@@ -938,6 +972,429 @@ export const FlowHedgingPressureSchema = z
   })
   .strict();
 
+export const FlowPutCallRatioInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of the put/call ratio lines (packages/api/src/flow-put-call-ratio-rules.ts). */
+export const FlowPutCallRatioRulesSchema = z
+  .object({
+    version: z.literal("put-call-ratio.v1"),
+    /** Minimum print premium stored by the collector (US dollars). */
+    minPremiumUsd: finite.positive(),
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Equal put and call reference line. */
+    parity: z.literal(1),
+  })
+  .strict();
+
+/** One minute and its running put/call ratio extreme. */
+export const FlowPutCallRatioMinuteSchema = z
+  .object({
+    minute: timestamp,
+    ratio: nonNegative,
+  })
+  .strict();
+
+/** One minute of the newest session with at least one print; sums and ratios are running. */
+export const FlowPutCallRatioPointSchema = z
+  .object({
+    minute: timestamp,
+    /** Running putPremium / callPremium; null when callPremium is 0. */
+    premiumRatio: nonNegative.nullable(),
+    /** Running putVolume / callVolume; null when callVolume is 0. */
+    volumeRatio: nonNegative.nullable(),
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    callVolume: count,
+    putVolume: count,
+    /** Stored prints in this minute. */
+    prints: count,
+    /** Underlying price of the newest priced print up to this minute; null before the first. */
+    price: finite.nullable(),
+  })
+  .strict();
+
+/** One stored regular options session (09:30 to 16:15 New York) in the multi-day series. */
+export const FlowPutCallRatioDaySchema = z
+  .object({
+    session: isoDate,
+    prints: count,
+    callPrints: count,
+    putPrints: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    callVolume: count,
+    putVolume: count,
+    /** Session putPremium / callPremium; null when callPremium is 0. */
+    premiumRatio: nonNegative.nullable(),
+    /** Session putVolume / callVolume; null when callVolume is 0. */
+    volumeRatio: nonNegative.nullable(),
+    /** Underlying price of the newest priced print in the session; null without one. */
+    price: finite.nullable(),
+    /** True when an open collector gap overlaps this session's regular options hours. */
+    incomplete: z.boolean(),
+  })
+  .strict();
+
+export const FlowPutCallRatioTotalsSchema = z
+  .object({
+    prints: count,
+    callPrints: count,
+    putPrints: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    callVolume: count,
+    putVolume: count,
+    premiumRatio: nonNegative.nullable(),
+    volumeRatio: nonNegative.nullable(),
+    premiumHigh: FlowPutCallRatioMinuteSchema.nullable(),
+    premiumLow: FlowPutCallRatioMinuteSchema.nullable(),
+    volumeHigh: FlowPutCallRatioMinuteSchema.nullable(),
+    volumeLow: FlowPutCallRatioMinuteSchema.nullable(),
+  })
+  .strict();
+
+export const FlowPutCallRatioSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_PUT_CALL_RATIO_VERSION),
+    symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    rules: FlowPutCallRatioRulesSchema,
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+    totals: FlowPutCallRatioTotalsSchema,
+    /** Running session ratios, oldest first. */
+    points: z
+      .array(FlowPutCallRatioPointSchema)
+      .max(FLOW_PUT_CALL_RATIO_MAX_POINTS),
+    /** Daily session ratios over stored sessions, oldest first. */
+    days: z.array(FlowPutCallRatioDaySchema).max(FLOW_PUT_CALL_RATIO_MAX_DAYS),
+  })
+  .strict();
+
+const strikeHeatmapBucketMinutesInput = z
+  .union([
+    z.literal(5),
+    z.literal(15),
+    z.literal(30),
+    z.literal("5").transform(() => 5 as const),
+    z.literal("15").transform(() => 15 as const),
+    z.literal("30").transform(() => 30 as const),
+  ])
+  .default(15);
+
+const strikeHeatmapBucketMinutesOutput = z.union([
+  z.literal(5),
+  z.literal(15),
+  z.literal(30),
+]);
+
+export const FlowStrikeHeatmapInputSchema = z
+  .object({
+    bucketMinutes: strikeHeatmapBucketMinutesInput,
+    symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of the strike × time options flow heatmap (packages/api/src/flow-strike-heatmap-rules.ts). */
+export const FlowStrikeHeatmapRulesSchema = z
+  .object({
+    version: z.literal("strike-heatmap.v1"),
+    /** Minimum print premium stored by the collector (US dollars). */
+    minPremiumUsd: finite.positive(),
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Maximum strikes returned per session (top strikes by gross premium). */
+    maxStrikes: z.number().int().min(1).max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
+    /** Default time bucket width in minutes. */
+    defaultBucketMinutes: strikeHeatmapBucketMinutesOutput,
+  })
+  .strict();
+
+/** One time slot of the newest options session (aggregated across all session strikes). */
+export const FlowStrikeHeatmapSlotSchema = z
+  .object({
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS - 1),
+    start: timestamp,
+    end: timestamp,
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+    /** Carried-forward newest positive underlying price at or before the end of this slot; null before first priced print. */
+    price: finite.positive().nullable(),
+    /** True when any open flow_option_gaps range overlaps this slot. */
+    unread: z.boolean(),
+  })
+  .strict();
+
+/** One displayed strike row (top strikes by gross premium, sorted descending by strike). */
+export const FlowStrikeHeatmapStrikeSchema = z
+  .object({
+    strike: finite.positive(),
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+  })
+  .strict();
+
+/** One non-empty (strike, slotIndex) cell for a displayed strike. */
+export const FlowStrikeHeatmapCellSchema = z
+  .object({
+    strike: finite.positive(),
+    slotIndex: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS - 1),
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+  })
+  .strict();
+
+/** Session-wide option flow totals across all strikes, plus omitted-strike accounting. */
+export const FlowStrikeHeatmapTotalsSchema = z
+  .object({
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+    totalStrikes: count,
+    shownStrikes: count,
+    omittedStrikes: count,
+    omittedGrossPremium: nonNegative,
+    omittedNetPremium: finite,
+    omittedPrints: count,
+    latestPrice: finite.positive().nullable(),
+  })
+  .strict();
+
+export const FlowStrikeHeatmapSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_STRIKE_HEATMAP_VERSION),
+    symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    bucketMinutes: strikeHeatmapBucketMinutesOutput,
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+    rules: FlowStrikeHeatmapRulesSchema,
+    slots: z
+      .array(FlowStrikeHeatmapSlotSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS),
+    strikes: z
+      .array(FlowStrikeHeatmapStrikeSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
+    cells: z
+      .array(FlowStrikeHeatmapCellSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_CELLS),
+    totals: FlowStrikeHeatmapTotalsSchema,
+  })
+  .strict();
+
+export const FLOW_LIQUIDITY_HEATMAP_VERSION =
+  "flow-liquidity-heatmap.v1" as const;
+export const FLOW_LIQUIDITY_HEATMAP_RULES_VERSION =
+  "flow-liquidity-heatmap-rules.v1" as const;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_COLUMNS = 240;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS = 80;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_TRADES = 500;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_WALLS = 10;
+export const FLOW_LIQUIDITY_HEATMAP_CAPTURE_MODES = [
+  "streamed",
+  "sampled",
+  "mixed",
+  "none",
+] as const;
+export const FLOW_LIQUIDITY_HEATMAP_CELL_SIDES = [
+  "bid",
+  "ask",
+  "both",
+] as const;
+export const FLOW_LIQUIDITY_HEATMAP_COLUMN_STATES = [
+  "recorded",
+  "no_data",
+] as const;
+
+export type FlowLiquidityHeatmapCaptureMode =
+  (typeof FLOW_LIQUIDITY_HEATMAP_CAPTURE_MODES)[number];
+export type FlowLiquidityHeatmapCellSide =
+  (typeof FLOW_LIQUIDITY_HEATMAP_CELL_SIDES)[number];
+export type FlowLiquidityHeatmapColumnState =
+  (typeof FLOW_LIQUIDITY_HEATMAP_COLUMN_STATES)[number];
+
+export const FlowLiquidityHeatmapInputSchema = z
+  .object({
+    minutes: snapshotMinutes,
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapCellSchema = z
+  .object({
+    /** Integer index into priceLevels. */
+    p: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS - 1),
+    /** Total resting contracts in this price bucket at this column. */
+    s: z.number().positive(),
+    side: z.enum(FLOW_LIQUIDITY_HEATMAP_CELL_SIDES),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapColumnSchema = z
+  .object({
+    bestAsk: z.number().positive().nullable(),
+    bestBid: z.number().positive().nullable(),
+    capture: z.enum(FLOW_CAPTURE_MODES).nullable(),
+    cells: z
+      .array(FlowLiquidityHeatmapCellSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS),
+    mid: z.number().positive().nullable(),
+    state: z.enum(FLOW_LIQUIDITY_HEATMAP_COLUMN_STATES),
+    t: timestamp,
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapDomLevelSchema = z
+  .object({
+    askSize: z.number().nonnegative(),
+    bidSize: z.number().nonnegative(),
+    p: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS - 1),
+    price: z.number().positive(),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapTradeSchema = z
+  .object({
+    capture: z.enum(FLOW_CAPTURE_MODES),
+    price: z.number().positive(),
+    side: z.enum(FLOW_TRADE_SIDES),
+    signing: z.enum(FLOW_SIGNING_METHODS),
+    size: z.number().positive(),
+    t: timestamp,
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapWallSchema = z
+  .object({
+    columnsPresent: z.number().int().min(1),
+    persistencePct: z.number().min(0).max(100),
+    price: z.number().positive(),
+    side: z.enum(["bid", "ask"]),
+    size: z.number().positive(),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapRulesSchema = z
+  .object({
+    intensityQuantile: z.number().positive().max(1),
+    largeTradeLimit: z.number().positive(),
+    maxColumns: z.number().int().positive(),
+    maxPriceBuckets: z.number().int().positive(),
+    sampleSeconds: z.number().int().positive(),
+    version: z.literal(FLOW_LIQUIDITY_HEATMAP_RULES_VERSION),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapSchema = z
+  .object({
+    axisEnd: timestamp,
+    axisStart: timestamp,
+    capture: z.enum(FLOW_LIQUIDITY_HEATMAP_CAPTURE_MODES),
+    columnSeconds: z.number().int().positive(),
+    columns: z
+      .array(FlowLiquidityHeatmapColumnSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_COLUMNS),
+    contract: z.string().min(1).max(20).nullable(),
+    currentDom: z
+      .array(FlowLiquidityHeatmapDomLevelSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS),
+    depth: FlowFreshnessSchema,
+    minTick: z.number().positive(),
+    priceLevels: z
+      .array(z.number().positive())
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS),
+    priceMax: z.number().positive().nullable(),
+    priceMin: z.number().positive().nullable(),
+    priceStep: z.number().positive(),
+    rules: FlowLiquidityHeatmapRulesSchema,
+    scale: z
+      .object({
+        maxSize: z.number().nonnegative(),
+        p95Size: z.number().nonnegative(),
+        totalCells: z.number().int().nonnegative(),
+      })
+      .strict(),
+    schemaVersion: z.literal(FLOW_LIQUIDITY_HEATMAP_VERSION),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    totals: z
+      .object({
+        coveragePct: z.number().min(0).max(100),
+        largeTrades: z.number().int().nonnegative(),
+        recordedColumns: z.number().int().nonnegative(),
+        snapshots: z.number().int().nonnegative(),
+        totalColumns: z.number().int().nonnegative(),
+      })
+      .strict(),
+    trades: z
+      .array(FlowLiquidityHeatmapTradeSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_TRADES),
+    tradesTruncated: z.boolean(),
+    walls: z
+      .array(FlowLiquidityHeatmapWallSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_WALLS),
+    windowEnd: timestamp,
+    windowStart: timestamp,
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -1043,12 +1500,51 @@ const hedgingPressure = flow
   .input(FlowHedgingPressureInputSchema)
   .output(FlowHedgingPressureSchema);
 
+const putCallRatio = flow
+  .route({
+    method: "GET",
+    operationId: "flow.putCallRatio",
+    path: "/flow/put-call-ratio",
+    summary:
+      "SPY or ES: put/call premium and volume ratios over the newest options session and over stored days (research input)",
+    tags,
+  })
+  .input(FlowPutCallRatioInputSchema)
+  .output(FlowPutCallRatioSchema);
+
+const strikeHeatmap = flow
+  .route({
+    method: "GET",
+    operationId: "flow.strikeHeatmap",
+    path: "/flow/strike-heatmap",
+    summary:
+      "SPY or ES: strike × time signed net-premium heatmap over the newest options session (research input)",
+    tags,
+  })
+  .input(FlowStrikeHeatmapInputSchema)
+  .output(FlowStrikeHeatmapSchema);
+
+const liquidityHeatmap = flow
+  .route({
+    method: "GET",
+    operationId: "flow.liquidityHeatmap",
+    path: "/flow/liquidity-heatmap",
+    summary:
+      "ES or NQ: recorded CME L2 resting liquidity heatmap over time, mid/BBO price, large-trade dots, and current DOM (research input)",
+    tags,
+  })
+  .input(FlowLiquidityHeatmapInputSchema)
+  .output(FlowLiquidityHeatmapSchema);
+
 export const flowContract = {
   collect,
   control,
   events,
   hedgingPressure,
+  liquidityHeatmap,
+  putCallRatio,
   snapshot,
+  strikeHeatmap,
   tapeSpeed,
 };
 
@@ -1110,3 +1606,57 @@ export type FlowHedgingPoint = z.infer<typeof FlowHedgingPointSchema>;
 export type FlowHedgingTotals = z.infer<typeof FlowHedgingTotalsSchema>;
 export type FlowHedgingMinute = z.infer<typeof FlowHedgingMinuteSchema>;
 export type FlowHedgingUnread = z.infer<typeof FlowHedgingUnreadSchema>;
+export type FlowPutCallRatioInput = z.infer<typeof FlowPutCallRatioInputSchema>;
+export type FlowPutCallRatio = z.infer<typeof FlowPutCallRatioSchema>;
+export type FlowPutCallRatioRules = z.infer<typeof FlowPutCallRatioRulesSchema>;
+export type FlowPutCallRatioPoint = z.infer<typeof FlowPutCallRatioPointSchema>;
+export type FlowPutCallRatioDay = z.infer<typeof FlowPutCallRatioDaySchema>;
+export type FlowPutCallRatioTotals = z.infer<
+  typeof FlowPutCallRatioTotalsSchema
+>;
+export type FlowPutCallRatioMinute = z.infer<
+  typeof FlowPutCallRatioMinuteSchema
+>;
+export type FlowStrikeHeatmapInput = z.input<
+  typeof FlowStrikeHeatmapInputSchema
+>;
+export type FlowStrikeHeatmapParsedInput = z.output<
+  typeof FlowStrikeHeatmapInputSchema
+>;
+export type FlowStrikeHeatmap = z.infer<typeof FlowStrikeHeatmapSchema>;
+export type FlowStrikeHeatmapRules = z.infer<
+  typeof FlowStrikeHeatmapRulesSchema
+>;
+export type FlowStrikeHeatmapSlot = z.infer<typeof FlowStrikeHeatmapSlotSchema>;
+export type FlowStrikeHeatmapStrike = z.infer<
+  typeof FlowStrikeHeatmapStrikeSchema
+>;
+export type FlowStrikeHeatmapCell = z.infer<typeof FlowStrikeHeatmapCellSchema>;
+export type FlowStrikeHeatmapTotals = z.infer<
+  typeof FlowStrikeHeatmapTotalsSchema
+>;
+export type FlowLiquidityHeatmapInput = z.input<
+  typeof FlowLiquidityHeatmapInputSchema
+>;
+export type FlowLiquidityHeatmapParsedInput = z.output<
+  typeof FlowLiquidityHeatmapInputSchema
+>;
+export type FlowLiquidityHeatmap = z.infer<typeof FlowLiquidityHeatmapSchema>;
+export type FlowLiquidityHeatmapCell = z.infer<
+  typeof FlowLiquidityHeatmapCellSchema
+>;
+export type FlowLiquidityHeatmapColumn = z.infer<
+  typeof FlowLiquidityHeatmapColumnSchema
+>;
+export type FlowLiquidityHeatmapDomLevel = z.infer<
+  typeof FlowLiquidityHeatmapDomLevelSchema
+>;
+export type FlowLiquidityHeatmapTrade = z.infer<
+  typeof FlowLiquidityHeatmapTradeSchema
+>;
+export type FlowLiquidityHeatmapWall = z.infer<
+  typeof FlowLiquidityHeatmapWallSchema
+>;
+export type FlowLiquidityHeatmapRules = z.infer<
+  typeof FlowLiquidityHeatmapRulesSchema
+>;

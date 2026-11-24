@@ -1,0 +1,234 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 960 440"
+  width="960"
+  height="440"
+  font-family="DejaVu Sans, sans-serif"
+  role="img"
+  aria-label="Before and after: put/call premium and volume ratio panel on /flow (MOCK)"
+>
+  <rect width="960" height="440" fill="#0f1013" />
+  <text x="24" y="34" font-size="20" fill="#e8e9ec" font-weight="700">
+    /flow · Put/call ratio (Session &amp; Days)
+  </text>
+  <text
+    x="936"
+    y="34"
+    font-size="14"
+    fill="#f5b942"
+    text-anchor="end"
+    font-weight="700"
+  >
+    MOCK
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    x="24"
+    y="56"
+    width="260"
+    height="360"
+    rx="10"
+    fill="#17181c"
+    stroke="#2a2c31"
+  />
+  <text x="44" y="86" font-size="15" fill="#9aa0a8" font-weight="700">
+    BEFORE
+  </text>
+  <text x="154" y="198" font-size="52" fill="#3a3d44" text-anchor="middle">
+    ∅
+  </text>
+  <text x="154" y="248" font-size="13" fill="#9aa0a8" text-anchor="middle">
+    Option prints stored
+  </text>
+  <text x="154" y="268" font-size="13" fill="#9aa0a8" text-anchor="middle">
+    (SPY + SPX, 14 days)
+  </text>
+  <text x="154" y="288" font-size="13" fill="#9aa0a8" text-anchor="middle">
+    no P/C ratio line over
+  </text>
+  <text x="154" y="308" font-size="13" fill="#9aa0a8" text-anchor="middle">
+    session or over days
+  </text>
+
+  <!-- Arrow -->
+  <path d="M298 236 L330 236" stroke="#d4af37" stroke-width="4" />
+  <path d="M330 224 L346 236 L330 248 Z" fill="#d4af37" />
+
+  <!-- AFTER -->
+  <rect
+    x="360"
+    y="56"
+    width="576"
+    height="360"
+    rx="10"
+    fill="#17181c"
+    stroke="#2a2c31"
+  />
+  <text x="380" y="86" font-size="15" fill="#d4af37" font-weight="700">
+    AFTER
+  </text>
+  <text x="916" y="86" font-size="12" fill="#9aa0a8" text-anchor="end">
+    SPY / SPX options · Session | Days (8)
+  </text>
+
+  <!-- Top subplot: Session running P/C ratio -->
+  <text x="380" y="112" font-size="12" fill="#c7cbd1" font-weight="600">
+    Session (running premium &amp; volume P/C)
+  </text>
+  <rect
+    x="380"
+    y="122"
+    width="536"
+    height="112"
+    rx="4"
+    fill="#121317"
+    stroke="#25272d"
+  />
+  <!-- Open gap shade -->
+  <rect
+    x="530"
+    y="122"
+    width="44"
+    height="112"
+    fill="#e8e9ec"
+    fill-opacity="0.08"
+  />
+  <!-- 1.00 parity line -->
+  <line
+    x1="380"
+    x2="916"
+    y1="178"
+    y2="178"
+    stroke="#9aa0a8"
+    stroke-opacity="0.45"
+    stroke-dasharray="3 4"
+  />
+  <text x="386" y="173" font-size="10" fill="#9aa0a8">1.00 parity</text>
+  <!-- Volume P/C dashed info line -->
+  <path
+    d="M384 202 H430 V196 H480 V188 H530 V184 H574 V172 H640 V162 H710 V156 H790 V152 H860 V148 H912"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="2"
+    stroke-dasharray="6 3"
+  />
+  <!-- Premium P/C solid foreground line -->
+  <path
+    d="M384 210 H430 V204 H480 V192 H530 V186 H574 V166 H640 V154 H710 V146 H790 V140 H860 V138 H912"
+    fill="none"
+    stroke="#e8e9ec"
+    stroke-width="2.2"
+  />
+  <text x="384" y="248" font-size="10" fill="#9aa0a8">09:30 ET</text>
+  <text x="912" y="248" font-size="10" fill="#9aa0a8" text-anchor="end">
+    16:00 ET
+  </text>
+
+  <!-- Bottom subplot: Multi-day P/C ratio -->
+  <text x="380" y="272" font-size="12" fill="#c7cbd1" font-weight="600">
+    Days (daily session P/C across stored sessions)
+  </text>
+  <rect
+    x="380"
+    y="282"
+    width="536"
+    height="86"
+    rx="4"
+    fill="#121317"
+    stroke="#25272d"
+  />
+  <!-- Incomplete latest session band -->
+  <rect
+    x="849"
+    y="282"
+    width="67"
+    height="86"
+    fill="#e8e9ec"
+    fill-opacity="0.08"
+  />
+  <!-- 1.00 parity line -->
+  <line
+    x1="380"
+    x2="916"
+    y1="326"
+    y2="326"
+    stroke="#9aa0a8"
+    stroke-opacity="0.45"
+    stroke-dasharray="3 4"
+  />
+  <!-- Volume P/C daily line -->
+  <polyline
+    points="414,344 481,334 548,338 615,322 682,318 749,310 816,314 882,304"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="1.8"
+    stroke-dasharray="6 3"
+  />
+  <!-- Premium P/C daily line -->
+  <polyline
+    points="414,348 481,330 548,336 615,318 682,312 749,304 816,308 882,296"
+    fill="none"
+    stroke="#e8e9ec"
+    stroke-width="2.2"
+  />
+  <g fill="#e8e9ec">
+    <circle cx="414" cy="348" r="3.5" />
+    <circle cx="481" cy="330" r="3.5" />
+    <circle cx="548" cy="336" r="3.5" />
+    <circle cx="615" cy="318" r="3.5" />
+    <circle cx="682" cy="312" r="3.5" />
+    <circle cx="749" cy="304" r="3.5" />
+    <circle cx="816" cy="308" r="3.5" />
+    <circle cx="882" cy="296" r="3.5" />
+  </g>
+  <g fill="#38bdf8">
+    <rect x="411" y="341" width="6" height="6" />
+    <rect x="478" y="331" width="6" height="6" />
+    <rect x="545" y="335" width="6" height="6" />
+    <rect x="612" y="319" width="6" height="6" />
+    <rect x="679" y="315" width="6" height="6" />
+    <rect x="746" y="307" width="6" height="6" />
+    <rect x="813" y="311" width="6" height="6" />
+    <rect x="879" y="301" width="6" height="6" />
+  </g>
+
+  <!-- Legend -->
+  <line
+    x1="380"
+    x2="404"
+    y1="394"
+    y2="394"
+    stroke="#e8e9ec"
+    stroke-width="2.2"
+  />
+  <text x="410" y="398" font-size="11" fill="#9aa0a8">Premium P/C</text>
+  <line
+    x1="502"
+    x2="526"
+    y1="394"
+    y2="394"
+    stroke="#38bdf8"
+    stroke-width="2"
+    stroke-dasharray="6 3"
+  />
+  <text x="532" y="398" font-size="11" fill="#9aa0a8">Volume P/C</text>
+  <line
+    x1="618"
+    x2="642"
+    y1="394"
+    y2="394"
+    stroke="#9aa0a8"
+    stroke-dasharray="3 4"
+  />
+  <text x="648" y="398" font-size="11" fill="#9aa0a8">1.00 parity</text>
+  <rect
+    x="734"
+    y="388"
+    width="18"
+    height="12"
+    fill="#e8e9ec"
+    fill-opacity="0.22"
+  />
+  <text x="758" y="398" font-size="11" fill="#9aa0a8">Open collector gap</text>
+</svg>

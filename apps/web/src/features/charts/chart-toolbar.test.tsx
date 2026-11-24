@@ -4,7 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { ChartIndicatorKey } from "./chart-indicators.ts";
-import { ChartToolbar } from "./chart-toolbar.tsx";
+import {
+  ChartToolbar,
+  type ChartToolbarOpenInterest,
+} from "./chart-toolbar.tsx";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -17,7 +20,10 @@ afterEach(async () => {
   document.body.replaceChildren();
 });
 
-const mount = async (indicators: readonly ChartIndicatorKey[] = ["MA"]) => {
+const mount = async (
+  indicators: readonly ChartIndicatorKey[] = ["MA"],
+  openInterest?: ChartToolbarOpenInterest
+) => {
   const handlers = {
     onIndicators: vi.fn(),
     onInterval: vi.fn(),
@@ -29,7 +35,13 @@ const mount = async (indicators: readonly ChartIndicatorKey[] = ["MA"]) => {
   roots.push(root);
   await act(async () =>
     root.render(
-      <ChartToolbar indicators={indicators} interval="1D" volume {...handlers}>
+      <ChartToolbar
+        indicators={indicators}
+        interval="1D"
+        volume
+        {...handlers}
+        {...(openInterest === undefined ? {} : { openInterest })}
+      >
         <span data-extra="">extra</span>
       </ChartToolbar>
     )
@@ -106,5 +118,64 @@ describe("ChartToolbar", () => {
     await act(async () => overlay?.click());
     await act(async () => overlay?.click());
     expect(overlay?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  const openInterestInput = (container: HTMLElement) =>
+    [...container.querySelectorAll("label")]
+      .find((label) => label.textContent === "Open interest")
+      ?.querySelector("input") ?? null;
+
+  // The hint id is generated: the checkbox names its hint with aria-describedby.
+  const openInterestHint = (container: HTMLElement) => {
+    const id = openInterestInput(container)?.getAttribute("aria-describedby");
+    return typeof id === "string" ? document.getElementById(id) : null;
+  };
+
+  it("has no open-interest control without the prop", async () => {
+    const { container } = await mount();
+    expect(openInterestInput(container)).toBeNull();
+    expect(container.textContent).not.toContain("Open interest");
+  });
+
+  it("shows a checked open-interest control after Volume and reports a change", async () => {
+    const onChange = vi.fn();
+    const { container } = await mount(["MA"], {
+      checked: true,
+      disabled: false,
+      hint: null,
+      onChange,
+    });
+    const input = openInterestInput(container);
+    expect(input?.checked).toBe(true);
+    expect(input?.disabled).toBe(false);
+    expect(input?.hasAttribute("aria-describedby")).toBe(false);
+    expect(openInterestHint(container)).toBeNull();
+    // No hint element sits between the control and the extra controls.
+    expect(input?.parentElement?.nextElementSibling).toBe(
+      container.querySelector("[data-extra]")
+    );
+    const labels = [...container.querySelectorAll("label")].map(
+      (label) => label.textContent
+    );
+    expect(labels.indexOf("Open interest")).toBe(labels.indexOf("Volume") + 1);
+    await act(async () => input?.click());
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  it("disables the open-interest control and links its hint", async () => {
+    const hint =
+      "Open interest is a daily figure. Choose the 1D interval to see it.";
+    const { container } = await mount(["MA"], {
+      checked: true,
+      disabled: true,
+      hint,
+      onChange: vi.fn(),
+    });
+    const input = openInterestInput(container);
+    expect(input?.disabled).toBe(true);
+    const described = openInterestHint(container);
+    expect(described?.tagName).toBe("SPAN");
+    expect(described?.textContent).toBe(hint);
+    expect(input?.parentElement?.nextElementSibling).toBe(described);
   });
 });

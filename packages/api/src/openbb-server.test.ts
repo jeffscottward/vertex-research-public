@@ -38,7 +38,7 @@ import {
   openbbBlockedRetryAt,
 } from "./contracts/openbb.ts";
 import { createApiContext } from "./server/context.ts";
-import { handleApiRequest } from "./server/handler.ts";
+import { handleApiRequest, handleOpenApiRequest } from "./server/handler.ts";
 import {
   openbb13fChanges,
   openbbIvPercentile,
@@ -1121,9 +1121,25 @@ describe("openbb reads", () => {
     ).toBe(true);
   });
 
-  it("builds the vol context with ratios, the VX curve, IV percentile and term rows", async () => {
+  it("builds the vol context with ratios, the VX curve, 1-year IV standing and term rows", async () => {
     setOpenbbClockForTesting(() => NOW);
     const repos = fakes();
+    const proxyDays = Array.from({ length: 252 }, (_, index) =>
+      new Date(Date.UTC(2026, 1, 27) + index * 86_400_000)
+        .toISOString()
+        .slice(0, 10)
+    );
+    const vxnCloses = [
+      ...new Array<number>(100).fill(12),
+      ...new Array<number>(50).fill(15),
+      ...new Array<number>(50).fill(22),
+      ...new Array<number>(51).fill(32),
+      22,
+    ];
+    const rampCloses = Array.from(
+      { length: 252 },
+      (_, index) => 14 + index * 0.05
+    );
     repos.series.loadSeries.mockResolvedValue(
       new Map([
         ["VIX", columns(["2026-11-05", "2026-11-06"], [18, 20])],
@@ -1132,6 +1148,11 @@ describe("openbb reads", () => {
         // An older session: VIX3M/VIX6M must not mix dates.
         ["VIX6M", columns(["2026-11-05"], [24])],
         ["VVIX", columns([], [])],
+        // Stale >30d close stays out of the latest `indices` strip.
+        ["SKEW", columns(["2026-09-01"], [135])],
+        ["VXN", columns(proxyDays, vxnCloses)],
+        ["RVX", columns(proxyDays, rampCloses)],
+        ["VXD", columns(proxyDays, rampCloses)],
       ])
     );
     repos.openbb.vxCurveDates.mockResolvedValue([
@@ -1143,22 +1164,18 @@ describe("openbb reads", () => {
       "2026-10-30",
     ]);
     repos.openbb.vxCurve.mockResolvedValue(vxRows);
-    const days = Array.from({ length: 21 }, (_, index) =>
-      new Date(Date.UTC(2026, 9, 1) + index * 86_400_000)
-        .toISOString()
-        .slice(0, 10)
-    );
     repos.openbb.optionIvDaily.mockResolvedValue([
-      ...days.map((day, index) =>
+      ...proxyDays.map((day, index) =>
         ivRow(
           "SPY",
           day,
-          index === 20 ? 0.3 : index === 0 ? null : 0.1 + index / 100,
+          index === 251 ? 0.5 : 0.1 + index * 0.001,
           index === 0 ? "yahoo_fallback" : "cboe"
         )
       ),
-      ivRow("QQQ", "2026-11-06", 0.2),
-      ivRow("DIA", "2026-11-06", 0.18, "cboe"),
+      ...proxyDays
+        .slice(-9)
+        .map((day, index) => ivRow("QQQ", day, 0.24 + index * 0.01)),
     ]);
     repos.openbb.optionIvTermLatest.mockResolvedValue([
       {
@@ -1176,7 +1193,7 @@ describe("openbb reads", () => {
     ]);
     const context = await clientFor({ fakes: repos }).openbb.volContext({});
     expect(repos.series.loadSeries.mock.calls[0]?.[1]).toEqual({
-      from: "2026-10-09",
+      from: "2025-09-14",
     });
     expect(context.asOf).toBe("2026-11-06");
     expect(context.indices.map((index) => index.id)).toEqual([
@@ -1184,6 +1201,9 @@ describe("openbb reads", () => {
       "VIX9D",
       "VIX3M",
       "VIX6M",
+      "VXN",
+      "VXD",
+      "RVX",
     ]);
     expect(context.ratios).toEqual({
       vix3mVix6m: null,
@@ -1212,11 +1232,51 @@ describe("openbb reads", () => {
         row.historyState,
       ])
     ).toEqual([
-      ["SPY", 100, 21, "affected"],
-      ["QQQ", null, 1, "source_unverified"],
-      ["DIA", null, 1, "clean"],
+      ["SPY", 100, 252, "affected"],
+      ["QQQ", null, 9, "source_unverified"],
     ]);
     expect(context.ivDaily[0]).not.toHaveProperty("source");
+    const byUnderlying = new Map(
+      context.ivOneYear.map((row) => [row.underlying, row])
+    );
+    expect(byUnderlying.get("SPY")).toMatchObject({
+      asOf: "2026-11-05",
+      basis: "own_atm_iv",
+      ivPercentile: 100,
+      ivRank: 100,
+      proxyIndex: null,
+      sessions: 252,
+      windowSessions: 252,
+    });
+    expect(byUnderlying.get("QQQ")).toMatchObject({
+      asOf: "2026-11-05",
+      basis: "vol_index_proxy",
+      ivPercentile: (100 * 150) / 251,
+      ivRank: 50,
+      proxyIndex: "VXN",
+      sessions: 252,
+      windowSessions: 252,
+    });
+    expect(byUnderlying.get("QQQ")?.own).toMatchObject({
+      ivPercentile: null,
+      ivRank: null,
+      reason: "Needs 252 sessions with ATM IV (9 stored)",
+      sessions: 9,
+    });
+    expect(byUnderlying.get("IWM")).toMatchObject({
+      basis: "vol_index_proxy",
+      ivPercentile: 100,
+      ivRank: 100,
+      proxyIndex: "RVX",
+      sessions: 252,
+    });
+    expect(byUnderlying.get("DIA")).toMatchObject({
+      basis: "vol_index_proxy",
+      ivPercentile: 100,
+      ivRank: 100,
+      proxyIndex: "VXD",
+      sessions: 252,
+    });
     expect(context.term).toHaveLength(1);
 
     const empty = fakes();
@@ -1224,7 +1284,7 @@ describe("openbb reads", () => {
       asOf: "2026-11-02",
     });
     expect(empty.series.loadSeries.mock.calls[0]?.[1]).toEqual({
-      from: "2026-10-03",
+      from: "2025-09-08",
       to: "2026-11-02",
     });
     expect(empty.openbb.vxCurve).toHaveBeenCalledWith([]);
@@ -1235,22 +1295,33 @@ describe("openbb reads", () => {
       ratios: { vix3mVix6m: null, vix9dVix: null, vixVix3m: null },
       vxCurve: { earlier: null, latest: null },
     });
+    expect(bare.ivOneYear).toHaveLength(7);
+    expect(bare.ivOneYear.every((row) => row.basis === null)).toBe(true);
   });
 
-  it("ranks IV within the stored window", () => {
+  it("ranks IV within the 252-session stored window", () => {
     const window = (values: (number | null)[]) =>
       values.map((atmIv30d) => ({ atmIv30d }));
     expect(openbbIvPercentile([])).toBeNull();
     expect(
-      openbbIvPercentile(window([...new Array(25).fill(0.2), null]))
+      openbbIvPercentile(window([...new Array(252).fill(0.2), null]))
     ).toBeNull();
-    expect(openbbIvPercentile(window(new Array(19).fill(0.2)))).toBeNull();
-    const ramp = Array.from({ length: 21 }, (_, index) => index / 100);
+    expect(openbbIvPercentile(window(new Array(9).fill(0.2)))).toBeNull();
+    expect(openbbIvPercentile(window(new Array(251).fill(0.2)))).toBeNull();
+    const ramp = Array.from({ length: 252 }, (_, index) => index / 1000);
     expect(openbbIvPercentile(window(ramp))).toBe(100);
     expect(openbbIvPercentile(window([...ramp.slice(1), 0]))).toBe(0);
-    expect(openbbIvPercentile(window([null, ...ramp.slice(0, 20), 0.1]))).toBe(
-      50
-    );
+    // 251 prior values: 100 values at 0.1, 151 values at 0.3; latest 0.2 -> 100/251.
+    expect(
+      openbbIvPercentile(
+        window([
+          null,
+          ...new Array<number>(100).fill(0.1),
+          ...new Array<number>(151).fill(0.3),
+          0.2,
+        ])
+      )
+    ).toBe((100 * 100) / 251);
   });
 
   it("serves cot net, macro, events, shorts, sec and factors with default windows", async () => {
@@ -1776,6 +1847,135 @@ describe("openbb Form 4", () => {
     );
     expect((await client.openbb.insiderClusters({})).coverage.lastRunAt).toBe(
       null
+    );
+  });
+});
+
+describe("openbb.ivHistory", () => {
+  it("loads rolling proxy history for Core 7 ETFs, skips loadSeries for non-Core-7 tickers, and supports OpenAPI GET coercion", async () => {
+    const repos = fakes();
+    const dates = Array.from({ length: 320 }, (_, index) =>
+      new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10)
+    );
+    const closes = dates.map(
+      (_, index) => 14 + (index % 30) * 0.3 + index * 0.01
+    );
+    const columns: MarketDailyColumns = {
+      adjClose: dates.map(() => null),
+      close: closes,
+      dates,
+      high: dates.map(() => null),
+      low: dates.map(() => null),
+      open: dates.map(() => null),
+    };
+    repos.series.loadSeries.mockResolvedValue(new Map([["VIX", columns]]));
+    setOpenbbClockForTesting(() => new Date("2026-11-08T15:00:00Z"));
+
+    const client = clientFor({
+      apiKey: PLAINTEXT,
+      fakes: repos,
+      keyAccess: "read",
+    });
+
+    // Core 7 ETF with read key, lowercase symbol, default 252 horizon.
+    const spy = await client.openbb.ivHistory({ symbol: " spy " });
+    expect(spy.symbol).toBe("SPY");
+    expect(spy.basis).toBe("vol_index_proxy");
+    expect(spy.proxyIndex).toBe("VIX");
+    expect(spy.requestedSessions).toBe(252);
+    expect(spy.points).toHaveLength(69);
+    expect(repos.openbb.optionIvDaily).toHaveBeenCalledWith(["SPY"], null, 503);
+    expect(repos.series.loadSeries).toHaveBeenCalledWith(["VIX"], {
+      from: "2024-07-26",
+    });
+
+    // Explicit asOf and 63-session horizon.
+    const spyAsOf = await client.openbb.ivHistory({
+      asOf: "2026-11-06",
+      sessions: 63,
+      symbol: "SPY",
+    });
+    expect(spyAsOf.requestedSessions).toBe(63);
+    expect(spyAsOf.points).toHaveLength(63);
+    expect(repos.openbb.optionIvDaily).toHaveBeenLastCalledWith(
+      ["SPY"],
+      "2026-11-06",
+      314
+    );
+    expect(repos.series.loadSeries).toHaveBeenLastCalledWith(["VIX"], {
+      from: "2025-05-22",
+      to: "2026-11-06",
+    });
+
+    // Non-Core-7 ticker skips loadSeries completely and returns explicit basis: null.
+    repos.series.loadSeries.mockClear();
+    const nvda = await client.openbb.ivHistory({ symbol: "NVDA" });
+    expect(repos.series.loadSeries).not.toHaveBeenCalled();
+    expect(nvda.basis).toBeNull();
+    expect(nvda.proxy).toBeNull();
+    expect(nvda.points).toEqual([]);
+    expect(nvda.reason).toContain("No Cboe volatility-index proxy for NVDA");
+
+    // OpenAPI GET query string coercion (`sessions=63` arrives as a string).
+    const req = new Request(
+      "https://darkfactory.localhost/api/openapi/openbb/iv-history?symbol=spy&sessions=63",
+      { method: "GET" }
+    );
+    const repositories: Repositories = {
+      addresses: {} as Repositories["addresses"],
+      adminUsers: {} as Repositories["adminUsers"],
+      dashboard: {} as Repositories["dashboard"],
+      featureItems: {} as Repositories["featureItems"],
+      marketBars: repos.bars as unknown as MarketBarsRepository,
+      marketDailySeries: repos.series as unknown as MarketDailySeriesRepository,
+      openbb: repos.openbb as unknown as OpenbbRepository,
+      profiles: {} as Repositories["profiles"],
+      userPreferences: {} as Repositories["userPreferences"],
+    };
+    const ctx = createApiContext(req, {
+      capabilities: {
+        ai: false,
+        analytics: false,
+        emailDelivery: false,
+        telemetryExport: false,
+      },
+      operatorEmails: ["owner@domain.test"],
+      priceAlertsNtfy: null,
+      repositories,
+      requestId: "openapi-iv-history-1",
+      requireRole: async () => {
+        throw denied();
+      },
+      requireSession: async () => session("owner", "owner@domain.test"),
+    });
+    const response = await handleOpenApiRequest(req, ctx);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      basis: string;
+      points: unknown[];
+      requestedSessions: number;
+      symbol: string;
+    };
+    expect(body.symbol).toBe("SPY");
+    expect(body.requestedSessions).toBe(63);
+    expect(body.basis).toBe("vol_index_proxy");
+    expect(body.points).toHaveLength(63);
+  });
+
+  it("maps MarketDailySeriesInputError to BAD_REQUEST and rethrows unexpected errors", async () => {
+    const repos = fakes();
+    repos.series.loadSeries.mockRejectedValueOnce(
+      new MarketDailySeriesInputError("bad date range")
+    );
+    const client = clientFor({ fakes: repos });
+    await expectCode(client.openbb.ivHistory({ symbol: "SPY" }), "BAD_REQUEST");
+
+    repos.series.loadSeries.mockRejectedValueOnce(new Error("db offline"));
+    await expect(client.openbb.ivHistory({ symbol: "SPY" })).rejects.toThrow();
+
+    await expectCode(
+      clientFor({}).openbb.ivHistory({ symbol: "SPY" }),
+      "STORAGE_ERROR"
     );
   });
 });

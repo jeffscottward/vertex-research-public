@@ -2,15 +2,20 @@ import {
   FLOW_TAPE_SPEED_RULES,
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
+  FlowPutCallRatioSchema,
+  FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OpenbbIvHistoryOutputSchema,
+  OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
+  PUT_CALL_RATIO_RULES,
+  STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
-
 import {
   createSeededRandom,
   hashSeed,
@@ -23,13 +28,20 @@ import {
   labReadOnly,
   roundTo,
 } from "./core.ts";
-import { labFlowHedgingPressure, labFlowTapeSpeed } from "./flow.ts";
+import {
+  labFlowHedgingPressure,
+  labFlowPutCallRatio,
+  labFlowStrikeHeatmap,
+  labFlowTapeSpeed,
+} from "./flow.ts";
 import {
   labBars,
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labIvHistory,
+  labMacroOutput,
   labOptionsAnalytics,
   labTicksOutput,
 } from "./market.ts";
@@ -88,6 +100,44 @@ describe("lab market fixtures", () => {
     }
   });
 
+  it("stores made-up open-interest figures on daily bar dates, without the newest bar", () => {
+    const output = labMacroOutput("2026-01-01", ["CME_ES_OI", "CME_NQ_OI"]);
+    expect(labMacroOutput("2026-01-01", ["CME_ES_OI", "CME_NQ_OI"])).toEqual(
+      output
+    );
+    expect(OpenbbMacroOutputSchema.parse(output)).toEqual(output);
+    expect(output.series.map((series) => series.id)).toEqual([
+      "CME_ES_OI",
+      "CME_NQ_OI",
+    ]);
+    const barDates = new Set(
+      labBars("ES").map((bar) =>
+        new Date(bar.t * 1000).toISOString().slice(0, 10)
+      )
+    );
+    const [es] = output.series;
+    expect(es?.pointCount).toBe(179);
+    expect(es?.lastDate).toBe("2026-10-29");
+    for (const point of es?.points ?? []) {
+      expect(barDates.has(point.date)).toBe(true);
+      expect(Number.isInteger(point.value)).toBe(true);
+    }
+    // One trading day inside the range has no figure.
+    expect(es?.points.some((point) => point.date === "2026-10-14")).toBe(false);
+    expect(es?.points.some((point) => point.date === "2026-10-13")).toBe(true);
+  });
+
+  it("limits the figures to the from-date and to the known series", () => {
+    const [es] = labMacroOutput("2026-10-01", ["CME_ES_OI"]).series;
+    expect(es?.points[0]?.date).toBe("2026-10-01");
+    expect((es?.firstDate ?? "9999") < "2026-10-01").toBe(true);
+    expect(labMacroOutput("2026-10-01", ["DGS10"]).series).toEqual([]);
+    expect(labMacroOutput("2026-10-01")).toEqual({
+      from: "2026-10-01",
+      series: [],
+    });
+  });
+
   it("follows the requested bar size and contract", () => {
     const output = labBarsOutput({
       barSize: "1 hour",
@@ -121,6 +171,22 @@ describe("lab market fixtures", () => {
       const snapshot = labOptionsAnalytics(symbol);
       expect(OptionsAnalyticsOutputSchema.parse(snapshot)).toEqual(snapshot);
       expect(labOptionsAnalytics(symbol)).toEqual(snapshot);
+      // The strike profiles mark max pain at the smallest holder payout.
+      const payouts = snapshot.strikeProfiles.strikes.map(
+        (row) => row.holderPayout
+      );
+      const smallest = snapshot.strikeProfiles.strikes.find(
+        (row) => row.holderPayout === Math.min(...payouts)
+      );
+      expect(snapshot.exposure.maxPain).toBe(smallest?.strike);
+      expect(snapshot.strikeProfiles.flow.trades).toBe(
+        snapshot.flow.events.length
+      );
+      const times = snapshot.flow.events.map((event) => event.time).sort();
+      expect([
+        snapshot.strikeProfiles.flow.oldestTradeAt,
+        snapshot.strikeProfiles.flow.newestTradeAt,
+      ]).toEqual([times[0], times.at(-1)]);
     }
     expect(labOptionsAnalytics("SPY", 6).flow.hours).toBe(6);
   });
@@ -349,5 +415,99 @@ describe("lab flow hedging pressure", () => {
     expect(totals.signed).toBe(counted + totals.notPriced);
     expect(totals.prints).toBe(totals.signed + totals.notSigned);
     expect(totals.gross).toBeGreaterThanOrEqual(Math.abs(totals.net));
+  });
+});
+
+describe("lab flow put/call ratio", () => {
+  it("SPY: starts below parity, ends above parity, has 8 stored sessions and one open gap", () => {
+    const response = labFlowPutCallRatio("SPY");
+    expect(FlowPutCallRatioSchema.parse(response)).toEqual(response);
+    expect(response.rules).toEqual(PUT_CALL_RATIO_RULES);
+    expect(response).toMatchObject({
+      session: "2026-10-30",
+      symbol: "SPY",
+      ticker: "SPY",
+    });
+    expect(response.points[0]?.premiumRatio).toBeLessThan(1);
+    expect(response.totals.premiumRatio).toBeGreaterThan(1);
+    expect(response.days).toHaveLength(8);
+    expect(response.days.at(-1)?.incomplete).toBe(true);
+    expect(response.unread?.ranges).toBe(1);
+  });
+
+  it("ES: SPX options with 8 stored sessions and no open gap", () => {
+    const response = labFlowPutCallRatio("ES");
+    expect(FlowPutCallRatioSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      session: "2026-10-30",
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    expect(response.days).toHaveLength(8);
+    expect(response.days.every((day) => !day.incomplete)).toBe(true);
+    expect(response.totals.premiumRatio).toBeGreaterThan(1);
+  });
+});
+
+describe("lab flow strike heatmap", () => {
+  it.each([5, 15, 30] as const)(
+    "SPY (%im): 20 displayed strikes, 3 omitted, open gap, and flat unsigned cell",
+    (bucketMinutes) => {
+      const response = labFlowStrikeHeatmap("SPY", bucketMinutes);
+      expect(FlowStrikeHeatmapSchema.parse(response)).toEqual(response);
+      expect(response.rules).toEqual(STRIKE_HEATMAP_RULES);
+      expect(response).toMatchObject({
+        bucketMinutes,
+        session: "2026-10-30",
+        symbol: "SPY",
+        ticker: "SPY",
+      });
+      expect(response.strikes).toHaveLength(20);
+      expect(response.totals.omittedStrikes).toBe(3);
+      expect(response.unread?.ranges).toBe(1);
+      expect(response.slots.some((slot) => slot.unread)).toBe(true);
+    }
+  );
+
+  it("ES: SPX options with 12 strikes, zero omitted, exact-strike spot, and no open gap", () => {
+    const response = labFlowStrikeHeatmap("ES");
+    expect(FlowStrikeHeatmapSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      bucketMinutes: 15,
+      session: "2026-10-30",
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    expect(response.strikes).toHaveLength(12);
+    expect(response.totals.omittedStrikes).toBe(0);
+    expect(response.totals.latestPrice).toBe(5810);
+  });
+});
+
+describe("lab IV rank / percentile history", () => {
+  it("produces schema-valid 1Y and 3M proxy curves for Core 7 ETFs", () => {
+    const spy1y = labIvHistory("spy", 252);
+    expect(OpenbbIvHistoryOutputSchema.parse(spy1y)).toEqual(spy1y);
+    expect(spy1y.symbol).toBe("SPY");
+    expect(spy1y.basis).toBe("vol_index_proxy");
+    expect(spy1y.proxyIndex).toBe("VIX");
+    expect(spy1y.points).toHaveLength(252);
+    expect(spy1y.points.some((p) => (p.ivRank ?? 0) >= 80)).toBe(true);
+    expect(spy1y.points.some((p) => (p.ivRank ?? 100) <= 20)).toBe(true);
+
+    const qqq3m = labIvHistory("QQQ", 63);
+    expect(OpenbbIvHistoryOutputSchema.parse(qqq3m)).toEqual(qqq3m);
+    expect(qqq3m.proxyIndex).toBe("VXN");
+    expect(qqq3m.points).toHaveLength(63);
+  });
+
+  it("returns an explicit unavailable state for non-Core-7 tickers", () => {
+    const nvda = labIvHistory("NVDA");
+    expect(OpenbbIvHistoryOutputSchema.parse(nvda)).toEqual(nvda);
+    expect(nvda.basis).toBeNull();
+    expect(nvda.points).toEqual([]);
+    expect(nvda.own.sessions).toBe(0);
   });
 });

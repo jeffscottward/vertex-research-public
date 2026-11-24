@@ -6,14 +6,31 @@
 // priced or IV adjusted). Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
 import {
+  buildFlowLiquidityHeatmap,
   FLOW_TAPE_SPEED_RULES,
+  type FlowLiquidityHeatmap,
   type FlowControl,
   type FlowGroupId,
   type FlowHedgingPressure,
   type FlowHedgingSymbol,
+  type FlowPutCallRatio,
+  type FlowPutCallRatioSymbol,
   type FlowSnapshot,
+  type FlowStrikeHeatmap,
+  type FlowStrikeHeatmapBucketMinutes,
+  type FlowStrikeHeatmapSymbol,
   type FlowTapeSpeed,
   type FlowTapeSymbol,
+  foldPutCallDays,
+  foldPutCallSession,
+  foldStrikeHeatmap,
+  PUT_CALL_RATIO_RULES,
+  type PutCallDayRow,
+  type PutCallMinuteRow,
+  STRIKE_HEATMAP_RULES,
+  type StrikeHeatmapBucketRow,
+  type StrikeHeatmapGapRow,
+  type StrikeHeatmapSlotPriceRow,
 } from "@darkfactory/api";
 
 import { formatSigned } from "../../features/flow/format.ts";
@@ -962,6 +979,545 @@ export const labFlowHedgingPressure = (
           from: new Date(LAB_SESSION_OPEN + 100 * 60_000).toISOString(),
           ranges: 1,
           to: new Date(LAB_SESSION_OPEN + 115 * 60_000).toISOString(),
+        }
+      : null,
+  };
+};
+
+// --- Put/call ratio ----------------------------------------------------------------------------
+
+const LAB_PCR_SESSIONS = [
+  "2026-10-21",
+  "2026-10-22",
+  "2026-10-23",
+  "2026-10-26",
+  "2026-10-27",
+  "2026-10-28",
+  "2026-10-29",
+  "2026-10-30",
+] as const;
+
+/**
+ * A deterministic flow.putCallRatio response for the session of LAB_NOW (Friday 2026-10-30,
+ * 09:30 to 16:00 New York) plus 8 stored sessions over two weeks. SPY starts call-heavy then
+ * turns put-heavy with one open gap (11:10 to 11:25); ES (SPX options) stays above parity with
+ * no open gap.
+ */
+export const labFlowPutCallRatio = (
+  symbol: FlowPutCallRatioSymbol
+): FlowPutCallRatio => {
+  const spy = symbol === "SPY";
+  const base = spy ? 580 : 5810;
+  const minuteRows: PutCallMinuteRow[] = [];
+  let lastSessionPrice = base;
+  for (let index = 0; index < 390; index += 1) {
+    if (index % 7 === 3 || (spy && index >= 100 && index < 115)) continue;
+    const wave = Math.sin(index / 50);
+    const putTilt = spy ? (index < 170 ? 0.72 : 1.55) : 1.25 + 0.25 * wave;
+    const callPremium = roundTo(
+      (spy ? 950_000 : 3_200_000) * (1 + (index % 5) * 0.15),
+      2
+    );
+    const putPremium = roundTo(callPremium * putTilt, 2);
+    const callVolume = Math.round((spy ? 320 : 140) * (1 + (index % 4) * 0.2));
+    const putVolume = Math.round(callVolume * (putTilt * (spy ? 0.92 : 1.08)));
+    const minute = new Date(LAB_SESSION_OPEN + index * 60_000);
+    lastSessionPrice = roundTo(base * (1 + 0.004 * wave), 2);
+    minuteRows.push({
+      callPremium,
+      callPrints: 2 + (index % 3),
+      callVolume,
+      lastPrice: lastSessionPrice,
+      lastTradedAt: new Date(minute.getTime() + 41_000),
+      minute,
+      putPremium,
+      putPrints: 2 + ((index + 1) % 3),
+      putVolume,
+    });
+  }
+  const fold = foldPutCallSession(minuteRows);
+
+  const dayRows: PutCallDayRow[] = LAB_PCR_SESSIONS.map((session, index) => {
+    if (index === LAB_PCR_SESSIONS.length - 1)
+      return {
+        callPremium: fold.totals.callPremium,
+        callPrints: fold.totals.callPrints,
+        callVolume: fold.totals.callVolume,
+        lastPrice: lastSessionPrice,
+        putPremium: fold.totals.putPremium,
+        putPrints: fold.totals.putPrints,
+        putVolume: fold.totals.putVolume,
+        session,
+      };
+    const tilt = spy
+      ? 0.75 + 0.12 * index + (index % 2 === 0 ? -0.08 : 0.14)
+      : 1.05 + 0.08 * Math.sin(index + 1);
+    const callPremium = roundTo(
+      (spy ? 160_000_000 : 520_000_000) * (0.9 + (index % 3) * 0.12),
+      2
+    );
+    const callVolume = Math.round(
+      (spy ? 58_000 : 24_000) * (0.92 + (index % 3) * 0.1)
+    );
+    return {
+      callPremium,
+      callPrints: 520 + index * 17,
+      callVolume,
+      lastPrice: roundTo(base * (0.985 + index * 0.0025), 2),
+      putPremium: roundTo(callPremium * tilt, 2),
+      putPrints: 500 + index * 23,
+      putVolume: Math.round(callVolume * (tilt * 0.95)),
+      session,
+    };
+  });
+
+  const days = foldPutCallDays(
+    dayRows,
+    (session) => spy && session === "2026-10-30"
+  );
+
+  return {
+    days,
+    options: {
+      ageSeconds: 50,
+      lastOkAt: new Date(LAB_NOW.getTime() - 50_000).toISOString(),
+      lastStatus: "ok",
+      message: `quantdata flow ${spy ? "SPY" : "SPX"}: 3 pages, 1240 prints`,
+      sessionOpen: true,
+      source: "options",
+      state: "fresh",
+    },
+    points: fold.points,
+    rules: { ...PUT_CALL_RATIO_RULES },
+    schemaVersion: "flow-put-call-ratio.v1",
+    session: "2026-10-30",
+    storedUntil: fold.storedUntil,
+    symbol,
+    ticker: spy ? "SPY" : "SPX",
+    totals: fold.totals,
+    unread: spy
+      ? {
+          from: new Date(LAB_SESSION_OPEN + 100 * 60_000).toISOString(),
+          ranges: 1,
+          to: new Date(LAB_SESSION_OPEN + 115 * 60_000).toISOString(),
+        }
+      : null,
+  };
+};
+
+type LabHeatmapSpec = Readonly<{
+  ageSeconds: number;
+  askWallOffset: number;
+  basePrice: number;
+  bidWallOffset: number;
+  capture: "streamed" | "sampled";
+  contract: string;
+  levelStep: number;
+  message: string;
+  seed: string;
+  sizeBase: number;
+  sizeRange: number;
+  stepMs: number;
+  tradeBase: number;
+  tradeMod: number;
+  tradeRange: number;
+  wallRadius: number;
+  wallSize: number;
+}>;
+
+const LAB_HEATMAP_SPECS: Readonly<Record<FlowTapeSymbol, LabHeatmapSpec>> = {
+  ES: {
+    ageSeconds: 8,
+    askWallOffset: 4.5,
+    basePrice: 5912,
+    bidWallOffset: -2,
+    capture: "streamed",
+    contract: "ESZ6",
+    levelStep: 0.5,
+    message: "streamed depth ESZ6: 12 snapshots, 20 levels",
+    seed: "flow-liquidity-heatmap-es",
+    sizeBase: 22,
+    sizeRange: 34,
+    stepMs: 30_000,
+    tradeBase: 32,
+    tradeMod: 14,
+    tradeRange: 85,
+    wallRadius: 0.75,
+    wallSize: 140,
+  },
+  NQ: {
+    ageSeconds: 42,
+    askWallOffset: 8,
+    basePrice: 20_640,
+    bidWallOffset: -18,
+    capture: "sampled",
+    contract: "NQZ6",
+    levelStep: 2,
+    message: "20 levels",
+    seed: "flow-liquidity-heatmap-nq",
+    sizeBase: 8,
+    sizeRange: 12,
+    stepMs: 60_000,
+    tradeBase: 12,
+    tradeMod: 21,
+    tradeRange: 28,
+    wallRadius: 3,
+    wallSize: 45,
+  },
+};
+
+const buildLabHeatmapDepthSide = (
+  best: number,
+  direction: -1 | 1,
+  wallPrice: number,
+  spec: LabHeatmapSpec,
+  rand: () => number
+): Readonly<{ prices: number[]; sizes: number[] }> => {
+  const prices: number[] = [];
+  const sizes: number[] = [];
+  for (let lvl = 0; lvl < 10; lvl++) {
+    const price = best + direction * lvl * spec.levelStep;
+    const bonus =
+      Math.abs(price - wallPrice) <= spec.wallRadius ? spec.wallSize : 0;
+    prices.push(price);
+    sizes.push(Math.round(spec.sizeBase + rand() * spec.sizeRange + bonus));
+  }
+  return { prices, sizes };
+};
+
+/**
+ * Deterministic flow.liquidityHeatmap fixture for the dev lab and tests.
+ * - ES: streamed CME L2 snapshots with a persistent bid wall, overhead ask wall, a brief gap, and
+ *   buy/sell large futures trade dots.
+ * - NQ (390 min): empty (never collected) state.
+ * - NQ (other windows): 1-minute sampled fallback snapshots with a persistent ask wall.
+ */
+export const labFlowLiquidityHeatmap = (
+  symbol: FlowTapeSymbol,
+  minutes: number
+): FlowLiquidityHeatmap => {
+  const windowEnd = LAB_NOW;
+  const windowStart = new Date(windowEnd.getTime() - minutes * 60_000);
+  if (symbol === "NQ" && minutes === 390) {
+    return buildFlowLiquidityHeatmap({
+      depth: {
+        ageSeconds: null,
+        lastOkAt: null,
+        lastStatus: null,
+        message: null,
+        sessionOpen: true,
+        source: "depth",
+        state: "never",
+      },
+      largeTrades: [],
+      minutes,
+      now: windowEnd,
+      snapshots: [],
+      symbol,
+      windowEnd,
+      windowStart,
+    });
+  }
+
+  const spec = LAB_HEATMAP_SPECS[symbol];
+  const minTick = 0.25;
+  const rand = createSeededRandom(spec.seed);
+  const count = Math.min(180, Math.floor((minutes * 60_000) / spec.stepMs));
+  const gapStart = Math.floor(count * 0.42);
+  const gapEnd = symbol === "ES" ? gapStart + 2 : -1;
+
+  const snapshots: Parameters<
+    typeof buildFlowLiquidityHeatmap
+  >[0]["snapshots"][number][] = [];
+  const largeTrades: Parameters<
+    typeof buildFlowLiquidityHeatmap
+  >[0]["largeTrades"][number][] = [];
+
+  for (let i = 0; i < count; i++) {
+    if (i >= gapStart && i <= gapEnd) continue;
+    const tMs = windowStart.getTime() + (i + 1) * spec.stepMs;
+    const drift =
+      symbol === "ES"
+        ? Math.sin(i / 7) * 2.5 + (i / count) * 3.5
+        : -Math.cos(i / 6) * 14 - (i / count) * 18;
+    const mid = Math.round((spec.basePrice + drift) * 4) / 4;
+    const bestBid = mid - minTick;
+    const bestAsk = mid + minTick;
+    const bids = buildLabHeatmapDepthSide(
+      bestBid,
+      -1,
+      spec.basePrice + spec.bidWallOffset,
+      spec,
+      rand
+    );
+    const asks = buildLabHeatmapDepthSide(
+      bestAsk,
+      1,
+      spec.basePrice + spec.askWallOffset,
+      spec,
+      rand
+    );
+    snapshots.push({
+      askPrices: asks.prices,
+      askSizes: asks.sizes,
+      bestAsk,
+      bestBid,
+      bidPrices: bids.prices,
+      bidSizes: bids.sizes,
+      capture: spec.capture,
+      capturedAt: new Date(tMs),
+      contract: spec.contract,
+      minTick,
+    });
+    if (i % 7 === 3) {
+      const buy = i % spec.tradeMod === 3;
+      largeTrades.push({
+        capture: "streamed",
+        price: buy ? bestAsk : bestBid,
+        second: new Date(tMs),
+        seq: i,
+        side: buy ? "buy" : "sell",
+        signing: i % 3 === 0 ? "tick" : "quote",
+        size: Math.round(spec.tradeBase + rand() * spec.tradeRange),
+      });
+    }
+  }
+
+  return buildFlowLiquidityHeatmap({
+    depth: {
+      ageSeconds: spec.ageSeconds,
+      lastOkAt: new Date(
+        windowEnd.getTime() - spec.ageSeconds * 1000
+      ).toISOString(),
+      lastStatus: "ok",
+      message: spec.message,
+      sessionOpen: true,
+      source: "depth",
+      state: "fresh",
+    },
+    largeTrades,
+    minutes,
+    now: windowEnd,
+    snapshots,
+    symbol,
+    windowEnd,
+    windowStart,
+  });
+};
+
+const LAB_SESSION_CLOSE = LAB_SESSION_OPEN + 405 * 60_000; // 16:15 New York
+
+const isSlotInLabGap = (
+  slotStartMs: number,
+  slotEndMs: number,
+  gapStartMs: number,
+  gapEndMs: number,
+  spy: boolean
+): boolean => spy && slotStartMs < gapEndMs && slotEndMs > gapStartMs;
+
+const buildLabSlotPrices = (
+  spy: boolean,
+  bucketMinutes: FlowStrikeHeatmapBucketMinutes,
+  slotCount: number,
+  basePrice: number,
+  gapStartMs: number,
+  gapEndMs: number
+): StrikeHeatmapSlotPriceRow[] => {
+  const slotPrices: StrikeHeatmapSlotPriceRow[] = [];
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    const slotStartMs = LAB_SESSION_OPEN + slotIndex * bucketMinutes * 60_000;
+    const slotEndMs = Math.min(
+      LAB_SESSION_CLOSE,
+      slotStartMs + bucketMinutes * 60_000
+    );
+    if (isSlotInLabGap(slotStartMs, slotEndMs, gapStartMs, gapEndMs, spy))
+      continue;
+    const drift =
+      slotIndex === slotCount - 1
+        ? 0
+        : roundTo(Math.sin(slotIndex / 3) * (spy ? 1.35 : 14), 2);
+    slotPrices.push({
+      price: roundTo(basePrice + drift, 2),
+      pricedAt: new Date(slotEndMs - 15_000),
+      slotIndex,
+    });
+  }
+  return slotPrices;
+};
+
+const buildLabStrikeSlotBuckets = (
+  spy: boolean,
+  slotCount: number,
+  weight: number,
+  strikeIdx: number,
+  strike: number,
+  slotIndex: number,
+  lastTradedAt: Date
+): StrikeHeatmapBucketRow[] => {
+  if (strikeIdx === 10 && slotIndex === 2) {
+    return [
+      {
+        lastTradedAt,
+        premium: spy ? 145_000 : 420_000,
+        prints: 3,
+        right: "call",
+        side: "mid",
+        slotIndex,
+        strike,
+        volume: 90,
+      },
+    ];
+  }
+  const bullishPhase = spy
+    ? slotIndex < Math.floor(slotCount * 0.52)
+    : (strikeIdx + slotIndex) % 2 === 0;
+  const basePremium = (spy ? 680_000 : 2_100_000) * weight;
+  const primaryPremium = roundTo(
+    basePremium * (0.65 + ((strikeIdx * 3 + slotIndex) % 5) * 0.2),
+    2
+  );
+  return [
+    {
+      lastTradedAt,
+      premium: primaryPremium,
+      prints: 4 + ((strikeIdx + slotIndex) % 6),
+      right: bullishPhase ? "call" : "put",
+      side: "ask",
+      slotIndex,
+      strike,
+      volume: Math.round((spy ? 240 : 95) * weight),
+    },
+    {
+      lastTradedAt,
+      premium: roundTo(primaryPremium * 0.28, 2),
+      prints: 2 + (slotIndex % 3),
+      right: bullishPhase ? "put" : "call",
+      side: "ask",
+      slotIndex,
+      strike,
+      volume: Math.round((spy ? 80 : 35) * weight),
+    },
+  ];
+};
+
+const buildLabStrikeBucketsForStrike = (
+  spy: boolean,
+  bucketMinutes: FlowStrikeHeatmapBucketMinutes,
+  slotCount: number,
+  basePrice: number,
+  gapStartMs: number,
+  gapEndMs: number,
+  strikeIdx: number,
+  strike: number
+): StrikeHeatmapBucketRow[] => {
+  const out: StrikeHeatmapBucketRow[] = [];
+  const distanceFromCenter = Math.abs(strike - basePrice);
+  const weight = spy
+    ? Math.max(0.12, 1.35 - distanceFromCenter * 0.1)
+    : Math.max(0.25, 1.3 - distanceFromCenter * 0.025);
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    if ((strikeIdx + slotIndex) % 3 !== 0) continue;
+    const slotStartMs = LAB_SESSION_OPEN + slotIndex * bucketMinutes * 60_000;
+    const slotEndMs = Math.min(
+      LAB_SESSION_CLOSE,
+      slotStartMs + bucketMinutes * 60_000
+    );
+    if (isSlotInLabGap(slotStartMs, slotEndMs, gapStartMs, gapEndMs, spy))
+      continue;
+    out.push(
+      ...buildLabStrikeSlotBuckets(
+        spy,
+        slotCount,
+        weight,
+        strikeIdx,
+        strike,
+        slotIndex,
+        new Date(slotEndMs - 20_000)
+      )
+    );
+  }
+  return out;
+};
+
+/**
+ * A deterministic flow.strikeHeatmap response for the session of LAB_NOW (Friday 2026-10-30,
+ * 09:30 to 16:15 New York) at 5m, 15m, or 30m buckets. SPY has 23 active strikes (top 20 shown,
+ * 3 minor omitted), one open collector gap (11:10 to 11:25), an unsigned flat cell, and latest
+ * spot between displayed strikes. ES (SPX options) has 12 strikes, exact-strike spot, and no gap.
+ */
+export const labFlowStrikeHeatmap = (
+  symbol: FlowStrikeHeatmapSymbol,
+  bucketMinutes: FlowStrikeHeatmapBucketMinutes = STRIKE_HEATMAP_RULES.defaultBucketMinutes
+): FlowStrikeHeatmap => {
+  const spy = symbol === "SPY";
+  const slotCount = Math.ceil(405 / bucketMinutes);
+  const strikes = spy
+    ? Array.from({ length: 23 }, (_, i) => 570 + i)
+    : Array.from({ length: 12 }, (_, i) => 5780 + i * 5);
+  const gapStart = new Date(LAB_SESSION_OPEN + 100 * 60_000);
+  const gapEnd = new Date(LAB_SESSION_OPEN + 115 * 60_000);
+  const gaps: StrikeHeatmapGapRow[] = spy
+    ? [{ endTime: gapEnd, startTime: gapStart }]
+    : [];
+  const basePrice = spy ? 581.45 : 5810;
+  const slotPrices = buildLabSlotPrices(
+    spy,
+    bucketMinutes,
+    slotCount,
+    basePrice,
+    gapStart.getTime(),
+    gapEnd.getTime()
+  );
+  const buckets = strikes.flatMap((strike, strikeIdx) =>
+    buildLabStrikeBucketsForStrike(
+      spy,
+      bucketMinutes,
+      slotCount,
+      basePrice,
+      gapStart.getTime(),
+      gapEnd.getTime(),
+      strikeIdx,
+      strike
+    )
+  );
+
+  const fold = foldStrikeHeatmap({
+    bucketMinutes,
+    buckets,
+    gaps,
+    range: {
+      from: new Date(LAB_SESSION_OPEN),
+      to: new Date(LAB_SESSION_CLOSE),
+    },
+    slotPrices,
+  });
+
+  return {
+    bucketMinutes,
+    cells: fold.cells,
+    options: {
+      ageSeconds: 50,
+      lastOkAt: new Date(LAB_NOW.getTime() - 50_000).toISOString(),
+      lastStatus: "ok",
+      message: `quantdata flow ${spy ? "SPY" : "SPX"}: 3 pages, 1240 prints`,
+      sessionOpen: true,
+      source: "options",
+      state: "fresh",
+    },
+    rules: { ...STRIKE_HEATMAP_RULES },
+    schemaVersion: "flow-strike-heatmap.v1",
+    session: "2026-10-30",
+    slots: fold.slots,
+    storedUntil: fold.storedUntil,
+    strikes: fold.strikes,
+    symbol,
+    ticker: spy ? "SPY" : "SPX",
+    totals: fold.totals,
+    unread: spy
+      ? {
+          from: gapStart.toISOString(),
+          ranges: 1,
+          to: gapEnd.toISOString(),
         }
       : null,
   };

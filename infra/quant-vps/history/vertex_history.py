@@ -44,6 +44,9 @@ A bar with a missing volume has volume null; a tick, tape print or depth level w
 counted (health `unsetSizes`).
 1.6.1 (card vertex-history-no-bid-rows): an option row is done when the ask is above 0 and IB sent a bid tick, also
 IB's "no bid" tick (-1). Such a row is a good row with bid null; it no longer holds the wave for the whole window.
+1.7.1 (card vertex-history-stock-depth-verify): SPY SMART depth size units verified with ibapi 10.30.1 (live probe
+2026-11-24 UTC: Decimal share counts with sizeMultiplier 1; 9.81.1 sent lots of 40 with warning 2176). Sets
+STOCK_DEPTH_VERIFIED = True.
 
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
@@ -62,7 +65,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-VERSION = "1.6.1"
+VERSION = "1.7.1"
 SCHEMA = "vertex-history-bars-v2"
 MIN_CLIENT_VER = 163  # lowest ibapi.server_versions.MAX_CLIENT_VER accepted (10.30.1 has 187); older clients get wrong sizes
 # The client's UNSET_DECIMAL is Decimal(2**127 - 1); any size at or above this bound is "not set".
@@ -70,6 +73,7 @@ UNSET_SIZE_FLOOR = 1e37
 STARTED_AT = time.time()
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
+DEPTH_HISTORY_SCHEMA = "vertex-history-depth-history-v1"
 SOURCE = "ibkr-gateway"
 CLIENT_ID = 77
 LISTEN_HOST = "127.0.0.1"
@@ -118,16 +122,29 @@ TICKS_DEADLINE = 35.0  # one budget per /ticks request: lock, pacing, contract l
 # DEPTH_COLLECT_SECONDS, then cancelled.
 DEPTH_ROWS_MAX, DEPTH_ROWS_DEFAULT = 20, 10
 DEPTH_TTL = 5
-# Stock depth sizes with ibapi 10.30.1 are not yet verified as shares (10.30.1 has no mdSizeMultiplier, so
-# sizeMultiplier is 1; with 9.81.1 SPY was 40). Until a depth read confirms the unit, stock depth is refused
-# (HTTP 503 depth_unit_unverified) so no reader shows or stores sizes of unknown unit. Futures depth is
-# unchanged (mdSizeMultiplier was 1 with 9.81.1). Design: docs/vertex-rebuild/designs/history-ibapi-10-30/design.md Q1.
-STOCK_DEPTH_VERIFIED = False
+# Stock depth sizes with ibapi 10.30.1 are verified as shares (2026-11-24 UTC live SPY SMART depth probe:
+# 9.81.1 serverVersion 157 had mdSizeMultiplier=40 and warning 2176 trimming 1002->25 and 100->2; 10.30.1
+# serverVersion 187 delivered Decimal share counts with no mdSizeMultiplier, so sizeMultiplier is 1).
+# Setting this to False refuses stock depth (HTTP 503 depth_unit_unverified) before any IB request.
+# Design & evidence: docs/vertex-rebuild/designs/history-ibapi-10-30/design.md Q1 and evidence.md.
+STOCK_DEPTH_VERIFIED = True
 DEPTH_STALE_MAX = 60
 DEPTH_MIN_INTERVAL = 3.0
 DEPTH_MAX_WAIT = 10.0
 DEPTH_COLLECT_SECONDS = 2.0
 DEPTH_DEADLINE = 25.0  # one budget per /depth request: lock, spacing, contract lookup, subscription
+# Depth stream (1.7.0): continuous L2 order book of front-month ES and NQ sampled every DEPTH_SAMPLE_SECONDS.
+DEPTH_OFF_FILE = "depth-off"  # in CONFIGURATION_DIRECTORY (or VERTEX_HISTORY_DEPTH_OFF): cancels both L2 subscriptions
+DEPTH_STREAM_SYMBOLS = ("ES", "NQ")
+DEPTH_STREAM_ROWS = 10
+DEPTH_SAMPLE_SECONDS = 5
+DEPTH_HISTORY_MAX = 720  # 60 minutes of 5-second snapshots per symbol
+DEPTH_SETTLE_SECONDS = 1.0  # post-attach and post-reset settle wait before sampling or serving live snapshots
+DEPTH_IDLE_SECONDS = 60.0  # no depth update this long pauses sampling and live reuse
+DEPTH_QUIET_SECONDS = 1800.0  # 30 minutes without a depth update triggers resubscribe
+DEPTH_RETRY_SECONDS = 30.0
+DEPTH_RETRY_MAX_SECONDS = 300.0
+DEPTH_CAP_CODE = 309  # IBKR account-wide market depth subscription cap: halt depth stream until restart
 # Tape (1.5.0): tick-by-tick trades and quotes of the front-month ES and NQ contracts, a ring of prints per symbol.
 TAPE_SCHEMA = "vertex-history-tape-v1"
 TAPE_OFF_FILE = "tape-off"  # in the configuration directory: while it exists, no tick-by-tick subscription
@@ -422,6 +439,23 @@ def validate_tape(raw):
 def tape_request(symbol):
     """The contract request of a tape symbol: the continuous future, so IBKR names the front month."""
     return {"symbol": symbol, "secType": "CONTFUT", "exchange": "CME", "currency": "USD", "contractMonth": None}
+
+
+def validate_depth_history(raw):
+    values = _single_values(raw, TAPE_PARAMS)
+    symbol = values.get("symbol", "").strip().upper()
+    if symbol not in DEPTH_STREAM_SYMBOLS:
+        raise BadRequest("symbol must be one of %s" % ", ".join(DEPTH_STREAM_SYMBOLS))
+    since = values.get("since", "").strip()
+    if not SINCE_RE.match(since):
+        raise BadRequest("since must be epoch seconds (1 to 10 digits)")
+    return {"symbol": symbol, "since": int(since)}
+
+
+def depth_stream_request(symbol):
+    """Contract request for one streamed CME L2 depth feed (front month)."""
+    return {"symbol": symbol, "secType": "CONTFUT", "exchange": "CME", "currency": "USD",
+            "contractMonth": None, "rows": DEPTH_STREAM_ROWS, "smartDepth": False}
 
 
 def _reject_bars_only(inst, kind):
@@ -893,13 +927,14 @@ class DiskCache:
 
 class HistoryService:
     def __init__(self, gateway, cache, pacer, clock=time.time, sleep=time.sleep, log=None, depth_pacer=None,
-                 option_quotes=False, tape_stream=None):
+                 option_quotes=False, tape_stream=None, depth_stream=None):
         self.gateway, self.cache, self.pacer = gateway, cache, pacer
         self.depth_pacer = depth_pacer or DepthPacer(clock)
         self.clock, self.sleep = clock, sleep
         self.log = log or (lambda event, **kw: None)
-        # main() passes the stream it starts; without one the service holds a stream that never runs (tests).
+        # main() passes the streams it starts; without them the service holds idle streams (tests).
         self.tape_stream = tape_stream or TapeStream(gateway, clock=clock, log=self.log)
+        self.depth_stream = depth_stream or DepthStream(gateway, clock=clock, log=self.log)
         self.lock = threading.Lock()  # historical requests (bars, ticks): one at a time
         self.depth_lock = threading.Lock()  # at most one market depth subscription at a time
         self.news_lock = threading.Lock()  # one news request at a time
@@ -1077,6 +1112,21 @@ class HistoryService:
         hit = self.cache.get(key, ttl)
         if hit:
             return self._ok(hit[0], hit[1], ttl, True, camel=True)
+        # Reuse the continuous ES/NQ CME depth stream when attached so /depth opens no duplicate L2 slot.
+        if (req["secType"] == "CONTFUT" and req["exchange"] == "CME" and req["currency"] == "USD"
+                and not req["smartDepth"] and req["symbol"] in DEPTH_STREAM_SYMBOLS):
+            feed = self.depth_stream.feeds[req["symbol"]]
+            live = feed.live_snapshot(req["rows"], self.clock()) if req["rows"] <= DEPTH_STREAM_ROWS else None
+            if live is not None:
+                contract, book = live
+                payload = {"schema": DEPTH_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "request": req,
+                           "contract": contract, "minTick": book.get("minTick"), "bids": book["bids"],
+                           "asks": book["asks"], "sizeMultiplier": book["sizeMultiplier"], "venues": book["venues"],
+                           "updates": book["updates"], "fetchedAt": now_iso(self.clock())}
+                self.cache.put(key, payload)
+                return self._ok(payload, 0, ttl, False, camel=True)
+            if feed.attached():
+                return fallback(503, {"error": "unavailable", "message": "depth stream warming up"})
         start = self.clock()
         deadline = start + DEPTH_MAX_WAIT
         budget_end = start + DEPTH_DEADLINE
@@ -1116,13 +1166,15 @@ class HistoryService:
             self.depth_lock.release()
 
     def health(self):
-        now, stream = self.clock(), self.tape_stream
-        reason = stream.reason()
+        now, stream, dstream = self.clock(), self.tape_stream, self.depth_stream
+        reason, dreason = stream.reason(), dstream.reason()
         tape = {"off": stream.off, "halted": stream.halted,
                 "feeds": {symbol: feed.status(now, reason) for symbol, feed in stream.feeds.items()}}
+        depth = {"off": dstream.off, "halted": dstream.halted,
+                 "feeds": {symbol: feed.status(now, dreason) for symbol, feed in dstream.feeds.items()}}
         return 200, {"schema": "vertex-history-health-v1", "version": VERSION, "client_id": CLIENT_ID,
                      "connected": self.gateway.connected(), "pacing": self.pacer.snapshot(),
-                     "optionQuotes": self.option_quotes, "tape": tape, "ibapi": ibapi_version(),
+                     "optionQuotes": self.option_quotes, "tape": tape, "depth": depth, "ibapi": ibapi_version(),
                      "startedAt": now_iso(STARTED_AT), "unsetSizes": UNSET_SIZES.value,
                      "warnings": ["unset_sizes"] if UNSET_SIZES.value > 0 else []}
 
@@ -1135,6 +1187,21 @@ class HistoryService:
         stream, now = self.tape_stream, self.clock()
         feed, reason = stream.feeds[req["symbol"]], stream.reason()
         payload = {"schema": TAPE_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "symbol": req["symbol"],
+                   "contract": feed.info, "minTick": feed.min_tick}
+        payload.update(feed.read(req["since"], now))
+        payload.update(stream={"state": feed.state(now, reason), "error": reason or feed.cause()},
+                       fetchedAt=now_iso(now))
+        return 200, payload
+
+    def depth_history(self, raw):
+        """Streamed L2 depth snapshots of one symbol from `since`: no IBKR request, no cache."""
+        try:
+            req = validate_depth_history(raw)
+        except BadRequest as e:
+            return 400, {"error": "bad_request", "message": str(e)}
+        stream, now = self.depth_stream, self.clock()
+        feed, reason = stream.feeds[req["symbol"]], stream.reason()
+        payload = {"schema": DEPTH_HISTORY_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "symbol": req["symbol"],
                    "contract": feed.info, "minTick": feed.min_tick}
         payload.update(feed.read(req["since"], now))
         payload.update(stream={"state": feed.state(now, reason), "error": reason or feed.cause()},
@@ -1329,6 +1396,144 @@ class DepthBook(_Holder):
             bids = sorted(self.bids, key=lambda level: -level["price"])[:rows]
             asks = sorted(self.asks, key=lambda level: level["price"])[:rows]
             return [dict(level) for level in bids], [dict(level) for level in asks], self.updates
+
+
+def _positive_depth_pairs(levels):
+    """Filters DepthBook.snapshot dicts to strictly positive finite [price, size] pairs."""
+    out = []
+    for level in levels:
+        price, size = level["price"], level["size"]
+        if math.isfinite(price) and price > 0 and math.isfinite(size) and size > 0:
+            out.append([price, size])
+    return out
+
+
+class DepthFeed(_Holder):
+    """Continuous L2 book and 5-second snapshot ring of one streamed futures symbol."""
+
+    def __init__(self, symbol):
+        super().__init__()
+        self.symbol = symbol
+        self.lock = threading.Lock()
+        self.book = DepthBook()
+        self.req_id = None
+        self.info = None
+        self.min_tick = None
+        self.attached_at = 0.0
+        self.reset_at = 0.0
+        self.last_update = 0.0
+        self.retry_at = 0.0
+        self.delay = DEPTH_RETRY_SECONDS
+        self.last_error = None
+        self.snapshots = deque(maxlen=DEPTH_HISTORY_MAX)
+        self.last_sampled_t = -1
+
+    def attach(self, info, min_tick, req_id, now):
+        with self.lock:
+            self.book.reset()
+            self.error = None
+            self.done.clear()
+            self.info, self.min_tick = info, min_tick
+            self.req_id = req_id
+            self.attached_at = now
+            self.reset_at = now
+            self.last_error = None
+
+    def detach(self):
+        with self.lock:
+            rid = self.req_id
+            self.req_id = None
+            self.book.reset()
+            return rid
+
+    def attached(self):
+        with self.lock:
+            return self.req_id is not None
+
+    def updated(self):
+        with self.lock:
+            return self.req_id is not None and self.last_update >= self.attached_at
+
+    def update(self, now, position, operation, side, price, size, venue=None):
+        self.book.apply(position, operation, side, price, size, venue)
+        with self.lock:
+            self.last_update = now
+
+    def reset_book(self, now):
+        self.book.reset()
+        with self.lock:
+            self.reset_at = now
+
+    def _settled_locked(self, now):
+        anchor = max(self.attached_at, self.reset_at)
+        return (self.req_id is not None and self.last_update >= anchor
+                and (now - anchor) >= DEPTH_SETTLE_SECONDS
+                and (now - self.last_update) <= DEPTH_IDLE_SECONDS)
+
+    def sample(self, now):
+        """Captures at most one snapshot per DEPTH_SAMPLE_SECONDS bucket when the live book is settled."""
+        bucket_t = int(now // DEPTH_SAMPLE_SECONDS) * DEPTH_SAMPLE_SECONDS
+        with self.lock:
+            if bucket_t <= self.last_sampled_t or not self._settled_locked(now):
+                return False
+            raw_bids, raw_asks, _ = self.book.snapshot(DEPTH_STREAM_ROWS)
+            bids, asks = _positive_depth_pairs(raw_bids), _positive_depth_pairs(raw_asks)
+            if not bids and not asks:
+                return False
+            self.snapshots.append({
+                "t": bucket_t,
+                "bestBid": bids[0][0] if bids else None,
+                "bestAsk": asks[0][0] if asks else None,
+                "bids": bids,
+                "asks": asks,
+            })
+            self.last_sampled_t = bucket_t
+            return True
+
+    def live_snapshot(self, rows, now):
+        """Returns a live /depth-shaped tuple (info, book_dict) when settled and within stream rows."""
+        if rows > DEPTH_STREAM_ROWS:
+            return None
+        with self.lock:
+            if not self._settled_locked(now) or self.info is None:
+                return None
+            raw_bids, raw_asks, updates = self.book.snapshot(rows)
+            if not raw_bids and not raw_asks:
+                return None
+            return self.info, {"minTick": self.min_tick, "bids": raw_bids, "asks": raw_asks,
+                               "sizeMultiplier": 1, "venues": self.book.venues, "updates": updates}
+
+    def read(self, since, now):
+        with self.lock:
+            rows = [snap for snap in self.snapshots if snap["t"] >= since]
+            return {"since": since, "sampleSeconds": DEPTH_SAMPLE_SECONDS, "rows": DEPTH_STREAM_ROWS,
+                    "snapshots": rows}
+
+    def state(self, now, halted=None):
+        if halted == "switched off":
+            return "off"
+        if halted:
+            return "halted"
+        with self.lock:
+            if self.req_id is None:
+                return "down"
+            ready_after = max(self.attached_at, self.reset_at)
+            if self.last_update >= ready_after and (now - self.last_update) <= DEPTH_IDLE_SECONDS:
+                return "live"
+            return "starting"
+
+    def cause(self):
+        with self.lock:
+            return self.last_error
+
+    def status(self, now, halted=None):
+        with self.lock:
+            snap_count = len(self.snapshots)
+            last = now_iso(self.last_update) if self.last_update > 0 else None
+            contract = self.info.get("localSymbol") if isinstance(self.info, dict) else None
+            err = halted or self.last_error
+        return {"state": self.state(now, halted), "contract": contract, "snapshots": snap_count,
+                "lastUpdate": last, "error": err}
 
 
 class QuoteSnapshot(_Holder):
@@ -1726,6 +1931,7 @@ class IbGateway:
         self.connect_lock = threading.Lock()
         self.active_depth = None
         self.depth_collect = DEPTH_COLLECT_SECONDS
+        self.depth_cap_reached = False
         self.providers = None  # (fetched at, [{code, name}])
         self.providers_rid = None
         self.option_defs = {}  # (symbol, conId) -> (fetched at, option chain definition)
@@ -1791,7 +1997,9 @@ class IbGateway:
 
     def depth_update(self, req_id, position, operation, side, price, size, venue):
         h = self.holders.get(req_id)
-        if isinstance(h, DepthBook):
+        if isinstance(h, DepthFeed):
+            h.update(self.clock(), position, operation, side, price, size, venue)
+        elif isinstance(h, DepthBook):
             h.apply(position, operation, side, price, size, venue)
 
     def tape_trade(self, req_id, t, price, size, unreported):
@@ -1808,6 +2016,10 @@ class IbGateway:
         with self.holders_lock:
             return list({id(h): h for h in self.holders.values() if isinstance(h, TapeFeed)}.values())
 
+    def _depth_feeds(self):
+        with self.holders_lock:
+            return list({id(h): h for h in self.holders.values() if isinstance(h, DepthFeed)}.values())
+
     def _tape_notice(self, code, message):
         """A broken market data farm ends the covered spans; "connectivity returned, data lost" ends the tape
         subscriptions, because IBKR wants market data requests sent again after it."""
@@ -1816,6 +2028,16 @@ class IbGateway:
                 feed.break_span()
         elif code == TAPE_LOST_CODE:
             for feed in self._tape_feeds():
+                self._fail(feed, IbError("unavailable", str(message), code))
+
+    def _depth_notice_farm(self, code, message):
+        """Farm breaks (2103/2105) reset live depth books to wait for settle; data lost (1101) resubscribes."""
+        if code in TAPE_BREAK_CODES:
+            now = self.clock()
+            for feed in self._depth_feeds():
+                feed.reset_book(now)
+        elif code == TAPE_LOST_CODE:
+            for feed in self._depth_feeds():
                 self._fail(feed, IbError("unavailable", str(message), code))
 
     @staticmethod
@@ -1853,7 +2075,8 @@ class IbGateway:
         self._snapshot_update(req_id, end)
 
     def depth_notice(self, req_id, message):
-        book = self._depth_book(req_id)
+        h = self.holders.get(req_id)
+        book = h.book if isinstance(h, DepthFeed) else self._depth_book(req_id)
         if book is None:
             return
         venues = parse_depth_notice(message)
@@ -1869,15 +2092,30 @@ class IbGateway:
     def on_error(self, req_id, code, message):
         code = int(code)
         self._tape_notice(code, message)
+        self._depth_notice_farm(code, message)
         if code in INFO_CODES:
             return
         if code == DEPTH_NOTICE_CODE:
             return self.depth_notice(req_id, message)
         if code == DEPTH_RESET_CODE:
-            book = self._depth_book(req_id)
-            if book is not None:
-                book.reset()
+            now = self.clock()
+            if req_id == -1:
+                for feed in self._depth_feeds():
+                    feed.reset_book(now)
+                book = self._depth_book(req_id)
+                if book is not None:
+                    book.reset()
+            else:
+                h = self.holders.get(req_id)
+                if isinstance(h, DepthFeed):
+                    h.reset_book(now)
+                else:
+                    book = self._depth_book(req_id)
+                    if book is not None:
+                        book.reset()
             return
+        if code == DEPTH_CAP_CODE and self._depth_feeds():
+            self.depth_cap_reached = True
         text = str(message)
         low = text.lower()
         if code == 326:
@@ -2095,6 +2333,34 @@ class IbGateway:
             self._client.cancelMktDepth(req_id, smart)
         except Exception as e:
             self.log("ib_cancel_depth_failed", req_id=req_id, kind=type(e).__name__)
+
+    def subscribe_depth(self, req, feed):
+        """Starts one persistent CME L2 depth subscription for a DepthFeed."""
+        self._connect()
+        info, _multiplier, min_tick = self._contract(req)
+        spec = self._resolved_spec(req, info)
+        with self.holders_lock:
+            self.next_id += 1
+            rid = self.next_id
+            self.holders[rid] = feed
+        feed.attach(info, min_tick, rid, self.clock())
+        try:
+            self.log("ib_depth_stream", req_id=rid, symbol=req["symbol"], rows=DEPTH_STREAM_ROWS)
+            self._client.reqMktDepth(rid, spec, DEPTH_STREAM_ROWS, False, [])
+        except Exception:
+            self.unsubscribe_depth(feed)
+            raise
+
+    def unsubscribe_depth(self, feed):
+        """Cancels the persistent L2 subscription of a DepthFeed."""
+        with feed.lock:
+            rid = feed.req_id
+        if rid is None:
+            return
+        with self.holders_lock:
+            self.holders.pop(rid, None)
+        feed.detach()
+        self._cancel_depth(rid, False)
 
     def _tape_id(self, feed):
         with self.holders_lock:
@@ -2420,11 +2686,110 @@ class TapeStream:
         threading.Thread(target=loop, name="tape", daemon=True).start()
 
 
+class DepthStream:
+    """Keeps the ES and NQ L2 depth feeds subscribed and samples 5-second snapshots."""
+
+    def __init__(self, gateway, off_file=None, clock=time.time, log=None):
+        self.gateway, self.off_file, self.clock = gateway, off_file, clock
+        self.log = log or (lambda event, **kw: None)
+        self.feeds = {symbol: DepthFeed(symbol) for symbol in DEPTH_STREAM_SYMBOLS}
+        self.halted = None
+        self.off = False
+
+    def reason(self):
+        return "switched off" if self.off else self.halted
+
+    def _drop(self, feed, now, event, failed=False, error=None, **kw):
+        self.gateway.unsubscribe_depth(feed)
+        if error is not None:
+            with feed.lock:
+                feed.last_error = scrub(str(error))[:200]
+        wait = DEPTH_RETRY_SECONDS
+        if failed:
+            wait, feed.delay = feed.delay, min(feed.delay * 2, DEPTH_RETRY_MAX_SECONDS)
+        feed.retry_at = max(feed.retry_at, now + wait)
+        self.log(event, symbol=feed.symbol, **kw)
+
+    def _release(self, feeds, now):
+        for feed in feeds:
+            if feed.attached():
+                self.gateway.unsubscribe_depth(feed)
+                feed.retry_at = max(feed.retry_at, now + DEPTH_RETRY_SECONDS)
+
+    def step(self):
+        now = self.clock()
+        feeds = list(self.feeds.values())
+        off = bool(self.off_file and os.path.exists(self.off_file))
+        if off != self.off:
+            self.off = off
+            self.log("depth_off" if off else "depth_on")
+        if self.off:
+            self._release(feeds, now)
+            return
+        if self.halted:
+            self._release(feeds, now)
+            return
+        if getattr(self.gateway, "depth_cap_reached", False):
+            self.halted = "depth subscription cap reached"
+            self._release(feeds, now)
+            self.log("depth_stream_halted", code=DEPTH_CAP_CODE)
+            return
+        for feed in feeds:
+            if not feed.attached():
+                continue
+            if feed.done.is_set():
+                err = feed.error
+                code = getattr(err, "code", None)
+                if code == DEPTH_CAP_CODE:
+                    self.halted = "depth subscription cap reached"
+                    self._release(feeds, now)
+                    self.log("depth_stream_halted", symbol=feed.symbol, code=code)
+                    return
+                self._drop(feed, now, "depth_stream_lost", failed=not feed.updated(),
+                           error=err or "depth stream lost", code=code)
+                continue
+            if not self.gateway.connected():
+                self._drop(feed, now, "depth_stream_disconnected", failed=not feed.updated(),
+                           error="gateway disconnected")
+                continue
+            idle = now - max(feed.attached_at, feed.last_update)
+            if idle >= DEPTH_QUIET_SECONDS:
+                self._drop(feed, now, "depth_stream_quiet", failed=False, seconds=round(idle))
+                continue
+            if feed.updated():
+                feed.delay = DEPTH_RETRY_SECONDS
+            feed.sample(now)
+        for feed in feeds:
+            if feed.attached() or now < feed.retry_at:
+                continue
+            try:
+                self.gateway.subscribe_depth(depth_stream_request(feed.symbol), feed)
+            except Exception as e:
+                kind = e.kind if isinstance(e, IbError) else type(e).__name__
+                self._drop(feed, now, "depth_subscribe_failed", failed=True, error=e, kind=kind)
+                if kind == "unavailable":
+                    for other in feeds:
+                        if not other.attached():
+                            other.retry_at = max(other.retry_at, feed.retry_at)
+                    return
+
+    def start(self, wait=time.sleep):
+        def loop():
+            while True:
+                try:
+                    self.step()
+                except Exception as e:
+                    self.log("depth_step_failed", kind=type(e).__name__)
+                wait(1.0)
+
+        threading.Thread(target=loop, name="depth", daemon=True).start()
+
+
 def make_handler(service, token):
     expected = ("Bearer " + token).encode()
     routes = {PREFIX + "/bars": service.bars, PREFIX + "/ticks": service.ticks, PREFIX + "/depth": service.depth,
-              PREFIX + "/news": service.news, PREFIX + "/option-chain": service.option_chain,
-              PREFIX + "/tape": service.tape}
+              PREFIX + "/depth-history": service.depth_history, PREFIX + "/news": service.news,
+              PREFIX + "/option-chain": service.option_chain, PREFIX + "/tape": service.tape}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "vertex-history/" + VERSION
@@ -2509,10 +2874,13 @@ def main():
     gateway_file = os.path.join(os.environ.get("RUNTIME_DIRECTORY", "/run/vertex-history"), "gateway")
     gateway = IbGateway(gateway_file, log=_log)
     option_quotes = option_quotes_enabled()  # read once; a change needs a restart
-    off_file = os.path.join(os.environ.get("CONFIGURATION_DIRECTORY", "/etc/vertex-history"), TAPE_OFF_FILE)
+    config_dir = os.environ.get("CONFIGURATION_DIRECTORY", "/etc/vertex-history")
+    off_file = os.path.join(config_dir, TAPE_OFF_FILE)
+    depth_off_file = os.environ.get("VERTEX_HISTORY_DEPTH_OFF") or os.path.join(config_dir, DEPTH_OFF_FILE)
     tape_stream = TapeStream(gateway, off_file, log=_log)
+    depth_stream = DepthStream(gateway, depth_off_file, log=_log)
     service = HistoryService(gateway, DiskCache(cache_dir), Pacer(), log=_log, option_quotes=option_quotes,
-                             tape_stream=tape_stream)
+                             tape_stream=tape_stream, depth_stream=depth_stream)
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), make_handler(service, token))
     server.daemon_threads = True
 
@@ -2525,8 +2893,9 @@ def main():
 
     threading.Thread(target=watchdog, name="watchdog", daemon=True).start()
     tape_stream.start()
+    depth_stream.start()
     _log("listening", host=LISTEN_HOST, port=LISTEN_PORT, version=VERSION, client_id=CLIENT_ID,
-         option_quotes=service.option_quotes, tape_off_file=off_file)
+         option_quotes=service.option_quotes, tape_off_file=off_file, depth_off_file=depth_off_file)
     try:
         server.serve_forever()
     finally:
