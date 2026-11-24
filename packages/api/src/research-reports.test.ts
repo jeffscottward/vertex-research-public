@@ -5,12 +5,15 @@ import {
 } from "@darkfactory/auth/server";
 import {
   DatabasePersistenceError,
+  type MarketBarColumns,
+  type MarketBarSeries,
+  type MarketBarsRepository,
   type Repositories,
   type ResearchReportRecord,
   type ResearchReportsRepository,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import { buildOpenApiDocument } from "./openapi.ts";
@@ -131,11 +134,15 @@ const session = (userId: string): SafeAuthSession => ({
 
 const clientFor = (
   requestSession: SafeAuthSession | null,
-  researchReports: ResearchReportsRepository | undefined
+  researchReports: ResearchReportsRepository | undefined,
+  marketBars?: MarketBarsRepository
 ) => {
   const repositories = (researchReports === undefined
     ? {}
-    : { researchReports }) as unknown as Repositories;
+    : {
+        ...(marketBars === undefined ? {} : { marketBars }),
+        researchReports,
+      }) as unknown as Repositories;
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
@@ -667,5 +674,488 @@ describe("researchReports procedures", () => {
     expect(
       MCP_TOOLS.some((tool) => tool.procedure.startsWith("researchReports"))
     ).toBe(false);
+  });
+});
+
+const makeDailyColumns = (
+  count: number,
+  startUtc: number
+): MarketBarColumns => {
+  const t = new Float64Array(count);
+  const o = new Float64Array(count);
+  const h = new Float64Array(count);
+  const l = new Float64Array(count);
+  const c = new Float64Array(count);
+  const v = new Float64Array(count);
+  let day = startUtc;
+  let written = 0;
+  while (written < count) {
+    const weekday = new Date(day).getUTCDay();
+    if (weekday >= 1 && weekday <= 5) {
+      const price = 100 + written * 0.5;
+      t[written] = day;
+      o[written] = price;
+      h[written] = price + 2;
+      l[written] = price - 2;
+      c[written] = price + 0.25;
+      v[written] = 1_000_000;
+      written += 1;
+    }
+    day += 86_400_000;
+  }
+  return { c, h, l, o, t, v };
+};
+
+const fakeMarketBars = (
+  entries: Readonly<
+    Record<
+      string,
+      Readonly<{ series: MarketBarSeries; columns: MarketBarColumns }>
+    >
+  >
+): MarketBarsRepository => ({
+  appendBars: () => Promise.reject(new Error("unused")),
+  getSeries: (symbol, timeframe) => {
+    const entry = entries[`${symbol}:${timeframe}`];
+    return Promise.resolve(entry === undefined ? null : entry.series);
+  },
+  latestBars: () => Promise.reject(new Error("unused")),
+  listSeries: () =>
+    Promise.resolve(Object.values(entries).map((e) => e.series)),
+  loadColumns: (seriesId) => {
+    const entry = entries[seriesId];
+    if (entry === undefined)
+      return Promise.reject(new Error(`missing ${seriesId}`));
+    return Promise.resolve(entry.columns);
+  },
+  replaceSeries: () => Promise.reject(new Error("unused")),
+});
+
+describe("index ETF dossiers and read-time market_bars refresh", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("adds IWM and DIA to list in the SPY/QQQ category and refreshes SPY/QQQ dataDate from market_bars", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-23T15:00:00Z"));
+    const cols = makeDailyColumns(260, Date.UTC(2025, 10, 24));
+    const lastT = cols.t.at(-1) as number;
+    const firstT = cols.t[0] as number;
+    const importedAt = new Date("2026-11-23T05:00:00Z");
+    const makeSeries = (symbol: string, shaDigit: string): MarketBarSeries => ({
+      barCount: 260,
+      firstT,
+      id: `${symbol}:1d`,
+      importedAt,
+      lastT,
+      source: "yahoo",
+      sourceSha256: hex(shaDigit),
+      symbol,
+      timeframe: "1d",
+    });
+    const marketBars = fakeMarketBars({
+      "DIA:1d": { columns: cols, series: makeSeries("DIA", "4") },
+      "IWM:1d": { columns: cols, series: makeSeries("IWM", "3") },
+      "QQQ:1d": { columns: cols, series: makeSeries("QQQ", "2") },
+      "SPY:1d": { columns: cols, series: makeSeries("SPY", "1") },
+    });
+    const oldDate = new Date("2026-09-10T21:00:00Z");
+    const repository = fakeRepository({
+      listCatalog: () =>
+        Promise.resolve({
+          categories: [
+            {
+              description: "Major indices",
+              id: "indices",
+              label: "Indices",
+              position: 0,
+              reportIds: ["SPY", "QQQ"],
+              sourceIds: [],
+            },
+            {
+              description: "Single equities",
+              id: "equities",
+              label: "Equities",
+              position: 1,
+              reportIds: ["AAPL"],
+              sourceIds: [],
+            },
+          ],
+          reports: [
+            report({
+              assetType: "etf",
+              id: "SPY",
+              name: "SPDR S&P 500 ETF Trust",
+              providerSymbol: "SPY",
+              sourceUpdatedAt: oldDate,
+              symbol: "SPY",
+            }),
+            report({
+              assetType: "etf",
+              id: "QQQ",
+              name: "Invesco QQQ Trust",
+              providerSymbol: "QQQ",
+              sourceUpdatedAt: oldDate,
+              symbol: "QQQ",
+            }),
+            report({
+              id: "AAPL",
+              name: "Apple Inc.",
+              providerSymbol: "AAPL",
+              sourceUpdatedAt: oldDate,
+              symbol: "AAPL",
+            }),
+          ],
+        }),
+    });
+
+    const out = await clientFor(
+      operator,
+      repository,
+      marketBars
+    ).researchReports.list({});
+    const expectedLastDate = new Date(lastT).toISOString().slice(0, 10);
+    expect(out.reports.map((r) => r.id)).toEqual([
+      "SPY",
+      "QQQ",
+      "AAPL",
+      "IWM",
+      "DIA",
+    ]);
+    expect(out.categories[0]?.reportIds).toEqual(["SPY", "QQQ", "IWM", "DIA"]);
+    for (const id of ["SPY", "QQQ", "IWM", "DIA"]) {
+      const entry = out.reports.find((r) => r.id === id);
+      expect(entry?.dataDate).toBe(expectedLastDate);
+      expect(entry?.dataSource).toBe("market_bars");
+      expect(entry?.freshness.status).toBe("fresh");
+    }
+    const aapl = out.reports.find((r) => r.id === "AAPL");
+    expect(aapl?.dataDate).toBe("2026-09-10");
+    expect(aapl?.dataSource).toBe("revision");
+    expect(aapl?.freshness.isStale).toBe(true);
+  });
+
+  it("creates an index-etfs category when no existing category holds SPY or QQQ", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-23T15:00:00Z"));
+    const cols = makeDailyColumns(5, Date.UTC(2026, 10, 16));
+    const marketBars = fakeMarketBars({
+      "IWM:1d": {
+        columns: cols,
+        series: {
+          barCount: 5,
+          firstT: cols.t[0] as number,
+          id: "IWM:1d",
+          importedAt: new Date("2026-11-23T05:00:00Z"),
+          lastT: cols.t[4] as number,
+          source: "yahoo",
+          sourceSha256: hex("3"),
+          symbol: "IWM",
+          timeframe: "1d",
+        },
+      },
+      "IWM:1m": {
+        columns: cols,
+        series: {
+          barCount: 5,
+          firstT: cols.t[0] as number,
+          id: "IWM:1m",
+          importedAt: new Date("2026-11-23T05:00:00Z"),
+          lastT: cols.t[4] as number,
+          source: "yahoo",
+          sourceSha256: hex("9"),
+          symbol: "IWM",
+          timeframe: "1m",
+        },
+      },
+    });
+    const out = await clientFor(
+      operator,
+      fakeRepository(),
+      marketBars
+    ).researchReports.list({});
+    expect(out.categories.find((c) => c.id === "index-etfs")).toMatchObject({
+      label: "Index ETFs",
+      reportIds: ["IWM"],
+    });
+  });
+
+  it("refreshes stored QQQ technicals from market_bars by default, supports providerSymbol fallback, and pins explicit revision", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-23T15:00:00Z"));
+    const cols = makeDailyColumns(260, Date.UTC(2025, 10, 24));
+    const lastT = cols.t.at(-1) as number;
+    const expectedLastDate = new Date(lastT).toISOString().slice(0, 10);
+    const marketBars = fakeMarketBars({
+      "ES=F:1d": {
+        columns: cols,
+        series: {
+          barCount: 260,
+          firstT: cols.t[0] as number,
+          id: "ES=F:1d",
+          importedAt: new Date("2026-11-23T05:00:00Z"),
+          lastT,
+          source: "yahoo",
+          sourceSha256: hex("6"),
+          symbol: "ES=F",
+          timeframe: "1d",
+        },
+      },
+      "QQQ:1d": {
+        columns: cols,
+        series: {
+          barCount: 260,
+          firstT: cols.t[0] as number,
+          id: "QQQ:1d",
+          importedAt: new Date("2026-11-23T05:00:00Z"),
+          lastT,
+          source: "yahoo",
+          sourceSha256: hex("2"),
+          symbol: "QQQ",
+          timeframe: "1d",
+        },
+      },
+    });
+    const oldHistory = Array.from({ length: 200 }, (_, index) => ({
+      close: 400 + index,
+      date: new Date(Date.UTC(2025, 10, 1) + index * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+      high: 402 + index,
+      isPartial: false,
+      low: 398 + index,
+      volume: 1000,
+    }));
+    const repository = fakeRepository({
+      getDataset: (reportId, dataRevision, dataset) => {
+        if (dataset === "market") {
+          const body = JSON.stringify({
+            collectedAt: "2026-06-01T21:00:00Z",
+            history: oldHistory,
+          });
+          return Promise.resolve({
+            body,
+            byteLength: body.length,
+            dataRevision,
+            dataset,
+            reportId,
+            sha256: hex("c"),
+          });
+        }
+        const body = JSON.stringify({ asOf: "2026-05-19", latestClose: 599 });
+        return Promise.resolve({
+          body,
+          byteLength: body.length,
+          dataRevision,
+          dataset,
+          reportId,
+          sha256: hex("d"),
+        });
+      },
+      getReport: (id) =>
+        Promise.resolve(
+          id === "QQQ"
+            ? report({
+                assetType: "etf",
+                id: "QQQ",
+                providerSymbol: "QQQ",
+                symbol: "QQQ",
+              })
+            : id === "ES"
+              ? report({
+                  assetType: "future",
+                  id: "ES",
+                  providerSymbol: "ES=F",
+                  symbol: "ES",
+                })
+              : null
+        ),
+    });
+
+    const client = clientFor(operator, repository, marketBars);
+    const liveQqq = await client.researchReports.technicals({
+      reportId: "QQQ",
+    });
+    expect(liveQqq.bars?.source).toBe("market_bars");
+    expect(liveQqq.bars?.lastDate).toBe(expectedLastDate);
+    expect(liveQqq.dataDate).toBe(expectedLastDate);
+    expect(liveQqq.freshness.status).toBe("fresh");
+    expect(liveQqq.weinstein?.isStale).toBe(false);
+
+    // Pinned revision stays on stored bars and is marked stale.
+    const pinnedQqq = await client.researchReports.technicals({
+      reportId: "QQQ",
+      revision: hex("a"),
+    });
+    expect(pinnedQqq.bars?.source).toBe("revision");
+    expect(pinnedQqq.freshness.isStale).toBe(true);
+
+    // Provider symbol fallback for ES -> ES=F.
+    const liveEs = await client.researchReports.technicals({ reportId: "ES" });
+    expect(liveEs.bars?.source).toBe("market_bars");
+    expect(liveEs.bars?.lastDate).toBe(expectedLastDate);
+  });
+
+  it("serves bar-backed IWM technicals and all 6 datasets, validates revision, and rejects companyResearch", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-23T15:00:00Z"));
+    const cols = makeDailyColumns(260, Date.UTC(2025, 10, 24));
+    const lastT = cols.t.at(-1) as number;
+    const expectedLastDate = new Date(lastT).toISOString().slice(0, 10);
+    const rev = hex("3");
+    const marketBars = fakeMarketBars({
+      "IWM:1d": {
+        columns: cols,
+        series: {
+          barCount: 260,
+          firstT: cols.t[0] as number,
+          id: "IWM:1d",
+          importedAt: new Date("2026-11-23T05:00:00Z"),
+          lastT,
+          source: "yahoo",
+          sourceSha256: rev,
+          symbol: "IWM",
+          timeframe: "1d",
+        },
+      },
+    });
+    const client = clientFor(operator, fakeRepository(), marketBars);
+
+    const tech = await client.researchReports.technicals({ reportId: "IWM" });
+    expect(tech.reportId).toBe("IWM");
+    expect(tech.dataRevision).toBe(rev);
+    expect(tech.bars?.source).toBe("market_bars");
+    expect(tech.bars?.lastDate).toBe(expectedLastDate);
+    expect(tech.current?.asOf).toBe(expectedLastDate);
+    expect(tech.weinstein?.isStale).toBe(false);
+
+    // Matching revision succeeds; wrong revision returns NOT_FOUND.
+    const techPinned = await client.researchReports.technicals({
+      reportId: "IWM",
+      revision: rev,
+    });
+    expect(techPinned.dataRevision).toBe(rev);
+    await expectCode(
+      client.researchReports.technicals({
+        reportId: "IWM",
+        revision: hex("9"),
+      }),
+      "NOT_FOUND"
+    );
+
+    // Missing bar series for DIA returns NOT_FOUND.
+    await expectCode(
+      client.researchReports.technicals({ reportId: "DIA" }),
+      "NOT_FOUND"
+    );
+    await expectCode(
+      client.researchReports.dataset({
+        dataset: "technicals",
+        reportId: "DIA",
+      }),
+      "NOT_FOUND"
+    );
+
+    // All 6 public datasets render for bar-backed IWM.
+    for (const dataset of [
+      "technicals",
+      "market",
+      "fundamentals",
+      "news",
+      "options-analysis",
+      "committee",
+    ] as const) {
+      const ds = await client.researchReports.dataset({
+        dataset,
+        reportId: "IWM",
+      });
+      expect(ds.reportId).toBe("IWM");
+      expect(ds.dataRevision).toBe(rev);
+      expect(ds.revisions).toEqual([rev]);
+      expect(ds.byteLength).toBeGreaterThan(0);
+      expect(ds.sha256).toMatch(/^[0-9a-f]{64}$/u);
+    }
+    const dsPinned = await client.researchReports.dataset({
+      dataset: "market",
+      reportId: "IWM",
+      revision: rev,
+    });
+    expect(dsPinned.dataRevision).toBe(rev);
+    await expectCode(
+      client.researchReports.dataset({
+        dataset: "market",
+        reportId: "IWM",
+        revision: hex("9"),
+      }),
+      "NOT_FOUND"
+    );
+    await expectCode(
+      client.researchReports.companyResearch({ reportId: "IWM" }),
+      "NOT_FOUND"
+    );
+  });
+
+  it("handles empty bar columns for bar-backed datasets and skips invalid bar symbols", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-23T15:00:00Z"));
+    const emptyCols: MarketBarColumns = {
+      c: new Float64Array([]),
+      h: new Float64Array([]),
+      l: new Float64Array([]),
+      o: new Float64Array([]),
+      t: new Float64Array([]),
+      v: new Float64Array([]),
+    };
+    const rev = hex("5");
+    const marketBars = fakeMarketBars({
+      "DIA:1d": {
+        columns: emptyCols,
+        series: {
+          barCount: 0,
+          firstT: Date.UTC(2026, 10, 19),
+          id: "DIA:1d",
+          importedAt: new Date("2026-11-23T05:00:00Z"),
+          lastT: Date.UTC(2026, 10, 20),
+          source: "yahoo",
+          sourceSha256: rev,
+          symbol: "DIA",
+          timeframe: "1d",
+        },
+      },
+    });
+    const repo = fakeRepository({
+      getReport: (id) =>
+        Promise.resolve(
+          id === "ODD"
+            ? report({
+                id: "ODD",
+                providerSymbol: "bad symbol",
+                symbol: "bad symbol",
+              })
+            : null
+        ),
+    });
+    const client = clientFor(operator, repo, marketBars);
+    const techDs = await client.researchReports.dataset({
+      dataset: "technicals",
+      reportId: "DIA",
+    });
+    expect(techDs.data).toMatchObject({
+      asOf: "2026-11-20",
+      title: "DIA technicals",
+    });
+    const marketDs = await client.researchReports.dataset({
+      dataset: "market",
+      reportId: "DIA",
+    });
+    expect(marketDs.data).toMatchObject({
+      asOf: "2026-11-20",
+      title: "DIA market data",
+    });
+    const oddTech = await client.researchReports.technicals({
+      reportId: "ODD",
+    });
+    expect(oddTech.bars).toBeNull();
   });
 });

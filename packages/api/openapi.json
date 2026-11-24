@@ -181101,8 +181101,26 @@
                               }
                             ]
                           },
+                          "dataDate": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "dataRevision": {
                             "pattern": "^[0-9a-f]{64}$",
+                            "type": "string"
+                          },
+                          "dataSource": {
+                            "enum": [
+                              "market_bars",
+                              "revision"
+                            ],
                             "type": "string"
                           },
                           "exchange": {
@@ -181114,6 +181132,62 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "freshness": {
+                            "properties": {
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "expectedSession": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "isStale": {
+                                "type": "boolean"
+                              },
+                              "maxSessionsBehind": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "sessionsBehind": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "enum": [
+                                  "fresh",
+                                  "stale",
+                                  "no_date"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "asOf",
+                              "expectedSession",
+                              "isStale",
+                              "maxSessionsBehind",
+                              "sessionsBehind",
+                              "status"
+                            ],
+                            "type": "object"
                           },
                           "id": {
                             "pattern": "^[A-Z0-9]{1,10}$",
@@ -181156,8 +181230,11 @@
                           "assetType",
                           "companyResearch",
                           "currency",
+                          "dataDate",
                           "dataRevision",
+                          "dataSource",
                           "exchange",
+                          "freshness",
                           "id",
                           "identityStatus",
                           "importedAt",
@@ -182137,13 +182214,21 @@
                             "lastDate": {
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
+                            },
+                            "source": {
+                              "enum": [
+                                "market_bars",
+                                "revision"
+                              ],
+                              "type": "string"
                             }
                           },
                           "required": [
                             "collectedAt",
                             "count",
                             "firstDate",
-                            "lastDate"
+                            "lastDate",
+                            "source"
                           ],
                           "type": "object"
                         },
@@ -182175,6 +182260,324 @@
                         "status"
                       ],
                       "type": "object"
+                    },
+                    "current": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "asOf": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "atr14": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "latestClose": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maximumObservedHigh": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "date": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "drawdownPct": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "price": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "date",
+                                    "drawdownPct",
+                                    "price"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "range52Week": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "high": {
+                                      "type": "number"
+                                    },
+                                    "highDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "low": {
+                                      "type": "number"
+                                    },
+                                    "lowDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "sampleCount": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "high",
+                                    "highDate",
+                                    "low",
+                                    "lowDate",
+                                    "sampleCount"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "rsi14": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sampleCount": {
+                              "anyOf": [
+                                {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma150": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma20": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma200": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma200Slope": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "change": {
+                                      "type": "number"
+                                    },
+                                    "changePct": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "fromDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "toDate": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "change",
+                                    "changePct",
+                                    "fromDate",
+                                    "toDate"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sma50": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "trendChecks": {
+                              "items": {
+                                "properties": {
+                                  "key": {
+                                    "enum": [
+                                      "closeAboveSma20",
+                                      "closeAboveSma50",
+                                      "closeAboveSma150",
+                                      "closeAboveSma200",
+                                      "sma50AboveSma150",
+                                      "sma50AboveSma200",
+                                      "sma150AboveSma200",
+                                      "sma200Rising20Sessions"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "passed": {
+                                    "anyOf": [
+                                      {
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "passed"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 8,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "asOf",
+                            "atr14",
+                            "latestClose",
+                            "rsi14",
+                            "sampleCount",
+                            "sma20",
+                            "sma50",
+                            "sma150",
+                            "sma200",
+                            "maximumObservedHigh",
+                            "range52Week",
+                            "sma200Slope",
+                            "trendChecks"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dataDate": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "dataRevision": {
                       "pattern": "^[0-9a-f]{64}$",
@@ -182309,12 +182712,73 @@
                         }
                       ]
                     },
+                    "freshness": {
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "expectedSession": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "isStale": {
+                          "type": "boolean"
+                        },
+                        "maxSessionsBehind": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "sessionsBehind": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "no_date"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "asOf",
+                        "expectedSession",
+                        "isStale",
+                        "maxSessionsBehind",
+                        "sessionsBehind",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
                     "method": {
                       "properties": {
                         "fibonacciWindowSessions": {
                           "exclusiveMinimum": 0,
                           "maximum": 9007199254740991,
                           "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "freshnessMaxSessionsBehind": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
                           "type": "integer"
                         },
                         "pivotLookbackSessions": {
@@ -182403,6 +182867,7 @@
                       },
                       "required": [
                         "fibonacciWindowSessions",
+                        "freshnessMaxSessionsBehind",
                         "pivotLookbackSessions",
                         "version",
                         "volumeProfile",
@@ -183074,18 +183539,25 @@
                       "items": {
                         "type": "string"
                       },
-                      "maxItems": 10,
+                      "maxItems": 12,
                       "type": "array"
                     },
                     "weinstein": {
                       "anyOf": [
                         {
                           "properties": {
+                            "asOf": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
                             "completeWeeks": {
                               "exclusiveMinimum": 0,
                               "maximum": 9007199254740991,
                               "minimum": -9007199254740991,
                               "type": "integer"
+                            },
+                            "isStale": {
+                              "type": "boolean"
                             },
                             "label": {
                               "type": "string"
@@ -183119,6 +183591,16 @@
                                 }
                               ]
                             },
+                            "staleReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "weekEnding": {
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
@@ -183128,11 +183610,14 @@
                             }
                           },
                           "required": [
+                            "asOf",
                             "completeWeeks",
+                            "isStale",
                             "label",
                             "sma30",
                             "sma30ChangePct",
                             "stage",
+                            "staleReason",
                             "weekEnding",
                             "weeklyClose"
                           ],
@@ -183147,8 +183632,11 @@
                   "required": [
                     "bars",
                     "check",
+                    "current",
+                    "dataDate",
                     "dataRevision",
                     "fibonacci",
+                    "freshness",
                     "method",
                     "pivots",
                     "recomputed",
