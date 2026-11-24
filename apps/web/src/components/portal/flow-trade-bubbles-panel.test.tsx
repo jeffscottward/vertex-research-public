@@ -389,4 +389,24 @@ describe("FlowTradeBubblesPanel", () => {
     expect(el.querySelector("[data-flow-trade-bubbles-close]")).toBeNull();
     expect(el.querySelectorAll("[data-flow-trade-bubble]").length).toBe(1);
   });
+
+  it("keeps the chart slider scrollable with a focus ring and hollow-up / filled-down candle bodies", () => {
+    const el = renderPanel({
+      document: sampleDocument(),
+      failure: null,
+      refreshMs: 60_000,
+      symbol: "ES",
+    });
+    const slider = el.querySelector("[data-flow-trade-bubbles-interactive]");
+    expect(slider?.className).toContain("overflow-x-auto");
+    expect(slider?.className).toContain("focus-visible:ring-2");
+    const upBody = el.querySelector(
+      '[data-flow-trade-bubbles-candle="up"] rect'
+    );
+    const downBody = el.querySelector(
+      '[data-flow-trade-bubbles-candle="down"] rect'
+    );
+    expect(upBody?.getAttribute("fill")).toBe("none");
+    expect(downBody?.getAttribute("fill")).toBe("var(--color-destructive)");
+  });
 });

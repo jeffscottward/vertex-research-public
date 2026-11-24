@@ -131,6 +131,7 @@ const BubbleChartSvg = ({
       aria-valuetext={
         selectedPoint === null ? "No print selected" : selectedPoint.label
       }
+      className="overflow-x-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       data-flow-trade-bubbles-interactive=""
       onClick={handleClick}
       onKeyDown={onKeyDown}
@@ -220,12 +221,12 @@ const BubbleChartSvg = ({
                 y2={candle.wickY2}
               />
               <rect
-                fill={stroke}
-                fillOpacity={candle.direction === "flat" ? 0.55 : 0.35}
+                fill={candle.direction === "up" ? "none" : stroke}
+                fillOpacity={candle.direction === "flat" ? 0.6 : 0.38}
                 height={candle.bodyHeight}
                 stroke={stroke}
-                strokeOpacity={0.7}
-                strokeWidth={0.75}
+                strokeOpacity={0.85}
+                strokeWidth={1}
                 width={candle.bodyWidth}
                 x={candle.bodyX}
                 y={candle.bodyY}
