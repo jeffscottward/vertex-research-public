@@ -1,8 +1,8 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="1200"
-  height="540"
-  viewBox="0 0 1200 540"
+  height="556"
+  viewBox="0 0 1200 556"
   role="img"
   aria-label="Before and after required status check lookup in scripts/merge-pr with least-privilege PAT tokens"
 >
@@ -66,7 +66,7 @@
   </defs>
 
   <!-- Canvas -->
-  <rect width="1200" height="540" fill="url(#bg)" rx="16" />
+  <rect width="1200" height="556" fill="url(#bg)" rx="16" />
 
   <!-- Header -->
   <text
@@ -87,7 +87,7 @@
     font-size="13"
   >
     Falls back to Contents:read branch metadata on 403 permission errors while
-    preserving app-ID enforcement and fail-closed gates
+    keeping app-ID checks and fail-closed gates
   </text>
 
   <!-- BEFORE panel -->
@@ -195,7 +195,7 @@
   />
   <text
     x="338"
-    y="184"
+    y="182"
     fill="#f8fafc"
     font-family="ui-monospace, monospace"
     font-size="12.5"
@@ -205,7 +205,7 @@
   </text>
   <text
     x="338"
-    y="201"
+    y="199"
     fill="#f8fafc"
     font-family="ui-monospace, monospace"
     font-size="12.5"
@@ -213,10 +213,10 @@
   >
     required_status_checks
   </text>
-  <rect x="338" y="210" width="150" height="16" rx="4" fill="#450a0a" />
+  <rect x="338" y="208" width="184" height="18" rx="4" fill="#450a0a" />
   <text
-    x="413"
-    y="222"
+    x="430"
+    y="221"
     text-anchor="middle"
     fill="#fca5a5"
     font-family="ui-monospace, monospace"
@@ -322,7 +322,7 @@
     x="36"
     y="280"
     width="1128"
-    height="232"
+    height="248"
     rx="14"
     fill="url(#greenPanel)"
     stroke="#10b981"
@@ -425,14 +425,14 @@
 
   <!-- Branch 2 (Middle): 403 PAT -> GET /branches/{base} -->
   <path
-    d="M 306 402 L 424 402"
+    d="M 306 402 L 412 402"
     fill="none"
     stroke="#eab308"
     stroke-width="2"
     marker-end="url(#arrowGold)"
   />
   <text
-    x="364"
+    x="358"
     y="394"
     text-anchor="middle"
     fill="#fde047"
@@ -444,9 +444,9 @@
   </text>
 
   <rect
-    x="430"
+    x="418"
     y="376"
-    width="244"
+    width="260"
     height="56"
     rx="10"
     fill="#111827"
@@ -454,8 +454,8 @@
     stroke-width="1.3"
   />
   <text
-    x="446"
-    y="398"
+    x="432"
+    y="397"
     fill="#fef08a"
     font-family="ui-monospace, monospace"
     font-size="12"
@@ -464,17 +464,17 @@
     GET /branches/{base}
   </text>
   <text
-    x="446"
-    y="418"
+    x="432"
+    y="417"
     fill="#cbd5e1"
     font-family="ui-monospace, monospace"
-    font-size="10.5"
+    font-size="10"
   >
-    contents:read · .protection.checks
+    contents:read · required_status_checks
   </text>
 
   <line
-    x1="674"
+    x1="678"
     y1="402"
     x2="700"
     y2="394"
@@ -487,7 +487,7 @@
   <rect
     x="706"
     y="340"
-    width="234"
+    width="246"
     height="84"
     rx="10"
     fill="#064e3b"
@@ -520,13 +520,13 @@
     font-family="system-ui, sans-serif"
     font-size="11.5"
   >
-    App identity &amp; non-empty check enforced
+    App ID &amp; non-empty gate enforced
   </text>
 
   <line
-    x1="940"
+    x1="952"
     y1="382"
-    x2="968"
+    x2="976"
     y2="382"
     stroke="#34d399"
     stroke-width="2"
@@ -534,24 +534,24 @@
   />
 
   <rect
-    x="974"
+    x="982"
     y="348"
-    width="170"
+    width="162"
     height="68"
     rx="10"
     fill="#022c22"
     stroke="#34d399"
     stroke-width="1.5"
   />
-  <circle cx="1002" cy="382" r="12" fill="#059669" />
+  <circle cx="1010" cy="382" r="12" fill="#059669" />
   <path
-    d="M 996 382 L 1000 386 L 1008 377"
+    d="M 1004 382 L 1008 386 L 1016 377"
     stroke="#ecfdf5"
     stroke-width="2.2"
     fill="none"
   />
   <text
-    x="1024"
+    x="1032"
     y="378"
     fill="#ecfdf5"
     font-family="system-ui, sans-serif"
@@ -561,7 +561,7 @@
     Merged
   </text>
   <text
-    x="1024"
+    x="1032"
     y="398"
     fill="#6ee7b7"
     font-family="system-ui, sans-serif"
@@ -572,17 +572,17 @@
 
   <!-- Branch 3 (Bottom): Rate limit / 5xx / disabled -> fail closed -->
   <path
-    d="M 306 434 L 380 468 L 700 468"
+    d="M 306 434 L 380 476 L 700 476"
     fill="none"
     stroke="#f87171"
     stroke-width="2"
     stroke-dasharray="5 4"
     marker-end="url(#arrowRed)"
   />
-  <rect x="412" y="454" width="236" height="24" rx="12" fill="#450a0a" />
+  <rect x="412" y="462" width="236" height="24" rx="12" fill="#450a0a" />
   <text
     x="530"
-    y="470"
+    y="478"
     text-anchor="middle"
     fill="#fca5a5"
     font-family="ui-monospace, monospace"
@@ -595,7 +595,7 @@
     x="706"
     y="444"
     width="438"
-    height="48"
+    height="64"
     rx="10"
     fill="#1f1115"
     stroke="#ef4444"
@@ -604,13 +604,21 @@
   />
   <text
     x="726"
-    y="473"
+    y="468"
     fill="#fecaca"
     font-family="system-ui, sans-serif"
     font-size="12.5"
-    font-weight="600"
+    font-weight="700"
   >
-    Fail closed · no fallback on non-permission errors; empty checks refuse
-    merge
+    Fail closed (Exit 1)
+  </text>
+  <text
+    x="726"
+    y="490"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    No fallback on rate limits/5xx; empty or malformed checks block merge
   </text>
 </svg>

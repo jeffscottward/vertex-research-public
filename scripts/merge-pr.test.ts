@@ -44,8 +44,8 @@ const API = `repos/${REPO}`;
 // "repo view <target>" answers from $STATE/repo-<last path part of the target>
 // and "api repos/<owner>/<name>/pulls/9" from $STATE/pull-<name>. Commit reads
 // are keyed by SHA, so a check run only exists for the commit a test gives it.
-// Check-run and status answers are raw API JSON filtered through the script's
-// own --jq expression with the system jq, as gh does.
+// Branch metadata, check-run and status answers are raw API JSON filtered
+// through the script's own --jq expression with the system jq, as gh does.
 const fakeGh = [
   "#!/usr/bin/env bash",
   "set -o pipefail",
@@ -544,6 +544,89 @@ describe("scripts/merge-pr", () => {
       )
     ).toBe(false);
     expect(merges(rateLimited.calls)).toEqual([]);
+
+    // A non-403 status carrying a permission message or non-JSON error must not fall back.
+    for (const answer of [
+      '!1 {"message":"Resource not accessible by personal access token","status":"500"}',
+      "!1 <html>proxy error</html>",
+    ]) {
+      const failed = run({
+        branch: [JSON.stringify({ protection: { enabled: true } })],
+        required: [answer],
+      });
+      expect(failed.status).toBe(1);
+      expect(failed.stderr).toContain("cannot read the base's required checks");
+      expect(
+        failed.calls.filter((call) =>
+          call.includes("/protection/required_status_checks ")
+        )
+      ).toHaveLength(3);
+      expect(
+        failed.calls.some((call) =>
+          call.includes(`api ${API}/branches/base%2Fmain --jq`)
+        )
+      ).toBe(false);
+      expect(merges(failed.calls)).toEqual([]);
+    }
+  });
+
+  it("merges branch-metadata fallback checks with rulesets and fails closed on malformed or failing branch reads", () => {
+    const appToken403 =
+      '!1 {"message":"Resource not accessible by integration","status":"403"}';
+    // Branch metadata + ruleset checks merge and deduplicate.
+    const combined = run({
+      branch: [
+        JSON.stringify({
+          protection: {
+            enabled: true,
+            required_status_checks: {
+              checks: [{ app_id: 15_368, context: "ci-gate" }],
+            },
+          },
+        }),
+      ],
+      required: [appToken403],
+      rules: ["ci-gate\t15368"],
+    });
+    expect(combined.status).toBe(0);
+    expect(merges(combined.calls)).toEqual([mergeCall(H1)]);
+
+    // Classic protection disabled + ruleset-only still enforces the ruleset check.
+    const rulesetOnly = run({
+      branch: [JSON.stringify({ protection: { enabled: false } })],
+      required: [appToken403],
+      rules: ["ci-gate\t15368"],
+    });
+    expect(rulesetOnly.status).toBe(0);
+    expect(merges(rulesetOnly.calls)).toEqual([mergeCall(H1)]);
+
+    // Missing protection.enabled fails closed even when rulesets are configured.
+    const missingEnabled = run({
+      branch: [JSON.stringify({ protection: {} })],
+      required: [appToken403],
+      rules: ["ci-gate\t15368"],
+    });
+    expect(missingEnabled.status).toBe(1);
+    expect(missingEnabled.stderr).toContain(
+      "cannot read the base's required checks"
+    );
+    expect(merges(missingEnabled.calls)).toEqual([]);
+
+    // Fallback endpoint failure retries 3 times and fails closed.
+    const fallbackDown = run({
+      branch: ["!1 HTTP 500"],
+      required: [appToken403],
+    });
+    expect(fallbackDown.status).toBe(1);
+    expect(fallbackDown.stderr).toContain(
+      "cannot read the base's required checks"
+    );
+    expect(
+      fallbackDown.calls.filter((call) =>
+        call.includes(`api ${API}/branches/base%2Fmain --jq`)
+      )
+    ).toHaveLength(3);
+    expect(merges(fallbackDown.calls)).toEqual([]);
   });
 
   it("stops when the PR head moves while CI runs", () => {
