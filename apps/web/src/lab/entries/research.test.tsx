@@ -337,5 +337,11 @@ describe("research lab entries", () => {
     expect(
       host.querySelector("[data-flow-strike-heatmap-inspector]")
     ).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-flow-trade-bubbles-svg]")).not.toBeNull()
+    );
+    expect(
+      host.querySelectorAll("[data-flow-trade-bubble]").length
+    ).toBeGreaterThan(0);
   });
 });

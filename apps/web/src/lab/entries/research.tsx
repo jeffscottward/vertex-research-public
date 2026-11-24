@@ -58,6 +58,7 @@ import {
   labFlowSnapshot,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
+  labFlowTradeBubbles,
 } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
 import { labBarsOutput } from "../fixtures/market.ts";
@@ -198,6 +199,8 @@ const labFlowGateway: FlowGateway = {
     Promise.resolve(labFlowStrikeHeatmap(symbol, bucketMinutes)),
   tapeSpeed: ({ minutes, symbol }) =>
     Promise.resolve(labFlowTapeSpeed(symbol, minutes)),
+  tradeBubbles: ({ minutes, symbol }) =>
+    Promise.resolve(labFlowTradeBubbles(symbol, minutes)),
 };
 
 const labPlaysGateway: PlaysGateway = {

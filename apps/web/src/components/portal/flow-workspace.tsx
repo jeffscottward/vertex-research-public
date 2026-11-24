@@ -21,6 +21,7 @@ import {
   type FlowStrikeHeatmap,
   type FlowStrikeHeatmapBucketMinutes,
   type FlowTapeSpeed,
+  type FlowTradeBubbles,
   STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import {
@@ -53,13 +54,13 @@ import {
   hedgingSymbolOf,
 } from "../../features/flow/hedging-pressure-view-model.ts";
 import {
-  type PutCallRatioRequest,
-  putCallRatioSymbolOf,
-} from "../../features/flow/put-call-ratio-view-model.ts";
-import {
   heatmapSymbolOf,
   type LiquidityHeatmapRequest,
 } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import {
+  type PutCallRatioRequest,
+  putCallRatioSymbolOf,
+} from "../../features/flow/put-call-ratio-view-model.ts";
 import {
   type FlowStrikeHeatmapFailure,
   type StrikeHeatmapRequest,
@@ -69,6 +70,7 @@ import {
   type TapeSpeedRequest,
   tapeSymbolOf,
 } from "../../features/flow/tape-speed-view-model.ts";
+import type { TradeBubblesRequest } from "../../features/flow/trade-bubbles-view-model.ts";
 import {
   basisNote,
   bookMetrics,
@@ -106,18 +108,22 @@ import {
   FlowHedgingPressurePanel,
 } from "./flow-hedging-pressure-panel.tsx";
 import {
+  type FlowLiquidityHeatmapFailure,
+  FlowLiquidityHeatmapPanel,
+} from "./flow-liquidity-heatmap-panel.tsx";
+import {
   type FlowPutCallRatioFailure,
   FlowPutCallRatioPanel,
 } from "./flow-put-call-ratio-panel.tsx";
 import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
 import {
-  type FlowLiquidityHeatmapFailure,
-  FlowLiquidityHeatmapPanel,
-} from "./flow-liquidity-heatmap-panel.tsx";
-import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
 } from "./flow-tape-speed-panel.tsx";
+import {
+  type FlowTradeBubblesFailure,
+  FlowTradeBubblesPanel,
+} from "./flow-trade-bubbles-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 export interface FlowGateway {
@@ -136,6 +142,9 @@ export interface FlowGateway {
     input: StrikeHeatmapRequest
   ) => Promise<FlowStrikeHeatmap>;
   readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
+  readonly tradeBubbles: (
+    input: TradeBubblesRequest
+  ) => Promise<FlowTradeBubbles>;
 }
 
 export const createBrowserFlowGateway = (): FlowGateway => {
@@ -156,6 +165,8 @@ export const createBrowserFlowGateway = (): FlowGateway => {
     strikeHeatmap: (input: StrikeHeatmapRequest) =>
       api().flow.strikeHeatmap(input),
     tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
+    tradeBubbles: (input: TradeBubblesRequest) =>
+      api().flow.tradeBubbles(input),
   });
 };
 
@@ -641,6 +652,11 @@ export const FlowWorkspace = ({
   const [tapeSpeed, setTapeSpeed] = useState<FlowTapeSpeed | null>(null);
   const [tapeSpeedFailure, setTapeSpeedFailure] =
     useState<FlowTapeSpeedFailure | null>(null);
+  const [tradeBubbles, setTradeBubbles] = useState<FlowTradeBubbles | null>(
+    null
+  );
+  const [tradeBubblesFailure, setTradeBubblesFailure] =
+    useState<FlowTradeBubblesFailure | null>(null);
   const [liquidityHeatmap, setLiquidityHeatmap] =
     useState<FlowLiquidityHeatmap | null>(null);
   const [liquidityHeatmapFailure, setLiquidityHeatmapFailure] =
@@ -676,6 +692,7 @@ export const FlowWorkspace = ({
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
+  const tradeBubblesForbidden = useRef(false);
   const heatmapForbidden = useRef(false);
   // The same hold for a forbidden hedging pressure answer, set and cleared by hedging answers only.
   const hedgingForbidden = useRef(false);
@@ -754,6 +771,26 @@ export const FlowWorkspace = ({
         if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
         else
           setTapeSpeedFailure({
+            code: described.code,
+            failedAt: Date.now(),
+            message: described.message,
+          });
+      }
+    );
+    void gateway.tradeBubbles({ minutes, symbol: tapeSymbolOf(symbol) }).then(
+      (document) => {
+        if (request !== latest.current) return;
+        tradeBubblesForbidden.current = false;
+        setTradeBubbles(document);
+        setTradeBubblesFailure(null);
+      },
+      (reason: unknown) => {
+        if (request !== latest.current) return;
+        const described = describePortfolioMonitorFailure(reason);
+        tradeBubblesForbidden.current = described.kind === "forbidden";
+        if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+        else
+          setTradeBubblesFailure({
             code: described.code,
             failedAt: Date.now(),
             message: described.message,
@@ -872,6 +909,7 @@ export const FlowWorkspace = ({
     // A forbidden tape speed, hedging pressure, put/call ratio or strike heatmap answer stays in force.
     if (
       tapeForbidden.current ||
+      tradeBubblesForbidden.current ||
       heatmapForbidden.current ||
       hedgingForbidden.current ||
       putCallForbidden.current ||
@@ -1014,6 +1052,12 @@ export const FlowWorkspace = ({
       <FlowTapeSpeedPanel
         document={tapeSpeed}
         failure={tapeSpeedFailure}
+        refreshMs={refreshMs}
+        symbol={symbol}
+      />
+      <FlowTradeBubblesPanel
+        document={tradeBubbles}
+        failure={tradeBubblesFailure}
         refreshMs={refreshMs}
         symbol={symbol}
       />

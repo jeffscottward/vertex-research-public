@@ -1179,6 +1179,27 @@ locks no existing table.
    1 s without restart; optional DB rollback uses
    `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
 
+### Big futures trade bubbles (ES, NQ)
+
+Card `vertex-viz-trade-bubbles` (chart F10; design in
+[`docs/vertex-rebuild/designs/vertex-viz-trade-bubbles/design.md`](designs/vertex-viz-trade-bubbles/design.md))
+adds `flow.tradeBubbles` (`GET /flow/trade-bubbles`, `flow-trade-bubbles.v1`) and
+`FlowTradeBubblesPanel` on `/flow` (below `FlowTapeSpeedPanel`). No migration or collector change is
+required: the endpoint reads existing 730-day `flow_large_trades` (`readLargeTrades`), 1-minute
+`flow_minutes` OHLC/VWAP bars (`readMinutes`), and `flow_samples` (`ticks` freshness).
+
+- Window anchoring: when `newestDataAt(symbol)` precedes `now`, `windowEnd` is set to
+  `min(now, newestDataAt + 60 s)` so deep trades recorded inside the newest minute row remain
+  visible after the close or on weekends.
+- Rules (`trade-bubbles.v1`, `packages/api/src/flow-trade-bubbles-rules.ts`): computes full-window
+  buy/sell trade and contract totals, nearest-rank `p95Size`, `captureMode`, and `largestBubble`;
+  caps returned bubbles at 500 by keeping the largest prints (re-sorted chronologically) and marking
+  `totals.truncated = true` when exceeded.
+- Portal panel (`FlowTradeBubblesPanel`): plots 1-minute candlesticks, a dashed 1-minute VWAP line,
+  and area-scaled buy (solid ring) / sell (dashed ring) bubbles with instant side and size-multiple
+  (`All deep`, `>= 2x`, `>= 3x`) filters, keyboard arrow inspection, and a top-15 prints table.
+  Research view only; no order, arming, or risk-setting path.
+
 ## Agent semantic layer
 
 Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;

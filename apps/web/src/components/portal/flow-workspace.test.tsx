@@ -9,6 +9,7 @@ import type {
   FlowSnapshot,
   FlowStrikeHeatmap,
   FlowTapeSpeed,
+  FlowTradeBubbles,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -32,6 +33,7 @@ import type { LiquidityHeatmapRequest } from "../../features/flow/liquidity-heat
 import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
 import type { StrikeHeatmapRequest } from "../../features/flow/strike-heatmap-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
+import type { TradeBubblesRequest } from "../../features/flow/trade-bubbles-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
 import {
   labFlowControl,
@@ -41,6 +43,7 @@ import {
   labFlowSnapshot,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
+  labFlowTradeBubbles,
 } from "../../lab/fixtures/flow.ts";
 import {
   createBrowserFlowGateway,
@@ -126,7 +129,11 @@ const fixed = (
   ) => FlowStrikeHeatmap | Promise<FlowStrikeHeatmap> = ({
     bucketMinutes,
     symbol,
-  }) => compactStrikeHeatmap(symbol, bucketMinutes)
+  }) => compactStrikeHeatmap(symbol, bucketMinutes),
+  tradeBubbles: (
+    request: TradeBubblesRequest
+  ) => FlowTradeBubbles | Promise<FlowTradeBubbles> = ({ minutes, symbol }) =>
+    labFlowTradeBubbles(symbol, minutes)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
@@ -135,6 +142,7 @@ const fixed = (
   const putCallCalls: PutCallRatioRequest[] = [];
   const heatmapCalls: LiquidityHeatmapRequest[] = [];
   const strikeHeatmapCalls: StrikeHeatmapRequest[] = [];
+  const tradeBubblesCalls: TradeBubblesRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -164,6 +172,10 @@ const fixed = (
       tapeCalls.push(request);
       return await tapeSpeed(request);
     },
+    tradeBubbles: async (request) => {
+      tradeBubblesCalls.push(request);
+      return await tradeBubbles(request);
+    },
   };
   return {
     calls,
@@ -174,6 +186,7 @@ const fixed = (
     putCallCalls,
     strikeHeatmapCalls,
     tapeCalls,
+    tradeBubblesCalls,
   };
 };
 
@@ -225,6 +238,7 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("NQ", 60)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
+    const tradeBubbles = vi.fn(async () => labFlowTradeBubbles("ES", 60));
     runtime.client = {
       flow: {
         control,
@@ -234,6 +248,7 @@ describe("createBrowserFlowGateway", () => {
         snapshot,
         strikeHeatmap,
         tapeSpeed,
+        tradeBubbles,
       },
     } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
@@ -271,6 +286,13 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
+    await expect(
+      gateway.tradeBubbles({ minutes: 60, symbol: "ES" })
+    ).resolves.toMatchObject({ symbol: "ES" });
+    expect(tradeBubbles).toHaveBeenCalledWith({
+      minutes: 60,
+      symbol: "ES",
+    });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -284,6 +306,7 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("ES", 120)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
+    const tradeBubbles = vi.fn(async () => labFlowTradeBubbles("ES", 120));
     runtime.client = {
       flow: {
         control,
@@ -293,6 +316,7 @@ describe("createBrowserFlowGateway", () => {
         snapshot,
         strikeHeatmap,
         tapeSpeed,
+        tradeBubbles,
       },
     } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
@@ -311,6 +335,10 @@ describe("createBrowserFlowGateway", () => {
     expect(strikeHeatmap).toHaveBeenCalledWith({
       bucketMinutes: 15,
       symbol: "SPY",
+    });
+    expect(tradeBubbles).toHaveBeenCalledWith({
+      minutes: 120,
+      symbol: "ES",
     });
   });
 });
@@ -1846,5 +1874,131 @@ describe("FlowWorkspace strike heatmap", () => {
       "ES"
     );
     expect(panel(container)?.textContent).toContain("SPX strike");
+  });
+});
+
+describe("FlowWorkspace trade bubbles", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const storageDown = () =>
+    Promise.reject(
+      Object.assign(new Error("down"), { code: "STORAGE_ERROR", status: 503 })
+    );
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("no"), { code: "FORBIDDEN", status: 403 })
+    );
+
+  it("loads ES for SPY, isolates errors, ignores stale responses, and honors forbidden holds", async () => {
+    const { gateway, tradeBubblesCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minutes, symbol }) => labFlowTradeBubbles(symbol, minutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-flow-trade-bubbles-svg]")
+      ).not.toBeNull()
+    );
+    expect(tradeBubblesCalls).toEqual([{ minutes: 120, symbol: "ES" }]);
+
+    // Error isolation: a tradeBubbles error does not break other panels.
+    const broken = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => storageDown()
+    );
+    const errContainer = await render(
+      <FlowWorkspace gateway={broken.gateway} />
+    );
+    await vi.waitFor(() =>
+      expect(
+        errContainer.querySelector("[data-flow-trade-bubbles-error]")
+      ).not.toBeNull()
+    );
+    expect(errContainer.querySelector("[data-flow-snapshot]")).not.toBeNull();
+
+    // Stale response and stale rejection ignored after switching symbols.
+    const pending: Array<{
+      resolve: (value: FlowTradeBubbles) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
+    const slow = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minutes, symbol }) =>
+        symbol === "ES"
+          ? new Promise<FlowTradeBubbles>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : labFlowTradeBubbles(symbol, minutes)
+    );
+    const slowContainer = await render(
+      <FlowWorkspace gateway={slow.gateway} />
+    );
+    await click(button(slowContainer, "NQ"));
+    await vi.waitFor(() =>
+      expect(
+        slowContainer.querySelector("[data-flow-trade-bubbles]")?.textContent
+      ).toContain("Big futures trades (NQ)")
+    );
+    await act(async () => pending[0]?.resolve(labFlowTradeBubbles("ES", 120)));
+    await flush();
+    expect(
+      slowContainer.querySelector("[data-flow-trade-bubbles]")?.textContent
+    ).toContain("Big futures trades (NQ)");
+
+    await click(button(slowContainer, "ES"));
+    await click(button(slowContainer, "NQ"));
+    await vi.waitFor(() =>
+      expect(
+        slowContainer.querySelector("[data-flow-trade-bubbles]")?.textContent
+      ).toContain("Big futures trades (NQ)")
+    );
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    await flush();
+    expect(
+      slowContainer.querySelector("[data-flow-trade-bubbles-error]")
+    ).toBeNull();
+
+    // Forbidden hold keeps operator access screen even when snapshot resolves after it.
+    let resolveSnap: ((value: FlowSnapshot) => void) | null = null;
+    const forbidden = fixed(
+      () =>
+        new Promise<FlowSnapshot>((resolve) => {
+          resolveSnap = resolve;
+        }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => denied()
+    );
+    const forbContainer = await render(
+      <FlowWorkspace gateway={forbidden.gateway} />
+    );
+    await vi.waitFor(() =>
+      expect(forbContainer.textContent).toContain("Operator access")
+    );
+    await act(async () => resolveSnap?.(labFlowSnapshot("SPY", 120)));
+    expect(forbContainer.textContent).toContain("Operator access");
   });
 });
