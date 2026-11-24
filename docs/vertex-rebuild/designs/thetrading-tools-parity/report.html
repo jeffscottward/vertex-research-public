@@ -1,0 +1,2938 @@
+<!doctype html>
+<html data-theme="dark" lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>Vertex Research × thetrading.tools — Full Parity Report</title>
+    <style>
+    :root {
+      --bg: #0b0d12;
+      --surface: #141821;
+      --surface-2: #1b2130;
+      --border: #262e40;
+      --text: #f1f5f9;
+      --muted: #cbd5e1;
+      --gold: #e5be5b;
+      --gold-soft: rgba(212, 168, 67, 0.14);
+      --green: #4ade80;
+      --blue: #60a5fa;
+      --rose: #fb7185;
+      --amber: #fcd34d;
+    }
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-2: #f1f5f9;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+      --gold: #854d0e;
+      --gold-soft: rgba(133, 77, 14, 0.1);
+      --green: #15803d;
+      --blue: #1d4ed8;
+      --rose: #be123c;
+      --amber: #b45309;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Public Sans", system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+    }
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 0.5rem;
+      font-family: "Manrope", system-ui, -apple-system, sans-serif;
+      line-height: 1.25;
+    }
+    a:focus-visible,
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 2px;
+    }
+    .wrap {
+      max-width: 1180px;
+      padding: 16px;
+      margin: 0 auto;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1180px;
+      padding: 12px 16px;
+      margin: 0 auto;
+    }
+    .brand {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .diamond {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #0b0d12;
+      background: #d4a843;
+      border-radius: 6px;
+    }
+    .pill {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold);
+      background: var(--gold-soft);
+      border: 1px solid var(--gold);
+      border-radius: 999px;
+    }
+    button.btn {
+      min-height: 44px;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+    .kpi {
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .kpi .num {
+      font-family: "Manrope", sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+    }
+    .kpi .lbl {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .c-green {
+      color: var(--green);
+    }
+    .c-blue {
+      color: var(--blue);
+    }
+    .c-gold {
+      color: var(--gold);
+    }
+    .c-rose {
+      color: var(--rose);
+    }
+    section {
+      padding: 18px;
+      margin-bottom: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .fig-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    figure {
+      min-width: 0;
+      max-width: 100%;
+      padding: 10px;
+      margin: 0;
+      background: #0b0d12;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .svg-scroll {
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+    }
+    figcaption {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    figcaption a {
+      color: #fde68a;
+      text-decoration: underline;
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .filters input,
+    .filters select {
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 12px;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      width: 100%;
+      min-width: 680px;
+      font-size: 13px;
+      border-collapse: collapse;
+    }
+    th,
+    td {
+      padding: 10px 8px;
+      vertical-align: top;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    code {
+      padding: 2px 5px;
+      font-size: 12px;
+      background: var(--surface-2);
+      border-radius: 4px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      border-radius: 999px;
+    }
+    .b-parity {
+      color: #4ade80;
+      background: rgba(34, 197, 94, 0.16);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+    }
+    .b-partial {
+      color: #60a5fa;
+      background: rgba(59, 130, 246, 0.16);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+    .b-free {
+      color: #fde68a;
+      background: rgba(212, 168, 67, 0.18);
+      border: 1px solid rgba(212, 168, 67, 0.45);
+    }
+    .b-paid {
+      color: #fda4af;
+      background: rgba(244, 63, 94, 0.16);
+      border: 1px solid rgba(244, 63, 94, 0.45);
+    }
+    [data-theme="light"] .b-parity {
+      color: #166534;
+    }
+    [data-theme="light"] .b-partial {
+      color: #1d4ed8;
+    }
+    [data-theme="light"] .b-free {
+      color: #854d0e;
+    }
+    [data-theme="light"] .b-paid {
+      color: #9f1239;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .card {
+      padding: 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .muted {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .count-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 6px 0 10px;
+    }
+    @media (max-width: 600px) {
+      header {
+        position: static;
+      }
+      .wrap {
+        padding: 12px;
+      }
+      section {
+        padding: 14px;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      .svg-scroll img {
+        min-width: 720px;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="topbar">
+        <div class="brand">
+          <div aria-hidden="true" class="diamond">V</div>
+          <div>
+            <h1 style="font-size:17px;margin:0;">
+              Vertex Research × thetrading.tools Parity
+            </h1>
+            <div class="muted" style="font-size:11.5px;">
+              Card <code>vertex-thetrading-tools-parity</code> · EGM Reviewed
+              2026-11-24
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="pill">OPTIONS-ONLY · RESEARCH-ONLY</span>
+          <button
+            aria-label="Toggle light or dark theme"
+            class="btn"
+            id="themeToggle"
+            type="button"
+          >
+            Light / Dark
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="kpis">
+        <div class="kpi">
+          <div class="num">366</div>
+          <div class="lbl">
+            Live canonical pages audited (361 sitemap + 5 /tools)
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="num c-green">19</div>
+          <div class="lbl">Analytical tools already at parity (13.0%)</div>
+        </div>
+        <div class="kpi">
+          <div class="num c-blue">42</div>
+          <div class="lbl">
+            Partial overlap — core data/contract live (28.8%)
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="num c-gold">59</div>
+          <div class="lbl">Buildable exact at $0/mo (40.4%)</div>
+        </div>
+        <div class="kpi">
+          <div class="num c-rose">26</div>
+          <div class="lbl">Paid limit — all have $0 Vertex proxies (17.8%)</div>
+        </div>
+        <div class="kpi">
+          <div class="num c-gold">154</div>
+          <div class="lbl">
+            Economic series (12 present · 139 free · 3 caveats)
+          </div>
+        </div>
+      </div>
+
+      <section>
+        <h2>Visual Architecture &amp; Plan Overview</h2>
+        <p class="muted">
+          Dark-canvas technical infographics with verified 2026-11-24 counts and
+          explicit <code>MOCK</code> badges on illustrative UI gauges. On small
+          phones, swipe any diagram horizontally or tap <em>Open full SVG</em>.
+        </p>
+        <div class="fig-grid">
+          <figure>
+            <div class="svg-scroll">
+              <img
+                alt="Before and after comparison of Vertex Research parity with thetrading.tools"
+                src="before-after.svg"
+              >
+            </div>
+            <figcaption>
+              <span
+                >Figure 1. Before vs After: 41.8% silos → unified 4-clock
+                Decision Desk (gauges labeled MOCK) and 100% mapped
+                parity.</span
+              ><a href="before-after.svg" rel="noopener" target="_blank"
+                >Open full SVG ↗</a
+              >
+            </figcaption>
+          </figure>
+          <figure>
+            <div class="svg-scroll">
+              <img
+                alt="Capability and gap matrix across all 12 tool domains plus 154 economic series"
+                src="capability-matrix.svg"
+              >
+            </div>
+            <figcaption>
+              <span
+                >Figure 2. Exact proportional coverage across all 12 domains
+                (146 tools) plus 154 economic series (12/139/3).</span
+              ><a href="capability-matrix.svg" rel="noopener" target="_blank"
+                >Open full SVG ↗</a
+              >
+            </figcaption>
+          </figure>
+          <figure>
+            <div class="svg-scroll">
+              <img
+                alt="End-to-end data flow and Drizzle persistence seam"
+                src="data-flow.svg"
+              >
+            </div>
+            <figcaption>
+              <span
+                >Figure 3. Sovereign data pipeline: Tier A Official APIs + Tier
+                B Overlays → Drizzle Postgres seam → 4 Primitives &amp; oRPC →
+                Portal.</span
+              ><a href="data-flow.svg" rel="noopener" target="_blank"
+                >Open full SVG ↗</a
+              >
+            </figcaption>
+          </figure>
+          <figure>
+            <div class="svg-scroll">
+              <img
+                alt="Options-first 4-wave core plus Tier-2 expansion roadmap"
+                src="rollout-roadmap.svg"
+              >
+            </div>
+            <figcaption>
+              <span
+                >Figure 4. 4 Core Waves (12 vertical PRs, $0/mo, 119/146 tools)
+                + Tier-2 Expansion Wave 5 (4 PRs → 146/146 &amp; 154/154).</span
+              ><a href="rollout-roadmap.svg" rel="noopener" target="_blank"
+                >Open full SVG ↗</a
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>
+          Hard Data Limitations: Owner-Gated Paid Upgrade vs $0 Vertex Proxy
+        </h2>
+        <p class="muted">
+          Drizzle Postgres tables stamped with <code>source_provider</code> and
+          <code>universe_scope</code>
+          serve as the decoupling seam (zero speculative disabled paid
+          adapters). All 5 upstream boundaries default to documented $0 proxies.
+        </p>
+        <div class="cards-grid">
+          <div class="card">
+            <h3>L1 · 5,610 US Common Stocks EOD</h3>
+            <p class="muted">
+              <strong>11 tools</strong>
+              (%MA, BPI, Repair Flow, Churn, Stock Map, Scanners).<br>
+              <strong>Paid:</strong>
+              Polygon Stocks Starter ($29/mo) or Tiingo ($30/mo).<br>
+              <strong>$0 Proxy:</strong>
+              S&amp;P 500 + NDX (~600–750) via SSGA/Invesco holdings + chunked
+              Yahoo/Stooq (forward-only, survivorship-free).
+            </p>
+          </div>
+          <div class="card">
+            <h3>L2 · 25y Futures 1m/5m &amp; TICK/ADD</h3>
+            <p class="muted">
+              <strong>9 tools</strong>
+              (Candle Size, Bull/Bear Power, Index Sync, TICK/ADD, 20y intraday
+              Tape/Regime).<br><strong>Paid:</strong>
+              Databento CME backfill (~$50–$150) + IQFeed ($100–$160/mo).<br>
+              <strong>$0 Proxy:</strong>
+              Dual-Mode <code>Tape-EOD</code> (1995+ Day-1 Atlas) + rolling
+              <code>Tape-Live</code>
+              (IBKR + TV 5m OHLC).
+            </p>
+          </div>
+          <div class="card">
+            <h3>L3 · 3,200-Stock Daily Option Chains</h3>
+            <p class="muted">
+              <strong>2 tools + UOA tail</strong>
+              (Most Active Options, IV Screener).<br><strong>Paid:</strong>
+              Polygon Options ($29–$79/mo) or ORATS ($99–$199/mo).<br>
+              <strong>$0 Proxy:</strong>
+              Already-paid QuantData + free OCC cleared volume + ~100-ticker
+              nightly IV snapshots.
+            </p>
+          </div>
+          <div class="card">
+            <h3>L4 · 12y Daily ETF Share Flows</h3>
+            <p class="muted">
+              <strong>4 tools</strong>
+              (Cash ETFs, Gold ETFs, Long/Short 3x ETFs).<br>
+              <strong>Paid:</strong>
+              Trackinsight / ETF.com ($50–$200/mo).<br>
+              <strong>$0 Proxy:</strong>
+              Verified-issuer daily CSV/XLSX (&gt;85% category AUM) w/
+              <code>NAV_{t-1}</code>
+              &amp; AUM split-factor; SPDR/WGC + 10-Q/10-K for 1933 Act gold
+              trusts, N-PORT for 1940 Act funds.
+            </p>
+          </div>
+          <div class="card">
+            <h3>L5 · Licensed Macro (MOVE / 2 NAR)</h3>
+            <p class="muted">
+              <strong>3 econ series</strong>
+              (<code>move-index</code>, <code>existing-home-sales</code>,
+              <code>existing-home-months-supply</code>).<br>
+              <strong>Paid:</strong>
+              ICE Data ($500+/mo) / NAR commercial.<br>
+              <strong>$0 Proxy:</strong>
+              Yahoo <code>^MOVE</code> w/ automatic <code>TLT</code> 30d IV
+              fallback; FRED <code>EXHOSLUSM495S</code> append-only Postgres
+              archive.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>
+          Interactive Inventory &amp; Gap Matrix (All 146 Analytical Tools)
+        </h2>
+        <p class="muted">
+          Filter by domain, Vertex parity status, buildout wave, or keyword.
+          Full formulas, Drizzle migrations, oRPC contracts, canonical ticker
+          rosters, and 154 economic series live in
+          <a href="design.md" style="color:var(--gold);">design.md</a>.
+        </p>
+        <div class="filters">
+          <input
+            aria-label="Search tools"
+            id="q"
+            placeholder="Search route, tool, or Vertex module…"
+            type="search"
+          >
+          <select aria-label="Filter by domain" id="fDomain">
+            <option value="">All 12 domains (146)</option>
+            <option value="Monitor &amp; Signals">
+              Monitor &amp; Signals (16)
+            </option>
+            <option value="Breadth &amp; Internals">
+              Breadth &amp; Internals (22)
+            </option>
+            <option value="Risk &amp; Volatility">
+              Risk &amp; Volatility (14)
+            </option>
+            <option value="Tape &amp; Intraday">
+              Tape &amp; Intraday (15)
+            </option>
+            <option value="Stocks &amp; Screeners">
+              Stocks &amp; Screeners (8)
+            </option>
+            <option value="Valuation &amp; Fundamentals">
+              Valuation &amp; Fundamentals (11)
+            </option>
+            <option value="Options &amp; Derivatives">
+              Options &amp; Derivatives (22)
+            </option>
+            <option value="Sentiment &amp; Positioning">
+              Sentiment &amp; Positioning (16)
+            </option>
+            <option value="Sectors &amp; ETFs">Sectors &amp; ETFs (6)</option>
+            <option value="Global &amp; Cross-Asset">
+              Global &amp; Cross-Asset (10)
+            </option>
+            <option value="Crypto">Crypto (3)</option>
+            <option value="Economic Data &amp; Macro">
+              Economic Data &amp; Macro (3)
+            </option>
+          </select>
+          <select aria-label="Filter by parity status" id="fStatus">
+            <option value="">All statuses</option>
+            <option value="PARITY">Already Parity (19)</option>
+            <option value="PARTIAL">Partial Overlap (42)</option>
+            <option value="BUILDABLE_FREE">Buildable $0 (59)</option>
+            <option value="PAID_LIMITED">Paid Limit w/ $0 Proxy (26)</option>
+          </select>
+          <select aria-label="Filter by buildout wave" id="fWave">
+            <option value="">All waves (Core W1–W4 + Tier-2 W5)</option>
+            <option value="1">
+              Wave 1 — Core: Freshness, Breadth, Vol, COT &amp; SPY Signals (39)
+            </option>
+            <option value="2">
+              Wave 2 — Core: Options Depth, OCC &amp; Live Tape (33)
+            </option>
+            <option value="3">
+              Wave 3 — Core: /monitor 4 Clocks, Atlas &amp; Core Macro (23)
+            </option>
+            <option value="4">
+              Wave 4 — Core: Constituent Breadth, 5 ETFs &amp; Heatmap (24)
+            </option>
+            <option value="5">
+              Wave 5 — Tier-2 Expansion: Full 154 Econ, Global, CDS, XBRL (27)
+            </option>
+          </select>
+        </div>
+        <div class="count-row">
+          <div aria-live="polite" class="muted" id="countLine">
+            Showing 146 of 146 tools (swipe table horizontally on mobile)
+          </div>
+          <button class="btn" id="resetFilters" type="button">
+            Reset filters
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Route</th>
+                <th scope="col">Tool / Signal</th>
+                <th scope="col">Domain</th>
+                <th scope="col">Status</th>
+                <th scope="col">Wave</th>
+                <th scope="col">Vertex Placement / $0 Proxy</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/</code></td>
+                <td>
+                  <strong>Market Monitor &amp; 4-Clock Decision Desk</strong>
+                </td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>New /monitor synthesizing existing + Waves 1–4 clocks</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/signals</code></td>
+                <td><strong>SPY Technical Trigger Base-Rate Index</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY) + pure base-rate engine</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/golden-cross</code></td>
+                <td><strong>Golden Cross Base-Rate Study</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY) 50/200 SMA cross</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/monthly-faber</code></td>
+                <td><strong>Monthly Faber Crossover (10M SMA)</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY) monthly close vs 10M SMA</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/ma50-200-reclaim</code></td>
+                <td><strong>50/200 MA Reclaim Study</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY)</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/rsi-oversold-thrust</code></td>
+                <td>
+                  <strong>RSI(14) Oversold Thrust (&lt;30→&gt;60)</strong>
+                </td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY)</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/market-correction</code></td>
+                <td><strong>10% Correction Base-Rate Study</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY) ATH drawdown</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/three-percent-down-day</code></td>
+                <td><strong>3% Down Day Base-Rate Study</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY)</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/five-day-losing-streak</code></td>
+                <td><strong>5-Day Losing Streak Base-Rate Study</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>market_bar_series (SPY)</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/is-this-a-bull-market</code></td>
+                <td><strong>Q: Is This a Bull or Bear Market?</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>Derived from SPY MAs + Cycle/Breadth clocks</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/is-a-recession-coming</code></td>
+                <td><strong>Q: Is a Recession Coming?</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>openbb.macro (T10Y3M, ICSA, NFCI) + Sahm Rule</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/is-market-risk-elevated</code></td>
+                <td><strong>Q: Is Market Risk Elevated?</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>openbb vol indices (VIX/VIX3M) + SPY RV</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/are-investors-too-bullish</code></td>
+                <td><strong>Q: Are Investors Too Bullish?</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  Derived from Fear &amp; Greed + Leveraged/Cash ETFs + Margin
+                </td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/are-small-caps-confirming</code></td>
+                <td>
+                  <strong>Q: Are Small Caps Confirming S&amp;P 500?</strong>
+                </td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>market_bar_series (IWM, SPY) already stored</td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/market-state-atlas</code></td>
+                <td>
+                  <strong>Market State Atlas (Cycle × Tape Analogs)</strong>
+                </td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  Dual-Mode Tape-EOD (survivorship-free 1995+ daily proxy) ×
+                  Cycle causal analog engine on /monitor
+                </td>
+              </tr>
+              <tr
+                data-domain="Monitor &amp; Signals"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/interactive-charts</code></td>
+                <td><strong>Interactive Charts Hub</strong></td>
+                <td>Monitor &amp; Signals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>Portal /charts + /monitor interactive views</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/ninety-percent-days</code></td>
+                <td><strong>90% Up / Down Days</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>
+                  breadth90.* + scripts/breadth-90 (TV + WSJ) live on /markets
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/advance-decline-line</code></td>
+                <td><strong>Advance-Decline Line</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>breadth-90 already ingests USI:ADV &amp; USI:DECL daily</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/mcclellan-oscillator</code></td>
+                <td><strong>McClellan Oscillator &amp; Summation</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>Pure 19d/39d EMA over stored USI:ADV − USI:DECL</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/zweig-breadth-thrust</code></td>
+                <td><strong>Zweig Breadth Thrust</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>Pure 10d EMA of ADV/(ADV+DECL) over stored breadth-90</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/new-highs-new-lows</code></td>
+                <td><strong>New Highs &amp; New Lows</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>
+                  Extend TradingView/WSJ collector with USI:HIGN / USI:LOWN
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/stocks-at-52-week-lows</code></td>
+                <td><strong>Stocks at 52-Week Lows Washout</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>WSJ/TV NYSE 52w lows + S&amp;P500/NDX proxy count</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/hindenburg-omen</code></td>
+                <td><strong>Hindenburg Omen (clustered)</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>NYSE HIGN/LOWN + McClellan + NYSE Comp/SPY 50d slope</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/titanic-syndrome</code></td>
+                <td><strong>Titanic Syndrome</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>NYSE HIGN/LOWN + SPY 52w high proximity</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/equal-weight-vs-cap-weight</code></td>
+                <td><strong>Equal Weight vs Cap Weight (RSP/SPY)</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>
+                  Add RSP to daily-prices + existing SPY &amp; Fama-French SMB
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/coppock-curve</code></td>
+                <td><strong>Coppock Curve</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>Pure WMA10(ROC14 + ROC11) on stored monthly SPY</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/buy-the-dip</code></td>
+                <td><strong>Buy the Dip Tracker</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>Stored SPY/QQQ + VIX/VXN/VIX3M + Fama-French</td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/market-breadth</code></td>
+                <td><strong>Market Breadth Overview Hub</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  Synthesizes Wave 1 exchange breadth + Wave 2 constituent
+                  breadth
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/swing-tracker</code></td>
+                <td><strong>Swing Tracker (1w–3m Clock)</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  5-dimension pure scorer over breadth + VIX/VIX3M/VXN + HYG/LQD
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/cycle-tracker</code></td>
+                <td><strong>Cycle Tracker (3–12m Clock)</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  6-dimension pure scorer over SPY/RSP, breadth, HYG/LQD, OECD
+                  CLI, T10Y2Y/Sahm/NFCI
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/stocks-above-moving-average</code></td>
+                <td>
+                  <strong>Stocks Above Moving Averages (20/50/200d)</strong>
+                </td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  Paid: ~4,750 US common OHLCV | $0 Proxy: S&amp;P500+NDX (~600)
+                  + TV MMFI/MMTH
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/bullish-percent-index</code></td>
+                <td><strong>Bullish Percent Index (P&amp;F)</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  Paid: ~4,750 US common OHLCV | $0 Proxy: P&amp;F engine over
+                  S&amp;P500+NDX (~600)
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/bear-market-breadth</code></td>
+                <td><strong>Bear Market Breadth (% in 10%/20% DD)</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  Paid: full small-cap cohort | $0 Proxy: SPY/DIA/QQQ holdings
+                  via free SSGA/Invesco CSV
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/hidden-bear-index</code></td>
+                <td>
+                  <strong>Hidden Bear Index (RSP vs SPY + dispersion)</strong>
+                </td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  RSP vs SPY is $0; full ~4,750 dispersion uses S&amp;P500 proxy
+                  unless paid EOD
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/market-repair-flow</code></td>
+                <td>
+                  <strong>Market Repair Flow (cohort MA transitions)</strong>
+                </td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  Paid: ~4,750 common stocks | $0 Proxy: S&amp;P500+NDX
+                  transition matrix
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/contribution-concentration</code></td>
+                <td>
+                  <strong>Contribution Concentration (S&amp;P/NDX)</strong>
+                </td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  SSGA SPY + Invesco QQQ free daily holdings weights +
+                  Yahoo/IBKR closes
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/stocks-outperforming-the-index</code></td>
+                <td><strong>Stocks Beating the Index</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  Paid: ~4,750 common stocks | $0 Proxy: S&amp;P500 + NDX
+                  constituent cohort
+                </td>
+              </tr>
+              <tr
+                data-domain="Breadth &amp; Internals"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/negative-beta</code></td>
+                <td><strong>Negative Beta Tracker</strong></td>
+                <td>Breadth &amp; Internals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  S&amp;P 500 constituents vs SPY + Ken French 49 industry
+                  portfolios (free)
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/vix-fear-index</code></td>
+                <td><strong>VIX Fear Index</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cboe-vol-indices (VIX) + /markets volatility workspace</td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/vix-term-structure</code></td>
+                <td>
+                  <strong>VIX Term Structure (VIX/VIX3M + VX Curve)</strong>
+                </td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cboe-vol-indices (VIX1D..VIX1Y) + cboe-vx-curve live</td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/skew-index</code></td>
+                <td><strong>CBOE SKEW Index</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cboe-vol-indices already stores SKEW daily</td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/tech-volatility-spread</code></td>
+                <td><strong>Tech Volatility Spread (VXN − VIX)</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>
+                  VXN, VIX, QQQ, SPY already stored; add spread &amp; RV panel
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/volatility-outlook</code></td>
+                <td>
+                  <strong>Volatility Outlook (10-Gauge Composite)</strong>
+                </td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>
+                  8/10 gauges already stored (VIX, VIX3M, VVIX, SKEW, VXN, SPY
+                  RV, HY_OAS); add COR3M + ^MOVE
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/volatility-premium</code></td>
+                <td>
+                  <strong>Single-Stock Vol Premium (VIXEQ−VIX, COR3M)</strong>
+                </td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>
+                  Add VIXEQ + COR3M to cboe-vol-indices (free Cboe public CSV)
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/credit-spreads</code></td>
+                <td>
+                  <strong
+                    >Credit Spreads (HYG/LQD + 9 ETFs + CFTC Swaps)</strong
+                  >
+                </td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>
+                  HY_OAS, IG_OAS, CBDI stored; add 9 credit/Treasury ETFs + CFTC
+                  Weekly Swaps
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/credit-stress</code></td>
+                <td>
+                  <strong
+                    >Credit Stress (Single-Name 5Y CDS via DTCC SBSR)</strong
+                  >
+                </td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free public DTCC SEC Reg SBSR dissemination feed -&gt; new
+                  openbb job
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/macro-panel</code></td>
+                <td>
+                  <strong
+                    >Cross-Asset Macro Panel (15 Instruments / 4
+                    Drivers)</strong
+                  >
+                </td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>
+                  7/15 already in daily-prices (SPY, GLD, SLV, USO, TNX,
+                  DTWEXBGS); add 8 liquid ETFs/futures
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/bear-market-warning-signs</code></td>
+                <td><strong>Bear Market Warning Signs (11 Signs)</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  Yahoo ^GSPC/^NDX/^RUT + Sector SPDRs + Ken French + FRED +
+                  Shiller (all free)
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/delinquency-tracker</code></td>
+                <td><strong>Delinquency Tracker (NY Fed HHDC)</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free NY Fed Quarterly HHDC + FRED bank delinquency series
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/realized-correlation</code></td>
+                <td><strong>Stock Correlation (Realized + Implied)</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  Top-50/100 S&amp;P500 constituent returns + Cboe COR3M (free)
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/return-dispersion</code></td>
+                <td><strong>Return Dispersion (Top 100 Stocks)</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  Top-100 S&amp;P500 constituents (SSGA SPY weights + daily
+                  closes)
+                </td>
+              </tr>
+              <tr
+                data-domain="Risk &amp; Volatility"
+                data-status="PAID_LIMITED"
+                data-wave="4"
+              >
+                <td><code>/momentum-churn</code></td>
+                <td><strong>Momentum Churn</strong></td>
+                <td>Risk &amp; Volatility</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W4</td>
+                <td>
+                  Paid: ~4,750 common stocks | $0 Proxy: S&amp;P500+NDX (~600)
+                  cross-sectional churn
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/gap-analysis</code></td>
+                <td>
+                  <strong>Gap Analysis (SPY &amp; QQQ Overnight Gaps)</strong>
+                </td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>
+                  Pure calculation over stored SPY &amp; QQQ daily OHLC bars
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/range-efficiency</code></td>
+                <td><strong>Range Efficiency (QQQ/SPY Daily OHLC)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>
+                  Pure calculation |Close−Open|/(High−Low) on stored QQQ/SPY
+                  bars
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/seasonality</code></td>
+                <td><strong>Monthly Seasonality (SPY &amp; QQQ)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>Pure calculation over stored SPY &amp; QQQ daily closes</td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="BUILDABLE_FREE"
+                data-wave="1"
+              >
+                <td><code>/weekday-analysis</code></td>
+                <td>
+                  <strong>Weekday Analysis (Overnight vs Intraday)</strong>
+                </td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W1</td>
+                <td>Pure calculation over stored SPY daily open/close bars</td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/intraday-momentum</code></td>
+                <td><strong>Intraday Momentum (QQQ/SPY)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  IBKR read-only history + flow_minutes/flow_option_prints for
+                  ES/NQ/QQQ
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/candle-size</code></td>
+                <td><strong>Futures Candle Size (ES/NQ 1m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via existing IBKR ES/NQ stream; 1997–2025 archive
+                  needs Databento
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/bull-bear-power</code></td>
+                <td><strong>Bull vs Bear Power (ES/NQ 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via existing IBKR ES/NQ stream; 2009–2025 archive
+                  needs Databento
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/session-momentum</code></td>
+                <td><strong>Session Momentum (ES/NQ 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via existing IBKR ES/NQ stream; 2009–2025 archive
+                  needs Databento
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/index-sync</code></td>
+                <td><strong>Index Sync (ES/NQ/YM/RTY 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via IBKR 5m bars (add YM/RTY); deep archive needs
+                  Databento
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/nyse-tick</code></td>
+                <td><strong>NYSE TICK ($TICK 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via TV USI:TICK 5m (free); 1997–2025 archive
+                  needs IQFeed/TS
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/nasdaq-tick</code></td>
+                <td><strong>Nasdaq TICK ($TIKQ 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via TV USI:TICKQ 5m (free); 2001–2025 archive
+                  needs IQFeed/TS
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/nyse-advance-decline</code></td>
+                <td><strong>NYSE A/D Issues ($ADD 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  breadth-90 already pulls 5m USI:ADV/DECL; deep 2007+ archive
+                  needs paid feed
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/nasdaq-advance-decline</code></td>
+                <td><strong>Nasdaq A/D Issues ($ADQD 5m)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Live/rolling via TV USI:ADVQ/DECLQ 5m (free); 2007+ archive
+                  needs paid feed
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/market-regime</code></td>
+                <td>
+                  <strong
+                    >Market Regime (2-Axis Expansion/Whipsaw/Grind/Chop)</strong
+                  >
+                </td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Pure classifier over 6 intraday tools (rolling free; 2004+
+                  base rates need paid archive)
+                </td>
+              </tr>
+              <tr
+                data-domain="Tape &amp; Intraday"
+                data-status="PAID_LIMITED"
+                data-wave="3"
+              >
+                <td><code>/tape-tracker</code></td>
+                <td><strong>Tape Tracker (Today–5d Clock)</strong></td>
+                <td>Tape &amp; Intraday</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W3</td>
+                <td>
+                  Pure 6-dimension scorer (live/rolling free via IBKR+TV; 2010+
+                  replay needs paid archive)
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/chart</code></td>
+                <td><strong>Interactive Daily OHLCV Stock Chart</strong></td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>/charts and /stock/[symbol] StockChartPanel live</td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/short-interest</code></td>
+                <td><strong>Short Interest &amp; Squeeze Watch</strong></td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  finra-short-interest &amp; finra-short-volume live; add
+                  days-to-cover + float ranking
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/us-vs-international-stocks</code></td>
+                <td><strong>US vs International Stocks (SPY/EFA)</strong></td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Add EFA to daily-prices + existing SPY + Ken French
+                  International (free)
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/market-heatmap</code></td>
+                <td>
+                  <strong
+                    >Market Heatmap (Top 100 &amp; Thematic Treemaps)</strong
+                  >
+                </td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  Top-100/S&amp;P500 via SSGA weights + SEC EDGAR share counts +
+                  daily closes
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/stock-map</code></td>
+                <td>
+                  <strong
+                    >Stock Map (4,609 US Stocks by Sector/Industry/Size)</strong
+                  >
+                </td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Paid: ~5,500 OHLCV ($29/mo Polygon) | $0 Proxy:
+                  S&amp;P500+NDX+Russell1000 (~1,000) + SEC SIC
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/unusual-volume</code></td>
+                <td>
+                  <strong>Unusual Volume Scanner (50%+ vs 30d Avg)</strong>
+                </td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Paid: ~5,500 OHLCV | $0 Proxy:
+                  S&amp;P500+NDX+Watchlist+research-screen (~700)
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/momentum-scanner</code></td>
+                <td>
+                  <strong>Momentum Scanner (Composite Score 0–100)</strong>
+                </td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Paid: ~5,500 OHLCV | $0 Proxy: S&amp;P500+NDX+Leveraged ETFs
+                  (~700)
+                </td>
+              </tr>
+              <tr
+                data-domain="Stocks &amp; Screeners"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/squeeze-radar</code></td>
+                <td>
+                  <strong>Squeeze Radar (FINRA SI + Rally Detection)</strong>
+                </td>
+                <td>Stocks &amp; Screeners</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  FINRA SI is free &amp; wired; full-universe daily volume/price
+                  trigger needs broad OHLCV or S&amp;P500/NDX proxy
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/household-equity-allocation</code></td>
+                <td><strong>Household Equity Allocation (Fed Z.1)</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>FRED keyless CSV BOGZ1FL153064486Q</td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/spy-m2-ratio</code></td>
+                <td><strong>SPY / M2 Money Supply Ratio</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>Stored SPY + FRED keyless CSV M2SL</td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARITY"
+                data-wave="2"
+              >
+                <td><code>/spy-options</code></td>
+                <td>
+                  <strong
+                    >SPY Options Dashboard (IV/RV, Skew, Term, Walls)</strong
+                  >
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W2</td>
+                <td>
+                  /stock/SPY + optionsAnalytics.* + openbb.ivHistory + QuantData
+                  OI/term
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARITY"
+                data-wave="2"
+              >
+                <td><code>/qqq-options</code></td>
+                <td><strong>QQQ Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W2</td>
+                <td>/stock/QQQ + optionsAnalytics.* + openbb.ivHistory</td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARITY"
+                data-wave="2"
+              >
+                <td><code>/iwm-options</code></td>
+                <td><strong>IWM Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W2</td>
+                <td>/stock/IWM + optionsAnalytics.* + openbb.ivHistory</td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARITY"
+                data-wave="2"
+              >
+                <td><code>/gld-options</code></td>
+                <td><strong>GLD Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W2</td>
+                <td>/stock/GLD + optionsAnalytics.* + openbb.ivHistory</td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/smh-options</code></td>
+                <td><strong>SMH Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  /stock/SMH works on demand; add SMH to nightly cboe-option-iv
+                  + snapshots
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/aapl-options</code></td>
+                <td><strong>AAPL Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  /stock/AAPL works on demand; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/googl-options</code></td>
+                <td><strong>GOOGL Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  /stock/GOOGL works on demand; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/msft-options</code></td>
+                <td><strong>MSFT Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  /stock/MSFT works on demand; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/nvda-options</code></td>
+                <td><strong>NVDA Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  /stock/NVDA works on demand; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/tqqq-options</code></td>
+                <td><strong>TQQQ Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  In leveraged-etf universe; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/sqqq-options</code></td>
+                <td><strong>SQQQ Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  In leveraged-etf universe; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/soxl-options</code></td>
+                <td><strong>SOXL Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  In leveraged-etf universe; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/soxs-options</code></td>
+                <td><strong>SOXS Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  In leveraged-etf universe; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/fas-options</code></td>
+                <td><strong>FAS Options Dashboard</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  In leveraged-etf universe; add to nightly IV snapshot list
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARITY"
+                data-wave="2"
+              >
+                <td><code>/spy-options-oi</code></td>
+                <td>
+                  <strong>SPY Options Open Interest (All/30d/7d/0DTE)</strong>
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W2</td>
+                <td>
+                  option_chain_snapshots + QuantData OI-by-strike + Strike
+                  Profiles live
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARITY"
+                data-wave="2"
+              >
+                <td><code>/spy-options-landscape</code></td>
+                <td>
+                  <strong
+                    >SPY Options Landscape (Strike × Expiry Heatmap)</strong
+                  >
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W2</td>
+                <td>
+                  flow-strike-heatmap-panel.tsx + option_chain_snapshots +
+                  optionsAnalytics.*
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="BUILDABLE_FREE"
+                data-wave="2"
+              >
+                <td><code>/spy-options-volume</code></td>
+                <td><strong>SPY Options Volume (OCC Cleared)</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W2</td>
+                <td>
+                  Free OCC daily cleared volume query (theocc.com) + QuantData
+                  premium
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="BUILDABLE_FREE"
+                data-wave="2"
+              >
+                <td><code>/total-options-putcall</code></td>
+                <td>
+                  <strong
+                    >Total US Options Put/Call (OCC by Account Type)</strong
+                  >
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W2</td>
+                <td>
+                  Free OCC daily volume query (Customer / Firm / Market Maker)
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/unusual-options-activity</code></td>
+                <td>
+                  <strong
+                    >Unusual Options Activity (Daily Top 30 Bull/Bear)</strong
+                  >
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  Already paid QuantData consolidated flow powers /smart-money;
+                  full 3,200 EOD chain needs ORATS/Polygon ($29–$99/mo)
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/most-active-options</code></td>
+                <td>
+                  <strong>Most Active Options (Contracts &amp; Premium)</strong>
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Paid: ~2,900 EOD chains ($29–$99/mo) | $0 Proxy: QuantData
+                  gainers/flow + OCC top symbols
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PAID_LIMITED"
+                data-wave="2"
+              >
+                <td><code>/iv-screener</code></td>
+                <td>
+                  <strong
+                    >IV Screener (IV, IVR, IV vs RV across universe)</strong
+                  >
+                </td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W2</td>
+                <td>
+                  Paid: broad EOD chains ($29–$99/mo) | $0 Proxy: expand
+                  openbb_option_iv_daily to ~100 core ETFs &amp; mega-caps
+                </td>
+              </tr>
+              <tr
+                data-domain="Options &amp; Derivatives"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/options-bets</code></td>
+                <td><strong>Curated Options Bets Payoff Analyzer</strong></td>
+                <td>Options &amp; Derivatives</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  Auto-detected whale prints from QuantData flow + payoff curve
+                  calculator (no manual entry needed)
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/commitment-of-traders</code></td>
+                <td><strong>Commitment of Traders Board</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>
+                  cftc-cot job + openbb.cot live for 10 futures markets (expand
+                  to 13)
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/es-cot</code></td>
+                <td>
+                  <strong>S&amp;P 500 Futures (ES) COT Positioning</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cftc-cot ES (13874A) + ES=F daily prices live</td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/nq-cot</code></td>
+                <td>
+                  <strong>Nasdaq-100 Futures (NQ) COT Positioning</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cftc-cot NQ (209742) + NQ=F daily prices live</td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/cl-cot</code></td>
+                <td><strong>WTI Crude Oil (CL) COT Positioning</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cftc-cot CL (067651) + CL=F daily prices live</td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/gc-cot</code></td>
+                <td><strong>Gold Futures (GC) COT Positioning</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>cftc-cot GC (088691) + GC=F daily prices live</td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/cross-asset-positioning-map</code></td>
+                <td>
+                  <strong>Cross-Asset Positioning Map (COT Heatmap)</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>
+                  Add ZB/EUR/JPY to cftc-cot (10→13 markets) + percentile
+                  heatmap UI
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARITY"
+                data-wave="1"
+              >
+                <td><code>/futures-open-interest</code></td>
+                <td><strong>Futures Open Interest (ES &amp; NQ)</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W1</td>
+                <td>
+                  cme-futures-oi (CME_ES_OI, CME_NQ_OI) + futures-oi-panel.tsx
+                  live
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARTIAL"
+                data-wave="1"
+              >
+                <td><code>/put-call-ratio</code></td>
+                <td>
+                  <strong>CBOE Put/Call Ratio (Total/Equity/Index)</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W1</td>
+                <td>
+                  flow already tracks SPY/ES P/C; add Cboe free daily market
+                  stats CSV
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/consumer-sentiment</code></td>
+                <td><strong>Consumer Sentiment (UMich)</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>FRED keyless CSV UMCSENT</td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/momentum-vs-low-volatility</code></td>
+                <td><strong>Momentum vs Low Volatility (MTUM/USMV)</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  Add MTUM &amp; USMV to daily-prices + existing Fama-French MOM
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/leveraged-etf-sentiment</code></td>
+                <td>
+                  <strong>Leveraged ETF Speculation Index (9 Pairs)</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  leveraged_etf_universe table exists; add daily dollar-volume
+                  bull/bear ratio
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/fear-greed-index</code></td>
+                <td>
+                  <strong
+                    >Transparent 8-Component Fear &amp; Greed Index</strong
+                  >
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  Pure 8-component scorer (momentum, NH/NL, UVOL, P/C, VIX,
+                  HY/IG, safe-haven, cash flows)
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PARTIAL"
+                data-wave="5"
+              >
+                <td><code>/etf-short-interest</code></td>
+                <td><strong>ETF Short Interest (12 Major Funds)</strong></td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  finra-short-interest live; add issuer daily share-count join
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/cash-etf-flows</code></td>
+                <td>
+                  <strong>Cash ETF Flows (23 T-Bill/Ultra-Short ETFs)</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Paid: 12y daily shares-out history | $0 Proxy: free issuer
+                  daily CSVs + SEC N-PORT backfill
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/long-leveraged-etfs</code></td>
+                <td>
+                  <strong>Long 3x Leveraged ETFs (SI + OCC + Flows)</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  FINRA SI + OCC free; historical daily share counts need
+                  issuer/N-PORT proxy or ETF flow vendor
+                </td>
+              </tr>
+              <tr
+                data-domain="Sentiment &amp; Positioning"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/short-leveraged-etfs</code></td>
+                <td>
+                  <strong>Short 3x Leveraged ETFs (SI + OCC + Flows)</strong>
+                </td>
+                <td>Sentiment &amp; Positioning</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  FINRA SI + OCC free; historical daily share counts need
+                  issuer/N-PORT proxy or ETF flow vendor
+                </td>
+              </tr>
+              <tr
+                data-domain="Sectors &amp; ETFs"
+                data-status="PARITY"
+                data-wave="4"
+              >
+                <td><code>/sector-performance</code></td>
+                <td>
+                  <strong>Sector Performance (11 GICS SPDRs vs SPY)</strong>
+                </td>
+                <td>Sectors &amp; ETFs</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W4</td>
+                <td>
+                  sectorRotation.* + /sector-rotation + /rotation-matrix live
+                </td>
+              </tr>
+              <tr
+                data-domain="Sectors &amp; ETFs"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/xlk</code></td>
+                <td><strong>XLK Technology Dashboard</strong></td>
+                <td>Sectors &amp; ETFs</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  Add free SSGA holdings CSV + constituent
+                  breadth/concentration/options/flows panel
+                </td>
+              </tr>
+              <tr
+                data-domain="Sectors &amp; ETFs"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/smh</code></td>
+                <td><strong>SMH Semiconductors Dashboard</strong></td>
+                <td>Sectors &amp; ETFs</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  Add free VanEck holdings CSV + constituent
+                  breadth/concentration/options/flows panel
+                </td>
+              </tr>
+              <tr
+                data-domain="Sectors &amp; ETFs"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/xlf</code></td>
+                <td><strong>XLF Financials Dashboard</strong></td>
+                <td>Sectors &amp; ETFs</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  Add free SSGA holdings CSV + constituent
+                  breadth/concentration/options/flows panel
+                </td>
+              </tr>
+              <tr
+                data-domain="Sectors &amp; ETFs"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/kre</code></td>
+                <td><strong>KRE Regional Banks Dashboard</strong></td>
+                <td>Sectors &amp; ETFs</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  Add free SSGA holdings CSV + constituent
+                  breadth/concentration/options/flows panel
+                </td>
+              </tr>
+              <tr
+                data-domain="Sectors &amp; ETFs"
+                data-status="PARTIAL"
+                data-wave="4"
+              >
+                <td><code>/xle</code></td>
+                <td><strong>XLE Energy Dashboard</strong></td>
+                <td>Sectors &amp; ETFs</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W4</td>
+                <td>
+                  Add free SSGA holdings CSV + constituent
+                  breadth/concentration/options/flows panel
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="PARITY"
+                data-wave="3"
+              >
+                <td><code>/stocks-vs-bonds</code></td>
+                <td><strong>Stocks vs Bonds (Earnings Yield / 10Y)</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-parity">Parity</span></td>
+                <td>W3</td>
+                <td>
+                  shiller.py + EY_TNX_RATIO + TNX already stored in daily-prices
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/stock-market-trend</code></td>
+                <td><strong>S&amp;P 500 vs Long-Term Trend (1881+)</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>
+                  shiller.py already parses Shiller ie_data.xls; expose
+                  log-trend regression
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/stock-market-valuation</code></td>
+                <td><strong>Stock Market Valuation Composite</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>
+                  Shiller + Ken French B/M + FRED Z.1/BEA (all free/wired)
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/bubble-tracker</code></td>
+                <td><strong>Bubble Tracker (Valuation Clock 3–10y)</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>
+                  Release-aware 3-pillar scorer over Shiller, FRED Z.1/BEA,
+                  FINRA margin, XLK/SPY
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/nasdaq-equal-weight</code></td>
+                <td>
+                  <strong>Nasdaq Equal Weight (QQQ vs QQEW vs XLK)</strong>
+                </td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>Add QQEW to daily-prices + existing QQQ &amp; XLK</td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="4"
+              >
+                <td><code>/ai-trade</code></td>
+                <td>
+                  <strong>AI Trade Index (9 Thematic Build-Out Groups)</strong>
+                </td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W4</td>
+                <td>
+                  Baskets brick (baskets.*) + daily closes for curated 9 AI
+                  groups vs RSP
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/corporate-efficiency</code></td>
+                <td>
+                  <strong
+                    >Corporate Efficiency (SG&amp;A &amp; Margins via
+                    XBRL)</strong
+                  >
+                </td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free SEC EDGAR XBRL companyfacts API (using existing
+                  sec_guard.py)
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/market-pe-ratio</code></td>
+                <td><strong>Market P/E Ratio (Bottom-Up XBRL)</strong></td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free SEC EDGAR XBRL net income &amp; shares + daily closes +
+                  UST10Y
+                </td>
+              </tr>
+              <tr
+                data-domain="Valuation &amp; Fundamentals"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/real-estate-tracker</code></td>
+                <td>
+                  <strong
+                    >Real Estate Tracker (Dollar Volume &amp; Supply)</strong
+                  >
+                </td>
+                <td>Valuation &amp; Fundamentals</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  FRED Census housing series + free Zillow CSV + append-only NAR
+                  FRED archive
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="PARTIAL"
+                data-wave="5"
+              >
+                <td><code>/gold-price</code></td>
+                <td>
+                  <strong>Gold Price (Nominal, Real &amp; Drawdowns)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  GLD &amp; GC=F stored; add CPI deflator + World Bank monthly
+                  history
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="PARTIAL"
+                data-wave="2"
+              >
+                <td><code>/gold-bottom-or-bounce</code></td>
+                <td>
+                  <strong>Gold: Bottom or Bounce? (GLD Options Study)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W2</td>
+                <td>
+                  GLD closes + openbb_option_iv_daily + OCC GLD cleared volume
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="PAID_LIMITED"
+                data-wave="5"
+              >
+                <td><code>/gold-etf-flows</code></td>
+                <td><strong>Gold ETF Flows (9 Physical Gold ETFs)</strong></td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-paid">Paid Limit ($0 Proxy)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Paid: 14y daily share history | $0 Proxy: free issuer CSVs
+                  (GLD/IAU/SGOL/BAR/GLDM/AAAU) + N-PORT
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/country-performance</code></td>
+                <td>
+                  <strong>Country Performance (32 MSCI ETFs vs ACWI)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Add 32 MSCI country ETFs + ACWI to daily-prices (free
+                  Yahoo/IBKR)
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/country-relative-strength</code></td>
+                <td>
+                  <strong>Country Relative Strength (Country ÷ ACWI)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Reuse sectorRotation.* RRG math over 32 MSCI ETFs vs ACWI
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/country-health</code></td>
+                <td>
+                  <strong>Global Market Health (32-Country MA Regimes)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Pure 50d/200d regime classifier over 32 MSCI country ETFs
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/global-bond-yields</code></td>
+                <td>
+                  <strong>Global 10-Year Bond Yields (30 Countries)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free official APIs: FRED DGS10, Bundesbank, MOF Japan, BoE,
+                  BoC, RBA, ECB, OECD
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/central-bank-gold</code></td>
+                <td>
+                  <strong>Central Bank Gold Buying (IMF Official)</strong>
+                </td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free IMF International Financial Statistics (IFS) official
+                  gold reserves API
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/savings-rate-by-country</code></td>
+                <td><strong>Savings Rate by Country (OECD)</strong></td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Free OECD SDMX National Accounts API (oecd fetcher already in
+                  services/openbb)
+                </td>
+              </tr>
+              <tr
+                data-domain="Global &amp; Cross-Asset"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/crack-spread</code></td>
+                <td><strong>3-2-1 Crack Spread (Refining Margin)</strong></td>
+                <td>Global &amp; Cross-Asset</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>Free EIA Petroleum API v2 (WTI, RBOB, ULSD spot prices)</td>
+              </tr>
+              <tr
+                data-domain="Crypto"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/crypto-performance</code></td>
+                <td>
+                  <strong>Crypto Performance (BTC/ETH/SOL/XRP/LTC ETFs)</strong>
+                </td>
+                <td>Crypto</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  Add IBIT, ETHA, BITW + spot crypto ETFs/tickers to
+                  daily-prices (free)
+                </td>
+              </tr>
+              <tr
+                data-domain="Crypto"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/crypto-relative-strength</code></td>
+                <td><strong>Crypto Relative Strength (Coin ÷ BITW)</strong></td>
+                <td>Crypto</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>Pure ratio engine over spot crypto ETFs vs BITW</td>
+              </tr>
+              <tr
+                data-domain="Crypto"
+                data-status="BUILDABLE_FREE"
+                data-wave="5"
+              >
+                <td><code>/crypto-health</code></td>
+                <td><strong>Crypto Trend Health (50d/200d Regimes)</strong></td>
+                <td>Crypto</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W5 (T2)</td>
+                <td>Pure 50d/200d regime classifier over crypto ETF series</td>
+              </tr>
+              <tr
+                data-domain="Economic Data &amp; Macro"
+                data-status="PARTIAL"
+                data-wave="3"
+              >
+                <td><code>/economic-calendar</code></td>
+                <td><strong>Economic Release Calendar</strong></td>
+                <td>Economic Data &amp; Macro</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W3</td>
+                <td>
+                  fed-events + treasury-tga already populate
+                  openbb_event_calendar; add FRED release schedules
+                </td>
+              </tr>
+              <tr
+                data-domain="Economic Data &amp; Macro"
+                data-status="PARTIAL"
+                data-wave="5"
+              >
+                <td><code>/economy</code></td>
+                <td>
+                  <strong>Economic Indicator Directory (154 Series)</strong>
+                </td>
+                <td>Economic Data &amp; Macro</td>
+                <td><span class="badge b-partial">Partial</span></td>
+                <td>W5 (T2)</td>
+                <td>
+                  openbb_macro_series holds 35 series (12 exact directory
+                  overlap); expand to 154 via FRED/EIA/Treasury/OECD/XBRL
+                </td>
+              </tr>
+              <tr
+                data-domain="Economic Data &amp; Macro"
+                data-status="BUILDABLE_FREE"
+                data-wave="3"
+              >
+                <td><code>/mortgage-rate</code></td>
+                <td>
+                  <strong>30-Year Fixed Mortgage Rate (Freddie Mac)</strong>
+                </td>
+                <td>Economic Data &amp; Macro</td>
+                <td><span class="badge b-free">Buildable ($0)</span></td>
+                <td>W3</td>
+                <td>FRED keyless CSV MORTGAGE30US</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>
+          Options-First Phased Buildout (4 Core Waves + Tier-2 Wave 5 · 16
+          Vertical PRs)
+        </h2>
+        <div class="cards-grid">
+          <div class="card">
+            <h3>Wave 1 · PRs 1.1–1.3 ($0 Core)</h3>
+            <p class="muted">
+              <strong>+28 net-new (+11 baseline → 47/146).</strong>
+              M1 (<code>breadth_daily_internals</code>) + existing freshness
+              gate. Exchange breadth (McClellan, Zweig, Hindenburg, Titanic),
+              10-gauge Vol Outlook, 13-market COT, 7 SPY base rates, Daily Tape
+              stats.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Wave 2 · PRs 2.1–2.3 ($0 Core)</h3>
+            <p class="muted">
+              <strong>+27 net-new (+6 baseline → 74/146).</strong>
+              M2 (<code>occ_cleared_volume</code>,
+              <code>breadth_intraday_5m</code>). OCC cleared vol, 14 options
+              hubs, QuantData UOA Top-30 &amp; Whale Payoff, IV Screener, live
+              IBKR/TV 5m OHLC tape &amp; Market Regime.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Wave 3 · PRs 3.1–3.3 ($0 Core)</h3>
+            <p class="muted">
+              <strong>+22 net-new (+1 base → 96/146; 47/154 econ).</strong>
+              M3 (<code>monitor_clock_history</code>). Full
+              <code>/monitor</code>
+              4-Clock Decision Desk, Day-1
+              <code>Tape-EOD</code>
+              State Atlas, Fear &amp; Greed, 5 Qs, Macro Panel, Bear Warning
+              Signs, Shiller CAPE, FRED Calendar.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Wave 4 · PRs 4.1–4.3 ($0 Core)</h3>
+            <p class="muted">
+              <strong>+23 net-new (+1 base → 119/146, 81.5%).</strong>
+              M4 (<code>constituent_snapshots</code>). Constituent breadth (%MA,
+              Log-2% P&amp;F BPI, Repair Flow, HBI, Dispersion, Correlation,
+              Churn), 5 ETF Hubs, AI Trade, Lev ETF Sentiment, Top-100 Heatmap
+              &amp; Short Interest.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Wave 5 · PRs 5.1–5.4 (Tier-2 Opt-In)</h3>
+            <p class="muted">
+              <strong>+27 net-new (+107 econ → 146/146 &amp; 154/154).</strong>
+              M5 (<code>dtcc_cds_daily</code>, <code>etf_share_flows</code>,
+              <code>xbrl_company_quarters</code>). Full 154-series
+              <code>/macro</code>
+              catalog, Global 32 &amp; Crypto, DTCC 5Y CDS, verified-issuer ETF
+              flows, Inline XBRL, broad screeners, and 25 DB-backed Academy
+              manuals.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+    "use strict";
+    const root = document.documentElement;
+    const themeToggle = document.getElementById("themeToggle");
+    if (themeToggle) {
+      themeToggle.addEventListener("click", () => {
+        root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+      });
+    }
+    const q = document.getElementById("q");
+    const fDomain = document.getElementById("fDomain");
+    const fStatus = document.getElementById("fStatus");
+    const fWave = document.getElementById("fWave");
+    const resetBtn = document.getElementById("resetFilters");
+    const rows = Array.from(document.querySelectorAll("#tbody tr"));
+    const countLine = document.getElementById("countLine");
+    const applyFilters = () => {
+      const term = (q?.value ?? "").trim().toLowerCase();
+      const dom = fDomain?.value ?? "";
+      const st = fStatus?.value ?? "";
+      const wv = fWave?.value ?? "";
+      let visible = 0;
+      for (const tr of rows) {
+        const ok =
+          (!dom || tr.dataset.domain === dom) &&
+          (!st || tr.dataset.status === st) &&
+          (!wv || tr.dataset.wave === wv) &&
+          (!term || (tr.textContent ?? "").toLowerCase().includes(term));
+        tr.style.display = ok ? "" : "none";
+        if (ok) {
+          visible += 1;
+        }
+      }
+      if (countLine) {
+        countLine.textContent = `Showing ${visible} of ${rows.length} tools (swipe table horizontally on mobile)`;
+      }
+    };
+    for (const el of [q, fDomain, fStatus, fWave]) {
+      if (el) {
+        el.addEventListener("input", applyFilters);
+        el.addEventListener("change", applyFilters);
+      }
+    }
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (q) q.value = "";
+        if (fDomain) fDomain.value = "";
+        if (fStatus) fStatus.value = "";
+        if (fWave) fWave.value = "";
+        applyFilters();
+      });
+    }
+    </script>
+  </body>
+</html>
