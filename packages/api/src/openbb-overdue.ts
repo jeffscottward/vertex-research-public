@@ -473,7 +473,7 @@ const evaluateOpenbbJobAge = (
 };
 
 const isOffHoursMarketPremiumClearable = (
-  newestSession: OverdueMarketPremiumSessionInput,
+  sorted: readonly OverdueMarketPremiumSessionInput[],
   parts: NyParts
 ): boolean => {
   const expectedSessionDate =
@@ -481,11 +481,14 @@ const isOffHoursMarketPremiumClearable = (
     parts.hour * 60 + parts.minute >= MARKET_PREMIUM_CLOSE_MINUTE
       ? parts.isoDate
       : previousNyseTradingDay(parts.utcDayNum);
-  if (newestSession.sessionDate < expectedSessionDate) return false;
-  if (newestSession.status === "complete") return true;
+  const expectedSession = sorted.find(
+    (session) => session.sessionDate === expectedSessionDate
+  );
+  if (expectedSession === undefined) return false;
+  if (expectedSession.status === "complete") return true;
   return (
-    newestSession.capturedAt !== null &&
-    isCapturedNearClose(newestSession.capturedAt, newestSession.sessionDate)
+    expectedSession.capturedAt !== null &&
+    isCapturedNearClose(expectedSession.capturedAt, expectedSession.sessionDate)
   );
 };
 
@@ -528,8 +531,8 @@ const evaluateMarketPremiumSource = (
     } else {
       clearable = capturedAt !== null;
     }
-  } else if (newestSession !== undefined) {
-    clearable = isOffHoursMarketPremiumClearable(newestSession, parts);
+  } else {
+    clearable = isOffHoursMarketPremiumClearable(sorted, parts);
   }
 
   return {

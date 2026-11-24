@@ -521,6 +521,34 @@ describe("evaluateOpenbbSources", () => {
     });
     expect(preOpenComplete.clearableKeys).toContain("flow:market_premium");
 
+    // 5c2. Weekday NYSE holiday (Thanksgiving Thu 2026-11-26) with a holiday unavailable/no_data row does NOT shadow Wed 2026-11-25 complete
+    const holidayShadow = evaluateOpenbbSources({
+      flow: {
+        marketPremiumSessions: [
+          {
+            capturedAt: null,
+            lastAttemptAt: new Date("2026-11-26T16:00:00.000Z"),
+            lastMessage: "market closed",
+            sessionDate: "2026-11-26",
+            status: "unavailable",
+          },
+          {
+            capturedAt: new Date("2026-11-25T21:00:00.000Z"),
+            lastAttemptAt: new Date("2026-11-26T05:00:00.000Z"),
+            lastMessage: null,
+            sessionDate: "2026-11-25",
+            status: "complete",
+          },
+        ],
+        samples: { latest: [], latestOk: [] },
+      },
+      form4Days: [{ complete: true, indexDay: "2026-11-25" }],
+      now: new Date("2026-11-27T13:00:00.000Z"), // Fri 2026-11-27 08:00 ET (pre-open after Thanksgiving)
+      runs: healthyRuns(new Date("2026-11-27T12:00:00.000Z")),
+      shortVolumeNewestDate: "2026-11-25",
+    });
+    expect(holidayShadow.clearableKeys).toContain("flow:market_premium");
+
     // 5d. finra-short-volume stays overdue past midnight (Tue 00:05 ET) and on weekends when behind previous trading day
     const finraMidnight = evaluateOpenbbSources({
       form4Days: [{ complete: true, indexDay: "2026-11-23" }],
