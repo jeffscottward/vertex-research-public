@@ -676,7 +676,7 @@ const TopPrintsTable = ({
                     {formatEtSeconds(bubble.at)}
                   </TableCell>
                   <TableHead
-                    className="h-auto whitespace-nowrap font-mono"
+                    className="h-auto whitespace-normal font-mono"
                     scope="row"
                   >
                     <button
