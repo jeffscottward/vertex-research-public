@@ -244,7 +244,6 @@ const VOL: OpenbbVolContextOutput = {
         minSessions: 252,
         reason: "Needs 252 sessions with ATM IV (30 stored)",
         sessions: 30,
-        unit: "decimal",
         windowSessions: 252,
       },
       proxy: {
@@ -256,7 +255,6 @@ const VOL: OpenbbVolContextOutput = {
         minSessions: 252,
         reason: null,
         sessions: 252,
-        unit: "vol_points",
         windowSessions: 252,
       },
       proxyIndex: "VXD",
