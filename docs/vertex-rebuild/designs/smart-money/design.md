@@ -6,7 +6,7 @@
 * **Date:** 2026-11-19
 * **Status:** Reviewed (EGM consolidated review, auto-resolved 2026-11-19)
 * **Card:** vertex-smart-money-gaps
-* **PR plans:** [plan-pr1.md](plan-pr1.md) (Congress trades), [plan-pr2.md](plan-pr2.md) (market-wide options premium). Later PRs get their own plan file and EGM review before build.
+* **PR plans:** [plan-pr1.md](plan-pr1.md) (Congress trades), [plan-pr2.md](plan-pr2.md) (market-wide options premium), [plan-pr3.md](plan-pr3.md) (Form 4 market-wide), [plan-pr5.md](plan-pr5.md) (13F changes and FINRA short volume), [plan-pr6.md](plan-pr6.md) (`/smart-money` page, stock-tab sections, overdue state and alerts). Later PRs get their own plan file and EGM review before build.
 
 ---
 
