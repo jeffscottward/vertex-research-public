@@ -283,7 +283,7 @@ describe("research dossier dataset view-model", () => {
     ).toEqual([]);
   });
 
-  it("never shows the private entry section of the flat APP technicals", () => {
+  it("never shows the private entry section regardless of case or whitespace", () => {
     const view = toDatasetViewModel(
       datasetOutput({
         sections: [
@@ -292,6 +292,11 @@ describe("research dossier dataset view-model", () => {
             id: "entry",
             title: "Entry conditions",
           },
+          {
+            body: ["Capitalized entry block."],
+            id: " Entry ",
+            title: "Capitalized Entry",
+          },
           { body: ["Support near a level."], id: "levels", title: "Levels" },
         ],
       })
@@ -299,15 +304,65 @@ describe("research dossier dataset view-model", () => {
     expect(view.sections.map((section) => section.id)).toEqual(["levels"]);
   });
 
-  it("blocks private broker, portfolio, NLV and user-order text in options-analysis output", () => {
+  it("blocks private broker, portfolio, NLV and user-order text across all options-analysis fields", () => {
     const sentinel = "SENTINEL_APP_PRIVACY_774";
     const view = toDatasetViewModel({
       ...datasetOutput({
+        asOf: `IBKR snapshot ${sentinel}`,
+        items: [
+          {
+            date: "2026-11-22",
+            source: "Exchange",
+            summary: "Public volatility news.",
+            title: "Public options volume update",
+            url: "https://example.test/news/public",
+          },
+          {
+            date: "2026-11-22",
+            source: "Exchange",
+            summary: "Public text",
+            title: `IBKR ${sentinel} title`,
+            url: "https://example.test/news/1",
+          },
+          {
+            date: `NLV ${sentinel}`,
+            source: "Exchange",
+            summary: "Public text",
+            title: "Public title 2",
+            url: "https://example.test/news/2",
+          },
+          {
+            date: "2026-11-22",
+            source: "Exchange",
+            summary: "Public text",
+            title: "Public title 3",
+            url: `ibkr://account/${sentinel}`,
+          },
+          {
+            date: "2026-11-22",
+            source: `brokerRefresh ${sentinel}`,
+            summary: "Public text",
+            title: "Public title 4",
+            url: "https://example.test/news/4",
+          },
+          {
+            date: "2026-11-22",
+            source: "Exchange",
+            summary: `Placed order ${sentinel}`,
+            title: "Public title 5",
+            url: "https://example.test/news/5",
+          },
+        ],
         metrics: [
           { label: "30d IV", period: "2026-11-22", value: "48%" },
-          { label: "Broker NLV", period: "live", value: `${sentinel}-nlv` },
-          { label: "Exposure", period: "Account", value: `${sentinel}-acct` },
+          { label: "Broker NLV", period: "live", value: `${sentinel}-label` },
+          { label: "Cap", period: "30d", value: `2% NLV ${sentinel}` },
+          { label: "Exposure", period: "Account", value: `${sentinel}-period` },
         ],
+        quote: {
+          asOf: `IBKR ${sentinel} quote`,
+          price: 199.99,
+        },
         sections: [
           {
             body: [
@@ -327,8 +382,13 @@ describe("research dossier dataset view-model", () => {
             title: "Sizing",
           },
           {
+            body: [`Public line under camelCase id ${sentinel}.`],
+            id: "ibkrSnapshot",
+            title: "Public heading",
+          },
+          {
             body: ["Public line under private heading."],
-            id: "acct-heading",
+            id: "public-id",
             title: `Portfolio ${sentinel}`,
           },
         ],
@@ -339,9 +399,24 @@ describe("research dossier dataset view-model", () => {
             url: "https://example.test/chain",
           },
           {
-            id: "broker-snap",
+            id: "public-id-1",
             title: `IBKR ${sentinel}`,
-            url: "https://example.test/private",
+            url: "https://example.test/private-title",
+          },
+          {
+            id: "brokerRefresh",
+            title: `Public title ${sentinel}`,
+            url: "https://example.test/private-id",
+          },
+          {
+            id: "public-id-3",
+            title: `Public title ${sentinel}`,
+            url: "https://example.test/nlv-feed",
+          },
+          {
+            id: "public-id-4",
+            title: `Public title ${sentinel}`,
+            url: `ibkr://account/${sentinel}`,
           },
         ],
         summary: `Keep under 2% NLV for ${sentinel} pending order.`,
@@ -356,10 +431,20 @@ describe("research dossier dataset view-model", () => {
     });
 
     expect(JSON.stringify(view)).not.toContain(sentinel);
+    expect(view.asOf).toBeNull();
     expect(view.title).toBeNull();
     expect(view.summary).toBeNull();
     expect(view.metrics).toEqual([
       { label: "30d IV", period: "2026-11-22", value: "48%" },
+    ]);
+    expect(view.newsItems).toEqual([
+      {
+        date: "2026-11-22",
+        href: "https://example.test/news/public",
+        source: "Exchange",
+        summary: "Public volatility news.",
+        title: "Public options volume update",
+      },
     ]);
     expect(view.sections).toEqual([
       {
@@ -376,6 +461,38 @@ describe("research dossier dataset view-model", () => {
       },
     ]);
     expect(view.warnings).toEqual(["Public volatility warning."]);
+  });
+
+  it("keeps public asOf on options-analysis and leaves non-options-analysis text unfiltered", () => {
+    const publicOptions = toDatasetViewModel({
+      ...datasetOutput({
+        asOf: "2026-11-23",
+        quote: { asOf: "2026-11-23", price: 150 },
+        summary: "Public payoff summary",
+        title: "Public options view",
+      }),
+      dataset: "options-analysis",
+    });
+    expect(publicOptions.asOf).toBe("2026-11-23");
+    expect(publicOptions.title).toBe("Public options view");
+    expect(publicOptions.summary).toBe("Public payoff summary");
+    expect(publicOptions.metrics).toEqual([
+      { label: "Quote price", period: "2026-11-23", value: "150" },
+    ]);
+
+    const technicals = toDatasetViewModel({
+      ...datasetOutput({
+        asOf: "IBKR snapshot",
+        summary: "Account NLV reference",
+        title: "Broker technicals",
+        warnings: ["Pending order note"],
+      }),
+      dataset: "technicals",
+    });
+    expect(technicals.asOf).toBe("IBKR snapshot");
+    expect(technicals.title).toBe("Broker technicals");
+    expect(technicals.summary).toBe("Account NLV reference");
+    expect(technicals.warnings).toEqual(["Pending order note"]);
   });
 
   it("returns an empty view for data that is not an object", () => {

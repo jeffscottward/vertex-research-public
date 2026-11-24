@@ -557,6 +557,47 @@ describe("researchReports procedures", () => {
         },
       ],
     });
+
+    const sentinelPayload = JSON.stringify({
+      asOf: `IBKR broker refresh ${sentinel}`,
+      currency: `${sentinel}-CUR`,
+      strategies: [
+        {
+          expiry: `${sentinel}-expiry`,
+          kind: "long-call",
+          legs: [],
+          stockEntry: 88.88,
+          stockShares: 777,
+        },
+        {
+          kind: `${sentinel}-kind`,
+        },
+      ],
+    });
+    const sentinelClient = clientFor(
+      operator,
+      fakeRepository({
+        getDataset: (reportId, dataRevision, dataset) =>
+          Promise.resolve({
+            body: sentinelPayload,
+            byteLength: sentinelPayload.length,
+            dataRevision,
+            dataset,
+            reportId,
+            sha256: hex("f"),
+          }),
+      })
+    );
+    const sentinelOut = await sentinelClient.researchReports.dataset({
+      dataset: "options-analysis",
+      reportId: "AAA",
+    });
+    expect(JSON.stringify(sentinelOut.data)).not.toContain(sentinel);
+    expect(JSON.stringify(sentinelOut.data)).not.toContain("777");
+    expect(JSON.stringify(sentinelOut.data)).not.toContain("88.88");
+    expect(sentinelOut.data).toEqual({
+      strategies: [{ kind: "long-call", legs: [] }, {}],
+    });
   });
 
   it("reads the accepted company research", async () => {
