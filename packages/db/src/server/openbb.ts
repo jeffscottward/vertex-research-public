@@ -694,6 +694,8 @@ export const createOpenbbRepository = (
         ${symbolExpr} as "symbol",
         f.value as "value"
       from filtered f
+      order by greatest(coalesce(f.value, 0), coalesce(f.previous_value, 0)) desc,
+        f.filer_cik asc, f.cusip asc, f.option_type asc
     `);
     const rows = (
       result as Readonly<{ rows: readonly Record<string, unknown>[] }>
