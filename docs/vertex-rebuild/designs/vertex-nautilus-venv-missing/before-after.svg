@@ -1,0 +1,608 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="560"
+  viewBox="0 0 1200 560"
+  role="img"
+  aria-label="Before and after flow when VERTEX_NAUTILUS_PYTHON is missing on the research host"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="redPanel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#f87171" stop-opacity="0.06" />
+    </linearGradient>
+    <linearGradient id="greenPanel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#34d399" stop-opacity="0.06" />
+    </linearGradient>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#e5b84b" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="560" fill="url(#bg)" />
+
+  <!-- Title -->
+  <text
+    x="48"
+    y="52"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="26"
+    font-weight="700"
+  >
+    Nautilus Research Worker: Missing Venv Preflight &amp; Lock-Verified Setup
+  </text>
+  <text
+    x="48"
+    y="78"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+  >
+    Research-only worker (no orders, broker or live trading units) · Python 3.12
+    · nautilus-trader 1.227.0
+  </text>
+
+  <!-- BEFORE lane -->
+  <rect
+    x="48"
+    y="104"
+    width="1104"
+    height="184"
+    rx="14"
+    fill="url(#redPanel)"
+    stroke="#ef4444"
+    stroke-opacity="0.45"
+    stroke-width="1.5"
+  />
+  <rect x="68" y="120" width="84" height="26" rx="13" fill="#7f1d1d" />
+  <text
+    x="110"
+    y="138"
+    text-anchor="middle"
+    fill="#fecaca"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="166"
+    y="138"
+    fill="#fca5a5"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    No python check before claim → worker claims queued runs and fails every run
+    with ENOENT
+  </text>
+
+  <!-- Before nodes -->
+  <g transform="translate(76, 166)">
+    <rect
+      width="176"
+      height="92"
+      rx="10"
+      fill="#111827"
+      stroke="#475569"
+      stroke-width="1.5"
+    />
+    <!-- Terminal icon -->
+    <rect
+      x="16"
+      y="16"
+      width="24"
+      height="18"
+      rx="3"
+      fill="none"
+      stroke="#94a3b8"
+      stroke-width="1.6"
+    />
+    <path
+      d="M 21 22 L 26 25 L 21 28 M 29 28 L 35 28"
+      stroke="#94a3b8"
+      stroke-width="1.6"
+      fill="none"
+      stroke-linecap="round"
+    />
+    <text
+      x="50"
+      y="30"
+      fill="#f8fafc"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="600"
+    >
+      Launcher
+    </text>
+    <text
+      x="16"
+      y="56"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      checks key 0600 only
+    </text>
+    <text
+      x="16"
+      y="74"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      skips python check
+    </text>
+  </g>
+
+  <line
+    x1="252"
+    y1="212"
+    x2="314"
+    y2="212"
+    stroke="#f87171"
+    stroke-width="2.2"
+    marker-end="url(#arrowRed)"
+  />
+
+  <g transform="translate(322, 166)">
+    <rect
+      width="212"
+      height="92"
+      rx="10"
+      fill="#111827"
+      stroke="#f87171"
+      stroke-width="1.5"
+    />
+    <!-- Queue icon -->
+    <rect x="16" y="16" width="20" height="5" rx="2" fill="#e5b84b" />
+    <rect
+      x="16"
+      y="24"
+      width="20"
+      height="5"
+      rx="2"
+      fill="#e5b84b"
+      fill-opacity="0.7"
+    />
+    <rect
+      x="16"
+      y="32"
+      width="20"
+      height="5"
+      rx="2"
+      fill="#e5b84b"
+      fill-opacity="0.4"
+    />
+    <text
+      x="46"
+      y="30"
+      fill="#f8fafc"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="600"
+    >
+      API Claim Loop
+    </text>
+    <text
+      x="16"
+      y="56"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      engine.claim(max=50)
+    </text>
+    <text
+      x="16"
+      y="74"
+      fill="#fca5a5"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      drains queued backtests
+    </text>
+  </g>
+
+  <line
+    x1="534"
+    y1="212"
+    x2="596"
+    y2="212"
+    stroke="#f87171"
+    stroke-width="2.2"
+    marker-end="url(#arrowRed)"
+  />
+
+  <g transform="translate(604, 166)">
+    <rect
+      width="234"
+      height="92"
+      rx="10"
+      fill="#111827"
+      stroke="#ef4444"
+      stroke-width="1.8"
+    />
+    <!-- X circle icon -->
+    <circle
+      cx="26"
+      cy="25"
+      r="10"
+      fill="none"
+      stroke="#f87171"
+      stroke-width="1.8"
+    />
+    <path
+      d="M 22 21 L 30 29 M 30 21 L 22 29"
+      stroke="#f87171"
+      stroke-width="1.8"
+      stroke-linecap="round"
+    />
+    <text
+      x="46"
+      y="30"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      spawn ENOENT
+    </text>
+    <text
+      x="16"
+      y="56"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      nautilus-venv/bin/python
+    </text>
+    <text
+      x="16"
+      y="74"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      missing on host
+    </text>
+  </g>
+
+  <line
+    x1="838"
+    y1="212"
+    x2="900"
+    y2="212"
+    stroke="#f87171"
+    stroke-width="2.2"
+    marker-end="url(#arrowRed)"
+  />
+
+  <g transform="translate(908, 166)">
+    <rect
+      width="216"
+      height="92"
+      rx="10"
+      fill="#1f1116"
+      stroke="#ef4444"
+      stroke-width="1.8"
+    />
+    <text
+      x="18"
+      y="30"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      Every Run Fails
+    </text>
+    <text
+      x="18"
+      y="54"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      completeMany(error)
+    </text>
+    <text
+      x="18"
+      y="74"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      repeats every claim cycle
+    </text>
+  </g>
+
+  <!-- AFTER lane -->
+  <rect
+    x="48"
+    y="312"
+    width="1104"
+    height="210"
+    rx="14"
+    fill="url(#greenPanel)"
+    stroke="#10b981"
+    stroke-opacity="0.45"
+    stroke-width="1.5"
+  />
+  <rect x="68" y="328" width="84" height="26" rx="13" fill="#064e3b" />
+  <text
+    x="110"
+    y="346"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="166"
+    y="346"
+    fill="#6ee7b7"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    Fail-fast executable preflight keeps queued runs untouched; idempotent
+    script rebuilds locked venv
+  </text>
+
+  <!-- After node 1: setup script -->
+  <g transform="translate(76, 376)">
+    <rect
+      width="244"
+      height="118"
+      rx="10"
+      fill="#111827"
+      stroke="#e5b84b"
+      stroke-width="1.6"
+    />
+    <!-- Lock/wrench pictogram -->
+    <rect
+      x="18"
+      y="21"
+      width="16"
+      height="13"
+      rx="2.5"
+      fill="none"
+      stroke="#e5b84b"
+      stroke-width="1.7"
+    />
+    <path
+      d="M 21 21 V 17 A 5 5 0 0 1 31 17 V 21"
+      fill="none"
+      stroke="#e5b84b"
+      stroke-width="1.7"
+    />
+    <text
+      x="44"
+      y="30"
+      fill="#fde68a"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      setup-nautilus-venv.sh
+    </text>
+    <text
+      x="16"
+      y="54"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      uv venv --python 3.12
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      --require-hashes lock
+    </text>
+    <text
+      x="16"
+      y="92"
+      fill="#6ee7b7"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      verifies 1.227.0 + import
+    </text>
+  </g>
+
+  <line
+    x1="320"
+    y1="435"
+    x2="382"
+    y2="435"
+    stroke="#e5b84b"
+    stroke-width="2.2"
+    marker-end="url(#arrowGold)"
+  />
+
+  <!-- After node 2: Launcher + Worker preflight -->
+  <g transform="translate(390, 376)">
+    <rect
+      width="256"
+      height="118"
+      rx="10"
+      fill="#111827"
+      stroke="#34d399"
+      stroke-width="1.6"
+    />
+    <!-- Shield check pictogram -->
+    <path
+      d="M 26 15 L 36 19 V 27 C 36 33 31 37 26 39 C 21 37 16 33 16 27 V 19 Z"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="1.7"
+    />
+    <path
+      d="M 22 27 L 25 30 L 31 23"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="1.7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <text
+      x="46"
+      y="30"
+      fill="#f8fafc"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      Two-Layer Preflight
+    </text>
+    <text
+      x="16"
+      y="54"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      1. launcher: [ -f &amp;&amp; -x ]
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      2. worker: startup + pre-claim
+    </text>
+    <text
+      x="16"
+      y="92"
+      fill="#6ee7b7"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      missing → exit/alert, 0 claims
+    </text>
+  </g>
+
+  <line
+    x1="646"
+    y1="435"
+    x2="708"
+    y2="435"
+    stroke="#34d399"
+    stroke-width="2.2"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <!-- After node 3: Healthy execution -->
+  <g transform="translate(716, 376)">
+    <rect
+      width="408"
+      height="118"
+      rx="10"
+      fill="#0d1f1a"
+      stroke="#10b981"
+      stroke-width="1.8"
+    />
+    <!-- Check circle -->
+    <circle
+      cx="28"
+      cy="28"
+      r="11"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="1.9"
+    />
+    <path
+      d="M 23 28 L 27 32 L 34 24"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <text
+      x="48"
+      y="32"
+      fill="#a7f3d0"
+      font-family="system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      Safe Queue &amp; Verified Engine
+    </text>
+    <text
+      x="18"
+      y="58"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      • Missing or broken venv never claims or poisons queued runs
+    </text>
+    <text
+      x="18"
+      y="78"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      • Mid-run disappearance skips claim, alerts on 3x, auto-recovers
+    </text>
+    <text
+      x="18"
+      y="98"
+      fill="#6ee7b7"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      • Healthy venv runs python -m nautilus_backtest batch cleanly
+    </text>
+  </g>
+</svg>
