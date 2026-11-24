@@ -182,8 +182,18 @@ const report = (
       }
     : null,
   currency: "USD",
+  dataDate: labDaysAgo(2),
   dataRevision: digest(revision),
+  dataSource: "revision",
   exchange,
+  freshness: {
+    asOf: labDaysAgo(2),
+    expectedSession: labDaysAgo(1),
+    isStale: false,
+    maxSessionsBehind: 2,
+    sessionsBehind: 1,
+    status: "fresh",
+  },
   id,
   identityStatus: "verified",
   importedAt: at(720),
@@ -961,14 +971,51 @@ export const labResearchTechnicals = (
     kind,
     price: scaled(factor),
   });
+  const stored: ResearchReportTechnicals["stored"] = {
+    ...values,
+    maximumObservedHigh: {
+      date: labDaysAgo(40),
+      drawdownPct: -9.1,
+      price: scaled(1.1),
+    },
+    range52Week: {
+      high: scaled(1.1),
+      highDate: labDaysAgo(40),
+      low: scaled(0.8),
+      lowDate: labDaysAgo(250),
+      sampleCount: 251,
+    },
+    sma200Slope: {
+      change: scaled(0.016),
+      changePct: 1.6,
+      fromDate: labDaysAgo(29),
+      toDate: labDaysAgo(1),
+    },
+    trendChecks: [
+      "closeAboveSma20",
+      "closeAboveSma50",
+      "closeAboveSma150",
+      "closeAboveSma200",
+      "sma50AboveSma150",
+      "sma50AboveSma200",
+      "sma150AboveSma200",
+      "sma200Rising20Sessions",
+    ].map((key) => ({
+      key: key as ResearchReportTechnicals["stored"]["trendChecks"][number]["key"],
+      passed: true,
+    })),
+  };
   return {
     bars: {
       collectedAt: `${labDaysAgo(1)}T21:58:00Z`,
       count: 2513,
       firstDate: labDaysAgo(3650),
       lastDate: labDaysAgo(1),
+      source: "revision",
     },
     check: { mismatches: [], status: "match" },
+    current: stored,
+    dataDate: labDaysAgo(1),
     dataRevision: digest("1"),
     fibonacci: {
       direction: "up",
@@ -982,8 +1029,17 @@ export const labResearchTechnicals = (
       swingLow: { date: labDaysAgo(250), price: scaled(0.8) },
       window: 252,
     },
+    freshness: {
+      asOf: labDaysAgo(1),
+      expectedSession: labDaysAgo(1),
+      isStale: false,
+      maxSessionsBehind: 2,
+      sessionsBehind: 0,
+      status: "fresh",
+    },
     method: {
       fibonacciWindowSessions: 252,
+      freshnessMaxSessionsBehind: 2,
       pivotLookbackSessions: 60,
       version: 1,
       volumeProfile: {
@@ -1008,40 +1064,7 @@ export const labResearchTechnicals = (
     },
     recomputed: values,
     reportId,
-    stored: {
-      ...values,
-      maximumObservedHigh: {
-        date: labDaysAgo(40),
-        drawdownPct: -9.1,
-        price: scaled(1.1),
-      },
-      range52Week: {
-        high: scaled(1.1),
-        highDate: labDaysAgo(40),
-        low: scaled(0.8),
-        lowDate: labDaysAgo(250),
-        sampleCount: 251,
-      },
-      sma200Slope: {
-        change: scaled(0.016),
-        changePct: 1.6,
-        fromDate: labDaysAgo(29),
-        toDate: labDaysAgo(1),
-      },
-      trendChecks: [
-        "closeAboveSma20",
-        "closeAboveSma50",
-        "closeAboveSma150",
-        "closeAboveSma200",
-        "sma50AboveSma150",
-        "sma50AboveSma200",
-        "sma150AboveSma200",
-        "sma200Rising20Sessions",
-      ].map((key) => ({
-        key: key as ResearchReportTechnicals["stored"]["trendChecks"][number]["key"],
-        passed: true,
-      })),
-    },
+    stored,
     volumeProfile: {
       bins,
       binWidth,
@@ -1059,11 +1082,14 @@ export const labResearchTechnicals = (
     },
     warnings: ["Demo data: values are invented for the UI lab."],
     weinstein: {
+      asOf: labDaysAgo(1),
       completeWeeks: 520,
+      isStale: false,
       label: "Stage 2: advancing",
       sma30: scaled(0.95),
       sma30ChangePct: 2.1,
       stage: 2,
+      staleReason: null,
       weekEnding: labDaysAgo(4),
       weeklyClose: close,
     },

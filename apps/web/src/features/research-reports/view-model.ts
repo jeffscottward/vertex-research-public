@@ -34,9 +34,6 @@ export const DATASET_LABELS: Readonly<
 export const reportHref = (id: string): string =>
   `${RESEARCH_REPORTS_PATH}/${encodeURIComponent(id)}`;
 
-const dateLabel = (value: Date | null): string =>
-  value === null ? "No date recorded" : value.toISOString().slice(0, 10);
-
 export type CatalogReportView = Readonly<{
   id: string;
   href: string;
@@ -45,6 +42,7 @@ export type CatalogReportView = Readonly<{
   assetType: string;
   status: string;
   updated: string;
+  isStale: boolean;
   research: boolean;
 }>;
 
@@ -59,11 +57,12 @@ const toCatalogReport = (report: ResearchReportSummary): CatalogReportView => ({
   assetType: report.assetType ?? "Not classified",
   href: reportHref(report.id),
   id: report.id,
+  isStale: report.freshness.isStale,
   name: report.name,
   research: report.companyResearch !== null,
   status: report.status,
   symbol: report.symbol,
-  updated: dateLabel(report.sourceUpdatedAt),
+  updated: report.dataDate ?? "No date recorded",
 });
 
 /** Categories in catalog order; reports in no category form a last "Other reports" group. */
@@ -101,28 +100,29 @@ export type CatalogSummaryView = Readonly<{
   dossiers: number;
   groups: number;
   research: number;
+  stale: number;
   lastUpdated: string;
 }>;
 
-/** KPI numbers for the catalog page: imported reports, shown groups, accepted company research, newest source update. */
+/** KPI numbers for the catalog page: reports, shown groups, accepted company research, newest data date and stale count. */
 export const toCatalogSummary = (
   output: ResearchReportsListOutput,
   groups: readonly CatalogGroupView[]
 ): CatalogSummaryView => {
-  const newest = output.reports.reduce<Date | null>(
+  const newest = output.reports.reduce<string | null>(
     (latest, report) =>
-      report.sourceUpdatedAt !== null &&
-      (latest === null || report.sourceUpdatedAt > latest)
-        ? report.sourceUpdatedAt
+      report.dataDate !== null && (latest === null || report.dataDate > latest)
+        ? report.dataDate
         : latest,
     null
   );
   return {
     dossiers: output.reports.length,
     groups: groups.length,
-    lastUpdated: dateLabel(newest),
+    lastUpdated: newest ?? "No date recorded",
     research: output.reports.filter((report) => report.companyResearch !== null)
       .length,
+    stale: output.reports.filter((report) => report.freshness.isStale).length,
   };
 };
 

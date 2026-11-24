@@ -320,4 +320,87 @@ describe("toTechnicalsViewModel", () => {
         .filter((range, index, all) => all.indexOf(range) === index)
     ).toHaveLength(50);
   });
+
+  it("uses current indicators and market_bars messaging when served from market_bars", () => {
+    const bars = base.bars as NonNullable<ResearchReportTechnicals["bars"]>;
+    const current = {
+      ...base.stored,
+      asOf: "2026-11-20",
+      latestClose: 510.25,
+      trendChecks: base.stored.trendChecks.map((check) => ({
+        ...check,
+        passed: check.key !== "closeAboveSma200",
+      })),
+    };
+    const matched = toTechnicalsViewModel({
+      ...base,
+      bars: { ...bars, lastDate: "2026-11-20", source: "market_bars" },
+      current,
+      dataDate: "2026-11-20",
+    });
+    expect(matched.indicatorsLabel).toBe("Current indicators");
+    expect(matched.indicators[0]).toEqual({
+      detail: "2026-11-20",
+      label: "Close",
+      value: "510.25",
+    });
+    expect(
+      matched.trendChecks.find((c) => c.label === "Close above SMA 200")?.status
+    ).toBe("fail");
+    expect(matched.barsLine).toContain("(market_bars)");
+    expect(matched.check).toEqual({
+      text: "Stored revision matched its 2,513 stored bars; indicators below use 2,513 daily bars through 2026-11-20.",
+      tone: "success",
+    });
+
+    const mismatched = toTechnicalsViewModel({
+      ...base,
+      bars: {
+        ...bars,
+        collectedAt: null,
+        lastDate: "2026-11-20",
+        source: "market_bars",
+      },
+      check: { mismatches: ["rsi14", "otherField"], status: "mismatch" },
+      current,
+    });
+    expect(mismatched.barsLine).not.toContain("updated ");
+    expect(mismatched.check.tone).toBe("warning");
+    expect(mismatched.check.text).toContain("RSI 14, otherField");
+
+    const barBackedOnly = toTechnicalsViewModel({
+      ...base,
+      bars: { ...bars, lastDate: "2026-11-20", source: "market_bars" },
+      check: { mismatches: [], status: "unavailable" },
+      current,
+      dataDate: null,
+      recomputed: null,
+    });
+    expect(barBackedOnly.dataDate).toBe("No date recorded");
+    expect(barBackedOnly.check.tone).toBe("neutral");
+    expect(barBackedOnly.check.text).toContain(
+      "no static workspace snapshot is stored"
+    );
+  });
+
+  it("carries stale Weinstein fields and staleReason through to the view model", () => {
+    const weinstein = base.weinstein as NonNullable<
+      ResearchReportTechnicals["weinstein"]
+    >;
+    const stale = toTechnicalsViewModel({
+      ...base,
+      freshness: { ...base.freshness, isStale: true, status: "stale" },
+      weinstein: {
+        ...weinstein,
+        asOf: "2026-09-10",
+        isStale: true,
+        label: "Stage 2: advancing (stale; data as of 2026-09-10)",
+        staleReason: "Daily bars end 2026-09-10 (50 NYSE sessions behind).",
+      },
+    });
+    expect(stale.isStale).toBe(true);
+    expect(stale.weinstein?.isStale).toBe(true);
+    expect(stale.weinstein?.stage).toContain("(stale; data as of 2026-09-10)");
+    expect(stale.weinstein?.staleReason).toContain("50 NYSE sessions behind");
+  });
 });

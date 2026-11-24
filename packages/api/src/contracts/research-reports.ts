@@ -32,6 +32,33 @@ export const RESEARCH_REPORTS_API_ERRORS = {
 
 const ReportIdSchema = z.string().regex(/^[A-Z0-9]{1,10}$/u);
 const RevisionSchema = z.string().regex(/^[0-9a-f]{64}$/u);
+const DateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
+
+export const ResearchReportDataSourceSchema = z.enum([
+  "market_bars",
+  "revision",
+]);
+export type ResearchReportDataSource = z.infer<
+  typeof ResearchReportDataSourceSchema
+>;
+
+export const ResearchReportFreshnessSchema = z.object({
+  /** Calendar date (YYYY-MM-DD) of the underlying price or dossier data, or null when unrecorded. */
+  asOf: DateText.nullable(),
+  /** Expected latest finished NYSE trading session (YYYY-MM-DD, 06:00 America/New_York SLA). */
+  expectedSession: DateText,
+  /** True when status is "stale" (asOf exceeds maxSessionsBehind NYSE sessions behind expectedSession). */
+  isStale: z.boolean(),
+  /** Maximum NYSE trading sessions behind expectedSession still considered fresh. */
+  maxSessionsBehind: z.number().int().nonnegative(),
+  /** NYSE trading sessions strictly after asOf through expectedSession; null when asOf is null. */
+  sessionsBehind: z.number().int().nonnegative().nullable(),
+  /** Freshness state: "fresh", "stale", or "no_date" when no date is recorded. */
+  status: z.enum(["fresh", "stale", "no_date"]),
+});
+export type ResearchReportFreshness = z.infer<
+  typeof ResearchReportFreshnessSchema
+>;
 
 export const ResearchReportDatasetNameSchema = z.enum(
   RESEARCH_REPORT_PUBLIC_DATASETS
@@ -50,8 +77,13 @@ export const ResearchReportSummarySchema = z.object({
     })
     .nullable(),
   currency: z.string().nullable(),
+  /** Newest data date (YYYY-MM-DD) powering this dossier (stored daily bars when newer, else source update). */
+  dataDate: DateText.nullable(),
   dataRevision: RevisionSchema,
+  /** Whether price data comes from nightly-refreshed market_bar_series or only the stored revision. */
+  dataSource: ResearchReportDataSourceSchema,
   exchange: z.string().nullable(),
+  freshness: ResearchReportFreshnessSchema,
   id: ReportIdSchema,
   identityStatus: z.string(),
   importedAt: z.date(),
@@ -131,7 +163,6 @@ export const ResearchReportTechnicalsInputSchema = z
   .strict();
 
 const Price = z.number().finite();
-const DateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 
 export const ResearchReportTrendCheckSchema = z.object({
   key: z.enum([
@@ -237,7 +268,11 @@ export type ResearchReportFibonacci = z.infer<
 >;
 
 export const ResearchReportWeinsteinSchema = z.object({
+  /** Last daily bar date (YYYY-MM-DD) used to compute this stage. */
+  asOf: DateText,
   completeWeeks: z.number().int().positive(),
+  /** True when asOf is older than the freshness limit; label also carries the stale marker. */
+  isStale: z.boolean(),
   label: z.string(),
   sma30: Price,
   /** Percentage change of the 30-week SMA over the last 4 complete weeks. */
@@ -245,6 +280,8 @@ export const ResearchReportWeinsteinSchema = z.object({
   stage: z
     .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
     .nullable(),
+  /** Explanation when isStale is true; null when fresh. */
+  staleReason: z.string().nullable(),
   /** The Friday of the last complete week. */
   weekEnding: DateText,
   weeklyClose: Price,
@@ -280,19 +317,26 @@ export type ResearchReportVolumeProfile = z.infer<
 export const ResearchReportTechnicalsOutputSchema = z.object({
   bars: z
     .object({
-      /** `collectedAt` of the market dataset; weeks count as complete up to this time. */
+      /** `collectedAt` of the market dataset (or `importedAt` of market_bar_series); weeks count as complete up to this time. */
       collectedAt: z.string().nullable(),
       count: z.number().int().positive(),
       firstDate: DateText,
       lastDate: DateText,
+      source: ResearchReportDataSourceSchema,
     })
     .nullable(),
   check: ResearchReportTechnicalsCheckSchema,
+  /** Full indicators and trend checks computed from the active bars (null when no bars exist). */
+  current: ResearchReportStoredTechnicalsSchema.nullable(),
+  /** Calendar date (YYYY-MM-DD) of the underlying price data (active bars lastDate, else stored asOf). */
+  dataDate: DateText.nullable(),
   dataRevision: RevisionSchema,
   fibonacci: ResearchReportFibonacciSchema.nullable(),
+  freshness: ResearchReportFreshnessSchema,
   /** Rules and windows of the computed markers (method version 1, 2026-11-16). */
   method: z.object({
     fibonacciWindowSessions: z.number().int().positive(),
+    freshnessMaxSessionsBehind: z.number().int().nonnegative(),
     pivotLookbackSessions: z.number().int().positive(),
     version: z.number().int().positive(),
     volumeProfile: z.object({
@@ -321,7 +365,7 @@ export const ResearchReportTechnicalsOutputSchema = z.object({
   reportId: ReportIdSchema,
   stored: ResearchReportStoredTechnicalsSchema,
   volumeProfile: ResearchReportVolumeProfileSchema.nullable(),
-  warnings: z.array(z.string()).max(10),
+  warnings: z.array(z.string()).max(12),
   weinstein: ResearchReportWeinsteinSchema.nullable(),
 });
 export type ResearchReportTechnicals = z.infer<
