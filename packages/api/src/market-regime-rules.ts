@@ -113,7 +113,7 @@ const maxAge = (ages: readonly (number | null)[]): number | null => {
   return max;
 };
 
-/** Simple moving average of the final `window` finite numbers, or null when fewer exist. */
+/** Simple moving average of the final `window` numbers, or null when fewer exist or any value is non-finite. */
 export const simpleMovingAverage = (
   closes: readonly number[],
   window: number
@@ -121,7 +121,9 @@ export const simpleMovingAverage = (
   if (closes.length < window) return null;
   let sum = 0;
   for (let i = closes.length - window; i < closes.length; i += 1) {
-    sum += closes[i] as number;
+    const value = closes[i] as number;
+    if (!Number.isFinite(value)) return null;
+    sum += value;
   }
   return sum / window;
 };
@@ -137,7 +139,8 @@ export type TrendSeriesInput = Readonly<{
 /** Classifies ETF trend against 50-day and 200-day simple moving averages (C058, C108). */
 export const classifyTrendPillar = (
   input: TrendSeriesInput,
-  now: Date
+  now: Date,
+  errorDetail?: string
 ): RegimeTrendPillar => {
   const sessions = input.closes.length;
   const close = sessions > 0 ? (input.closes.at(-1) as number) : null;
@@ -149,7 +152,8 @@ export const classifyTrendPillar = (
   if (close === null || sma50Raw === null || sma200Raw === null) {
     const detail =
       sessions === 0
-        ? `Missing: no daily closes stored or fetched for ${input.symbol}.`
+        ? (errorDetail ??
+          `Missing: no daily closes stored or fetched for ${input.symbol}.`)
         : `Missing: ${input.symbol} has ${sessions} sessions (needs ${REGIME_TREND_LONG_WINDOW} for SMA200).`;
     return {
       ageSeconds,
@@ -838,6 +842,7 @@ const classifyRowSummary = (
     pillars.trend.state === "uptrend" &&
     breadthCalm &&
     pillars.dealerGamma.state !== "negative" &&
+    pillars.dealerGamma.state !== "missing" &&
     pillars.credit.state === "calm" &&
     pillars.volatility.state === "calm"
   ) {

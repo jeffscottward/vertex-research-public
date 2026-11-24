@@ -248,7 +248,8 @@ const resolveTrendForSymbol = async (
   symbol: RegimeIndexSymbol,
   storedMap: Map<string, MarketDailyColumns> | null,
   context: ApiContext,
-  now: Date
+  now: Date,
+  errorDetail?: string
 ): Promise<RegimeTrendPillar> => {
   const columns = storedMap?.get(symbol);
   const storedPillar = classifyTrendPillar(
@@ -258,7 +259,8 @@ const resolveTrendForSymbol = async (
       source: columns === undefined ? "none" : "market_daily_series",
       symbol,
     },
-    now
+    now,
+    errorDetail
   );
 
   const needsFallback = storedPillar.state === "missing" || storedPillar.stale;
@@ -307,8 +309,18 @@ const resolveTrendForSymbol = async (
       },
       now
     );
-    // Retain stale Postgres SMAs if IBKR fallback returns too few bars.
-    return ibkrPillar.state === "missing" ? storedPillar : ibkrPillar;
+    // Retain stale Postgres SMAs if IBKR fallback returns too few bars or an older stale cache.
+    if (ibkrPillar.state === "missing") return storedPillar;
+    if (
+      storedPillar.state !== "missing" &&
+      ibkrPillar.stale &&
+      storedPillar.ageSeconds !== null &&
+      ibkrPillar.ageSeconds !== null &&
+      storedPillar.ageSeconds < ibkrPillar.ageSeconds
+    ) {
+      return storedPillar;
+    }
+    return ibkrPillar;
   } catch {
     barsFallbackCooldownUntilMs =
       now.getTime() + MARKET_REGIME_BARS_COOLDOWN_MS;
@@ -344,7 +356,13 @@ const get = api.marketRegime.get
     for (const symbol of REGIME_INDEX_SYMBOLS) {
       trends.set(
         symbol,
-        await resolveTrendForSymbol(symbol, trendSeries.data, context, now)
+        await resolveTrendForSymbol(
+          symbol,
+          trendSeries.data,
+          context,
+          now,
+          trendSeries.errorDetail
+        )
       );
     }
 

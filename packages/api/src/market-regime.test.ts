@@ -71,8 +71,9 @@ describe("market-regime-rules", () => {
       expect(computeAgeSeconds("2026-11-22T17:50:00.000Z", NOW)).toBe(600);
     });
 
-    it("computes simple moving averages only when enough closes exist", () => {
+    it("computes simple moving averages only when enough finite closes exist", () => {
       expect(simpleMovingAverage([10, 20], 3)).toBeNull();
+      expect(simpleMovingAverage([10, Number.NaN, 30], 2)).toBeNull();
       expect(simpleMovingAverage([10, 20, 30, 40], 2)).toBe(35);
     });
   });
@@ -1184,6 +1185,22 @@ describe("market-regime-rules", () => {
       );
       expect(missingCreditMixed.mixedDrivers).not.toContain(
         "Trend is uptrend while stress lights are active"
+      );
+
+      // Missing dealer gamma on covered ETF (SPY) blocks risk_on even when all other pillars are calm
+      const missingGammaMixed = buildRegimeEtfRow("SPY", {
+        breadth90: idleBreadth,
+        credit: calmCredit,
+        dealerGamma: classifyDealerGammaPillar("SPY", null, NOW),
+        trend: freshUpTrend,
+        volatility: calmVol,
+      });
+      expect(missingGammaMixed.summary).toBe("mixed");
+      expect(missingGammaMixed.mixedDrivers).toContain(
+        "Trend is uptrend but missing inputs block risk-on"
+      );
+      expect(missingGammaMixed.mixedDrivers).toContain(
+        "Dealer gamma input is missing"
       );
 
       // Missing trend with 3 calm fresh pillars -> mixed explaining missing trend

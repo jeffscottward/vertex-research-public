@@ -214,7 +214,9 @@ export const creditCellView = (
   const primary =
     pillar.hyOas === null
       ? "No spread"
-      : `${pillar.hyOas.toFixed(2)}% (${pillar.hyOasBps} bps)`;
+      : pillar.hyOasBps === null
+        ? `${pillar.hyOas.toFixed(2)}%`
+        : `${pillar.hyOas.toFixed(2)}% (${pillar.hyOasBps} bps)`;
   const parts: string[] = [];
   if (pillar.hyOasChange20dBps !== null) {
     parts.push(`20d ${signedBps(pillar.hyOasChange20dBps)}`);

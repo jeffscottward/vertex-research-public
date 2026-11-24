@@ -660,6 +660,9 @@ describe("marketRegime.get server", () => {
     });
     const brokenRes = await brokenClient.marketRegime.get({});
     expect(brokenRes.overall.summary).toBe("incomplete");
+    expect(brokenRes.etfs[0]?.trend.detail).toBe(
+      "Missing: daily price series read failed."
+    );
     expect(JSON.stringify(brokenRes)).not.toContain("secret postgres");
     expect(JSON.stringify(brokenRes)).not.toContain("secret loopback");
 
@@ -682,6 +685,104 @@ describe("marketRegime.get server", () => {
       state: "widening",
     });
     expect(unconfiguredRes.etfs[0]?.breadth90.state).toBe("missing");
+    expect(unconfiguredRes.etfs[0]?.trend.detail).toBe(
+      "Missing: daily price series storage is not configured."
+    );
+
+    // Retain newer stale Postgres SMAs when IBKR fallback returns an older stale cached series
+    const olderStaleBars = Array.from({ length: 210 }, (_, idx) => ({
+      c: 100 + idx * 0.4,
+      h: 101 + idx * 0.4,
+      l: 99 + idx * 0.4,
+      o: 100 + idx * 0.4,
+      t:
+        Math.floor(Date.parse("2026-11-10T00:00:00.000Z") / 1000) -
+        (209 - idx) * 86_400,
+      v: 1_000_000,
+    }));
+    const olderBarsFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const symbol = new URL(String(input)).searchParams.get("symbol") ?? "QQQ";
+      return jsonResponse({
+        as_of: "2026-11-10T00:00:00Z",
+        bars: olderStaleBars,
+        cache: {
+          age_seconds: 10,
+          hit: true,
+          stale: true,
+          ttl_seconds: 300,
+        },
+        client_id: 77,
+        contract: {
+          conId: 1,
+          currency: "USD",
+          exchange: "SMART",
+          lastTradeDateOrContractMonth: null,
+          localSymbol: symbol,
+          longName: `${symbol} ETF`,
+          matches: 1,
+          multiplier: null,
+          secType: "STK",
+          timeZoneId: "US/Eastern",
+        },
+        count: olderStaleBars.length,
+        fetched_at: "2026-11-10T21:00:00Z",
+        request: {
+          barSize: "1 day",
+          contractMonth: null,
+          currency: "USD",
+          duration: "1 Y",
+          exchange: "SMART",
+          secType: "STK",
+          symbol,
+          useRTH: true,
+          whatToShow: "TRADES",
+        },
+        schema: "vertex-history-bars-v2",
+        source: "ibkr-gateway",
+        volume_unit: "shares",
+      });
+    });
+    setMarketRegimeOptionsForTesting({
+      marketBars: { fetch: olderBarsFetch },
+      now: () => NOW,
+    });
+    const stalePostgresRepos = buildRepositories({
+      marketDailySeries: {
+        latestPoints: vi.fn(async () => new Map()),
+        loadSeries: vi.fn(
+          async () =>
+            new Map([
+              [
+                "QQQ",
+                {
+                  close: Array.from(
+                    { length: 210 },
+                    (_, idx) => 200 + idx * 0.5
+                  ),
+                  dates: Array.from({ length: 210 }, (_, idx) =>
+                    idx === 209 ? "2026-11-15" : "2026-10-01"
+                  ),
+                },
+              ],
+            ])
+        ),
+      } as unknown as MarketDailySeriesRepository,
+    });
+    const retainNewerRes = await makeClient({
+      marketHistory: {
+        token: "test-token",
+        url: "http://127.0.0.1:4199",
+      },
+      repositories: stalePostgresRepos,
+      session: makeSession("operator@domain.test"),
+    }).marketRegime.get({});
+    expect(olderBarsFetch).toHaveBeenCalled();
+    expect(retainNewerRes.etfs[0]?.trend).toMatchObject({
+      asOf: "2026-11-15",
+      source: "market_daily_series",
+      stale: true,
+      state: "uptrend",
+    });
 
     // Exercise default system clock path when now option is not provided
     setMarketRegimeOptionsForTesting(null);

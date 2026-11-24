@@ -519,9 +519,13 @@ describe("market-regime view-model", () => {
     expect(
       creditCellView({
         ...data.etfs[2]!.credit,
+        hyOasBps: null,
         hyOasChange20dBps: null,
-      }).secondary
-    ).toBe("HY OAS");
+      })
+    ).toMatchObject({
+      primary: "4.20%",
+      secondary: "HY OAS",
+    });
     expect(trendCellView(data.etfs[3]!.trend).badge.label).toBe("Mixed");
     expect(gammaCellView(data.etfs[0]!.dealerGamma).badge.label).toBe(
       "Positive"
