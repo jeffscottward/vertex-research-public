@@ -70,6 +70,12 @@ describe("bubbleDirectionalSign", () => {
     expect(bubbleDirectionalSign("put", "below_bid")).toBe(1);
     expect(bubbleDirectionalSign("put", "mid")).toBe(0);
     expect(bubbleDirectionalSign("put", "unknown")).toBe(0);
+    expect(
+      bubbleDirectionalSign("call", "unexpected" as unknown as "unknown")
+    ).toBe(0);
+    expect(
+      bubbleDirectionalSign("put", "toString" as unknown as "unknown")
+    ).toBe(0);
   });
 });
 

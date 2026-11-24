@@ -111,7 +111,9 @@ export const bubbleDirectionalSign = (
   right: "call" | "put",
   side: StoredOptionSide
 ): -1 | 0 | 1 => {
-  const sideSign = OPTION_SIDE_SIGN[side];
+  const sideSign = Object.hasOwn(OPTION_SIDE_SIGN, side)
+    ? OPTION_SIDE_SIGN[side]
+    : 0;
   if (sideSign === 0) return 0;
   return (sideSign * (right === "call" ? 1 : -1)) as -1 | 1;
 };
