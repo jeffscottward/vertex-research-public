@@ -4,7 +4,11 @@
 // recent flow, never an instruction to trade.
 // Used by: apps/web/src/components/portal/flow-workspace.tsx.
 // See: packages/api/src/contracts/flow.ts; docs/vertex-rebuild/flow-pipeline.md.
-import { FLOW_INSTRUMENTS, type FlowSnapshot } from "@darkfactory/api";
+import {
+  classifyConnectivityMessage,
+  FLOW_INSTRUMENTS,
+  type FlowSnapshot,
+} from "@darkfactory/api";
 
 import { statusTime } from "../../components/status-time.ts";
 
@@ -131,6 +135,32 @@ export const freshnessRows = (
 /** True when no source has ever stored data for this symbol. */
 export const neverCollected = (freshness: readonly FlowFreshness[]): boolean =>
   freshness.every((row) => row.state === "never");
+
+export type FailingFreshnessSource = Readonly<{
+  authFailed: boolean;
+  label: string;
+  message: string;
+  source: FlowSource;
+}>;
+
+/** Sources whose newest collector attempt failed (`lastStatus === "unavailable"`), even if closed/fresh. */
+export const failingFreshnessSources = (
+  freshness: readonly FlowFreshness[]
+): readonly FailingFreshnessSource[] =>
+  freshnessRows(freshness)
+    .filter((row) => row.lastStatus === "unavailable")
+    .map((row) => {
+      const message =
+        row.message ??
+        "Collector recorded no error message; check the collector log or /connections";
+      return {
+        authFailed:
+          classifyConnectivityMessage(message).category === "auth_failed",
+        label: row.label,
+        message,
+        source: row.source,
+      };
+    });
 
 // --- Confluence ------------------------------------------------------------------------------
 

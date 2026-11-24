@@ -31,6 +31,7 @@ import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchScreenContract } from "./contracts/research-screen.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
+import { connectivityContract } from "./contracts/connectivity.ts";
 import { semanticTermsContract } from "./contracts/semantic-terms.ts";
 import { masterRulesContract } from "./contracts/master-rules.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
@@ -319,6 +320,7 @@ export const appContract = {
   researchScreen: researchScreenContract,
   researchStudies: researchStudiesContract,
   flow: flowContract,
+  connectivity: connectivityContract,
   semanticTerms: semanticTermsContract,
   masterRules: masterRulesContract,
   clickLog: clickLogContract,

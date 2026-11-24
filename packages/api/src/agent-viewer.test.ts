@@ -260,6 +260,7 @@ const REVIEWED_READS: readonly string[] = [
   "breadth90.get",
   "clickLog.query",
   "congressTrades.feed",
+  "connectivity.health",
   "dashboard.summary",
   "deploymentRequests.get",
   "deploymentRequests.list",

@@ -95,6 +95,7 @@ import {
   type FlowRequest,
   type FlowSymbol,
   type FlowWindowMinutes,
+  failingFreshnessSources,
   freshnessRows,
   gexLevelRows,
   gexMetrics,
@@ -231,10 +232,16 @@ const Empty = ({
 );
 
 const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
+  const failing = failingFreshnessSources(snapshot.freshness);
+  const authFailing = failing.filter((row) => row.authFailed);
   const allFresh = snapshot.freshness.every(
-    (row) => row.state !== "stale" && row.state !== "never"
+    (row) =>
+      row.state !== "stale" &&
+      row.state !== "never" &&
+      row.lastStatus !== "unavailable"
   );
-  const [open, setOpen] = useState(!allFresh);
+  const [manualOpen, setManualOpen] = useState(false);
+  const open = !allFresh || manualOpen;
   return (
     <Panel
       description={
@@ -254,6 +261,27 @@ const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
       }
       title="Data freshness"
     >
+      {failing.length > 0 ? (
+        <div
+          className="mb-3 space-y-1 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm"
+          data-flow-auth-alert={authFailing.length > 0 ? "" : undefined}
+          data-flow-source-alert=""
+          role="alert"
+        >
+          <p className="font-medium text-destructive">
+            {authFailing.length > 0
+              ? "Feed authentication failed — owner credential rotation required (never auto-rotated)."
+              : "One or more flow sources failed on the latest sample."}
+          </p>
+          <ul className="list-disc space-y-0.5 pl-5 text-xs">
+            {failing.map((row) => (
+              <li key={row.source}>
+                <span className="font-medium">{row.label}</span>: {row.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {neverCollected(snapshot.freshness) ? (
         <p className="mb-3 text-sm" data-flow-never="" role="note">
           Nothing has been collected for {snapshot.symbol} yet. The flow
@@ -267,7 +295,7 @@ const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
           </p>
           <Button
             aria-expanded={open}
-            onClick={() => setOpen((value) => !value)}
+            onClick={() => setManualOpen((value) => !value)}
             size="sm"
             variant="outline"
           >

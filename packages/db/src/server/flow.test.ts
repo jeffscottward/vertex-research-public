@@ -1822,3 +1822,36 @@ describe("createFlowRepository readMinutes", () => {
     expect(whereOf(select).sql).toContain('"minute" < $3');
   });
 });
+
+describe("createFlowRepository recentSamples", () => {
+  it("reads newest flow samples per (symbol, source) pair with a bounded per-pair limit", async () => {
+    const sample: FlowSampleRecord = {
+      at: FROM,
+      items: 0,
+      message: "QuantData orderFlow: HTTP 401.",
+      source: "options",
+      status: "unavailable",
+      symbol: "SPY",
+    };
+    // 4 symbols x 6 sources = 24 per-pair queries; high-frequency ticks never evict options/gex/market_premium.
+    const perPairResults = Array.from({ length: 24 }, (_, index) =>
+      index === 2 ? [sample] : []
+    );
+    const double = createDouble([
+      ...perPairResults,
+      ...Array.from({ length: 24 }, () => []),
+      ...Array.from({ length: 24 }, () => []),
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.recentSamples(5)).resolves.toEqual([sample]);
+    expect(double.operations).toHaveLength(24);
+    expect(double.operations[0]?.table).toBe(flowSamples);
+    expect(double.operations[0]?.limit).toBe(5);
+    expect(whereOf(double.operations[0]).sql).toContain('"symbol" = $1');
+    expect(whereOf(double.operations[0]).sql).toContain('"source" = $2');
+    await repository.recentSamples(0);
+    expect(double.operations[24]?.limit).toBe(1);
+    await repository.recentSamples(999);
+    expect(double.operations[48]?.limit).toBe(20);
+  });
+});

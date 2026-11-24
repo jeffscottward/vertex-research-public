@@ -92602,6 +92602,1517 @@
         ]
       }
     },
+    "/connectivity/alerts/chat-delivery": {
+      "post": {
+        "operationId": "connectivity.recordAlertChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "delivery": {
+                    "enum": [
+                      "sent",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "eventId": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "delivery",
+                  "eventId"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "committed": {
+                      "type": "boolean"
+                    },
+                    "delivery": {
+                      "enum": [
+                        "sent",
+                        "failed"
+                      ],
+                      "type": "string"
+                    },
+                    "eventId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "committed",
+                    "delivery",
+                    "eventId"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Connectivity storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: acknowledge #omp-alerts chat fallback delivery for a pending connectivity alert",
+        "tags": [
+          "Connectivity"
+        ]
+      }
+    },
+    "/connectivity/alerts/check": {
+      "post": {
+        "operationId": "connectivity.checkAlerts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "noop",
+                        "in-flight",
+                        "prune-active",
+                        "clear-pending",
+                        "alert",
+                        "recovery"
+                      ],
+                      "type": "string"
+                    },
+                    "activeAlertKeys": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "alertableIssues": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "category": {
+                            "enum": [
+                              "auth_failed",
+                              "upstream_5xx",
+                              "rate_limited",
+                              "unreachable",
+                              "feed_error"
+                            ],
+                            "type": "string"
+                          },
+                          "consecutiveFailures": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "envVars": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "escalation": {
+                            "enum": [
+                              "needs_you_credential_rotation",
+                              "alert",
+                              "info"
+                            ],
+                            "type": "string"
+                          },
+                          "httpStatus": {
+                            "anyOf": [
+                              {
+                                "maximum": 599,
+                                "minimum": 100,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "lastFailureAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "lastOkAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "layer": {
+                            "enum": [
+                              "flow",
+                              "openbb"
+                            ],
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "consecutiveFailures",
+                          "envVars",
+                          "escalation",
+                          "httpStatus",
+                          "key",
+                          "lastFailureAt",
+                          "lastOkAt",
+                          "layer",
+                          "message",
+                          "provider",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "checkedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "delivery": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "sent",
+                            "not-configured",
+                            "failed",
+                            "dry-run"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dryRun": {
+                      "type": "boolean"
+                    },
+                    "issues": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "category": {
+                            "enum": [
+                              "auth_failed",
+                              "upstream_5xx",
+                              "rate_limited",
+                              "unreachable",
+                              "feed_error"
+                            ],
+                            "type": "string"
+                          },
+                          "consecutiveFailures": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "envVars": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "escalation": {
+                            "enum": [
+                              "needs_you_credential_rotation",
+                              "alert",
+                              "info"
+                            ],
+                            "type": "string"
+                          },
+                          "httpStatus": {
+                            "anyOf": [
+                              {
+                                "maximum": 599,
+                                "minimum": 100,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "lastFailureAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "lastOkAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "layer": {
+                            "enum": [
+                              "flow",
+                              "openbb"
+                            ],
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "consecutiveFailures",
+                          "envVars",
+                          "escalation",
+                          "httpStatus",
+                          "key",
+                          "lastFailureAt",
+                          "lastOkAt",
+                          "layer",
+                          "message",
+                          "provider",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "needsOwnerAsk": {
+                      "type": "boolean"
+                    },
+                    "newlyAlerted": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "category": {
+                            "enum": [
+                              "auth_failed",
+                              "upstream_5xx",
+                              "rate_limited",
+                              "unreachable",
+                              "feed_error"
+                            ],
+                            "type": "string"
+                          },
+                          "consecutiveFailures": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "envVars": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "escalation": {
+                            "enum": [
+                              "needs_you_credential_rotation",
+                              "alert",
+                              "info"
+                            ],
+                            "type": "string"
+                          },
+                          "httpStatus": {
+                            "anyOf": [
+                              {
+                                "maximum": 599,
+                                "minimum": 100,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "lastFailureAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "lastOkAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "layer": {
+                            "enum": [
+                              "flow",
+                              "openbb"
+                            ],
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "consecutiveFailures",
+                          "envVars",
+                          "escalation",
+                          "httpStatus",
+                          "key",
+                          "lastFailureAt",
+                          "lastOkAt",
+                          "layer",
+                          "message",
+                          "provider",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "ntfyConfigured": {
+                      "type": "boolean"
+                    },
+                    "overallStatus": {
+                      "enum": [
+                        "healthy",
+                        "degraded",
+                        "auth_failed"
+                      ],
+                      "type": "string"
+                    },
+                    "pendingChat": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "body": {
+                              "type": "string"
+                            },
+                            "eventId": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "alert",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "needsOwnerAsk": {
+                              "type": "boolean"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "body",
+                            "eventId",
+                            "kind",
+                            "needsOwnerAsk",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "plannedAlert": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "body": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "alert",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "needsOwnerAsk": {
+                              "type": "boolean"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "body",
+                            "kind",
+                            "needsOwnerAsk",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "action",
+                    "activeAlertKeys",
+                    "alertableIssues",
+                    "checkedAt",
+                    "delivery",
+                    "dryRun",
+                    "issues",
+                    "needsOwnerAsk",
+                    "newlyAlerted",
+                    "ntfyConfigured",
+                    "overallStatus",
+                    "pendingChat",
+                    "plannedAlert"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Connectivity storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: evaluate Vertex feed connectivity health and send alerts or credential-rotation escalations",
+        "tags": [
+          "Connectivity"
+        ]
+      }
+    },
+    "/connectivity/health": {
+      "get": {
+        "operationId": "connectivity.health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "activeAlertKeys": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "checkedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "issues": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "category": {
+                            "enum": [
+                              "auth_failed",
+                              "upstream_5xx",
+                              "rate_limited",
+                              "unreachable",
+                              "feed_error"
+                            ],
+                            "type": "string"
+                          },
+                          "consecutiveFailures": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "envVars": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "escalation": {
+                            "enum": [
+                              "needs_you_credential_rotation",
+                              "alert",
+                              "info"
+                            ],
+                            "type": "string"
+                          },
+                          "httpStatus": {
+                            "anyOf": [
+                              {
+                                "maximum": 599,
+                                "minimum": 100,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "lastFailureAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "lastOkAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "layer": {
+                            "enum": [
+                              "flow",
+                              "openbb"
+                            ],
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "consecutiveFailures",
+                          "envVars",
+                          "escalation",
+                          "httpStatus",
+                          "key",
+                          "lastFailureAt",
+                          "lastOkAt",
+                          "layer",
+                          "message",
+                          "provider",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "ntfyConfigured": {
+                      "type": "boolean"
+                    },
+                    "overallStatus": {
+                      "enum": [
+                        "healthy",
+                        "degraded",
+                        "auth_failed"
+                      ],
+                      "type": "string"
+                    },
+                    "pendingDelivery": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "pending",
+                            "not-configured",
+                            "failed"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pendingKind": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "alert",
+                            "recovery"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "providers": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "activeIssueCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "configured": {
+                            "type": "boolean"
+                          },
+                          "envVars": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "enum": [
+                              "healthy",
+                              "degraded",
+                              "auth_failed",
+                              "not_configured"
+                            ],
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "activeIssueCount",
+                          "configured",
+                          "envVars",
+                          "id",
+                          "label",
+                          "status",
+                          "summary"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "activeAlertKeys",
+                    "checkedAt",
+                    "issues",
+                    "ntfyConfigured",
+                    "overallStatus",
+                    "pendingDelivery",
+                    "pendingKind",
+                    "providers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Connectivity storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only Vertex connectivity health across QuantData, OpenBB, IBKR feeds, and runtime endpoints",
+        "tags": [
+          "Connectivity"
+        ]
+      }
+    },
     "/contact": {
       "post": {
         "operationId": "contact.submit",

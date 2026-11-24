@@ -8,9 +8,8 @@
 // not hide the other. Read-only.
 
 import { z } from "zod";
-
-import { OPTIONS_CHAIN_FLOW_HOURS } from "../options-chain-merge.ts";
 import type { OptionRight } from "../options-chain-greeks.ts";
+import { OPTIONS_CHAIN_FLOW_HOURS } from "../options-chain-merge.ts";
 import { newYorkDate } from "./gex-context.ts";
 import { quantDataRequests, quantDataStockPrice } from "./options-analytics.ts";
 import {
@@ -36,12 +35,12 @@ const PrintOpenInterestSchema = z.object({
 
 interface Tally {
   expiry: string;
-  right: OptionRight;
-  strike: number;
   flow: { premium: number; trades: number; volume: number };
   openInterest: number | null;
   // Trade time (ms) of the print `openInterest` came from.
   openInterestAt: number;
+  right: OptionRight;
+  strike: number;
 }
 
 const contractKey = (
@@ -124,6 +123,16 @@ const FLOW_FIRST_PAGE_WARNING =
 const failureMessage = (result: QuantDataResult): string | null =>
   result.ok ? null : result.message;
 
+const prioritizedFailureMessage = (
+  primary: QuantDataResult,
+  secondary: QuantDataResult
+): string | null => {
+  if (!primary.ok && primary.reason === "auth_failed") return primary.message;
+  if (!secondary.ok && secondary.reason === "auth_failed")
+    return secondary.message;
+  return failureMessage(primary) ?? failureMessage(secondary);
+};
+
 /**
  * Quant Data analytics per contract of every expiry through the shared client. `now` is the
  * request clock. Expiry dates follow the New York market day, as in the analytics: expiries
@@ -143,8 +152,14 @@ export const createQuantDataOptionsSource = (
     );
     const chainResult = await requests.termStructure();
     const flowResult = await requests.orderFlow();
-    if (!(chainResult.ok || flowResult.ok))
-      throw new OptionsChainSourceError("UNAVAILABLE", chainResult.message);
+    if (!(chainResult.ok || flowResult.ok)) {
+      const message =
+        flowResult.reason === "auth_failed" &&
+        chainResult.reason !== "auth_failed"
+          ? flowResult.message
+          : chainResult.message;
+      throw new OptionsChainSourceError("UNAVAILABLE", message);
+    }
     const today = newYorkDate(at);
     const contracts = chainResult.ok
       ? chainRows(chainResult.data, today)
@@ -178,8 +193,7 @@ export const createQuantDataOptionsSource = (
       rows,
       spot: quantDataStockPrice(chainResult),
       warning:
-        failureMessage(chainResult) ??
-        failureMessage(flowResult) ??
+        prioritizedFailureMessage(chainResult, flowResult) ??
         (flowFirstPageOnly ? FLOW_FIRST_PAGE_WARNING : null),
     };
   },

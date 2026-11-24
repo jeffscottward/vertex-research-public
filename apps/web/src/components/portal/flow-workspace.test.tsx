@@ -1041,6 +1041,55 @@ describe("FlowWorkspace control panel", () => {
     expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(0);
   });
 
+  it("never hides an unavailable/401 source under All sources fresh even when closed or fresh", async () => {
+    const lab = labFlowSnapshot("SPY", 120);
+    const authBroken = {
+      ...lab,
+      freshness: lab.freshness.map((row) =>
+        row.source === "options"
+          ? {
+              ...row,
+              lastStatus: "unavailable" as const,
+              message:
+                "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+              state: "closed" as const,
+            }
+          : { ...row, lastStatus: "ok" as const, state: "fresh" as const }
+      ),
+    };
+    const { gateway } = fixed(() => authBroken);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await idle(container);
+    expect(container.querySelector("[data-flow-all-fresh]")).toBeNull();
+    expect(container.querySelector("[data-flow-auth-alert]")).not.toBeNull();
+    expect(
+      container.querySelector("[data-flow-source-alert]")?.textContent
+    ).toContain("owner credential rotation required");
+    expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(4);
+
+    const nonAuthBroken = {
+      ...lab,
+      freshness: lab.freshness.map((row) =>
+        row.source === "ticks"
+          ? {
+              ...row,
+              lastStatus: "unavailable" as const,
+              message: null,
+              state: "fresh" as const,
+            }
+          : { ...row, lastStatus: "ok" as const, state: "fresh" as const }
+      ),
+    };
+    const { gateway: nonAuthGateway } = fixed(() => nonAuthBroken);
+    const container2 = await render(<FlowWorkspace gateway={nonAuthGateway} />);
+    await idle(container2);
+    expect(container2.querySelector("[data-flow-all-fresh]")).toBeNull();
+    expect(container2.querySelector("[data-flow-auth-alert]")).toBeNull();
+    expect(
+      container2.querySelector("[data-flow-source-alert]")?.textContent
+    ).toContain("Collector recorded no error message");
+  });
+
   it("uses the word agree only in the control panel", async () => {
     const { gateway } = fixed(({ minutes, symbol }) =>
       labFlowSnapshot(symbol, minutes)

@@ -86,6 +86,7 @@ import { researchReportsRouter } from "./research-reports.ts";
 import { researchScreenRouter } from "./research-screen.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
 import { flowRouter } from "./flow.ts";
+import { connectivityRouter } from "./connectivity.ts";
 import { semanticTermsRouter } from "./semantic-terms.ts";
 import { smartMoneyRouter } from "./smart-money.ts";
 import { masterRulesRouter } from "./master-rules.ts";
@@ -1768,6 +1769,7 @@ export const appRouter = api.router({
   researchScreen: researchScreenRouter,
   researchStudies: researchStudiesRouter,
   flow: flowRouter,
+  connectivity: connectivityRouter,
   semanticTerms: semanticTermsRouter,
   masterRules: masterRulesRouter,
   clickLog: clickLogRouter,

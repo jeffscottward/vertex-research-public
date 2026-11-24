@@ -364,6 +364,7 @@ const fakeRepository = (
     readOptionStrikeTotals: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(),
+    recentSamples: vi.fn<FlowRepository["recentSamples"]>(async () => []),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     storeMarketPremium: vi.fn<FlowRepository["storeMarketPremium"]>(
       async ({ rows }) => rows.length
