@@ -1607,7 +1607,7 @@ export const FlowOffExchangePrintSchema = z
 export const FlowOffExchangeLevelSchema = z
   .object({
     rank: z.number().int().min(1).max(FLOW_OFF_EXCHANGE_MAX_LEVELS),
-    bandLow: finite.positive(),
+    bandLow: nonNegative,
     bandHigh: finite.positive(),
     price: finite.positive(),
     minPrice: finite.positive(),

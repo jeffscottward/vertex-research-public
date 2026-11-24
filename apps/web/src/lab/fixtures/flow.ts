@@ -1562,12 +1562,15 @@ export const labFlowOffExchangeLevels = (
   sessions.forEach((day, dayIdx) => {
     // EDT in late October: 09:30 ET = 13:30 UTC
     const openMs = Date.parse(`${day}T13:30:00.000Z`);
-    for (let offset = 0; offset < 360; offset += 15) {
-      const delta = roundTo((random() - 0.46) * 0.65, 2);
+    for (let offset = 0; offset < 360; offset += 5) {
+      if (dayIdx === sessions.length - 1 && offset >= 180 && offset < 205) {
+        continue;
+      }
+      const delta = roundTo((random() - 0.46) * 0.45, 2);
       const open = price;
       const close = roundTo(open + delta, 2);
-      const high = roundTo(Math.max(open, close) + 0.18, 2);
-      const low = roundTo(Math.min(open, close) - 0.16, 2);
+      const high = roundTo(Math.max(open, close) + 0.14, 2);
+      const low = roundTo(Math.min(open, close) - 0.12, 2);
       const vwap = roundTo((open + high + low + close) / 4, 2);
       const volume = 42_000 + Math.round(random() * 28_000);
       const trfShare = 0.34 + random() * 0.22;
@@ -1585,7 +1588,6 @@ export const labFlowOffExchangeLevels = (
       });
       price = close;
     }
-
     const anchors: readonly Readonly<{
       offsetMin: number;
       price: number;

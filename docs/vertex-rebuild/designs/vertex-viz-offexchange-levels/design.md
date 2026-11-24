@@ -38,8 +38,8 @@ Figure 1 is a mock. It shows layout, range selector (`1d` / `5d` / `14d`), SPY p
 3. **Three lookback ranges (`1d`, `5d` default, `14d`) with session-compressed bucketing.**
    - `1d`: newest stored SPY regular session `[09:30, 16:00)` NY time, `1`-minute bars (up to 390 bars).
    - `5d` (default): up to 5 recent trading sessions within the lookback window, `5`-minute bars (up to 390 bars), surfacing multi-day dark pool levels immediately even early in the morning session.
-   - `14d`: up to 14 calendar days (matching `flow_events` 14-day retention), `15`-minute bars (up to 390 bars).
-   - Price lines break across session boundaries and unsampled gaps (`> 2 * bucketMinutes`), never fabricating price continuity over missing samples.
+   - `14d`: up to 10 recent trading sessions within 14 calendar days (matching `flow_events` 14-day retention), `15`-minute bars (up to 260 bars).
+   - Price lines break across session boundaries and unsampled gaps (`> max(2 * bucketMinutes, 12) min`), rendering isolated single-bar points as markers instead of invisible single-point polylines, never fabricating price continuity over missing samples.
 4. **Pure rules in `packages/api`, pure view-model in `apps/web`.**
    - `packages/api/src/flow-off-exchange-levels-rules.ts` owns bar bucketing, `$0.25` level clustering, VWAP calculation, ranking, spot distance, and FINRA weekly folding.
    - `apps/web/src/features/flow/off-exchange-levels-view-model.ts` owns SVG geometry, formatters, keyboard selection, and ARIA copy.

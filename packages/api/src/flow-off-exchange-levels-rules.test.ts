@@ -289,8 +289,53 @@ describe("foldOffExchangeLevels", () => {
     });
     expect(result.levels.map((l) => l.bandLow)).toEqual([100, 200]);
   });
-});
 
+  it("filters out extended-hours prints and sanitizes non-finite minute/FINRA numbers", () => {
+    const result = foldOffExchangeLevels({
+      events: [
+        // Pre-market (08:30 ET = 13:30 UTC in EST) -> excluded
+        printEvent("pre", "2026-11-20T13:30:00.000Z", 590, 20_000, "bullish"),
+        // Regular hours (10:00 ET = 15:00 UTC in EST) -> included
+        printEvent("reg", "2026-11-20T15:00:00.000Z", 590.5, 25_000, "bullish"),
+        // After-hours (16:15 ET = 21:15 UTC in EST) -> excluded
+        printEvent("post", "2026-11-20T21:15:00.000Z", 591, 30_000, "bearish"),
+        // Overflow notional (Infinity) -> excluded
+        printEvent("inf", "2026-11-20T15:10:00.000Z", 1e308, 10, "neutral"),
+      ],
+      finraRows: [
+        {
+          lastUpdated: null,
+          shares: Number.NaN,
+          tier: null,
+          trades: Number.POSITIVE_INFINITY,
+          venue: "ats",
+          weekStart: "2026-11-16",
+        },
+      ],
+      minutes: [
+        {
+          close: 590.5,
+          coveredSeconds: Number.NaN,
+          high: 591,
+          low: 590,
+          minute: new Date("2026-11-20T15:00:00.000Z"),
+          offExchangeVolume: Number.POSITIVE_INFINITY,
+          open: 590.2,
+          volume: Number.NaN,
+          vwap: 590.4,
+        },
+      ],
+      range: "5d",
+      truncated: false,
+    });
+    expect(result.prints.map((p) => p.key)).toEqual(["reg"]);
+    expect(result.bars[0]?.volume).toBe(0);
+    expect(result.bars[0]?.offExchangeVolume).toBe(0);
+    expect(result.bars[0]?.coveredSeconds).toBe(0);
+    expect(result.finraWeekly[0]?.atsShares).toBe(0);
+    expect(result.finraWeekly[0]?.atsTrades).toBe(0);
+  });
+});
 describe("foldFinraWeeklyContext", () => {
   it("groups ATS and non-ATS rows by week, keeps newest 8 weeks oldest-first, and handles zeros", () => {
     const rows: OffExchangeFinraRow[] = [];

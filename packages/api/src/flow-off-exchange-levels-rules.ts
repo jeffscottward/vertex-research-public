@@ -107,8 +107,10 @@ export type OffExchangeFoldOutput = Readonly<{
 const isPositiveFinite = (value: number | null): value is number =>
   value !== null && Number.isFinite(value) && value > 0;
 
-const clampUnit = (value: number): number => Math.min(1, Math.max(0, value));
+const nonNegativeFinite = (value: number): number =>
+  Number.isFinite(value) ? Math.max(0, value) : 0;
 
+const clampUnit = (value: number): number => Math.min(1, Math.max(0, value));
 const dominantDirectionOf = (
   buyShares: number,
   sellShares: number,
@@ -195,9 +197,12 @@ const bucketMinutesRows = (
     const slotOffsetMinutes = offset % bucketMinutes;
     const startMs = row.minute.getTime() - slotOffsetMinutes * 60_000;
     const key = `${session}:${slotIndex}`;
-    const vol = Math.max(0, row.volume);
-    const offVol = Math.max(0, row.offExchangeVolume);
-    const covered = Math.max(0, Math.min(60, Math.round(row.coveredSeconds)));
+    const vol = nonNegativeFinite(row.volume);
+    const offVol = nonNegativeFinite(row.offExchangeVolume);
+    const covered = Math.min(
+      60,
+      Math.round(nonNegativeFinite(row.coveredSeconds))
+    );
     sampledVolume += vol;
     sampledOffExchangeVolume += offVol;
     totalCovered += covered;
@@ -310,8 +315,8 @@ export const foldFinraWeeklyContext = (
       nonAtsTrades: 0,
       tier: null,
     };
-    const shares = Math.max(0, row.shares);
-    const trades = Math.max(0, Math.round(row.trades));
+    const shares = nonNegativeFinite(row.shares);
+    const trades = Math.round(nonNegativeFinite(row.trades));
     if (row.venue === "ats") {
       entry.atsShares += shares;
       entry.atsTrades += trades;
@@ -368,24 +373,32 @@ export const foldOffExchangeLevels = (
   const validPrints = [...input.events]
     .filter(
       (event): event is OffExchangeEventRow & { price: number; size: number } =>
-        isPositiveFinite(event.price) && isPositiveFinite(event.size)
+        isPositiveFinite(event.price) &&
+        isPositiveFinite(event.size) &&
+        Number.isFinite(event.price * event.size)
     )
-    .map((event) => ({
-      at: event.at,
-      direction: event.direction,
-      key: event.key,
-      notional: event.price * event.size,
-      price: event.price,
-      session: newYorkClock(event.at).day,
-      size: event.size,
-    }))
+    .map((event) => {
+      const ny = newYorkClock(event.at);
+      return {
+        at: event.at,
+        direction: event.direction,
+        key: event.key,
+        minuteOfDay: ny.minute,
+        notional: event.price * event.size,
+        price: event.price,
+        session: ny.day,
+        size: event.size,
+      };
+    })
     .filter(
-      (item) => allowedSessions.size === 0 || allowedSessions.has(item.session)
+      (item) =>
+        item.minuteOfDay >= SESSION_OPEN_MINUTE &&
+        item.minuteOfDay < SESSION_CLOSE_MINUTE &&
+        (allowedSessions.size === 0 || allowedSessions.has(item.session))
     )
     .sort(
       (a, b) => a.at.getTime() - b.at.getTime() || a.key.localeCompare(b.key)
     );
-
   const clusters = new Map<number, LevelAccumulator>();
   let totalShares = 0;
   let totalNotional = 0;

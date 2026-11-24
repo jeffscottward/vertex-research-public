@@ -134,22 +134,31 @@ const ChartLegend = () => (
       VWAP
     </li>
     <li className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className="inline-block h-0.5 w-4 bg-success" />
-      Buy-skewed level
+      <span
+        aria-hidden="true"
+        className="inline-block size-2 rounded-full bg-success"
+      />
+      <span aria-hidden="true" className="inline-block h-0.5 w-3 bg-success" />
+      Buy-skewed (circle / solid)
     </li>
     <li className="inline-flex items-center gap-1.5">
       <span
         aria-hidden="true"
-        className="inline-block w-4 border-destructive border-t-2 border-dashed"
+        className="inline-block size-2 rotate-45 bg-destructive"
       />
-      Sell-skewed level
-    </li>
-    <li className="inline-flex items-center gap-1.5">
       <span
         aria-hidden="true"
-        className="inline-block w-4 border-warning border-t-2 border-dotted"
+        className="inline-block w-3 border-destructive border-t-2 border-dashed"
       />
-      Mixed level / Spot
+      Sell-skewed (diamond / dashed)
+    </li>
+    <li className="inline-flex items-center gap-1.5">
+      <span aria-hidden="true" className="inline-block size-2 bg-warning" />
+      <span
+        aria-hidden="true"
+        className="inline-block w-3 border-warning border-t-2 border-dotted"
+      />
+      Mixed (square) / Spot
     </li>
     <li className="inline-flex items-center gap-1.5">
       <span
@@ -186,7 +195,10 @@ const OffExchangeChartSvg = ({
   return (
     <figure className="space-y-2">
       <ChartLegend />
-      <div className="space-y-1 overflow-x-auto rounded-md border border-border bg-card/40 p-2">
+      <TableScroll
+        className="space-y-1 rounded-md border border-border bg-card/40 p-2"
+        label="Off-exchange print levels chart (scrolls sideways)"
+      >
         <svg
           aria-label={offExchangeAriaLabel(response)}
           className="block h-auto w-full min-w-[600px] text-foreground"
@@ -246,6 +258,7 @@ const OffExchangeChartSvg = ({
               >
                 <title>{level.ariaLabel}</title>
                 <rect
+                  fill={color}
                   fillOpacity={active ? 0.2 : 0.08}
                   height={level.bandHeight}
                   width={plotRight - level.startX}
@@ -302,6 +315,17 @@ const OffExchangeChartSvg = ({
               strokeWidth={1.5}
             />
           ))}
+          {plot.vwapIsolatedPoints.map((pt, idx) => (
+            <circle
+              cx={pt.x}
+              cy={pt.y}
+              data-flow-off-exchange-vwap-point=""
+              fill="var(--color-info)"
+              fillOpacity={0.8}
+              key={`vwap-pt-${idx}`}
+              r={2}
+            />
+          ))}
 
           {/* Price segments */}
           {plot.priceSegments.map((points, idx) => (
@@ -314,7 +338,16 @@ const OffExchangeChartSvg = ({
               strokeWidth={2}
             />
           ))}
-
+          {plot.priceIsolatedPoints.map((pt, idx) => (
+            <circle
+              cx={pt.x}
+              cy={pt.y}
+              data-flow-off-exchange-price-point=""
+              fill="currentColor"
+              key={`price-pt-${idx}`}
+              r={2.2}
+            />
+          ))}
           {/* Latest spot reference line */}
           {plot.spotLine === null ? null : (
             <g data-flow-off-exchange-spot="">
@@ -340,21 +373,62 @@ const OffExchangeChartSvg = ({
             </g>
           )}
 
-          {/* Individual FINRA TRF print dots */}
+          {/* Individual FINRA TRF print markers (shape + color: circle=bullish, diamond=bearish, square=neutral) */}
           {plot.printDots.map((dot) => {
             const active =
               selectedIndex !== null && dot.levelIndex === selectedIndex;
             const dimmed =
               selectedIndex !== null && dot.levelIndex !== selectedIndex;
+            const r = active ? dot.radius + 1.5 : dot.radius;
+            const fill = DIRECTION_STROKE[dot.direction];
+            const fillOpacity = dimmed ? 0.25 : 0.85;
+            if (dot.direction === "bearish") {
+              const points = `${dot.x},${dot.y - r} ${dot.x + r},${dot.y} ${dot.x},${dot.y + r} ${dot.x - r},${dot.y}`;
+              return (
+                <polygon
+                  data-flow-off-exchange-dot={dot.key}
+                  data-flow-off-exchange-shape="diamond"
+                  fill={fill}
+                  fillOpacity={fillOpacity}
+                  key={dot.key}
+                  points={points}
+                  stroke="var(--color-background)"
+                  strokeWidth={1.2}
+                >
+                  <title>{dot.ariaLabel}</title>
+                </polygon>
+              );
+            }
+            if (dot.direction === "neutral") {
+              const side = Math.round(r * 1.7 * 10) / 10;
+              return (
+                <rect
+                  data-flow-off-exchange-dot={dot.key}
+                  data-flow-off-exchange-shape="square"
+                  fill={fill}
+                  fillOpacity={fillOpacity}
+                  height={side}
+                  key={dot.key}
+                  stroke="var(--color-background)"
+                  strokeWidth={1.2}
+                  width={side}
+                  x={Math.round((dot.x - side / 2) * 10) / 10}
+                  y={Math.round((dot.y - side / 2) * 10) / 10}
+                >
+                  <title>{dot.ariaLabel}</title>
+                </rect>
+              );
+            }
             return (
               <circle
                 cx={dot.x}
                 cy={dot.y}
                 data-flow-off-exchange-dot={dot.key}
-                fill={DIRECTION_STROKE[dot.direction]}
-                fillOpacity={dimmed ? 0.25 : 0.85}
+                data-flow-off-exchange-shape="circle"
+                fill={fill}
+                fillOpacity={fillOpacity}
                 key={dot.key}
-                r={active ? dot.radius + 1.5 : dot.radius}
+                r={r}
                 stroke="var(--color-background)"
                 strokeWidth={1.2}
               >
@@ -362,7 +436,6 @@ const OffExchangeChartSvg = ({
               </circle>
             );
           })}
-
           {/* Right rail header */}
           <text
             fill="var(--color-muted-foreground)"
@@ -468,7 +541,7 @@ const OffExchangeChartSvg = ({
             </rect>
           ))}
         </svg>
-      </div>
+      </TableScroll>
     </figure>
   );
 };

@@ -131,10 +131,10 @@ const makeResponse = (
   range: "5d",
   rules: {
     capture: "sampled",
-    clusterStep: 0.5,
+    clusterStep: 0.25,
     finraMaxWeeks: 8,
-    maxLevels: 12,
-    maxPrints: 200,
+    maxLevels: 10,
+    maxPrints: 500,
     minPrintShares: 10_000,
     readCap: 2000,
     version: "flow-off-exchange-levels-rules.v1",
@@ -253,7 +253,7 @@ describe("off-exchange-levels view-model helpers", () => {
     );
 
     expect(offExchangeRuleText(single)).toContain("Research view only");
-    expect(offExchangeRuleText(single)).toContain("$0.50 bands");
+    expect(offExchangeRuleText(single)).toContain("$0.25 bands");
     expect(offExchangeAriaLabel(single)).toContain(
       "largest level #1 at $590.50"
     );
@@ -288,7 +288,15 @@ describe("buildOffExchangePlot", () => {
     const response = makeResponse({
       bars: [
         makeBar({ start: "2026-11-20T14:30:00.000Z" }),
-        // Gap > 2 * 15m = 30m breaks segment
+        makeBar({
+          close: 590.8,
+          high: 591.1,
+          low: 590.3,
+          offExchangeShare: 0.48,
+          start: "2026-11-20T14:45:00.000Z",
+          vwap: 590.7,
+        }),
+        // Gap > 2 * 15m = 30m breaks segment and isolates the single bar after the gap
         makeBar({
           close: 591.2,
           high: 591.5,
@@ -300,7 +308,6 @@ describe("buildOffExchangePlot", () => {
       ],
       levels: [
         makeLevel({ dominantDirection: "bullish", price: 590.5, rank: 1 }),
-        // Very close level triggers rail label collision avoidance
         makeLevel({
           bandHigh: 590.6,
           bandLow: 590.45,
@@ -340,17 +347,21 @@ describe("buildOffExchangePlot", () => {
     expect(plot.timeTicks).toHaveLength(5);
     expect(plot.timeTicks[0]?.label).toBe("09:30 ET");
     expect(plot.sessionDividers).toHaveLength(1);
-    expect(plot.priceSegments).toHaveLength(2);
-    expect(plot.vwapSegments).toHaveLength(2);
+    expect(plot.priceSegments).toHaveLength(1);
+    expect(plot.vwapSegments).toHaveLength(1);
+    expect(plot.priceIsolatedPoints).toHaveLength(1);
+    expect(plot.vwapIsolatedPoints).toHaveLength(1);
     expect(plot.spotLine?.label).toBe("Spot $590.00");
     expect(plot.levelLines).toHaveLength(3);
     expect(plot.levelLines[0]?.showRailLabel).toBe(true);
     expect(plot.levelLines[1]?.showRailLabel).toBe(false);
+    // Level #2 firstAt precedes visible session -> clamped to plotLeft
+    expect(plot.levelLines[1]?.startX).toBe(OFF_EXCHANGE_CHART.plotLeft);
     expect(plot.levelLines[0]?.ariaLabel).toContain("buy-skewed");
     expect(plot.levelLines[1]?.ariaLabel).toContain("sell-skewed");
     expect(plot.levelLines[2]?.ariaLabel).toContain("mixed");
     expect(plot.printDots).toHaveLength(2);
-    expect(plot.shareBars).toHaveLength(1);
+    expect(plot.shareBars).toHaveLength(2);
     for (const seg of [...plot.priceSegments, ...plot.vwapSegments]) {
       expect(seg).not.toContain("NaN");
     }
@@ -401,9 +412,9 @@ describe("buildOffExchangePlot", () => {
     expect(plot?.sessionDividers).toHaveLength(1);
     expect(plot?.sessionDividers[0]?.label).toBe("11-20");
     expect(plot?.timeTicks.map((t) => t.label)).toEqual(["11-19", "11-20"]);
-    expect(plot?.priceSegments).toHaveLength(2);
+    expect(plot?.priceSegments).toHaveLength(0);
+    expect(plot?.priceIsolatedPoints).toHaveLength(2);
 
-    // Prints-only fallback derives sessionList from prints
     const printsOnly = makeResponse({
       bars: [],
       latestPrice: null,

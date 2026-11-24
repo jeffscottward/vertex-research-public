@@ -132,10 +132,10 @@ const makeResponse = (
   range: "5d",
   rules: {
     capture: "sampled",
-    clusterStep: 0.5,
+    clusterStep: 0.25,
     finraMaxWeeks: 8,
-    maxLevels: 12,
-    maxPrints: 200,
+    maxLevels: 10,
+    maxPrints: 500,
     minPrintShares: 10_000,
     readCap: 2000,
     version: "flow-off-exchange-levels-rules.v1",
@@ -250,6 +250,43 @@ describe("FlowOffExchangeLevelsPanel", () => {
 
   it("renders chart, share sub-panel, interactive level table, keyboard nav, inspector, and FINRA strip", async () => {
     const response = makeResponse({
+      bars: [
+        makeBar({ start: "2026-11-20T14:30:00.000Z" }),
+        makeBar({
+          close: 591.2,
+          high: 591.5,
+          low: 590.4,
+          offExchangeShare: 0.5,
+          start: "2026-11-20T14:45:00.000Z",
+          vwap: 590.9,
+        }),
+        // Isolated bar after > 30m gap exercises isolated price/VWAP markers
+        makeBar({
+          close: 591.4,
+          high: 591.6,
+          low: 591.0,
+          offExchangeShare: 0.4,
+          start: "2026-11-20T16:15:00.000Z",
+          vwap: 591.3,
+        }),
+      ],
+      prints: [
+        makePrint({ direction: "bullish", key: "p1", levelIndex: 0 }),
+        makePrint({
+          at: "2026-11-20T15:10:00.000Z",
+          direction: "bearish",
+          key: "p-bear",
+          levelIndex: null,
+          price: 590.9,
+        }),
+        makePrint({
+          at: "2026-11-20T15:20:00.000Z",
+          direction: "neutral",
+          key: "p-neut",
+          levelIndex: null,
+          price: 591.1,
+        }),
+      ],
       totals: {
         ...makeResponse().totals,
         omittedLevels: 2,
@@ -271,6 +308,29 @@ describe("FlowOffExchangeLevelsPanel", () => {
 
     expect(
       container.querySelector("[data-flow-off-exchange-chart]")
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[role="region"][tabindex="0"]')
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-flow-off-exchange-line="1"] rect')
+        ?.getAttribute("fill")
+    ).toBe("var(--color-success)");
+    expect(
+      container.querySelector('[data-flow-off-exchange-shape="circle"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-flow-off-exchange-shape="diamond"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-flow-off-exchange-shape="square"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-flow-off-exchange-price-point]")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-flow-off-exchange-vwap-point]")
     ).not.toBeNull();
     expect(
       container.querySelector("[data-flow-off-exchange-share-chart]")

@@ -118,19 +118,22 @@ export type ShareBarGeometry = Readonly<{
   share: number;
 }>;
 
+export type ChartPoint = Readonly<{ x: number; y: number }>;
+
 export type OffExchangePlot = Readonly<{
   priceGridTicks: readonly PriceGridTick[];
   sessionDividers: readonly SessionDivider[];
   timeTicks: readonly TimeAxisTick[];
   priceSegments: readonly string[];
   vwapSegments: readonly string[];
+  priceIsolatedPoints: readonly ChartPoint[];
+  vwapIsolatedPoints: readonly ChartPoint[];
   spotLine: Readonly<{ price: number; y: number; label: string }> | null;
   levelLines: readonly LevelLineGeometry[];
   printDots: readonly PrintDotGeometry[];
   shareBars: readonly ShareBarGeometry[];
   shareMidY: number;
 }>;
-
 export type OffExchangePrintItemView = Readonly<{
   key: string;
   time: string;
@@ -424,22 +427,36 @@ const buildPriceSegments = (
   response: FlowOffExchangeLevels,
   xOf: (session: string, iso: string) => number,
   yOf: (price: number) => number
-): Readonly<{ priceSegments: string[]; vwapSegments: string[] }> => {
+): Readonly<{
+  priceSegments: string[];
+  vwapSegments: string[];
+  priceIsolatedPoints: ChartPoint[];
+  vwapIsolatedPoints: ChartPoint[];
+}> => {
   const priceSegments: string[] = [];
   const vwapSegments: string[] = [];
-  const maxGapMs = response.bucketMinutes * 2 * 60_000;
-  let currentPricePoints: string[] = [];
-  let currentVwapPoints: string[] = [];
+  const priceIsolatedPoints: ChartPoint[] = [];
+  const vwapIsolatedPoints: ChartPoint[] = [];
+  const maxGapMs = Math.max(response.bucketMinutes * 2, 12) * 60_000;
+  let currentPricePoints: ChartPoint[] = [];
+  let currentVwapPoints: ChartPoint[] = [];
   let prevSession: string | null = null;
   let prevMs = 0;
 
   const flushSegments = () => {
-    if (currentPricePoints.length > 0) {
-      priceSegments.push(currentPricePoints.join(" "));
-      vwapSegments.push(currentVwapPoints.join(" "));
-      currentPricePoints = [];
-      currentVwapPoints = [];
+    if (currentPricePoints.length === 1) {
+      priceIsolatedPoints.push(currentPricePoints[0] as ChartPoint);
+      vwapIsolatedPoints.push(currentVwapPoints[0] as ChartPoint);
+    } else if (currentPricePoints.length > 1) {
+      priceSegments.push(
+        currentPricePoints.map((pt) => `${pt.x},${pt.y}`).join(" ")
+      );
+      vwapSegments.push(
+        currentVwapPoints.map((pt) => `${pt.x},${pt.y}`).join(" ")
+      );
     }
+    currentPricePoints = [];
+    currentVwapPoints = [];
   };
 
   for (const bar of response.bars) {
@@ -451,21 +468,26 @@ const buildPriceSegments = (
       flushSegments();
     }
     const x = xOf(bar.session, bar.start);
-    currentPricePoints.push(`${x},${yOf(bar.close)}`);
-    currentVwapPoints.push(`${x},${yOf(bar.vwap)}`);
+    currentPricePoints.push({ x, y: yOf(bar.close) });
+    currentVwapPoints.push({ x, y: yOf(bar.vwap) });
     prevSession = bar.session;
     prevMs = ms;
   }
   flushSegments();
-  return { priceSegments, vwapSegments };
+  return {
+    priceIsolatedPoints,
+    priceSegments,
+    vwapIsolatedPoints,
+    vwapSegments,
+  };
 };
 
 const buildLevelLines = (
   levels: readonly FlowOffExchangeLevel[],
-  sessionList: readonly string[],
   sessionIndex: ReadonlyMap<string, number>,
   xOf: (session: string, iso: string) => number,
   yOf: (price: number) => number,
+  plotLeft: number,
   plotRight: number,
   railWidth: number
 ): LevelLineGeometry[] => {
@@ -483,10 +505,9 @@ const buildLevelLines = (
       Math.round((bandBottomY - bandTopY) * 10) / 10
     );
     const firstSession = nyDateOf(level.firstAt);
-    const matchedSession = sessionIndex.has(firstSession)
-      ? firstSession
-      : (sessionList[0] as string);
-    const startX = xOf(matchedSession, level.firstAt);
+    const startX = sessionIndex.has(firstSession)
+      ? xOf(firstSession, level.firstAt)
+      : plotLeft;
     const weight = level.totalNotional / maxLevelNotional;
     const strokeWidth = Math.round((1.5 + weight * 2) * 10) / 10;
     const railBarWidth = Math.max(12, Math.round(weight * railWidth));
@@ -605,11 +626,12 @@ export const buildOffExchangePlot = (
     plotLeft,
     plotWidth
   );
-  const { priceSegments, vwapSegments } = buildPriceSegments(
-    response,
-    xOf,
-    yOf
-  );
+  const {
+    priceIsolatedPoints,
+    priceSegments,
+    vwapIsolatedPoints,
+    vwapSegments,
+  } = buildPriceSegments(response, xOf, yOf);
   const spotLine =
     response.latestPrice === null
       ? null
@@ -620,14 +642,13 @@ export const buildOffExchangePlot = (
         };
   const levelLines = buildLevelLines(
     response.levels,
-    sessionList,
     sessionIndex,
     xOf,
     yOf,
+    plotLeft,
     plotRight,
     railWidth
   );
-
   const maxPrintNotional = Math.max(
     1,
     ...response.prints.map((print) => print.notional)
@@ -657,6 +678,7 @@ export const buildOffExchangePlot = (
   return {
     levelLines,
     priceGridTicks,
+    priceIsolatedPoints,
     priceSegments,
     printDots,
     sessionDividers,
@@ -665,6 +687,7 @@ export const buildOffExchangePlot = (
       Math.round((shareTop + (shareBottom - shareTop) * 0.5) * 10) / 10,
     spotLine,
     timeTicks,
+    vwapIsolatedPoints,
     vwapSegments,
   };
 };
