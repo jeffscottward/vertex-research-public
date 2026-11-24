@@ -37,6 +37,8 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
+  labFlowLiveDom,
+  labFlowLiveDomStream,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowStrikeHeatmap,
@@ -148,6 +150,15 @@ const fixed = (
       heatmapCalls.push(request);
       return await liquidityHeatmap(request);
     },
+    liveDom: async ({ since, symbol, windowSeconds }) =>
+      labFlowLiveDom(symbol, windowSeconds, since ?? null),
+    liveDomStream: async ({ since, symbol, windowSeconds }, options) =>
+      labFlowLiveDomStream(
+        symbol,
+        windowSeconds,
+        since ?? null,
+        options?.signal
+      ),
     putCallRatio: async (request) => {
       putCallCalls.push(request);
       return await putCallRatio(request);
@@ -224,12 +235,19 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("NQ", 60)
     );
+    const liveDom = vi.fn(async () => labFlowLiveDom("ES", 900));
+    const liveDomStream = vi.fn(
+      async (_input: unknown, options?: { signal?: AbortSignal }) =>
+        labFlowLiveDomStream("ES", 900, null, options?.signal)
+    );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        liveDom,
+        liveDomStream,
         putCallRatio,
         snapshot,
         strikeHeatmap,
@@ -271,6 +289,20 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
+    await expect(
+      gateway.liveDom({ symbol: "ES", windowSeconds: 900 })
+    ).resolves.toMatchObject({ symbol: "ES" });
+    expect(liveDom).toHaveBeenCalledWith({ symbol: "ES", windowSeconds: 900 });
+    const ac = new AbortController();
+    ac.abort();
+    await gateway.liveDomStream(
+      { cadenceMs: 500, symbol: "ES", windowSeconds: 900 },
+      { signal: ac.signal }
+    );
+    expect(liveDomStream).toHaveBeenCalledWith(
+      { cadenceMs: 500, symbol: "ES", windowSeconds: 900 },
+      { signal: ac.signal }
+    );
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -283,12 +315,19 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("ES", 120)
     );
+    const liveDom = vi.fn(async () => labFlowLiveDom("ES", 900));
+    const liveDomStream = vi.fn(
+      async (_input: unknown, options?: { signal?: AbortSignal }) =>
+        labFlowLiveDomStream("ES", 900, null, options?.signal)
+    );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        liveDom,
+        liveDomStream,
         putCallRatio,
         snapshot,
         strikeHeatmap,
@@ -341,7 +380,7 @@ describe("FlowWorkspace", () => {
       "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes with tape; shaded minutes have none."
     );
     expect(text).toContain(
-      "Read-only research view. ES and NQ depth is recorded (streamed at 5 s when active, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
+      "Read-only research view. ES and NQ live DOM streams from active CME L2 depth and tape (recorded fallback when offline), while historical depth is recorded (5 s streamed, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
     );
     expect(
       container.querySelector('[data-metric="Tape coverage"]')
