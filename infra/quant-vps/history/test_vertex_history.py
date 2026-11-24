@@ -21,9 +21,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import vertex_history as vh  # noqa: E402
 
-# The depth tests below exercise stock depth as if its unit were verified; StockDepthGateTest checks the gate.
-vh.STOCK_DEPTH_VERIFIED = True
-
 SOURCE_PATH = os.path.join(HERE, "vertex_history.py")
 with open(SOURCE_PATH) as _f:
     SOURCE = _f.read()
@@ -1535,7 +1532,7 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_7_0(self):
+    def test_health_reports_1_8_0(self):
         svc, _gw, _c = make_service()
         self.assertEqual(svc.health()[1]["version"], "1.8.0")
 
@@ -4185,20 +4182,34 @@ class SizeUnitTest(unittest.TestCase):
 
 
 class StockDepthGateTest(unittest.TestCase):
-    """Stock depth stays refused until its size unit is verified with ibapi 10.30.1 (design Q1)."""
+    """Stock depth ships enabled after the 2026-11-24 UTC ibapi 10.30.1 probe; disabling the flag refuses it."""
 
     def setUp(self):
         self.saved = vh.STOCK_DEPTH_VERIFIED
-        vh.STOCK_DEPTH_VERIFIED = False
 
     def tearDown(self):
         vh.STOCK_DEPTH_VERIFIED = self.saved
 
-    def test_shipped_default_refuses_stock_depth(self):
+    def test_shipped_default_enables_stock_depth(self):
+        from decimal import Decimal
+        self.assertTrue(vh.STOCK_DEPTH_VERIFIED)
         with open(vh.__file__, encoding="utf-8") as f:
-            self.assertIn("\nSTOCK_DEPTH_VERIFIED = False\n", f.read())
+            self.assertIn("\nSTOCK_DEPTH_VERIFIED = True\n", f.read())
+        svc, gw, _c = make_service()
+        status, _body = svc.depth(q(symbol="SPY"))
+        self.assertEqual((status, len(gw.calls)), (200, 1))
+        ib_gw = fake_gateway(
+            md_mult=None,
+            depth_script=[("L2", 0, "OVERNIGHT", 0, 1, 723.86, Decimal("617")),
+                          ("L2", 0, "OVERNIGHT", 0, 0, 723.97, Decimal("580"))],
+        )
+        _info, book = ib_gw.fetch_depth(vh.validate_depth(q(symbol="SPY")), lambda: None)
+        self.assertEqual(book["sizeMultiplier"], 1)
+        self.assertEqual(book["bids"], [{"price": 723.86, "size": 617.0, "venue": "OVERNIGHT"}])
+        self.assertEqual(book["asks"], [{"price": 723.97, "size": 580.0, "venue": "OVERNIGHT"}])
 
     def test_stock_depth_refused_futures_depth_served(self):
+        vh.STOCK_DEPTH_VERIFIED = False
         svc, gw, _c = make_service()
         status, body = svc.depth(q(symbol="SPY"))
         self.assertEqual((status, body["error"]), (503, "depth_unit_unverified"))
