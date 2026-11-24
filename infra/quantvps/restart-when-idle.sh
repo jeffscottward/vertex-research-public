@@ -16,6 +16,14 @@
 #     be a strict ancestor of the deployed SHA (apps/web/DEPLOYED_SHA, written by this script after
 #     each healthy restart). An older build, an unknown SHA or a SHA missing from the rig checkout
 #     stops the run with no restart (exit 9), unless --allow-older <reason> is given.
+#  1d. Migration guard (after runtime guard 1c): every database migration of the new build commit
+#     must be applied on QuantVPS Postgres (vertex-postgres, database vertex_research_development).
+#     Queries the live catalog (tables, columns, nullability, indexes, constraints, widened CHECK
+#     literals and vertex_research grants) alongside drizzle.__drizzle_migrations with one read-only
+#     SELECT; never touches ibkr-nautilus-exec-node-postgres-1. Unapplied migration(s) or an
+#     unreadable database/commit stops the run with no restart (exit 15) and lists each missing
+#     migration. --allow-unapplied-migrations <reason> skips only the unapplied-migration refusal
+#     with one #omp-alerts notice (never a failed read or unreadable commit).
 #  2. Wait until vertex-web is idle (signal below) on two polls in a row.
 #  3. `systemctl restart vertex-web`, then a health check: `/` returns 200 and `/dashboard` returns
 #     307 to the sign-in page on 127.0.0.1:3450.
@@ -106,12 +114,13 @@
 #
 # Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--deploy <sha>] [--backup <TS>]
 #          [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>]
+#          [--allow-unapplied-migrations <reason>]
 #   --deploy   swap the staged build of this commit (7 to 40 hex digits) in with the restart. An old
 #              copy of this script rejects the argument (exit 2) and so cannot report a deploy that
 #              did nothing.
 #   --dry-run  print the idle decision, the market hours and build stage decisions, current health,
-#              rollback candidate, start times and the version and runtime guard decisions; no
-#              restart, no lock, no alert. Exit 0 = idle, 10 = busy.
+#              rollback candidate, start times and the version, runtime and migration guard
+#              decisions; no restart, no lock, no alert. Exit 0 = idle, 10 = busy.
 #   --allow-older  deploy a build that is older than (or not provably newer than) the deployed SHA,
 #              for a deliberate rollback or the first recorded deploy. The reason is printed.
 #   --allow-stale-runtime  restart although the runtime tree is not at the new build SHA (emergency
@@ -119,6 +128,9 @@
 #   --allow-market-hours  restart on Monday to Friday from 08:30 to 16:00 New York time (see "Market
 #              hours guard" below; only with an owner decision). The reason is printed and sent to
 #              #omp-alerts.
+#   --allow-unapplied-migrations  restart although one or more build migrations are not applied on
+#              QuantVPS Postgres (emergency only; never skips a failed read or unreadable commit).
+#              The reason is printed and sent to #omp-alerts.
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
 # Exit codes: 0 restarted and healthy; 2 usage, or bash older than 5.3 (this run did nothing);
 #   3 gate, build guard or probe failed, or the vertex-web start time did not change (no restart
@@ -133,6 +145,8 @@
 #   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished;
 #   14 market hours guard refused: Monday to Friday 08:30-16:00 New York time, or the time could not
 #   be read (no call to QuantVPS was made, or the idle wait reached 08:30; no restart happened).
+#   15 migration guard refused: one or more build migrations are not applied on QuantVPS Postgres,
+#   or the Postgres schema or build commit migrations could not be read (no restart happened).
 #   13 is not used: it means "partial or unknown" in the prune scripts.
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
@@ -141,7 +155,8 @@
 #   file), VERTEX_DEPLOY_NY_TIME (the New York time for the market hours guard; a set hook is
 #   printed), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
 #   from BASH_VERSINFO; the tests set it, CI has bash 5.2), VERTEX_DEPLOY_GIT_DIR (checkout for the
-#   ancestry check, default this repository). `--decide` is the pure idle decision used
+#   ancestry and migration checks, default this repository), VERTEX_MIGRATIONS_CHECKER (replaces
+#   scripts/db-migrations-check.ts; a set hook is printed). `--decide` is the pure idle decision used
 #   by the tests: `restart-when-idle.sh --decide <probe-file> <quiet-seconds>`.
 set -uo pipefail
 
@@ -217,6 +232,7 @@ ALLOW_OLDER=""
 ALLOW_STALE=""
 DEPLOY=""
 ALLOW_MARKET=""
+ALLOW_UNAPPLIED=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
@@ -240,7 +256,11 @@ while [ $# -gt 0 ]; do
       shift
       [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-market-hours needs a reason" >&2; exit 2; }
       ALLOW_MARKET="$1" ;;
-    *) echo "usage: $0 [--dry-run] [--deploy <sha>] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>]" >&2; exit 2 ;;
+    --allow-unapplied-migrations)
+      shift
+      [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-unapplied-migrations needs a reason" >&2; exit 2; }
+      ALLOW_UNAPPLIED="$1" ;;
+    *) echo "usage: $0 [--dry-run] [--deploy <sha>] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>] [--allow-unapplied-migrations <reason>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -540,6 +560,71 @@ runtime_guard() {
   return 1
 }
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+MIGRATION_CHECKER="${VERTEX_MIGRATIONS_CHECKER:-$SCRIPT_DIR/../../scripts/db-migrations-check.ts}"
+run_migration_checker() {
+  if [ -x "$MIGRATION_CHECKER" ]; then
+    "$MIGRATION_CHECKER" "$@"
+  elif command -v bun >/dev/null 2>&1; then
+    bun "$MIGRATION_CHECKER" "$@"
+  elif command -v node >/dev/null 2>&1; then
+    node "$MIGRATION_CHECKER" "$@"
+  else
+    echo "neither bun nor node is available to run $MIGRATION_CHECKER"
+    return 2
+  fi
+}
+
+# Migration guard (call after version_guard and runtime_guard: uses CHECKED_SHA). Queries
+# vertex-postgres (never the exec-node Postgres container) with a single read-only SELECT and
+# checks every migration of CHECKED_SHA against the live catalog and Drizzle ledger.
+# Prints the decision; returns 0 = allowed, 1 = refused.
+migration_guard() {
+  local sql cmd snap rc out check_rc summary
+  if [ -n "${VERTEX_MIGRATIONS_CHECKER:-}" ]; then
+    echo "migration guard: test hook VERTEX_MIGRATIONS_CHECKER replaces the checker"
+  fi
+  if [ -z "$CHECKED_SHA" ]; then
+    echo "NOT RESTARTED: migration guard: the new build SHA is unknown, so its database migrations cannot be checked."
+    return 1
+  fi
+  if ! sql="$(run_migration_checker --print-sql 2>&1)" || [ -z "$sql" ]; then
+    echo "NOT RESTARTED: migration guard: cannot build the Postgres migration query (${sql:-no output})."
+    return 1
+  fi
+  cmd=": migrations; docker exec -i vertex-postgres psql -U postgres -d vertex_research_development -X -A -t -F \"\$(printf '\\t')\" -v ON_ERROR_STOP=1 <<'VERTEX_MIGRATIONS_SQL'
+$sql
+VERTEX_MIGRATIONS_SQL"
+  snap="$(remote "$cmd" 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ] || [ -z "$snap" ]; then
+    echo "NOT RESTARTED: migration guard: cannot read database migration state from vertex-postgres on QuantVPS (exit $rc). Check ssh and that vertex-postgres is running, then run this script again."
+    return 1
+  fi
+  out="$(printf '%s\n' "$snap" | run_migration_checker --git-dir "$GIT_DIR_CHECK" --sha "$CHECKED_SHA" 2>&1)"
+  check_rc=$?
+  if [ "$check_rc" -eq 0 ]; then
+    echo "migrations: $out"
+    return 0
+  fi
+  # scripts/db-migrations-check.ts exits 3 for unapplied migrations and 2 for errors; exit 1 is
+  # reserved for uncaught Bun/Node crashes and must never match --allow-unapplied-migrations.
+  if [ "$check_rc" -eq 3 ] && [ -n "$ALLOW_UNAPPLIED" ]; then
+    summary="$(head -n 1 <<<"$out")"
+    echo "migrations: WARNING guard skipped ($summary): $ALLOW_UNAPPLIED"
+    printf '%s\n' "$out" | tail -n +2
+    [ "$DRY" = 1 ] || alert "⚠️ **vertex-web restart with the migration guard skipped** (QuantVPS): build $CHECKED_SHA has unapplied database migrations ($summary). Reason: $ALLOW_UNAPPLIED"
+    return 0
+  fi
+  if [ "$check_rc" -eq 3 ]; then
+    echo "NOT RESTARTED: migration guard: build $CHECKED_SHA has unapplied database migrations on QuantVPS."
+    printf '%s\n' "$out"
+    echo "  Apply the missing migration file(s) from packages/db/migrations/ with psql in vertex-postgres first, then run this script again."
+    return 1
+  fi
+  echo "NOT RESTARTED: migration guard: cannot verify database migrations for build $CHECKED_SHA: ${out:-checker failed (exit $check_rc)}"
+  return 1
+}
+
 # Version guard. Prints one decision line; returns 0 = allowed, 1 = refused.
 version_guard() {
   local out new deployed problem=""
@@ -615,6 +700,7 @@ if [ "$DRY" = 1 ]; then
   # A pipe runs its left side in a subshell: call version_guard again here so CHECKED_SHA is set.
   version_guard >/dev/null
   runtime_guard | sed 's/^NOT RESTARTED: runtime guard: /runtime guard would refuse: /'
+  migration_guard | sed 's/^NOT RESTARTED: migration guard: /migration guard would refuse: /'
   echo "dry run: no restart"
   [ "$(head -n 1 <<<"$d")" = idle ] && exit 0
   exit 10
@@ -684,6 +770,7 @@ if [ "$BUILD_ACTION" = swap ] && [ -z "$BACKUP" ]; then echo "gate: build output
 else echo "gate: build output ok; rollback source $source_ts"; fi
 version_guard || exit 9
 runtime_guard || exit 12
+migration_guard || exit 15
 
 # Worker pause for the idle wait and the restart (see "Worker pause" above). A pause file that
 # cannot be written is only a warning: the wait may then give up while the worker polls.
