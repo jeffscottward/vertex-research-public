@@ -1,0 +1,655 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 440"
+  width="1200"
+  height="440"
+  role="img"
+  aria-label="Data flow from stored Postgres tables through flow.offExchangeLevels to FlowOffExchangeLevelsPanel"
+>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#d4af37" />
+    </marker>
+    <marker
+      id="arrowBlue"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+    </marker>
+  </defs>
+  <rect width="1200" height="440" fill="#0b0f17" />
+
+  <text
+    x="32"
+    y="38"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="20"
+    font-weight="700"
+  >
+    Data Flow — flow.offExchangeLevels (Zero New Migrations, Zero New Vendor
+    Calls)
+  </text>
+  <text
+    x="32"
+    y="60"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+  >
+    Existing PostgreSQL tables → domain-agnostic FlowRepository &amp;
+    OpenbbRepository → pure clustering rules → oRPC GET → /flow panel
+  </text>
+
+  <!-- Column 1: Postgres Sources -->
+  <text
+    x="32"
+    y="96"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    1. EXISTING POSTGRES TABLES
+  </text>
+
+  <rect
+    x="32"
+    y="110"
+    width="248"
+    height="72"
+    rx="8"
+    fill="#141b29"
+    stroke="#334155"
+    stroke-width="1.5"
+  />
+  <text
+    x="48"
+    y="134"
+    fill="#fde68a"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    flow_minutes
+  </text>
+  <text
+    x="48"
+    y="152"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    SPY OHLCV, VWAP, covered_seconds,
+  </text>
+  <text
+    x="48"
+    y="168"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    off_exchange_volume (730d retention)
+  </text>
+
+  <rect
+    x="32"
+    y="196"
+    width="248"
+    height="72"
+    rx="8"
+    fill="#141b29"
+    stroke="#22c55e"
+    stroke-opacity="0.7"
+    stroke-width="1.5"
+  />
+  <text
+    x="48"
+    y="220"
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    flow_events
+  </text>
+  <text
+    x="48"
+    y="238"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    kind = 'off_exchange_print' (FINRA TRF)
+  </text>
+  <text
+    x="48"
+    y="254"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    price, size ≥ 10k, direction (14d retention)
+  </text>
+
+  <rect
+    x="32"
+    y="282"
+    width="248"
+    height="58"
+    rx="8"
+    fill="#141b29"
+    stroke="#334155"
+    stroke-width="1.5"
+  />
+  <text
+    x="48"
+    y="305"
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    flow_samples
+  </text>
+  <text
+    x="48"
+    y="324"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    source = 'ticks' freshness &amp; status
+  </text>
+
+  <rect
+    x="32"
+    y="354"
+    width="248"
+    height="64"
+    rx="8"
+    fill="#141b29"
+    stroke="#38bdf8"
+    stroke-opacity="0.7"
+    stroke-width="1.5"
+  />
+  <text
+    x="48"
+    y="378"
+    fill="#7dd3fc"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    openbb_finra_otc_weekly
+  </text>
+  <text
+    x="48"
+    y="396"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    SPY weekly ATS &amp; non-ATS shares/trades
+  </text>
+  <text
+    x="48"
+    y="410"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Free public FINRA context (~2w lag)
+  </text>
+
+  <!-- Arrows col 1 -> col 2 -->
+  <line
+    x1="280"
+    y1="146"
+    x2="334"
+    y2="174"
+    stroke="#d4af37"
+    stroke-width="1.8"
+    marker-end="url(#arrow)"
+  />
+  <line
+    x1="280"
+    y1="232"
+    x2="334"
+    y2="218"
+    stroke="#d4af37"
+    stroke-width="1.8"
+    marker-end="url(#arrow)"
+  />
+  <line
+    x1="280"
+    y1="311"
+    x2="334"
+    y2="264"
+    stroke="#d4af37"
+    stroke-width="1.8"
+    marker-end="url(#arrow)"
+  />
+  <line
+    x1="280"
+    y1="386"
+    x2="334"
+    y2="364"
+    stroke="#38bdf8"
+    stroke-width="1.8"
+    marker-end="url(#arrowBlue)"
+  />
+
+  <!-- Column 2: Repositories -->
+  <text
+    x="342"
+    y="96"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    2. PACKAGES/DB REPOSITORIES
+  </text>
+
+  <rect
+    x="342"
+    y="136"
+    width="234"
+    height="162"
+    rx="8"
+    fill="#141b29"
+    stroke="#475569"
+    stroke-width="1.5"
+  />
+  <text
+    x="358"
+    y="160"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    FlowRepository
+  </text>
+  <text
+    x="358"
+    y="184"
+    fill="#fde68a"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    + newestMinuteAt(symbol)
+  </text>
+  <text
+    x="358"
+    y="206"
+    fill="#fde68a"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    + readMinutes({from, to})
+  </text>
+  <text
+    x="358"
+    y="228"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    • readEvents(kinds=[…])
+  </text>
+  <text
+    x="358"
+    y="250"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    • latestSamples(["ticks"])
+  </text>
+  <text
+    x="358"
+    y="280"
+    fill="#64748b"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Domain-agnostic Drizzle queries
+  </text>
+
+  <rect
+    x="342"
+    y="318"
+    width="234"
+    height="84"
+    rx="8"
+    fill="#141b29"
+    stroke="#38bdf8"
+    stroke-opacity="0.6"
+    stroke-width="1.5"
+  />
+  <text
+    x="358"
+    y="342"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    OpenbbRepository
+  </text>
+  <text
+    x="358"
+    y="366"
+    fill="#7dd3fc"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    • otcWeekly("SPY", from)
+  </text>
+  <text
+    x="358"
+    y="388"
+    fill="#64748b"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Already wired in ApiContext
+  </text>
+
+  <!-- Arrows col 2 -> col 3 -->
+  <line
+    x1="576"
+    y1="220"
+    x2="628"
+    y2="220"
+    stroke="#d4af37"
+    stroke-width="2"
+    marker-end="url(#arrow)"
+  />
+  <line
+    x1="576"
+    y1="360"
+    x2="628"
+    y2="286"
+    stroke="#38bdf8"
+    stroke-width="2"
+    marker-end="url(#arrowBlue)"
+  />
+
+  <!-- Column 3: Pure Rules + oRPC -->
+  <text
+    x="636"
+    y="96"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    3. PACKAGES/API RULES &amp; oRPC
+  </text>
+
+  <rect
+    x="636"
+    y="136"
+    width="256"
+    height="266"
+    rx="8"
+    fill="#141b29"
+    stroke="#d4af37"
+    stroke-opacity="0.7"
+    stroke-width="1.5"
+  />
+  <text
+    x="652"
+    y="162"
+    fill="#fde68a"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    flow-off-exchange-levels
+  </text>
+  <text
+    x="652"
+    y="184"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    1. Bucket minutes: 1m / 5m / 15m
+  </text>
+  <text
+    x="652"
+    y="204"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    2. Cluster prints into $0.25 bands
+  </text>
+  <text
+    x="652"
+    y="224"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    3. VWAP level price &amp; top-10 rank
+  </text>
+  <text
+    x="652"
+    y="244"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    4. Distance vs latestPrice (spot)
+  </text>
+  <text
+    x="652"
+    y="264"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    5. Fold last 8 FINRA OTC weeks
+  </text>
+  <line x1="652" y1="282" x2="876" y2="282" stroke="#263248" />
+  <text
+    x="652"
+    y="304"
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+  >
+    GET /flow/off-exchange-levels
+  </text>
+  <text
+    x="652"
+    y="324"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    flow-off-exchange-levels.v1
+  </text>
+  <text
+    x="652"
+    y="346"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    requireOperator (+ agent viewer)
+  </text>
+  <text
+    x="652"
+    y="366"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Zod-bounded output · OpenAPI synced
+  </text>
+  <text
+    x="652"
+    y="388"
+    fill="#64748b"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Research only · No order/arm path
+  </text>
+
+  <!-- Arrow col 3 -> col 4 -->
+  <line
+    x1="892"
+    y1="268"
+    x2="942"
+    y2="268"
+    stroke="#d4af37"
+    stroke-width="2"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Column 4: Web UI -->
+  <text
+    x="950"
+    y="96"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    4. APPS/WEB (/flow &amp; /lab)
+  </text>
+
+  <rect
+    x="950"
+    y="136"
+    width="218"
+    height="266"
+    rx="8"
+    fill="#141b29"
+    stroke="#22c55e"
+    stroke-opacity="0.65"
+    stroke-width="1.5"
+  />
+  <text
+    x="966"
+    y="162"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+  >
+    FlowOffExchangeLevelsPanel
+  </text>
+  <text
+    x="966"
+    y="188"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • Price SVG + horizontal levels
+  </text>
+  <text
+    x="966"
+    y="208"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • Print markers (shape + color)
+  </text>
+  <text
+    x="966"
+    y="228"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • Right-rail notional profile
+  </text>
+  <text
+    x="966"
+    y="248"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • FINRA TRF % sub-chart strip
+  </text>
+  <text
+    x="966"
+    y="268"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • Keyboard &amp; click level inspector
+  </text>
+  <text
+    x="966"
+    y="288"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • Ranked levels table (TableScroll)
+  </text>
+  <text
+    x="966"
+    y="308"
+    fill="#7dd3fc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    • FINRA weekly ATS/Non-ATS card
+  </text>
+  <line x1="966" y1="326" x2="1152" y2="326" stroke="#263248" />
+  <text
+    x="966"
+    y="348"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Dark + Light semantic tokens
+  </text>
+  <text
+    x="966"
+    y="366"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    375–1440 px · 44px touch targets
+  </text>
+  <text
+    x="966"
+    y="384"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    1d / 5d / 14d isolated refetch
+  </text>
+</svg>

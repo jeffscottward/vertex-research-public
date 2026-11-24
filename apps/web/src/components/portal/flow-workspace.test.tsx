@@ -5,6 +5,7 @@ import type {
   FlowControlInput,
   FlowHedgingPressure,
   FlowLiquidityHeatmap,
+  FlowOffExchangeLevels,
   FlowPutCallRatio,
   FlowSnapshot,
   FlowStrikeHeatmap,
@@ -29,6 +30,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
 import type { LiquidityHeatmapRequest } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import type { OffExchangeLevelsRequest } from "../../features/flow/off-exchange-levels-view-model.ts";
 import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
 import type { StrikeHeatmapRequest } from "../../features/flow/strike-heatmap-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
@@ -37,6 +39,7 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
+  labFlowOffExchangeLevels,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowStrikeHeatmap,
@@ -126,7 +129,11 @@ const fixed = (
   ) => FlowStrikeHeatmap | Promise<FlowStrikeHeatmap> = ({
     bucketMinutes,
     symbol,
-  }) => compactStrikeHeatmap(symbol, bucketMinutes)
+  }) => compactStrikeHeatmap(symbol, bucketMinutes),
+  offExchangeLevels: (
+    request: OffExchangeLevelsRequest
+  ) => FlowOffExchangeLevels | Promise<FlowOffExchangeLevels> = ({ range }) =>
+    labFlowOffExchangeLevels(range)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
@@ -135,6 +142,7 @@ const fixed = (
   const putCallCalls: PutCallRatioRequest[] = [];
   const heatmapCalls: LiquidityHeatmapRequest[] = [];
   const strikeHeatmapCalls: StrikeHeatmapRequest[] = [];
+  const offExchangeCalls: OffExchangeLevelsRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -147,6 +155,10 @@ const fixed = (
     liquidityHeatmap: async (request) => {
       heatmapCalls.push(request);
       return await liquidityHeatmap(request);
+    },
+    offExchangeLevels: async (request) => {
+      offExchangeCalls.push(request);
+      return await offExchangeLevels(request);
     },
     putCallRatio: async (request) => {
       putCallCalls.push(request);
@@ -171,6 +183,7 @@ const fixed = (
     gateway,
     heatmapCalls,
     hedgingCalls,
+    offExchangeCalls,
     putCallCalls,
     strikeHeatmapCalls,
     tapeCalls,
@@ -225,11 +238,15 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("NQ", 60)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
+    const offExchangeLevels = vi.fn(async () =>
+      labFlowOffExchangeLevels("14d")
+    );
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        offExchangeLevels,
         putCallRatio,
         snapshot,
         strikeHeatmap,
@@ -271,6 +288,13 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
+    await expect(
+      gateway.offExchangeLevels({ range: "14d", symbol: "SPY" })
+    ).resolves.toMatchObject({ range: "14d", symbol: "SPY" });
+    expect(offExchangeLevels).toHaveBeenCalledWith({
+      range: "14d",
+      symbol: "SPY",
+    });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -284,11 +308,13 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("ES", 120)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
+    const offExchangeLevels = vi.fn(async () => labFlowOffExchangeLevels("5d"));
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        offExchangeLevels,
         putCallRatio,
         snapshot,
         strikeHeatmap,
@@ -310,6 +336,10 @@ describe("createBrowserFlowGateway", () => {
     });
     expect(strikeHeatmap).toHaveBeenCalledWith({
       bucketMinutes: 15,
+      symbol: "SPY",
+    });
+    expect(offExchangeLevels).toHaveBeenCalledWith({
+      range: "5d",
       symbol: "SPY",
     });
   });
@@ -1846,5 +1876,182 @@ describe("FlowWorkspace strike heatmap", () => {
       "ES"
     );
     expect(panel(container)?.textContent).toContain("SPX strike");
+  });
+});
+
+describe("FlowWorkspace off-exchange print levels", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("Operator access required."), {
+        code: "FORBIDDEN",
+        status: 403,
+      })
+    );
+  const panel = (container: HTMLElement) =>
+    container.querySelector("[data-flow-off-exchange-panel]");
+
+  it("loads for SPY, hides on ES/QQQ/NQ, switches range without refetching snapshot, retries errors, and ignores stale answers", async () => {
+    let failNext = false;
+    const { calls, gateway, offExchangeCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ range }) =>
+        failNext
+          ? Promise.reject(new Error("off-exchange down"))
+          : labFlowOffExchangeLevels(range)
+    );
+
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-flow-off-exchange-chart]")
+      ).not.toBeNull()
+    );
+    expect(offExchangeCalls).toEqual([{ range: "5d", symbol: "SPY" }]);
+
+    // Switch range to 1d: refetches only offExchangeLevels, not snapshot
+    const callsBeforeRange = calls.length;
+    const btn1d = container.querySelector<HTMLButtonElement>(
+      '[data-flow-off-exchange-range="1d"]'
+    );
+    if (btn1d === null) throw new Error("Missing 1d button");
+    await click(btn1d);
+    await vi.waitFor(() => expect(offExchangeCalls).toHaveLength(2));
+    expect(offExchangeCalls[1]).toEqual({ range: "1d", symbol: "SPY" });
+    expect(calls).toHaveLength(callsBeforeRange);
+
+    // Failure + Retry recovers without refetching snapshot
+    failNext = true;
+    const btn14d = container.querySelector<HTMLButtonElement>(
+      '[data-flow-off-exchange-range="14d"]'
+    );
+    if (btn14d === null) throw new Error("Missing 14d button");
+    await click(btn14d);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-flow-off-exchange-error]")
+      ).not.toBeNull()
+    );
+    failNext = false;
+    const retryBtn = container.querySelector<HTMLButtonElement>(
+      "[data-flow-off-exchange-retry]"
+    );
+    if (retryBtn === null) throw new Error("Missing retry button");
+    await click(retryBtn);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-flow-off-exchange-error]")
+      ).toBeNull()
+    );
+    expect(calls).toHaveLength(callsBeforeRange);
+
+    // Switch to ES hides panel and does not call offExchangeLevels
+    const callsBeforeEs = offExchangeCalls.length;
+    await click(button(container, "ES"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    expect(offExchangeCalls).toHaveLength(callsBeforeEs);
+
+    // Stale resolution and stale rejection are ignored after range switch
+    const pending: Array<{
+      resolve: (value: FlowOffExchangeLevels) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
+    const { gateway: slowGateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ range }) =>
+        range === "1d"
+          ? new Promise<FlowOffExchangeLevels>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : labFlowOffExchangeLevels(range)
+    );
+    const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
+    await vi.waitFor(() =>
+      expect(
+        slowContainer.querySelector("[data-flow-off-exchange-chart]")
+      ).not.toBeNull()
+    );
+    const slow1d = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-off-exchange-range="1d"]'
+    );
+    const slow14d = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-off-exchange-range="14d"]'
+    );
+    if (slow1d === null || slow14d === null)
+      throw new Error("Missing range buttons");
+    await click(slow1d);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await click(slow14d);
+    await vi.waitFor(() =>
+      expect(
+        slowContainer
+          .querySelector('[data-flow-off-exchange-range="14d"]')
+          ?.getAttribute("aria-pressed")
+      ).toBe("true")
+    );
+    await act(async () => pending[0]?.resolve(labFlowOffExchangeLevels("1d")));
+    expect(
+      slowContainer.querySelector("[data-flow-off-exchange-header]")
+        ?.textContent
+    ).toContain("5 sessions");
+
+    await click(slow1d);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await click(slow14d);
+    await act(async () =>
+      pending[1]?.reject(new Error("late off-exchange failure"))
+    );
+    expect(
+      slowContainer.querySelector("[data-flow-off-exchange-error]")
+    ).toBeNull();
+  });
+
+  it("holds the operator access screen across a later snapshot resolution and clears on a non-forbidden off-exchange answer", async () => {
+    vi.useFakeTimers();
+    let forbid = true;
+    let resolveSnapshot: ((value: FlowSnapshot) => void) | null = null;
+    const { gateway, offExchangeCalls } = fixed(
+      ({ minutes, symbol }) =>
+        resolveSnapshot === null && forbid
+          ? new Promise<FlowSnapshot>((resolve) => {
+              resolveSnapshot = resolve;
+            })
+          : labFlowSnapshot(symbol, minutes),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ range }) => (forbid ? denied() : labFlowOffExchangeLevels(range))
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await act(async () => void (await Promise.resolve()));
+    expect(container.textContent).toContain("Operator access");
+    await act(async () => resolveSnapshot?.(labFlowSnapshot("SPY", 120)));
+    expect(container.textContent).toContain("Operator access");
+    expect(panel(container)).toBeNull();
+
+    forbid = false;
+    await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
+    expect(offExchangeCalls).toHaveLength(2);
+    expect(
+      container.querySelector("[data-flow-off-exchange-chart]")
+    ).not.toBeNull();
   });
 });

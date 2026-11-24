@@ -2,6 +2,7 @@ import {
   FLOW_TAPE_SPEED_RULES,
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
+  FlowOffExchangeLevelsSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
@@ -9,6 +10,7 @@ import {
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OFF_EXCHANGE_LEVELS_RULES,
   OpenbbIvHistoryOutputSchema,
   OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
@@ -30,6 +32,7 @@ import {
 } from "./core.ts";
 import {
   labFlowHedgingPressure,
+  labFlowOffExchangeLevels,
   labFlowPutCallRatio,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
@@ -486,6 +489,21 @@ describe("lab flow strike heatmap", () => {
   });
 });
 
+describe("lab flow off-exchange levels", () => {
+  it.each(["1d", "5d", "14d"] as const)(
+    "SPY (%s): schema-valid bars, clustered levels, prints, and FINRA weekly context",
+    (range) => {
+      const response = labFlowOffExchangeLevels(range);
+      expect(FlowOffExchangeLevelsSchema.parse(response)).toEqual(response);
+      expect(response.rules).toEqual(OFF_EXCHANGE_LEVELS_RULES);
+      expect(response.symbol).toBe("SPY");
+      expect(response.range).toBe(range);
+      expect(response.bars.length).toBeGreaterThan(0);
+      expect(response.levels.length).toBeGreaterThan(0);
+      expect(response.finraWeekly).toHaveLength(6);
+    }
+  );
+});
 describe("lab IV rank / percentile history", () => {
   it("produces schema-valid 1Y and 3M proxy curves for Core 7 ETFs", () => {
     const spy1y = labIvHistory("spy", 252);

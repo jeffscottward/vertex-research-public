@@ -139,6 +139,14 @@ export type FlowTapeSecondsQuery = Readonly<{
   /** Exclusive. */
   to: Date;
 }>;
+/** A range of flow_minutes rows of one symbol: from <= minute < to. */
+export type FlowMinutesQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+}>;
 /** A range of L2 depth snapshots of one future: from <= captured_at < to, capped at limit. */
 export type FlowBookSnapshotsQuery = Readonly<{
   symbol: "ES" | "NQ";
@@ -357,6 +365,10 @@ export type FlowRepository = Readonly<{
   ) => Promise<FlowBookSnapshotRecord[]>;
   /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
   readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
+  /** Newest stored minute row for a symbol, or null when none exists. */
+  newestMinuteAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
+  /** Stored flow_minutes rows of a symbol with from <= minute < to, ascending by minute. */
+  readMinutes: (query: FlowMinutesQuery) => Promise<FlowMinuteRecord[]>;
   /**
    * The option prints of a symbol with from <= traded_at < to, ascending by traded_at, then id,
    * at most `limit` rows; only the columns of the hedging pressure line.
@@ -757,6 +769,13 @@ export const createFlowRepository = (
       if (row === undefined || row.price === null) return null;
       return { minute: row.minute, price: row.price };
     },
+    newestMinuteAt: async (symbol) => {
+      const [row] = await database
+        .select({ at: max(flowMinutes.minute) })
+        .from(flowMinutes)
+        .where(eq(flowMinutes.symbol, symbol));
+      return toDate(row?.at);
+    },
     newestDataAt: async (symbol) => {
       const [minute] = await database
         .select({ at: max(flowMinutes.minute) })
@@ -946,6 +965,18 @@ export const createFlowRepository = (
           )
         )
         .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
+    readMinutes: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowMinutes)
+        .where(
+          and(
+            eq(flowMinutes.symbol, symbol),
+            gte(flowMinutes.minute, from),
+            lt(flowMinutes.minute, to)
+          )
+        )
+        .orderBy(asc(flowMinutes.minute)),
     readMinuteStarts: async ({ symbol, from, to }) => {
       const rows = await database
         .select({ minute: flowMinutes.minute })

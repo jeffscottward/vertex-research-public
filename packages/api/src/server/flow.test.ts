@@ -114,6 +114,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     moveOptionGapEnd: vi.fn(async () => undefined),
     netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
+    newestMinuteAt: vi.fn(async () => null),
     newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(async () => null),
     optionGaps: vi.fn(async () => []),
@@ -122,6 +123,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readEvents: vi.fn(async () => []),
     readHedgingPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
+    readMinutes: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
@@ -1886,6 +1888,181 @@ describe("flow.liquidityHeatmap handler", () => {
     });
     await expectStorageError(
       clientFor(broken).liquidityHeatmap({ minutes: 60, symbol: "NQ" }),
+      DATABASE_FAILED
+    );
+  });
+});
+
+describe("flow.offExchangeLevels", () => {
+  const OFF_EXCHANGE_NOW = new Date("2026-11-13T16:00:00.000Z");
+  it("reads SPY minutes, off_exchange_print events, ticks freshness, and FINRA weekly context", async () => {
+    setFlowClockForTesting(() => OFF_EXCHANGE_NOW);
+    const repository = fakeRepository({
+      latestSamples: vi.fn(async () => ({
+        latest: [
+          {
+            at: OFF_EXCHANGE_NOW,
+            items: 1000,
+            message: "sampled 1000 ticks",
+            source: "ticks" as const,
+            status: "ok" as const,
+            symbol: "SPY" as const,
+          },
+        ],
+        latestOk: [
+          {
+            at: OFF_EXCHANGE_NOW,
+            items: 1000,
+            message: "sampled 1000 ticks",
+            source: "ticks" as const,
+            status: "ok" as const,
+            symbol: "SPY" as const,
+          },
+        ],
+      })),
+      newestMinuteAt: vi.fn(async () => OFF_EXCHANGE_NOW),
+      readEvents: vi.fn(async () => [
+        {
+          at: new Date("2026-11-13T14:35:10.000Z"),
+          detail: "25000 @ 592.4 off-exchange (FINRA TRF), buy (quote rule)",
+          direction: "bullish" as const,
+          key: "print:1:592.4:25000:FINRA",
+          kind: "off_exchange_print" as const,
+          premium: null,
+          price: 592.4,
+          size: 25_000,
+          source: "ibkr" as const,
+          symbol: "SPY" as const,
+        },
+      ]),
+      readMinutes: vi.fn(async () => [
+        {
+          absorption: null,
+          buyVolume: 60_000,
+          close: 592.5,
+          coveredSeconds: 60,
+          delta: 20_000,
+          high: 592.6,
+          largePrintVolume: 25_000,
+          largePrints: 1,
+          low: 592.2,
+          minute: new Date("2026-11-13T14:35:00.000Z"),
+          offExchangeVolume: 40_000,
+          open: 592.3,
+          sellVolume: 40_000,
+          stackedBuy: 0,
+          stackedSell: 0,
+          symbol: "SPY" as const,
+          trades: 300,
+          volume: 100_000,
+          vwap: 592.45,
+        },
+      ]),
+    });
+    const otcWeekly = vi.fn(async () => [
+      {
+        lastUpdated: "2026-11-02",
+        shares: 38_400_000,
+        symbol: "SPY",
+        tier: "NMS_TIER_1",
+        trades: 240_000,
+        venue: "ats" as const,
+        weekStart: "2026-10-19",
+      },
+    ]);
+    const client = clientFor(repository, {
+      repositories: {
+        flow: repository,
+        openbb: { otcWeekly } as unknown as OpenbbRepository,
+      } as Repositories,
+    });
+    const response = await client.offExchangeLevels({
+      range: "1d",
+      symbol: "SPY",
+    });
+
+    expect(response.symbol).toBe("SPY");
+    expect(response.range).toBe("1d");
+    expect(response.bucketMinutes).toBe(1);
+    expect(response.bars).toHaveLength(1);
+    expect(response.levels).toHaveLength(1);
+    expect(response.finraWeekly).toHaveLength(1);
+    expect(repository.readEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kinds: ["off_exchange_print"],
+        limit: 2001,
+        symbol: "SPY",
+      })
+    );
+    expect(otcWeekly).toHaveBeenCalledWith("SPY", expect.any(String));
+    expect(isAgentApiKeyProcedurePath(["flow", "offExchangeLevels"])).toBe(
+      false
+    );
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.offExchangeLevels")).toBe(
+      false
+    );
+    expect(isAgentViewerReadProcedure(["flow", "offExchangeLevels"])).toBe(
+      true
+    );
+  });
+
+  it("handles empty minutes, missing openbb repository, and event read cap truncation", async () => {
+    setFlowClockForTesting(() => OFF_EXCHANGE_NOW);
+    const emptyRepo = fakeRepository();
+    const emptyRes = await clientFor(emptyRepo).offExchangeLevels({
+      symbol: "SPY",
+    });
+    expect(emptyRes.anchorSession).toBeNull();
+    expect(emptyRes.bars).toEqual([]);
+    expect(emptyRes.finraWeekly).toEqual([]);
+    expect(emptyRepo.readMinutes).not.toHaveBeenCalled();
+
+    const manyEvents = Array.from({ length: 2001 }, (_, i) => ({
+      at: new Date("2026-11-13T14:35:00.000Z"),
+      detail: "10000 @ 592.4 off-exchange (FINRA TRF), buy (quote rule)",
+      direction: "bullish" as const,
+      key: `print:${i}:592.4:10000:FINRA`,
+      kind: "off_exchange_print" as const,
+      premium: null,
+      price: 592.4,
+      size: 10_000,
+      source: "ibkr" as const,
+      symbol: "SPY" as const,
+    }));
+    const cappedRepo = fakeRepository({
+      newestMinuteAt: vi.fn(async () => OFF_EXCHANGE_NOW),
+      readEvents: vi.fn(async () => manyEvents),
+    });
+    const capped = await clientFor(cappedRepo).offExchangeLevels({
+      range: "5d",
+      symbol: "SPY",
+    });
+    expect(capped.totals.truncated).toBe(true);
+    expect(capped.totals.prints).toBe(2000);
+  });
+
+  it("refuses non-operators and maps missing repo / read errors to STORAGE_ERROR", async () => {
+    setFlowClockForTesting(() => OFF_EXCHANGE_NOW);
+    const repository = fakeRepository();
+    await expectCode(
+      clientFor(repository, {
+        operatorEmails: ["someone-else@domain.test"],
+      }).offExchangeLevels({ symbol: "SPY" }),
+      "FORBIDDEN"
+    );
+    expect(repository.newestMinuteAt).not.toHaveBeenCalled();
+
+    await expectStorageError(
+      clientFor(undefined).offExchangeLevels({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
+    const broken = fakeRepository({
+      newestMinuteAt: vi.fn(async () => {
+        throw new Error("db timeout");
+      }),
+    });
+    await expectStorageError(
+      clientFor(broken).offExchangeLevels({ symbol: "SPY" }),
       DATABASE_FAILED
     );
   });

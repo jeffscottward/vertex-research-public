@@ -21,6 +21,7 @@ import {
   type FlowControlInput,
   type FlowHedgingPressureInput,
   type FlowLiquidityHeatmapParsedInput,
+  type FlowOffExchangeLevelsParsedInput,
   type FlowPutCallRatioInput,
   type FlowStrikeHeatmapParsedInput,
   type FlowSnapshot,
@@ -39,6 +40,7 @@ import {
   flowSymbolForTicker,
 } from "../flow-features.ts";
 import { HEDGING_READ_CAP } from "../flow-hedging-pressure-rules.ts";
+import { OFF_EXCHANGE_READ_CAP } from "../flow-off-exchange-levels-rules.ts";
 import { PUT_CALL_RATIO_LOOKBACK_DAYS } from "../flow-put-call-ratio-rules.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
@@ -66,6 +68,12 @@ import {
   buildFlowLiquidityHeatmapFromRows,
   readFlowLiquidityHeatmapRows,
 } from "./flow-liquidity-heatmap.ts";
+import {
+  buildFlowOffExchangeLevels,
+  type FlowOffExchangeLevelsRows,
+  offExchangeFinraFromDate,
+  offExchangeWindowRange,
+} from "./flow-off-exchange-levels.ts";
 import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
@@ -760,12 +768,100 @@ const liquidityHeatmap = api.flow.liquidityHeatmap
     return assemble(failures, buildFlowLiquidityHeatmapFromRows, rows);
   });
 
+const readFlowOffExchangeLevelsRows = async (
+  repositories: Readonly<{
+    flow: FlowRepository;
+    openbb: OpenbbRepository | undefined;
+  }>,
+  input: FlowOffExchangeLevelsParsedInput,
+  now: Date
+): Promise<FlowOffExchangeLevelsRows> => {
+  const newest = await repositories.flow.newestMinuteAt(input.symbol);
+  const anchorSession = newest === null ? null : flowSessionDate(newest);
+  const finraFrom = offExchangeFinraFromDate(
+    anchorSession ?? newYorkClock(now).day
+  );
+  const readFinra = () =>
+    repositories.openbb === undefined
+      ? Promise.resolve([])
+      : repositories.openbb.otcWeekly(input.symbol, finraFrom);
+
+  if (anchorSession === null) {
+    const [samples, finraRows] = await Promise.all([
+      repositories.flow.latestSamples(input.symbol, ["ticks"]),
+      readFinra(),
+    ]);
+    return {
+      ...samples,
+      anchorSession: null,
+      events: [],
+      finraRows,
+      minutes: [],
+      now,
+      range: input.range,
+      symbol: input.symbol,
+      truncated: false,
+      windowEnd: null,
+      windowStart: null,
+    };
+  }
+
+  const window = offExchangeWindowRange(anchorSession, input.range);
+  const [minutes, rawEvents, samples, finraRows] = await Promise.all([
+    repositories.flow.readMinutes({
+      from: window.from,
+      symbol: input.symbol,
+      to: window.to,
+    }),
+    repositories.flow.readEvents({
+      from: window.from,
+      kinds: ["off_exchange_print"],
+      limit: OFF_EXCHANGE_READ_CAP + 1,
+      symbol: input.symbol,
+      to: new Date(window.to.getTime() - 1),
+    }),
+    repositories.flow.latestSamples(input.symbol, ["ticks"]),
+    readFinra(),
+  ]);
+  const truncated = rawEvents.length > OFF_EXCHANGE_READ_CAP;
+  return {
+    ...samples,
+    anchorSession,
+    events: truncated ? rawEvents.slice(0, OFF_EXCHANGE_READ_CAP) : rawEvents,
+    finraRows,
+    minutes,
+    now,
+    range: input.range,
+    symbol: input.symbol,
+    truncated,
+    windowEnd: window.to,
+    windowStart: window.from,
+  };
+};
+
+const offExchangeLevels = api.flow.offExchangeLevels
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const flow = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowOffExchangeLevelsRows(
+        { flow, openbb: context.repositories.openbb },
+        input as FlowOffExchangeLevelsParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowOffExchangeLevels, rows);
+  });
+
 export const flowRouter = {
   collect,
   control,
   events,
   hedgingPressure,
   liquidityHeatmap,
+  offExchangeLevels,
   putCallRatio,
   snapshot,
   strikeHeatmap,

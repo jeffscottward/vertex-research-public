@@ -16,6 +16,8 @@ import {
   type FlowControlInput,
   type FlowHedgingPressure,
   type FlowLiquidityHeatmap,
+  type FlowOffExchangeLevels,
+  type FlowOffExchangeRange,
   type FlowPutCallRatio,
   type FlowSnapshot,
   type FlowStrikeHeatmap,
@@ -53,13 +55,19 @@ import {
   hedgingSymbolOf,
 } from "../../features/flow/hedging-pressure-view-model.ts";
 import {
-  type PutCallRatioRequest,
-  putCallRatioSymbolOf,
-} from "../../features/flow/put-call-ratio-view-model.ts";
-import {
   heatmapSymbolOf,
   type LiquidityHeatmapRequest,
 } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import {
+  type FlowOffExchangeLevelsFailure,
+  OFF_EXCHANGE_DEFAULT_RANGE,
+  type OffExchangeLevelsRequest,
+  offExchangeSymbolOf,
+} from "../../features/flow/off-exchange-levels-view-model.ts";
+import {
+  type PutCallRatioRequest,
+  putCallRatioSymbolOf,
+} from "../../features/flow/put-call-ratio-view-model.ts";
 import {
   type FlowStrikeHeatmapFailure,
   type StrikeHeatmapRequest,
@@ -106,14 +114,15 @@ import {
   FlowHedgingPressurePanel,
 } from "./flow-hedging-pressure-panel.tsx";
 import {
+  type FlowLiquidityHeatmapFailure,
+  FlowLiquidityHeatmapPanel,
+} from "./flow-liquidity-heatmap-panel.tsx";
+import { FlowOffExchangeLevelsPanel } from "./flow-off-exchange-levels-panel.tsx";
+import {
   type FlowPutCallRatioFailure,
   FlowPutCallRatioPanel,
 } from "./flow-put-call-ratio-panel.tsx";
 import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
-import {
-  type FlowLiquidityHeatmapFailure,
-  FlowLiquidityHeatmapPanel,
-} from "./flow-liquidity-heatmap-panel.tsx";
 import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
@@ -128,6 +137,9 @@ export interface FlowGateway {
   readonly liquidityHeatmap: (
     input: LiquidityHeatmapRequest
   ) => Promise<FlowLiquidityHeatmap>;
+  readonly offExchangeLevels: (
+    input: OffExchangeLevelsRequest
+  ) => Promise<FlowOffExchangeLevels>;
   readonly putCallRatio: (
     input: PutCallRatioRequest
   ) => Promise<FlowPutCallRatio>;
@@ -137,7 +149,6 @@ export interface FlowGateway {
   ) => Promise<FlowStrikeHeatmap>;
   readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
 }
-
 export const createBrowserFlowGateway = (): FlowGateway => {
   let client: ApiClient | undefined;
   const api = (): ApiClient => {
@@ -150,6 +161,8 @@ export const createBrowserFlowGateway = (): FlowGateway => {
       api().flow.hedgingPressure(input),
     liquidityHeatmap: (input: LiquidityHeatmapRequest) =>
       api().flow.liquidityHeatmap(input),
+    offExchangeLevels: (input: OffExchangeLevelsRequest) =>
+      api().flow.offExchangeLevels(input),
     putCallRatio: (input: PutCallRatioRequest) =>
       api().flow.putCallRatio(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
@@ -663,6 +676,13 @@ export const FlowWorkspace = ({
   const [strikeHeatmapFailure, setStrikeHeatmapFailure] =
     useState<FlowStrikeHeatmapFailure | null>(null);
   const [strikeHeatmapPending, setStrikeHeatmapPending] = useState(false);
+  const [offExchangeRange, setOffExchangeRange] =
+    useState<FlowOffExchangeRange>(OFF_EXCHANGE_DEFAULT_RANGE);
+  const [offExchangeLevels, setOffExchangeLevels] =
+    useState<FlowOffExchangeLevels | null>(null);
+  const [offExchangeFailure, setOffExchangeFailure] =
+    useState<FlowOffExchangeLevelsFailure | null>(null);
+  const [offExchangePending, setOffExchangePending] = useState(false);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
@@ -673,6 +693,11 @@ export const FlowWorkspace = ({
     STRIKE_HEATMAP_RULES.defaultBucketMinutes
   );
   const heatmapLatest = useRef(0);
+  // Dedicated sequence counter and range ref for flow.offExchangeLevels (SPY only).
+  const offExchangeRangeRef = useRef<FlowOffExchangeRange>(
+    OFF_EXCHANGE_DEFAULT_RANGE
+  );
+  const offExchangeLatest = useRef(0);
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
@@ -683,7 +708,8 @@ export const FlowWorkspace = ({
   const putCallForbidden = useRef(false);
   // The same hold for a forbidden strike heatmap answer, set and cleared by strike heatmap answers only.
   const strikeHeatmapForbidden = useRef(false);
-
+  // The same hold for a forbidden off-exchange levels answer, set and cleared by off-exchange answers only.
+  const offExchangeForbidden = useRef(false);
   const loadStrikeHeatmap = useCallback(
     (
       targetSymbol: FlowSymbol,
@@ -722,6 +748,51 @@ export const FlowWorkspace = ({
               setFailure({ kind: "forbidden" });
             else
               setStrikeHeatmapFailure({
+                code: described.code,
+                failedAt: Date.now(),
+                message: described.message,
+              });
+          }
+        );
+    },
+    [gateway]
+  );
+
+  const loadOffExchangeLevels = useCallback(
+    (targetSymbol: FlowSymbol, targetRange: FlowOffExchangeRange) => {
+      offExchangeLatest.current += 1;
+      const offExchangeRequest = offExchangeLatest.current;
+      const targetOffExchangeSymbol = offExchangeSymbolOf(targetSymbol);
+      if (targetOffExchangeSymbol === null) {
+        offExchangeForbidden.current = false;
+        setOffExchangeLevels(null);
+        setOffExchangeFailure(null);
+        setOffExchangePending(false);
+        return;
+      }
+      setOffExchangePending(true);
+      void gateway
+        .offExchangeLevels({
+          range: targetRange,
+          symbol: targetOffExchangeSymbol,
+        })
+        .then(
+          (response) => {
+            if (offExchangeRequest !== offExchangeLatest.current) return;
+            offExchangeForbidden.current = false;
+            setOffExchangeLevels(response);
+            setOffExchangeFailure(null);
+            setOffExchangePending(false);
+          },
+          (reason: unknown) => {
+            if (offExchangeRequest !== offExchangeLatest.current) return;
+            setOffExchangePending(false);
+            const described = describePortfolioMonitorFailure(reason);
+            offExchangeForbidden.current = described.kind === "forbidden";
+            if (described.kind === "forbidden")
+              setFailure({ kind: "forbidden" });
+            else
+              setOffExchangeFailure({
                 code: described.code,
                 failedAt: Date.now(),
                 message: described.message,
@@ -839,6 +910,8 @@ export const FlowWorkspace = ({
       );
     // Strike heatmap follows the same rules in its own call (SPY and ES only).
     loadStrikeHeatmap(symbol, heatmapBucketRef.current);
+    // Off-exchange print levels follow the same rules in their own call (SPY only).
+    loadOffExchangeLevels(symbol, offExchangeRangeRef.current);
     const [snapshotResult, controlResult] = await Promise.allSettled([
       gateway.snapshot({ minutes, symbol }),
       gateway.control({ group: groupOfSymbol(symbol) }),
@@ -875,11 +948,12 @@ export const FlowWorkspace = ({
       heatmapForbidden.current ||
       hedgingForbidden.current ||
       putCallForbidden.current ||
-      strikeHeatmapForbidden.current
+      strikeHeatmapForbidden.current ||
+      offExchangeForbidden.current
     )
       setFailure({ kind: "forbidden" });
     setPending(false);
-  }, [gateway, loadStrikeHeatmap, minutes, symbol]);
+  }, [gateway, loadOffExchangeLevels, loadStrikeHeatmap, minutes, symbol]);
 
   useEffect(() => {
     void load();
@@ -888,9 +962,9 @@ export const FlowWorkspace = ({
       window.clearInterval(timer);
       latest.current += 1;
       heatmapLatest.current += 1;
+      offExchangeLatest.current += 1;
     };
   }, [load, refreshMs]);
-
   const handleHeatmapBucketChange = useCallback(
     (next: FlowStrikeHeatmapBucketMinutes) => {
       heatmapBucketRef.current = next;
@@ -904,6 +978,19 @@ export const FlowWorkspace = ({
     loadStrikeHeatmap(symbol, heatmapBucketRef.current);
   }, [loadStrikeHeatmap, symbol]);
 
+  const handleOffExchangeRangeChange = useCallback(
+    (next: FlowOffExchangeRange) => {
+      offExchangeRangeRef.current = next;
+      setOffExchangeRange(next);
+      loadOffExchangeLevels(symbol, next);
+    },
+    [loadOffExchangeLevels, symbol]
+  );
+
+  const handleOffExchangeRetry = useCallback(() => {
+    loadOffExchangeLevels(symbol, offExchangeRangeRef.current);
+  }, [loadOffExchangeLevels, symbol]);
+
   if (failure?.kind === "forbidden")
     return <OperatorAccessRequired feature="flow" />;
   const notCollected = notCollectedLine(symbol);
@@ -911,6 +998,7 @@ export const FlowWorkspace = ({
   const hedgingSymbol = hedgingSymbolOf(symbol);
   const putCallSymbol = putCallRatioSymbolOf(symbol);
   const heatmapSymbol = strikeHeatmapSymbolOf(symbol);
+  const offExchangeSymbol = offExchangeSymbolOf(symbol);
 
   return (
     <div className="space-y-6" data-flow-state={pending ? "loading" : "idle"}>
@@ -933,6 +1021,9 @@ export const FlowWorkspace = ({
                   heatmapLatest.current += 1;
                   setStrikeHeatmap(null);
                   setStrikeHeatmapFailure(null);
+                  offExchangeLatest.current += 1;
+                  setOffExchangeLevels(null);
+                  setOffExchangeFailure(null);
                   // The control panel and the tape speed panel show the group's future.
                   if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
                     setControl(null);
@@ -1051,6 +1142,22 @@ export const FlowWorkspace = ({
           pending={strikeHeatmapPending}
           refreshMs={refreshMs}
           symbol={heatmapSymbol}
+        />
+      )}
+      {offExchangeSymbol === null ? null : (
+        <FlowOffExchangeLevelsPanel
+          document={
+            offExchangeLevels?.symbol === offExchangeSymbol
+              ? offExchangeLevels
+              : null
+          }
+          failure={offExchangeFailure}
+          onRangeChange={handleOffExchangeRangeChange}
+          onRetry={handleOffExchangeRetry}
+          pending={offExchangePending}
+          range={offExchangeRange}
+          refreshMs={refreshMs}
+          symbol={offExchangeSymbol}
         />
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
