@@ -231,12 +231,23 @@ if [[ "$*" == *"sys.version_info"* && "$*" != *"nautilus_trader"* ]]; then
 fi
 if [[ "$*" == *"-m venv"* ]]; then
   target="\${@: -1}"
+  rm -rf "$target"
   mkdir -p "$target/bin"
+  printf 'home = /usr/bin\\n' > "$target/pyvenv.cfg"
+  : > "$target/.has-pip"
   cp "$0" "$target/bin/python"
   chmod 0755 "$target/bin/python"
   exit 0
 fi
+if [[ "$*" == *"-m pip --version"* ]]; then
+  venv_root="$(cd "$(dirname "$0")/.." && pwd)"
+  [[ -f "$venv_root/.has-pip" ]] || { echo "No module named pip" >&2; exit 1; }
+  echo "pip 25.0"
+  exit 0
+fi
 if [[ "$*" == *"-m pip install"* ]]; then
+  venv_root="$(cd "$(dirname "$0")/.." && pwd)"
+  [[ -f "$venv_root/.has-pip" ]] || { echo "No module named pip" >&2; exit 1; }
   exit 0
 fi
 if [[ "$*" == *"nautilus_trader"* ]]; then
@@ -274,6 +285,7 @@ if [[ "$1" == "venv" ]]; then
   target="\${@: -1}"
   rm -rf "$target"
   mkdir -p "$target/bin"
+  printf 'home = /usr/bin\\n' > "$target/pyvenv.cfg"
   cp "${fakePy}" "$target/bin/python"
   chmod 0755 "$target/bin/python"
   exit 0
@@ -406,6 +418,17 @@ exit 2
     );
     expect(repaired.status, repaired.stderr).toBe(0);
     expect(readFileSync(logFile, "utf8")).toContain("uv:venv --clear");
+
+    // 4. Missing pyvenv.cfg triggers uv venv --clear repair even when bin/python works
+    rmSync(join(venv, "pyvenv.cfg"));
+    writeFileSync(logFile, "", "utf8");
+    const cfgRepaired = spawnSync(
+      "bash",
+      [scriptPath, "--checkout", checkout, "--venv", venv],
+      { encoding: "utf8", env }
+    );
+    expect(cfgRepaired.status, cfgRepaired.stderr).toBe(0);
+    expect(readFileSync(logFile, "utf8")).toContain("uv:venv --clear");
   });
 
   it("falls back to python3.12 -m venv and hash-checked pip install when uv is unavailable", () => {
@@ -433,6 +456,23 @@ exit 2
     expect(log).toContain(
       `-m pip install --quiet --disable-pip-version-check --no-deps --require-hashes --only-binary=:all: -r ${lock}`
     );
+
+    // A pip-less venv (e.g. originally created by uv) is rebuilt by python3.12 -m venv --clear
+    rmSync(join(venv, ".has-pip"));
+    writeFileSync(logFile, "", "utf8");
+    const rebuilt = spawnSync(
+      "bash",
+      [scriptPath, "--checkout", checkout, "--venv", venv, "--python", fakePy],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERTEX_NAUTILUS_SETUP_NO_UV: "1",
+        },
+      }
+    );
+    expect(rebuilt.status, rebuilt.stderr).toBe(0);
+    expect(readFileSync(logFile, "utf8")).toContain(`-m venv --clear ${venv}`);
   });
 
   it("fails verification when the installed nautilus-trader version does not match the lock", () => {

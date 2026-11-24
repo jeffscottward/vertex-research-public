@@ -94,7 +94,7 @@ python_minor() {
 
 venv_python="$venv/bin/python"
 needs_venv=0
-if [[ ! -f "$venv_python" || ! -x "$venv_python" ]]; then
+if [[ ! -f "$venv/pyvenv.cfg" || ! -f "$venv_python" || ! -x "$venv_python" ]]; then
   needs_venv=1
 elif [[ "$(python_minor "$venv_python")" != "3.12" ]]; then
   needs_venv=1
@@ -132,6 +132,9 @@ else
   if [[ "$py_ver" != "3.12" ]]; then
     echo "setup-nautilus-venv: $python_bin is Python ${py_ver:-unknown}; the Nautilus lock requires 3.12" >&2
     exit 64
+  fi
+  if [[ "$needs_venv" -eq 0 ]] && ! "$venv_python" -m pip --version >/dev/null 2>&1; then
+    needs_venv=1
   fi
   if [[ "$needs_venv" -eq 1 ]]; then
     "$python_bin" -m venv --clear "$venv"
