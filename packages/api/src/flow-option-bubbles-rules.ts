@@ -176,8 +176,12 @@ const buildUnreadSummary = (
 export const foldOptionBubbles = (
   input: OptionBubblesFoldInput
 ): OptionBubblesFold => {
+  const requestedCap =
+    input.maxBubbles !== undefined && Number.isFinite(input.maxBubbles)
+      ? Math.trunc(input.maxBubbles)
+      : FLOW_OPTION_BUBBLES_MAX_BUBBLES;
   const maxBubbles = Math.min(
-    Math.max(1, input.maxBubbles ?? FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+    Math.max(1, requestedCap),
     FLOW_OPTION_BUBBLES_MAX_BUBBLES
   );
   const fromMs = input.range.from.getTime();
@@ -229,19 +233,23 @@ export const foldOptionBubbles = (
     }
   }
 
-  const eligiblePrints = input.prints.filter(
-    (print) =>
+  const eligiblePrints = input.prints.filter((print) => {
+    const tradedMs = print.tradedAt.getTime();
+    return (
+      tradedMs >= fromMs &&
+      tradedMs < toMs &&
       Number.isFinite(print.premium) &&
       print.premium >= input.minPremiumUsd &&
       Number.isFinite(print.strike) &&
       print.strike > 0
-  );
+    );
+  });
   // Keep largest prints first when capping, breaking ties identically to SQL (tradedAt desc, id desc).
   const rankedPrints = [...eligiblePrints].sort(
     (a, b) =>
       b.premium - a.premium ||
       b.tradedAt.getTime() - a.tradedAt.getTime() ||
-      b.id.localeCompare(a.id)
+      (b.id < a.id ? -1 : 1)
   );
   const truncated = rankedPrints.length > maxBubbles;
   const keptPrints = rankedPrints.slice(0, maxBubbles);
@@ -249,7 +257,7 @@ export const foldOptionBubbles = (
   // Return chronologically (at asc, id asc) for deterministic chart/keyboard navigation.
   keptPrints.sort(
     (a, b) =>
-      a.tradedAt.getTime() - b.tradedAt.getTime() || a.id.localeCompare(b.id)
+      a.tradedAt.getTime() - b.tradedAt.getTime() || (a.id < b.id ? -1 : 1)
   );
 
   let plottedBubbles = 0;

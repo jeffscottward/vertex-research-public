@@ -357,4 +357,33 @@ describe("foldOptionBubbles", () => {
       },
     ]);
   });
+
+  it("falls back safely on NaN maxBubbles, excludes out-of-session prints, and breaks ties deterministically", () => {
+    const defensive = foldOptionBubbles({
+      gaps: [],
+      maxBubbles: Number.NaN,
+      minPremiumUsd: 100_000,
+      minutes: [],
+      prints: [
+        makePrint("before-open", "2026-11-20T14:29:59.000Z", {
+          premium: 900_000,
+        }),
+        makePrint("after-close", "2026-11-20T21:15:00.000Z", {
+          premium: 900_000,
+        }),
+        makePrint("in-session-b", "2026-11-20T15:00:00.000Z", {
+          premium: 500_000,
+        }),
+        makePrint("in-session-a", "2026-11-20T15:00:00.000Z", {
+          premium: 500_000,
+        }),
+      ],
+      range: RANGE,
+    });
+    expect(defensive.bubbles.map((b) => b.id)).toEqual([
+      "in-session-a",
+      "in-session-b",
+    ]);
+    expect(defensive.truncated).toBe(false);
+  });
 });

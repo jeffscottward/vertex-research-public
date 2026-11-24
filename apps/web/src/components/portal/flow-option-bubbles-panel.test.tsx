@@ -345,6 +345,22 @@ describe("FlowOptionBubblesPanel", () => {
         ?.textContent
     ).toContain("Above ask");
 
+    // Consecutive ArrowRight on focused element moves DOM focus b1 -> b2 -> b3 without toggling off,
+    // and pressing ArrowRight at the end keeps b3 selected
+    await keyDown(b1, "ArrowRight");
+    expect(document.activeElement).toBe(b2);
+    await keyDown(document.activeElement, "ArrowRight");
+    expect(document.activeElement).toBe(b3);
+    expect(
+      container.querySelector("[data-flow-option-bubbles-inspector]")
+        ?.textContent
+    ).toContain("Unsigned flow");
+    await keyDown(document.activeElement, "ArrowRight");
+    expect(document.activeElement).toBe(b3);
+    expect(
+      container.querySelector("[data-flow-option-bubbles-inspector]")
+        ?.textContent
+    ).toContain("Unsigned flow");
     await keyDown(b1, "Tab");
     await keyDown(b1, "Escape");
     expect(
@@ -420,6 +436,57 @@ describe("FlowOptionBubblesPanel", () => {
     expect(
       container.querySelector("[data-flow-option-bubbles-no-matches]")
     ).not.toBeNull();
+    // Unplotted-only session (no price points, matching prints lack underlyingPrice):
+    // hides chart with explicit message while keeping TopPrintsTable and BubbleInspector working
+    await rerender(
+      <FlowOptionBubblesPanel
+        document={makeDocument({
+          bubbles: [
+            makeBubble("only-unplotted", {
+              contract: "SPY 2026-11-27 695C",
+              premium: 420_000,
+              underlyingPrice: null,
+            }),
+          ],
+          gaps: [],
+          pricePoints: [],
+          totals: {
+            ...makeDocument().totals,
+            latestPrice: null,
+            plottedBubbles: 0,
+            shownBubbles: 1,
+            unplottedBubbles: 1,
+          },
+          unread: null,
+        })}
+        failure={null}
+        minPremiumUsd={250_000}
+        onMinPremiumChange={vi.fn()}
+        onRetry={vi.fn()}
+        pending={false}
+        refreshMs={60_000}
+        symbol="SPY"
+      />
+    );
+    expect(
+      container.querySelector("[data-flow-option-bubbles-chart]")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-flow-option-bubbles-unplotted-only]")
+        ?.textContent
+    ).toContain("Inspect matching prints in the table below");
+    expect(
+      container.querySelector('[data-flow-option-bubble-row="only-unplotted"]')
+    ).not.toBeNull();
+    await click(
+      container.querySelector(
+        '[data-flow-option-bubble-row="only-unplotted"] button'
+      )
+    );
+    expect(
+      container.querySelector("[data-flow-option-bubbles-inspector]")
+        ?.textContent
+    ).toContain("SPY 2026-11-27 695C");
 
     const manyBubbles = Array.from({ length: 14 }, (_, i) =>
       makeBubble(`many-${i}`, {

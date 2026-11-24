@@ -28,7 +28,7 @@ import {
   TableRow,
   TableScroll,
 } from "@darkfactory/ui";
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 
 import {
   formatCount,
@@ -39,6 +39,7 @@ import {
 import {
   buildOptionBubblesPlot,
   describeSelectedBubble,
+  filterOptionBubbles,
   type FlowOptionBubblesFailure,
   formatThresholdLabel,
   nextBubbleKeyTarget,
@@ -58,6 +59,7 @@ import {
   optionBubblesNoMatchesLine,
   optionBubblesRuleText,
   optionBubblesTitle,
+  sortOptionBubblesForTable,
   optionBubblesTotalsLine,
 } from "../../features/flow/option-bubbles-view-model.ts";
 
@@ -257,11 +259,13 @@ const BubblesLegend = ({ plot }: Readonly<{ plot: OptionBubblesPlot }>) => (
 const BubbleShape = ({
   item,
   selected,
+  registerRef,
   onSelect,
   onKeyDown,
 }: Readonly<{
   item: OptionBubblesPlotBubble;
   selected: boolean;
+  registerRef: (id: string, node: SVGGElement | null) => void;
   onSelect: (id: string) => void;
   onKeyDown: (event: KeyboardEvent<SVGGElement>, id: string) => void;
 }>) => {
@@ -287,12 +291,13 @@ const BubbleShape = ({
     <g
       aria-label={item.ariaLabel}
       aria-pressed={selected}
-      className="cursor-pointer focus:outline-none"
+      className="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
       data-flow-option-bubble={item.bubble.id}
       data-flow-option-bubble-right={item.bubble.right}
       data-flow-option-bubble-side={item.sideStyle}
       onClick={() => onSelect(item.bubble.id)}
       onKeyDown={(event) => onKeyDown(event, item.bubble.id)}
+      ref={(node) => registerRef(item.bubble.id, node)}
       role="button"
       tabIndex={0}
     >
@@ -360,36 +365,41 @@ const BubbleInspector = ({
   ticker: string;
   onClear: () => void;
 }>) => {
-  if (bubble === null) return null;
-  const readout = describeSelectedBubble(bubble, ticker);
+  const readout =
+    bubble === null ? null : describeSelectedBubble(bubble, ticker);
   return (
-    <div
-      aria-live="polite"
-      className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs"
-      data-flow-option-bubbles-inspector=""
-    >
-      <div className="space-y-1">
-        <p className="font-medium font-mono text-foreground">
-          {readout.headline}
-        </p>
-        <p className="text-foreground tabular-nums">{readout.executionLine}</p>
-        <p className="text-muted-foreground tabular-nums">
-          {readout.contextLine}
-        </p>
-        {readout.flags.length === 0 ? null : (
-          <p className="text-muted-foreground">
-            Flags: {readout.flags.join(" · ")}
-          </p>
-        )}
-      </div>
-      <Button
-        data-flow-option-bubbles-clear=""
-        onClick={onClear}
-        size="sm"
-        variant="ghost"
-      >
-        Clear
-      </Button>
+    <div aria-live="polite">
+      {readout === null ? null : (
+        <div
+          className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs"
+          data-flow-option-bubbles-inspector=""
+        >
+          <div className="space-y-1">
+            <p className="font-medium font-mono text-foreground">
+              {readout.headline}
+            </p>
+            <p className="text-foreground tabular-nums">
+              {readout.executionLine}
+            </p>
+            <p className="text-muted-foreground tabular-nums">
+              {readout.contextLine}
+            </p>
+            {readout.flags.length === 0 ? null : (
+              <p className="text-muted-foreground">
+                Flags: {readout.flags.join(" · ")}
+              </p>
+            )}
+          </div>
+          <Button
+            data-flow-option-bubbles-clear=""
+            onClick={onClear}
+            size="sm"
+            variant="ghost"
+          >
+            Clear
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
@@ -398,22 +408,31 @@ const BubblesSvgChart = ({
   plot,
   response,
   selectedId,
-  onSelect,
+  onToggleSelect,
+  onFocusSelect,
   onClear,
 }: Readonly<{
   plot: OptionBubblesPlot;
   response: FlowOptionBubbles;
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  onToggleSelect: (id: string) => void;
+  onFocusSelect: (id: string) => void;
   onClear: () => void;
 }>) => {
+  const bubbleRefs = useRef<Map<string, SVGGElement>>(new Map());
+
+  const registerRef = (id: string, node: SVGGElement | null): void => {
+    if (node === null) bubbleRefs.current.delete(id);
+    else bubbleRefs.current.set(id, node);
+  };
+
   const handleBubbleKeyDown = (
     event: KeyboardEvent<SVGGElement>,
     bubbleId: string
   ): void => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      onSelect(bubbleId);
+      onToggleSelect(bubbleId);
       return;
     }
     const ids = plot.chronologicalBubbles.map((item) => item.bubble.id);
@@ -423,7 +442,8 @@ const BubblesSvgChart = ({
       onClear();
     } else if (target !== undefined) {
       event.preventDefault();
-      onSelect(target);
+      onFocusSelect(target);
+      bubbleRefs.current.get(target)?.focus();
     }
   };
 
@@ -437,7 +457,7 @@ const BubblesSvgChart = ({
           )}
           className="block h-auto w-full min-w-[320px]"
           data-flow-option-bubbles-chart=""
-          role="img"
+          role="group"
           viewBox={`0 0 ${plot.width} ${plot.height}`}
         >
           {/* Horizontal price gridlines and Y-axis ticks */}
@@ -543,20 +563,23 @@ const BubblesSvgChart = ({
               item={item}
               key={item.bubble.id}
               onKeyDown={handleBubbleKeyDown}
-              onSelect={onSelect}
+              onSelect={onToggleSelect}
+              registerRef={registerRef}
               selected={item.bubble.id === selectedId}
             />
           ))}
 
           {/* Bottom X-axis time ticks */}
-          {plot.timeTicks.map((tick) => (
+          {plot.timeTicks.map((tick, index) => (
             <text
               dominantBaseline="hanging"
               fill="currentColor"
               fillOpacity={0.72}
               fontSize={10}
               key={`${tick.label}-${tick.x}`}
-              textAnchor="middle"
+              textAnchor={
+                index === plot.timeTicks.length - 1 ? "end" : "middle"
+              }
               x={tick.x}
               y={plot.chartY + plot.chartHeight + 10}
             >
@@ -718,6 +741,16 @@ export const FlowOptionBubblesPanel = ({
       ? ""
       : `${document.symbol}:${document.session ?? ""}:${document.minPremiumUsd}:${rightFilter}:${sideFilter}`;
 
+  const tableBubbles = useMemo(
+    () =>
+      document === null
+        ? []
+        : sortOptionBubblesForTable(
+            filterOptionBubbles(document.bubbles, rightFilter, sideFilter)
+          ),
+    [document, rightFilter, sideFilter]
+  );
+
   const plot = useMemo(
     () =>
       document === null
@@ -729,22 +762,24 @@ export const FlowOptionBubblesPanel = ({
   const activeSelectedId =
     selectedState.scope === scopeKey ? selectedState.id : null;
   const selectedBubble =
-    activeSelectedId === null || plot === null
+    activeSelectedId === null
       ? null
-      : (plot.tableBubbles.find((item) => item.id === activeSelectedId) ??
-        null);
+      : (tableBubbles.find((item) => item.id === activeSelectedId) ?? null);
 
-  const handleSelectBubble = (id: string): void => {
+  const handleToggleSelectBubble = (id: string): void => {
     setSelectedState((prev) => ({
       id: prev.scope === scopeKey && prev.id === id ? null : id,
       scope: scopeKey,
     }));
   };
 
+  const handleFocusSelectBubble = (id: string): void => {
+    setSelectedState({ id, scope: scopeKey });
+  };
+
   const handleClearSelection = (): void => {
     setSelectedState({ id: null, scope: scopeKey });
   };
-
   const disclosure =
     document === null ? null : optionBubblesDisclosureLine(document);
 
@@ -857,27 +892,38 @@ export const FlowOptionBubblesPanel = ({
             </div>
 
             {plot === null ? (
-              <p
-                className="text-muted-foreground text-sm"
-                data-flow-option-bubbles-no-matches=""
-              >
-                {optionBubblesNoMatchesLine(
-                  document.minPremiumUsd,
-                  rightFilter,
-                  sideFilter
-                )}
-              </p>
+              tableBubbles.length === 0 ? (
+                <p
+                  className="text-muted-foreground text-sm"
+                  data-flow-option-bubbles-no-matches=""
+                >
+                  {optionBubblesNoMatchesLine(
+                    document.minPremiumUsd,
+                    rightFilter,
+                    sideFilter
+                  )}
+                </p>
+              ) : (
+                <p
+                  className="text-muted-foreground text-sm"
+                  data-flow-option-bubbles-unplotted-only=""
+                >
+                  No intraday underlying price coordinates stored for these
+                  prints. Inspect matching prints in the table below.
+                </p>
+              )
             ) : (
               <>
                 <BubblesLegend plot={plot} />
                 <BubblesSvgChart
                   onClear={handleClearSelection}
-                  onSelect={handleSelectBubble}
+                  onFocusSelect={handleFocusSelectBubble}
+                  onToggleSelect={handleToggleSelectBubble}
                   plot={plot}
                   response={document}
                   selectedId={activeSelectedId}
                 />
-                {plot.tableBubbles.length === 0 ? (
+                {tableBubbles.length === 0 ? (
                   <p
                     className="text-muted-foreground text-sm"
                     data-flow-option-bubbles-no-matches=""
@@ -889,21 +935,21 @@ export const FlowOptionBubblesPanel = ({
                     )}
                   </p>
                 ) : null}
-                <BubbleInspector
-                  bubble={selectedBubble}
-                  onClear={handleClearSelection}
-                  ticker={document.ticker}
-                />
-                <TopPrintsTable
-                  bubbles={plot.tableBubbles}
-                  onSelect={handleSelectBubble}
-                  onToggleShowAll={() => setShowAllRows((prev) => !prev)}
-                  selectedId={activeSelectedId}
-                  showAll={showAllRows}
-                  ticker={document.ticker}
-                />
               </>
             )}
+            <BubbleInspector
+              bubble={selectedBubble}
+              onClear={handleClearSelection}
+              ticker={document.ticker}
+            />
+            <TopPrintsTable
+              bubbles={tableBubbles}
+              onSelect={handleToggleSelectBubble}
+              onToggleShowAll={() => setShowAllRows((prev) => !prev)}
+              selectedId={activeSelectedId}
+              showAll={showAllRows}
+              ticker={document.ticker}
+            />
 
             <p
               className="text-muted-foreground text-xs tabular-nums"

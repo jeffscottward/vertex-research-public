@@ -382,15 +382,20 @@ describe("buildOptionBubblesPlot", () => {
     const plot = buildOptionBubblesPlot(
       makeResponse({
         bubbles: [
-          makeBubble("a", {
-            at: "2026-11-20T15:00:00.000Z",
-            premium: 500_000,
-            underlyingPrice: 681,
-          }),
           makeBubble("b", {
             at: "2026-11-20T15:00:00.000Z",
             premium: 500_000,
             underlyingPrice: 685,
+          }),
+          makeBubble("c", {
+            at: "2026-11-20T15:00:00.000Z",
+            premium: 500_000,
+            underlyingPrice: 682,
+          }),
+          makeBubble("a", {
+            at: "2026-11-20T15:00:00.000Z",
+            premium: 500_000,
+            underlyingPrice: 681,
           }),
           makeBubble("tiny", {
             at: "2026-11-20T15:05:00.000Z",
@@ -431,6 +436,7 @@ describe("buildOptionBubblesPlot", () => {
     expect(plot.tableBubbles.map((b) => b.id)).toEqual([
       "mega",
       "unplotted",
+      "c",
       "b",
       "a",
       "tiny",
@@ -463,6 +469,48 @@ describe("buildOptionBubblesPlot", () => {
       "all"
     );
     expect(highPlot?.latestSpot?.price).toBe(690);
+  });
+
+  it("breaks price polylines across short open gaps and out of unread minutes, and clamps right-edge gap rects", () => {
+    const plot = buildOptionBubblesPlot(
+      makeResponse({
+        bubbles: [],
+        gaps: [
+          // Short 2m open gap between 14:31 and 14:34 (<= 5m, no stored prints inside)
+          {
+            end: "2026-11-20T14:33:00.000Z",
+            start: "2026-11-20T14:31:30.000Z",
+          },
+          // Narrow gap right at session close 16:15 ET -> must stay <= PLOT_RIGHT (968)
+          {
+            end: "2026-11-20T21:15:00.000Z",
+            start: "2026-11-20T21:15:00.000Z",
+          },
+        ],
+        pricePoints: [
+          { minute: "2026-11-20T14:30:00.000Z", price: 682.0, unread: false },
+          { minute: "2026-11-20T14:31:00.000Z", price: 682.2, unread: false },
+          // Separated from 14:31 by the 2m gap -> must NOT bridge!
+          { minute: "2026-11-20T14:34:00.000Z", price: 682.5, unread: false },
+          { minute: "2026-11-20T14:35:00.000Z", price: 682.6, unread: false },
+          // Unread minute at 14:36 followed by read minute at 14:37 -> must NOT bridge out of unread!
+          { minute: "2026-11-20T14:36:00.000Z", price: 682.7, unread: true },
+          { minute: "2026-11-20T14:37:00.000Z", price: 682.9, unread: false },
+        ],
+      }),
+      "all",
+      "all"
+    );
+    expect(plot).not.toBeNull();
+    if (plot === null) return;
+
+    expect(plot.priceSegments).toHaveLength(2);
+    expect(plot.priceDots).toHaveLength(2);
+    const rightGap = plot.gapRects.at(-1);
+    expect(rightGap).toBeDefined();
+    expect((rightGap?.x ?? 0) + (rightGap?.width ?? 0)).toBeLessThanOrEqual(
+      plot.chartX + plot.chartWidth
+    );
   });
 });
 

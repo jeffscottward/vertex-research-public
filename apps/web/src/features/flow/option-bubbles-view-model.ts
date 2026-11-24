@@ -112,7 +112,7 @@ export type BubbleInspectorReadout = Readonly<{
 export const BUBBLES_CHART_WIDTH = 1000;
 export const BUBBLES_CHART_HEIGHT = 320;
 const PLOT_LEFT = 72;
-const PLOT_RIGHT = 980;
+const PLOT_RIGHT = 968;
 const PLOT_TOP = 24;
 const PLOT_BOTTOM = 282;
 const PLOT_WIDTH = PLOT_RIGHT - PLOT_LEFT;
@@ -272,8 +272,7 @@ export const optionBubblesDisclosureLine = (
 
 /** Rule disclosure line matching the server rules object. */
 export const optionBubblesRuleText = (rules: FlowOptionBubblesRules): string =>
-  `Rules ${rules.version}: stored QuantData prints >= ${formatMoney(rules.storedMinPremiumUsd)} over the last ${rules.retentionDays} days, capped to the top ${rules.maxBubbles} prints meeting the selected floor. Bubble area scales with square root of premium; calls are green (C), puts are red (P); filled circles are ask/above-ask, hollow rings are bid/below-bid, dashed rings are mid or side not classified. Research view only.`;
-
+  `Rules ${rules.version}: stored QuantData prints >= ${formatMoney(rules.storedMinPremiumUsd)} over the last ${rules.retentionDays} days, capped to the top ${rules.maxBubbles} prints meeting the selected floor. Bubble radius scales with square root of premium (area proportional to premium); calls are green (C), puts are red (P); filled circles are ask/above-ask, hollow rings are bid/below-bid, dashed rings are mid or side not classified. Research view only.`;
 /** Maps contract aggressor side to bubble visual encoding (never color alone). */
 export const bubbleSideStyleOf = (side: FlowOptionSide): BubbleSideStyle => {
   if (side === "ask" || side === "above_ask") return "filled";
@@ -303,6 +302,17 @@ export const filterOptionBubbles = (
       return false;
     return true;
   });
+
+/** Sorts filtered big option prints largest-first for the detail table. */
+export const sortOptionBubblesForTable = (
+  bubbles: readonly FlowOptionBubblesItem[]
+): FlowOptionBubblesItem[] =>
+  [...bubbles].sort(
+    (a, b) =>
+      b.premium - a.premium ||
+      Date.parse(b.at) - Date.parse(a.at) ||
+      (b.id < a.id ? -1 : 1)
+  );
 
 /** Computes perceptual area-proportional bubble radius clamped to [5, 22]. */
 export const bubbleRadiusFor = (premium: number, scaleMax: number): number => {
@@ -482,22 +492,34 @@ export const buildOptionBubblesPlot = (
     }
   );
 
-  const gapRects: OptionBubblesGapRect[] = response.gaps.map((gap) => {
-    const x1 = xOf(Date.parse(gap.start));
-    const x2 = xOf(Date.parse(gap.end));
+  const gapSpans = response.gaps.map((gap) => ({
+    end: gap.end,
+    endMs: Date.parse(gap.end),
+    start: gap.start,
+    startMs: Date.parse(gap.start),
+  }));
+  const gapRects: OptionBubblesGapRect[] = gapSpans.map((span) => {
+    const rawX1 = xOf(span.startMs);
+    const rawX2 = xOf(span.endMs);
+    const x1 = Math.min(PLOT_RIGHT - 3, rawX1);
+    const width = Math.min(
+      PLOT_RIGHT - x1,
+      Math.max(3, Math.round((rawX2 - rawX1) * 10) / 10)
+    );
     return {
-      endLabel: etClock.format(new Date(gap.end)),
-      startLabel: etClock.format(new Date(gap.start)),
-      width: Math.max(3, Math.round((x2 - x1) * 10) / 10),
+      endLabel: etClock.format(new Date(span.end)),
+      startLabel: etClock.format(new Date(span.start)),
+      width,
       x: x1,
     };
   });
 
-  // Segment underlying price path so open gaps or >5m holes never draw false bridges.
+  // Segment underlying price path so open gaps, unread minutes, or >5m holes never draw false bridges.
   const priceSegments: string[] = [];
   const priceDots: { x: number; y: number }[] = [];
   let currentRun: { x: number; y: number }[] = [];
   let prevMs: number | null = null;
+  let prevUnread = false;
 
   const flushRun = (): void => {
     if (currentRun.length >= 2) {
@@ -511,14 +533,21 @@ export const buildOptionBubblesPlot = (
   for (const point of response.pricePoints) {
     const ms = Date.parse(point.minute);
     const pt = { x: xOf(ms), y: yOf(point.price) };
-    if (prevMs !== null && (point.unread || ms - prevMs > MAX_LINE_GAP_MS)) {
+    const previousMs = prevMs;
+    if (
+      previousMs !== null &&
+      (point.unread ||
+        prevUnread ||
+        ms - previousMs > MAX_LINE_GAP_MS ||
+        gapSpans.some((gap) => gap.endMs > previousMs && gap.startMs < ms))
+    ) {
       flushRun();
     }
     currentRun.push(pt);
     prevMs = ms;
+    prevUnread = point.unread;
   }
   flushRun();
-
   const latestSpot =
     response.totals.latestPrice === null
       ? null
@@ -555,16 +584,10 @@ export const buildOptionBubblesPlot = (
   const drawBubbles = [...chronologicalBubbles].sort(
     (a, b) =>
       b.bubble.premium - a.bubble.premium ||
-      a.bubble.id.localeCompare(b.bubble.id)
+      (a.bubble.id < b.bubble.id ? -1 : 1)
   );
 
-  const tableBubbles = [...filtered].sort(
-    (a, b) =>
-      b.premium - a.premium ||
-      Date.parse(b.at) - Date.parse(a.at) ||
-      b.id.localeCompare(a.id)
-  );
-
+  const tableBubbles = sortOptionBubblesForTable(filtered);
   const midPremium = Math.round((response.minPremiumUsd + scaleMax) / 2);
   const sizeLegend: OptionBubblesSizeStop[] = [
     response.minPremiumUsd,
