@@ -14,6 +14,7 @@ import { buildResearchReportTechnicals } from "../research-report-technicals.ts"
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { sanitizeResearchDatasetData } from "./research-reports-privacy.ts";
 import { storageReadFailedMessage } from "./storage-request-failed.ts";
 
 // researchReports.*: read-only, operator-only (same gate as quantLab.list). Stored dataset bodies
@@ -127,7 +128,7 @@ const dataset = api.researchReports.dataset
       if (row === null || row.body === null) throw errors.NOT_FOUND();
       return {
         byteLength: row.byteLength,
-        data: parseBody(row.body),
+        data: sanitizeResearchDatasetData(input.dataset, parseBody(row.body)),
         dataRevision: revision,
         dataset: input.dataset,
         reportId: report.id,

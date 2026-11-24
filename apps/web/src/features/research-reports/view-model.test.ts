@@ -299,6 +299,85 @@ describe("research dossier dataset view-model", () => {
     expect(view.sections.map((section) => section.id)).toEqual(["levels"]);
   });
 
+  it("blocks private broker, portfolio, NLV and user-order text in options-analysis output", () => {
+    const sentinel = "SENTINEL_APP_PRIVACY_774";
+    const view = toDatasetViewModel({
+      ...datasetOutput({
+        metrics: [
+          { label: "30d IV", period: "2026-11-22", value: "48%" },
+          { label: "Broker NLV", period: "live", value: `${sentinel}-nlv` },
+          { label: "Exposure", period: "Account", value: `${sentinel}-acct` },
+        ],
+        sections: [
+          {
+            body: [
+              "Public payoff note stays.",
+              `IBKR ${sentinel} broker refresh line drops.`,
+            ],
+            bullets: [
+              "Public bullet stays.",
+              `Limit order ${sentinel} already filled drops.`,
+            ],
+            id: "tenor-and-budget",
+            title: "Tenor and budget",
+          },
+          {
+            body: [`Net liquidation ${sentinel} only.`],
+            id: "private-only",
+            title: "Sizing",
+          },
+          {
+            body: ["Public line under private heading."],
+            id: "acct-heading",
+            title: `Portfolio ${sentinel}`,
+          },
+        ],
+        sources: [
+          {
+            id: "pub-chain",
+            title: "Public options chain",
+            url: "https://example.test/chain",
+          },
+          {
+            id: "broker-snap",
+            title: `IBKR ${sentinel}`,
+            url: "https://example.test/private",
+          },
+        ],
+        summary: `Keep under 2% NLV for ${sentinel} pending order.`,
+        title: `Options analysis (${sentinel} account view)`,
+        warnings: [
+          "Public volatility warning.",
+          `User-order ${sentinel} warning.`,
+        ],
+      }),
+      dataset: "options-analysis",
+      reportId: "APP",
+    });
+
+    expect(JSON.stringify(view)).not.toContain(sentinel);
+    expect(view.title).toBeNull();
+    expect(view.summary).toBeNull();
+    expect(view.metrics).toEqual([
+      { label: "30d IV", period: "2026-11-22", value: "48%" },
+    ]);
+    expect(view.sections).toEqual([
+      {
+        id: "tenor-and-budget",
+        lines: ["Public payoff note stays.", "Public bullet stays."],
+        title: "Tenor and budget",
+      },
+    ]);
+    expect(view.sources).toEqual([
+      {
+        href: "https://example.test/chain",
+        id: "pub-chain",
+        title: "Public options chain",
+      },
+    ]);
+    expect(view.warnings).toEqual(["Public volatility warning."]);
+  });
+
   it("returns an empty view for data that is not an object", () => {
     for (const data of [
       null,

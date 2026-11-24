@@ -230,47 +230,74 @@ const quoteMetric = (data: Json): MetricView[] => {
     : [];
 };
 
-const metrics = (data: Json): MetricView[] =>
+const PRIVATE_OPTIONS_TEXT =
+  /\b(?:ibkr|interactive\s+brokers|broker(?:age|s)?|nlv|net\s+liquidation|portfolio(?:s)?|account(?:s)?|user[- ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting)\s+orders?|(?:order|orders)\s+(?:pending|filled|working|open|placed|submitted|resting)|filled|existing\s+(?:position|holding|shares)|current\s+(?:position|holding|shares|exposure))\b/iu;
+
+const isBlockedText = (value: string | null, blockPrivate: boolean): boolean =>
+  blockPrivate && value !== null && PRIVATE_OPTIONS_TEXT.test(value);
+
+const metrics = (data: Json, blockPrivate: boolean): MetricView[] =>
   records(data["metrics"]).flatMap((metric) => {
     const label = text(metric["label"]);
     const value = scalarText(metric["value"]);
-    return label === null || value === null
-      ? []
-      : [{ label, period: text(metric["period"]), value }];
+    const period = text(metric["period"]);
+    if (
+      label === null ||
+      value === null ||
+      isBlockedText(label, blockPrivate) ||
+      isBlockedText(value, blockPrivate) ||
+      isBlockedText(period, blockPrivate)
+    ) {
+      return [];
+    }
+    return [{ label, period, value }];
   });
 
 /**
  * Section ids that hold portfolio or order text and are never shown. The flat APP report's
  * technicals has an `entry` section about a pending share order and the position's exposure.
  */
-const PRIVATE_SECTION_IDS: ReadonlySet<string> = new Set(["entry"]);
+const PRIVATE_SECTION_IDS: Readonly<Record<string, true>> = {
+  entry: true,
+};
 
-const sections = (data: Json): SectionView[] =>
+const sections = (data: Json, blockPrivate: boolean): SectionView[] =>
   records(data["sections"]).flatMap((section, index) => {
     const title = text(section["title"]);
-    if (title === null || PRIVATE_SECTION_IDS.has(String(section["id"])))
+    if (
+      title === null ||
+      PRIVATE_SECTION_IDS[String(section["id"])] === true ||
+      isBlockedText(title, blockPrivate)
+    ) {
       return [];
+    }
     const body = Array.isArray(section["body"]) ? section["body"] : [];
     const bullets = Array.isArray(section["bullets"]) ? section["bullets"] : [];
-    const lines = [...body, ...bullets].flatMap((line) => {
+    const rawLines = [...body, ...bullets].flatMap((line) => {
       const value = scalarText(line);
       return value === null ? [] : [value];
     });
+    const lines = blockPrivate
+      ? rawLines.filter((line) => !PRIVATE_OPTIONS_TEXT.test(line))
+      : rawLines;
+    if (rawLines.length > 0 && lines.length === 0) return [];
     return [{ id: text(section["id"]) ?? `section-${index}`, lines, title }];
   });
 
-const sources = (data: Json): SourceView[] =>
+const sources = (data: Json, blockPrivate: boolean): SourceView[] =>
   records(data["sources"]).flatMap((source, index) => {
     const title = text(source["title"]);
-    return title === null
-      ? []
-      : [
-          {
-            href: link(source["url"]),
-            id: text(source["id"]) ?? `source-${index}`,
-            title,
-          },
-        ];
+    const id = text(source["id"]) ?? `source-${index}`;
+    const href = link(source["url"]);
+    if (
+      title === null ||
+      isBlockedText(title, blockPrivate) ||
+      isBlockedText(id, blockPrivate) ||
+      isBlockedText(href, blockPrivate)
+    ) {
+      return [];
+    }
+    return [{ href, id, title }];
   });
 
 const newsItems = (data: Json): NewsItemView[] =>
@@ -293,22 +320,27 @@ export const toDatasetViewModel = (
   output: ResearchReportDatasetOutput
 ): DatasetView => {
   const data = record(output.data) ?? {};
+  const blockPrivate = output.dataset === "options-analysis";
   const warnings = Array.isArray(data["warnings"])
     ? data["warnings"].flatMap((warning) => {
         const value = scalarText(warning);
-        return value === null ? [] : [value];
+        return value === null || isBlockedText(value, blockPrivate)
+          ? []
+          : [value];
       })
     : [];
+  const rawSummary = text(data["summary"]);
+  const rawTitle = text(data["title"]);
   return {
     asOf: text(data["asOf"]),
-    metrics: [...quoteMetric(data), ...metrics(data)],
+    metrics: [...quoteMetric(data), ...metrics(data, blockPrivate)],
     newsItems: newsItems(data),
     revision: output.dataRevision.slice(0, 12),
     revisionCount: output.revisions.length,
-    sections: sections(data),
-    sources: sources(data),
-    summary: text(data["summary"]),
-    title: text(data["title"]),
+    sections: sections(data, blockPrivate),
+    sources: sources(data, blockPrivate),
+    summary: isBlockedText(rawSummary, blockPrivate) ? null : rawSummary,
+    title: isBlockedText(rawTitle, blockPrivate) ? null : rawTitle,
     warnings,
   };
 };
