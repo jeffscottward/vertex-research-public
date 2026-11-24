@@ -340,6 +340,11 @@ describe("research lab entries", () => {
     expect(
       host.querySelector("[data-flow-strike-heatmap-inspector]")
     ).not.toBeNull();
+    // The Jigsaw-style Live DOM ladder panel of ES (when SPY is selected): live stream + ladder table.
+    await vi.waitFor(() =>
+      expect(host.querySelector('[data-live-dom-panel="ES"]')).not.toBeNull()
+    );
+    expect(host.querySelector("[data-live-dom-table]")).not.toBeNull();
     // The option print bubbles panel of SPY: price line, proportional bubbles, open gap, and table.
     await vi.waitFor(() =>
       expect(

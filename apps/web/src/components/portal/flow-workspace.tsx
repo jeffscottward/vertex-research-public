@@ -16,14 +16,15 @@ import {
   type FlowControlInput,
   type FlowHedgingPressure,
   type FlowLiquidityHeatmap,
+  type FlowLiveDomStreamEvent,
   type FlowOptionBubbles,
   type FlowOptionBubblesMinPremiumUsd,
-  OPTION_BUBBLES_RULES,
   type FlowPutCallRatio,
   type FlowSnapshot,
   type FlowStrikeHeatmap,
   type FlowStrikeHeatmapBucketMinutes,
   type FlowTapeSpeed,
+  OPTION_BUBBLES_RULES,
   STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import {
@@ -56,18 +57,19 @@ import {
   hedgingSymbolOf,
 } from "../../features/flow/hedging-pressure-view-model.ts";
 import {
-  type PutCallRatioRequest,
-  putCallRatioSymbolOf,
-} from "../../features/flow/put-call-ratio-view-model.ts";
+  heatmapSymbolOf,
+  type LiquidityHeatmapRequest,
+} from "../../features/flow/liquidity-heatmap-view-model.ts";
+import type { LiveDomStreamRequest } from "../../features/flow/live-dom-view-model.ts";
 import {
   type FlowOptionBubblesFailure,
   type OptionBubblesRequest,
   optionBubblesSymbolOf,
 } from "../../features/flow/option-bubbles-view-model.ts";
 import {
-  heatmapSymbolOf,
-  type LiquidityHeatmapRequest,
-} from "../../features/flow/liquidity-heatmap-view-model.ts";
+  type PutCallRatioRequest,
+  putCallRatioSymbolOf,
+} from "../../features/flow/put-call-ratio-view-model.ts";
 import {
   type FlowStrikeHeatmapFailure,
   type StrikeHeatmapRequest,
@@ -114,15 +116,16 @@ import {
   FlowHedgingPressurePanel,
 } from "./flow-hedging-pressure-panel.tsx";
 import {
-  type FlowPutCallRatioFailure,
-  FlowPutCallRatioPanel,
-} from "./flow-put-call-ratio-panel.tsx";
-import { FlowOptionBubblesPanel } from "./flow-option-bubbles-panel.tsx";
-import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
-import {
   type FlowLiquidityHeatmapFailure,
   FlowLiquidityHeatmapPanel,
 } from "./flow-liquidity-heatmap-panel.tsx";
+import { FlowLiveDomPanel } from "./flow-live-dom-panel.tsx";
+import { FlowOptionBubblesPanel } from "./flow-option-bubbles-panel.tsx";
+import {
+  type FlowPutCallRatioFailure,
+  FlowPutCallRatioPanel,
+} from "./flow-put-call-ratio-panel.tsx";
+import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
 import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
@@ -137,6 +140,10 @@ export interface FlowGateway {
   readonly liquidityHeatmap: (
     input: LiquidityHeatmapRequest
   ) => Promise<FlowLiquidityHeatmap>;
+  readonly liveDomStream: (
+    input: LiveDomStreamRequest,
+    options?: Readonly<{ signal?: AbortSignal }>
+  ) => Promise<AsyncIterable<FlowLiveDomStreamEvent>>;
   readonly optionBubbles: (
     input: OptionBubblesRequest
   ) => Promise<FlowOptionBubbles>;
@@ -162,6 +169,10 @@ export const createBrowserFlowGateway = (): FlowGateway => {
       api().flow.hedgingPressure(input),
     liquidityHeatmap: (input: LiquidityHeatmapRequest) =>
       api().flow.liquidityHeatmap(input),
+    liveDomStream: (
+      input: LiveDomStreamRequest,
+      options?: Readonly<{ signal?: AbortSignal }>
+    ) => api().flow.liveDomStream(input, options),
     optionBubbles: (input: OptionBubblesRequest) =>
       api().flow.optionBubbles(input),
     putCallRatio: (input: PutCallRatioRequest) =>
@@ -1118,6 +1129,7 @@ export const FlowWorkspace = ({
         refreshMs={refreshMs}
         symbol={symbol}
       />
+      <FlowLiveDomPanel gateway={gateway} symbol={symbol} />
       <FlowLiquidityHeatmapPanel
         document={liquidityHeatmap}
         failure={liquidityHeatmapFailure}
@@ -1170,9 +1182,10 @@ export const FlowWorkspace = ({
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
-        Read-only research view. ES and NQ depth is recorded (streamed at 5 s
-        when active, 1 min sampled fallback); SPY depth and SPY ticks are
-        sampled, so their totals cover only the seconds shown above.
+        Read-only research view. ES and NQ live DOM streams from active CME L2
+        depth and tape (recorded fallback when offline), while historical depth
+        is recorded (5 s streamed, 1 min sampled fallback); SPY depth and SPY
+        ticks are sampled, so their totals cover only the seconds shown above.
       </p>
     </div>
   );

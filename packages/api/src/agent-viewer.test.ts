@@ -270,6 +270,8 @@ const REVIEWED_READS: readonly string[] = [
   "flow.events",
   "flow.hedgingPressure",
   "flow.liquidityHeatmap",
+  "flow.liveDom",
+  "flow.liveDomStream",
   "flow.optionBubbles",
   "flow.putCallRatio",
   "flow.snapshot",

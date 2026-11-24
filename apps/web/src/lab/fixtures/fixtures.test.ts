@@ -2,6 +2,7 @@ import {
   FLOW_TAPE_SPEED_RULES,
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
+  FlowLiveDomSchema,
   FlowOptionBubblesSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
@@ -10,10 +11,10 @@ import {
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OPTION_BUBBLES_RULES,
   OpenbbIvHistoryOutputSchema,
   OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
-  OPTION_BUBBLES_RULES,
   PUT_CALL_RATIO_RULES,
   STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
@@ -32,6 +33,8 @@ import {
 } from "./core.ts";
 import {
   labFlowHedgingPressure,
+  labFlowLiveDom,
+  labFlowLiveDomStream,
   labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowStrikeHeatmap,
@@ -548,5 +551,44 @@ describe("lab IV rank / percentile history", () => {
     expect(nvda.basis).toBeNull();
     expect(nvda.points).toEqual([]);
     expect(nvda.own.sessions).toBe(0);
+  });
+});
+
+describe("lab flow live DOM fixture", () => {
+  it("produces schema-valid ES and NQ frames and aborts the fixture stream cleanly", async () => {
+    const es = labFlowLiveDom("ES", 900);
+    expect(FlowLiveDomSchema.parse(es)).toEqual(es);
+    expect(es.contract).toBe("ESZ6");
+    expect(es.source).toBe("live_stream");
+
+    const nqReset = labFlowLiveDom("NQ", 300, 1_763_900_000);
+    expect(FlowLiveDomSchema.parse(nqReset)).toEqual(nqReset);
+    expect(nqReset.since).toBe(1_763_900_000);
+
+    const ac = new AbortController();
+    const events: string[] = [];
+    for await (const event of labFlowLiveDomStream(
+      "ES",
+      900,
+      null,
+      ac.signal
+    )) {
+      events.push(event.type);
+      ac.abort();
+    }
+    expect(events).toEqual(["frame"]);
+
+    const preAborted = new AbortController();
+    preAborted.abort();
+    const events2: string[] = [];
+    for await (const event of labFlowLiveDomStream(
+      "NQ",
+      900,
+      null,
+      preAborted.signal
+    )) {
+      events2.push(event.type);
+    }
+    expect(events2).toEqual(["frame"]);
   });
 });

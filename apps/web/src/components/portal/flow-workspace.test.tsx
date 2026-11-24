@@ -5,11 +5,15 @@ import type {
   FlowControlInput,
   FlowHedgingPressure,
   FlowLiquidityHeatmap,
+  FlowLiveDom,
+  FlowLiveDomStreamEvent,
+  FlowLiveDomWindowSeconds,
   FlowOptionBubbles,
   FlowPutCallRatio,
   FlowSnapshot,
   FlowStrikeHeatmap,
   FlowTapeSpeed,
+  FlowTapeSymbol,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -39,6 +43,8 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
+  labFlowLiveDom,
+  labFlowLiveDomStream,
   labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowSnapshot,
@@ -122,7 +128,7 @@ const compactOptionBubbles = (
 const compactLiquidityHeatmapCache = new Map<string, FlowLiquidityHeatmap>();
 const compactLiquidityHeatmap = (
   symbol: LiquidityHeatmapRequest["symbol"],
-  minutes: number
+  minutes: LiquidityHeatmapRequest["minutes"]
 ): FlowLiquidityHeatmap => {
   const key = `${symbol}:${minutes}`;
   const cached = compactLiquidityHeatmapCache.get(key);
@@ -138,6 +144,45 @@ const compactLiquidityHeatmap = (
   compactLiquidityHeatmapCache.set(key, compact);
   return compact;
 };
+
+const compactLiveDomCache = new Map<string, FlowLiveDom>();
+const compactLiveDom = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null
+): FlowLiveDom => {
+  const key = `${symbol}:${windowSeconds}:${since ?? ""}`;
+  const cached = compactLiveDomCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowLiveDom(symbol, windowSeconds, since);
+  const compact: FlowLiveDom = {
+    ...full,
+    rows: full.rows.slice(0, 2),
+  };
+  compactLiveDomCache.set(key, compact);
+  return compact;
+};
+
+const compactLiveDomStream = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null,
+  signal?: AbortSignal
+): AsyncIterable<FlowLiveDomStreamEvent> => ({
+  async *[Symbol.asyncIterator]() {
+    yield {
+      frame: compactLiveDom(symbol, windowSeconds, since),
+      type: "frame",
+    };
+    await new Promise<void>((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      signal?.addEventListener("abort", () => resolve(), { once: true });
+    });
+  },
+});
 
 const fixed = (
   snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
@@ -196,6 +241,13 @@ const fixed = (
       heatmapCalls.push(request);
       return await liquidityHeatmap(request);
     },
+    liveDomStream: async ({ since, symbol, windowSeconds }, options) =>
+      compactLiveDomStream(
+        symbol,
+        windowSeconds,
+        since ?? null,
+        options?.signal
+      ),
     optionBubbles: async (request) => {
       optionBubblesCalls.push(request);
       return await optionBubbles(request);
@@ -277,6 +329,10 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("NQ", 60)
     );
+    const liveDomStream = vi.fn(
+      async (_input: unknown, options?: { signal?: AbortSignal }) =>
+        labFlowLiveDomStream("ES", 900, null, options?.signal)
+    );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
     const optionBubbles = vi.fn(async () =>
       labFlowOptionBubbles("ES", 500_000)
@@ -286,6 +342,7 @@ describe("createBrowserFlowGateway", () => {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        liveDomStream,
         optionBubbles,
         putCallRatio,
         snapshot,
@@ -328,6 +385,16 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
+    const ac = new AbortController();
+    ac.abort();
+    await gateway.liveDomStream(
+      { cadenceMs: 500, symbol: "ES", windowSeconds: 900 },
+      { signal: ac.signal }
+    );
+    expect(liveDomStream).toHaveBeenCalledWith(
+      { cadenceMs: 500, symbol: "ES", windowSeconds: 900 },
+      { signal: ac.signal }
+    );
     await expect(
       gateway.optionBubbles({ minPremiumUsd: 500_000, symbol: "ES" })
     ).resolves.toMatchObject({ minPremiumUsd: 500_000, ticker: "SPX" });
@@ -347,6 +414,10 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("ES", 120)
     );
+    const liveDomStream = vi.fn(
+      async (_input: unknown, options?: { signal?: AbortSignal }) =>
+        labFlowLiveDomStream("ES", 900, null, options?.signal)
+    );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
     const optionBubbles = vi.fn(async () =>
       labFlowOptionBubbles("SPY", 250_000)
@@ -356,6 +427,7 @@ describe("createBrowserFlowGateway", () => {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        liveDomStream,
         optionBubbles,
         putCallRatio,
         snapshot,
@@ -413,7 +485,7 @@ describe("FlowWorkspace", () => {
       "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes with tape; shaded minutes have none."
     );
     expect(text).toContain(
-      "Read-only research view. ES and NQ depth is recorded (streamed at 5 s when active, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
+      "Read-only research view. ES and NQ live DOM streams from active CME L2 depth and tape (recorded fallback when offline), while historical depth is recorded (5 s streamed, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
     );
     expect(
       container.querySelector('[data-metric="Tape coverage"]')
@@ -1514,7 +1586,7 @@ describe("FlowWorkspace put/call ratio panel", () => {
     ]);
   });
 
-  it("shows loading, failure with retry, keeps the last response, and ignores stale answers", async () => {
+  it("shows loading and failure with retry recovery", async () => {
     let fail = true;
     const { gateway } = fixed(
       snapshots,
@@ -1535,8 +1607,9 @@ describe("FlowWorkspace put/call ratio panel", () => {
     await click(button(container, "Refresh"));
     await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
     expect(container.querySelector("[data-flow-pcr-error]")).toBeNull();
+  });
 
-    // A stale rejection and stale resolution from SPY are ignored after switching to ES.
+  it("ignores stale put/call resolutions after switching symbols", async () => {
     const pending: Array<{
       resolve: (value: FlowPutCallRatio) => void;
       reject: (reason: unknown) => void;
@@ -1559,8 +1632,13 @@ describe("FlowWorkspace put/call ratio panel", () => {
     await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
     await act(async () => pending[0]?.resolve(labFlowPutCallRatio("SPY")));
     expect(panel(slowContainer)?.getAttribute("data-flow-pcr")).toBe("ES");
+  });
 
-    // Stale rejection ignored too
+  it("ignores stale put/call rejections after switching symbols", async () => {
+    const pending: Array<{
+      resolve: (value: FlowPutCallRatio) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
     const { gateway: rejectGateway } = fixed(
       snapshots,
       undefined,
@@ -1576,10 +1654,10 @@ describe("FlowWorkspace put/call ratio panel", () => {
     const rejectContainer = await render(
       <FlowWorkspace gateway={rejectGateway} />
     );
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
     await click(button(rejectContainer, "ES"));
     await vi.waitFor(() => expect(stateOf(rejectContainer)).toBe("response"));
-    await act(async () => pending[1]?.reject(new Error("late failure")));
+    await act(async () => pending[0]?.reject(new Error("late failure")));
     expect(rejectContainer.querySelector("[data-flow-pcr-error]")).toBeNull();
   });
 
@@ -1767,7 +1845,7 @@ describe("FlowWorkspace strike heatmap", () => {
     expect(strikeHeatmapCalls).toHaveLength(3);
   });
 
-  it("retries independently, keeps last response on transient bucket error, and ignores stale answers", async () => {
+  it("retries independently without refetching other panels", async () => {
     let fail = true;
     const { calls, gateway, strikeHeatmapCalls } = fixed(
       snapshots,
@@ -1799,8 +1877,9 @@ describe("FlowWorkspace strike heatmap", () => {
     ).toBeNull();
     expect(calls).toHaveLength(callsBeforeRetry);
     expect(strikeHeatmapCalls).toHaveLength(2);
+  });
 
-    // Stale resolution and stale rejection from a slow 5m request are ignored after switching to 30m.
+  it("ignores stale resolutions and rejections after switching bucket width", async () => {
     const pending: Array<{
       resolve: (value: FlowStrikeHeatmap) => void;
       reject: (reason: unknown) => void;
