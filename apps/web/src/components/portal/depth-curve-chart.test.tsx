@@ -181,5 +181,30 @@ describe("DepthCurveChart", () => {
         .querySelector("[data-depth-mid]")
         ?.getAttribute("data-depth-mid")
     ).toBe("locked");
+    await unmount();
+
+    const crossed = buildDepthLadder({
+      asks: [{ price: 100.01, size: 4, venue: null }],
+      bids: [{ price: 100.03, size: 5, venue: null }],
+      sizeMultiplier: 1,
+    });
+    container = await mount(
+      <DepthCurveChart
+        digits={2}
+        ladder={crossed}
+        minTick={0.01}
+        symbol="SPY"
+        unit="shares"
+      />
+    );
+    expect(
+      container
+        .querySelector("[data-depth-mid]")
+        ?.getAttribute("data-depth-mid")
+    ).toBe("crossed");
+    expect(container.querySelector("[data-depth-spread]")).toBeNull();
+    expect(
+      container.querySelector("figure > figcaption")?.textContent
+    ).toContain("Crossed 100.02");
   });
 });

@@ -7,6 +7,7 @@
 import {
   buildDepthCurve,
   type DepthCurveLevel,
+  formatDepthPrice,
 } from "../../features/order-flow/depth-curve.ts";
 import type { DepthLadder } from "../../features/order-flow/depth-ladder.ts";
 
@@ -33,7 +34,7 @@ const touchTitle = (
   const sizeText = point.size.toLocaleString("en-US", {
     maximumFractionDigits: 2,
   });
-  return `${sideLabel} ${point.price.toFixed(digits)}: ${sizeText} ${unit}${venueSuffix}`;
+  return `${sideLabel} ${formatDepthPrice(point.price, digits)}: ${sizeText} ${unit}${venueSuffix}`;
 };
 
 export const DepthCurveChart = ({
@@ -57,10 +58,10 @@ export const DepthCurveChart = ({
 
   return (
     <figure className="min-w-0 space-y-2" data-depth-curve="">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <figcaption className="font-medium text-foreground text-xs">
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="font-medium text-foreground text-xs">
           Cumulative depth ({unit})
-        </figcaption>
+        </span>
         <ul
           aria-label="Depth curve legend"
           className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs"
@@ -146,7 +147,7 @@ export const DepthCurveChart = ({
             </li>
           )}
         </ul>
-      </div>
+      </figcaption>
 
       <div className="overflow-hidden rounded-lg border border-border bg-background/60 p-2">
         <svg

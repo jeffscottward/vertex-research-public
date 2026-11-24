@@ -4,6 +4,7 @@
 // Used by: components/portal/depth-curve-chart.tsx.
 import { defined } from "./defined.ts";
 import type { DepthLadder, LadderRow, LadderSide } from "./depth-ladder.ts";
+import { decimalsOf } from "./price-grid.ts";
 
 export const DEPTH_CURVE_WIDTH = 720;
 export const DEPTH_CURVE_HEIGHT = 240;
@@ -83,6 +84,9 @@ interface RawLevel {
 }
 
 const roundCoord = (value: number): number => Number(value.toFixed(2));
+/** Price formatted to at least `digits` decimals, widened for half-tick mids or sub-penny quotes. */
+export const formatDepthPrice = (value: number, digits: number): string =>
+  value.toFixed(Math.min(Math.max(digits, decimalsOf(value)), 6));
 
 /** Compact Y-axis label for cumulative size (0, 500, 1.3K, 2.5M). */
 export const formatCompactSize = (value: number): string => {
@@ -159,7 +163,10 @@ const computePriceDomain = (
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   const span = maxPrice - minPrice;
-  const tick = minTick !== null && minTick > 0 ? minTick : null;
+  const tick =
+    minTick !== null && Number.isFinite(minTick) && minTick > 0
+      ? minTick
+      : null;
   const pad =
     span === 0
       ? (tick ?? Math.max(Math.abs(minPrice) * 0.001, 0.01))
@@ -227,9 +234,18 @@ const buildXTicks = (
   const seen = new Set<string>();
   for (const value of candidates) {
     const label = value.toFixed(digits);
-    if (seen.has(label)) continue;
+    const snapped = Number(label);
+    if (snapped < minPrice || snapped > maxPrice || seen.has(label)) continue;
     seen.add(label);
-    ticks.push({ label, pos: xOf(value), value });
+    ticks.push({ label, pos: xOf(snapped), value: snapped });
+  }
+  if (ticks.length === 0) {
+    const mid = (minPrice + maxPrice) / 2;
+    ticks.push({
+      label: formatDepthPrice(mid, digits),
+      pos: xOf(mid),
+      value: mid,
+    });
   }
   return ticks;
 };
@@ -297,7 +313,7 @@ export const buildDepthCurve = (
 
   let midMarker: DepthCurveMidMarker | null = null;
   if (ladder.bookState !== null && ladder.mid !== null) {
-    const midPrice = ladder.mid.toFixed(options.digits);
+    const midPrice = formatDepthPrice(ladder.mid, options.digits);
     const prefix =
       ladder.bookState === "normal"
         ? "Mid"

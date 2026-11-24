@@ -108,6 +108,21 @@ describe("buildDepthCurve", () => {
       pos: curve.plotBottom,
       value: 0,
     });
+    // X-axis tick marks align exactly to the plotted coordinate of their printed price.
+    const bidTick = curve.xTicks.find((tick) => tick.label === "100.00");
+    const askTick = curve.xTicks.find((tick) => tick.label === "100.04");
+    expect(bidTick?.pos).toBe(curve.bestBidPoint?.x);
+    expect(askTick?.pos).toBe(curve.asks[1]?.x);
+
+    // Exact step path vertices match the aggregated level coordinates.
+    const [bestBid, outerBid] = curve.bids;
+    const [bestAsk, outerAsk] = curve.asks;
+    expect(curve.bidLinePath).toBe(
+      `M ${curve.plotLeft} ${outerBid?.y} L ${outerBid?.x} ${outerBid?.y} L ${outerBid?.x} ${bestBid?.y} L ${bestBid?.x} ${bestBid?.y} L ${bestBid?.x} ${curve.plotBottom}`
+    );
+    expect(curve.askLinePath).toBe(
+      `M ${bestAsk?.x} ${curve.plotBottom} L ${bestAsk?.x} ${bestAsk?.y} L ${outerAsk?.x} ${bestAsk?.y} L ${outerAsk?.x} ${outerAsk?.y} L ${curve.plotRight} ${outerAsk?.y}`
+    );
     expect(curve.xTicks.length).toBeGreaterThanOrEqual(2);
     expect(curve.ariaLabel).toContain("SPY");
     expect(curve.ariaLabel).toContain("1,100");
@@ -220,17 +235,62 @@ describe("buildDepthCurve", () => {
     }
   });
 
-  it("deduplicates repeated X-axis labels on ultra-tight spreads", () => {
-    const tight = buildDepthCurve(
+  it("aligns X-axis ticks on tight spreads and falls back to midpoint on sub-precision spans", () => {
+    const twoCent = buildDepthCurve(
+      buildDepthLadder({
+        asks: [{ price: 100.02, size: 10, venue: null }],
+        bids: [{ price: 100, size: 10, venue: null }],
+        sizeMultiplier: 1,
+      }),
+      { digits: 2, minTick: 0.01, symbol: "SPY", unit: "shares" }
+    );
+    expect(twoCent?.xTicks.map((tick) => tick.label)).toEqual([
+      "100.00",
+      "100.01",
+      "100.02",
+    ]);
+    expect(twoCent?.xTicks[0]?.pos).toBe(twoCent?.bestBidPoint?.x);
+    expect(twoCent?.xTicks[1]?.pos).toBe(twoCent?.midMarker?.x);
+    expect(twoCent?.xTicks[2]?.pos).toBe(twoCent?.bestAskPoint?.x);
+
+    const subPrecision = buildDepthCurve(
       buildDepthLadder({
         asks: [{ price: 100.002, size: 10, venue: null }],
         bids: [{ price: 100.001, size: 10, venue: null }],
         sizeMultiplier: 1,
       }),
-      { digits: 2, minTick: 0.001, symbol: "SPY", unit: "shares" }
+      {
+        digits: 2,
+        minTick: Number.POSITIVE_INFINITY,
+        symbol: "SPY",
+        unit: "shares",
+      }
     );
-    expect(tight).not.toBeNull();
-    const labels = tight?.xTicks.map((tick) => tick.label) ?? [];
-    expect(new Set(labels).size).toBe(labels.length);
+    expect(subPrecision?.xTicks).toHaveLength(1);
+    expect(subPrecision?.xTicks[0]?.label).toBe("100.0015");
+    expect(subPrecision?.xTicks[0]?.pos).toBe(subPrecision?.midMarker?.x);
+    expect(subPrecision?.bidLinePath).not.toContain("NaN");
+  });
+
+  it("preserves half-tick precision in mid labels on 1-tick stock and futures spreads", () => {
+    const stockOneTick = buildDepthCurve(
+      buildDepthLadder({
+        asks: [{ price: 100.01, size: 5, venue: null }],
+        bids: [{ price: 100, size: 5, venue: null }],
+        sizeMultiplier: 100,
+      }),
+      { digits: 2, minTick: 0.01, symbol: "SPY", unit: "shares" }
+    );
+    expect(stockOneTick?.midMarker?.label).toBe("Mid 100.005");
+
+    const futuresOneTick = buildDepthCurve(
+      buildDepthLadder({
+        asks: [{ price: 5800.25, size: 7, venue: null }],
+        bids: [{ price: 5800, size: 9, venue: null }],
+        sizeMultiplier: 1,
+      }),
+      { digits: 2, minTick: 0.25, symbol: "ES", unit: "contracts" }
+    );
+    expect(futuresOneTick?.midMarker?.label).toBe("Mid 5800.125");
   });
 });
