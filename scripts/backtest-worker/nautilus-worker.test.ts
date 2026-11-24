@@ -1,5 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -17,16 +24,17 @@ import {
   DEFAULT_IDLE_MAX_MS,
   DEFAULT_IDLE_MS,
   DEFAULT_PROCESSES,
-  fileAgeMs,
-  deliveryChunks,
   DELIVERY_MARGIN_MS,
   DELIVERY_MAX_BYTES,
   DELIVERY_MIN_WAIT_MS,
+  deliveryChunks,
+  fileAgeMs,
+  isExecutableFile,
+  type LockState,
   MAX_PROCESSES,
   MAX_REQUEST_BUDGET,
   MIN_QUIET_PAUSE_MS,
   NAUTILUS_RUN_TIMEOUT_MS,
-  type LockState,
   type NautilusWorkerIo,
   PAUSE_FILE_MAX_AGE_MS,
   PAUSE_POLL_MS,
@@ -165,8 +173,11 @@ const harness = (
     pauseAges?: (number | null)[];
     /** Restart lock answers in call order; then free. */
     locks?: LockState[];
+    /** Whether VERTEX_NAUTILUS_PYTHON is executable; default always true. */
+    canExecute?: (path: string) => boolean;
   }> = {}
 ) => {
+  const canExecute = vi.fn(options.canExecute ?? (() => true));
   const locks = [...(options.locks ?? [])];
   const restartLock = vi.fn(
     async (_path: string, _signal: AbortSignal): Promise<LockState> =>
@@ -215,12 +226,13 @@ const harness = (
     async (_ms: number, _signal: AbortSignal): Promise<void> => undefined
   );
   const io: NautilusWorkerIo = {
+    canExecute,
     env: options.env ?? env,
     fileAgeMs: fileAge,
     hostname: "rig-1",
-    restartLock,
     post,
     researchDir: "/repo/services/research",
+    restartLock,
     runCommand: runCommandFake,
     signal: controller.signal,
     sleep: sleepFake,
@@ -231,17 +243,17 @@ const harness = (
     calls.filter((call) => call.path === "backtestRuns/engine/completeMany");
   return {
     alerts,
-    fileAge,
-    restartLock,
     calls,
     claimCount: () => claimCount,
     completes,
     controller,
     err,
+    fileAge,
     io,
     out,
     paths: () => calls.map((call) => call.path),
     post,
+    restartLock,
     runCommand: runCommandFake,
     sleep: sleepFake,
   };
@@ -298,6 +310,47 @@ describe("nautilus worker configuration", () => {
     expect(await runNautilusWorker(["--loop"], unknown.io)).toBe(1);
     expect(unknown.err.join("")).toContain("Unknown argument --loop");
     expect(unknown.err.join("")).not.toContain("secret-key");
+  });
+
+  it("refuses to start when VERTEX_NAUTILUS_PYTHON is missing or not executable without claiming runs", async () => {
+    const run = harness({ canExecute: () => false });
+    expect(await runNautilusWorker(["--once"], run.io)).toBe(1);
+    expect(run.err.join("")).toContain(
+      "VERTEX_NAUTILUS_PYTHON (/venv/bin/python) is missing or not executable"
+    );
+    expect(run.err.join("")).toContain("setup-nautilus-venv.sh");
+    expect(run.post).not.toHaveBeenCalled();
+    expect(run.runCommand).not.toHaveBeenCalled();
+  });
+
+  it("skips claiming and alerts when VERTEX_NAUTILUS_PYTHON vanishes mid-run, then recovers", async () => {
+    const controller = new AbortController();
+    const checks = [true, false, false, false, true];
+    let sleepCalls = 0;
+    const run = harness({
+      canExecute: () => checks.shift() ?? true,
+      controller,
+      env: alertEnv,
+    });
+    run.sleep.mockImplementation(async () => {
+      sleepCalls += 1;
+      if (sleepCalls >= 4) controller.abort();
+    });
+
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    // Only the 4th cycle (after recovery) calls claim; the 3 missing-python cycles claim nothing.
+    expect(run.claimCount()).toBe(1);
+    expect(run.runCommand).not.toHaveBeenCalled();
+    expect(run.alerts).toEqual([
+      {
+        channel: "vertex-ops",
+        text: "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: Error). Research only; see journalctl --user -u vertex-nautilus-worker.",
+      },
+      {
+        channel: "vertex-ops",
+        text: "Vertex Nautilus backtest worker recovered after 3 failed cycles.",
+      },
+    ]);
   });
 });
 
@@ -1656,6 +1709,34 @@ describe("stopSignal", () => {
   });
 });
 
+describe("isExecutableFile", () => {
+  it("accepts executable files and valid symlinks, and rejects missing, broken, directory and non-executable paths", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vertex-exec-check-"));
+    try {
+      const execFile = join(dir, "python");
+      writeFileSync(execFile, "#!/bin/sh\n", "utf8");
+      chmodSync(execFile, 0o755);
+      const validLink = join(dir, "python-link");
+      symlinkSync(execFile, validLink);
+      const brokenLink = join(dir, "broken-link");
+      symlinkSync(join(dir, "vanished"), brokenLink);
+      const nonExec = join(dir, "plain.txt");
+      writeFileSync(nonExec, "hello\n", "utf8");
+      chmodSync(nonExec, 0o644);
+      const subDir = join(dir, "subdir");
+      mkdirSync(subDir);
+
+      expect(isExecutableFile(execFile)).toBe(true);
+      expect(isExecutableFile(validLink)).toBe(true);
+      expect(isExecutableFile(brokenLink)).toBe(false);
+      expect(isExecutableFile(nonExec)).toBe(false);
+      expect(isExecutableFile(subDir)).toBe(false);
+      expect(isExecutableFile(join(dir, "missing"))).toBe(false);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+});
 describe("sleep", () => {
   it("waits, or returns early on abort", async () => {
     vi.useFakeTimers();

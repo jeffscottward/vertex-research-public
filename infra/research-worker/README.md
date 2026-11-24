@@ -8,15 +8,16 @@ How it works: the API stores a new backtest run with the engine `nautilus-trader
 
 | File | Use |
 | --- | --- |
+| `setup-nautilus-venv.sh` | Idempotent setup/repair script for the Python 3.12 NautilusTrader venv (default `~/.local/share/vertex/nautilus-venv`). Installs strictly from `services/research/requirements-nautilus-linux-py312.lock` with hash verification (`uv` preferred, `python3.12 -m venv` fallback) and verifies `nautilus_trader` and `nautilus_backtest` import cleanly. |
 | `vertex-nautilus-worker.service` | User unit, `Restart=always`. Every start waits 65 s first (`ExecStartPre`), so with its own key the limiter count of the previous process has reset (with a shared key use 125 s; see the unit comment). `SIGTERM` stops the worker; a running engine process is killed and its run fails. |
-| `vertex-nautilus-worker-run.sh` | Start script template. It reads the write key from its own `0600` file and starts the worker from a runner checkout. Contains placeholders only. |
+| `vertex-nautilus-worker-run.sh` | Start script template. It reads the write key from its own `0600` file, checks that `VERTEX_NAUTILUS_PYTHON` is an executable file, and starts the worker from a runner checkout. Contains placeholders only. |
 
 ## Install
 
-1. Create a Python venv with the Nautilus lock: `python3.12 -m venv <venv> && <venv>/bin/pip install -r services/research/requirements-nautilus-linux-py312.lock`.
+1. Create or repair the Python 3.12 venv from the hash-pinned Nautilus lock: `infra/research-worker/setup-nautilus-venv.sh` (default target `~/.local/share/vertex/nautilus-venv`; pass `--venv <dir>` for another path). Manual equivalent: `python3.12 -m venv <venv> && <venv>/bin/python -m pip install --no-deps --require-hashes --only-binary=:all: -r services/research/requirements-nautilus-linux-py312.lock`.
 2. Create an operator agent key with write access in the portal (Agent keys). Save only the key in a file with mode `0600`, for example `~/.config/vertex/agent-write-key`.
 3. Copy `vertex-nautilus-worker-run.sh` to `~/.local/bin/vertex-nautilus-worker-run`, set mode `0700` and replace every `__PLACEHOLDER__`.
-4. Check one cycle by hand: `~/.local/bin/vertex-nautilus-worker-run --once` (exit 0; it prints `run <id>: succeeded` when it found a run).
+4. Check one cycle by hand: `~/.local/bin/vertex-nautilus-worker-run --once` (exit 0; it prints `run <id>: succeeded` when it found a run). Both the launcher and the worker refuse to start or claim queued runs if `VERTEX_NAUTILUS_PYTHON` is missing or not executable, so a broken venv never drains the queue with `ENOENT`.
 5. Copy `vertex-nautilus-worker.service` to `~/.config/systemd/user/` and run `systemctl --user daemon-reload && systemctl --user enable --now vertex-nautilus-worker.service` (it returns after the 65 s start wait; `--no-block` returns at once). Run `loginctl enable-linger` once so the service runs without a login session.
 6. Set `VERTEX_BACKTEST_RUNS_ENGINE=nautilus` in the web app environment and restart the web app only through `infra/quantvps/restart-when-idle.sh` ([infra/quantvps/README.md](../quantvps/README.md)). Without this setting the API runs backtests itself and the worker finds no runs. To switch back, set `typescript` (or remove the line) and restart the same way; queued Nautilus runs still go to the worker.
 
@@ -28,7 +29,7 @@ Logs: `journalctl --user -u vertex-nautilus-worker.service`. The worker never pr
 | --- | --- |
 | `VERTEX_ORIGIN` | Portal origin (https). |
 | `VERTEX_AGENT_API_KEY` | Operator agent write key (read from the key file by the start script). |
-| `VERTEX_NAUTILUS_PYTHON` | Python of the Nautilus venv. |
+| `VERTEX_NAUTILUS_PYTHON` | Executable Python binary of the Nautilus venv. Checked at startup and before every claim. |
 | `VERTEX_WORKER_IDLE_MS` | First wait after an empty claim. Default 3000. Each further empty claim doubles the wait; a claim that returns work resets it. |
 | `VERTEX_WORKER_IDLE_MAX_MS` | Longest wait between empty claims. Default 45000 (not below `VERTEX_WORKER_IDLE_MS`). The web restart pauses the worker with the pause file, so a short cap (3000 with its own key) does not block restarts: see [Web restarts](#web-restarts). |
 | `VERTEX_WORKER_REQUEST_BUDGET` | Requests before a quiet pause. Default 150 (shared key); 1 to 580. With its own key: 550. See [Request budget](#request-budget). |

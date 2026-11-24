@@ -37,7 +37,7 @@
 // is never printed.
 
 import { spawn } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { accessSync, constants, readFileSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import {
@@ -149,6 +149,8 @@ export type RunCommand = (
 ) => Promise<CommandOutcome>;
 
 export type NautilusWorkerIo = Readonly<{
+  /** Whether `path` resolves to an executable regular file (isExecutableFile). */
+  canExecute: (path: string) => boolean;
   env: Readonly<Record<string, string | undefined>>;
   post: (url: string, init: RequestInit) => Promise<Response>;
   runCommand: RunCommand;
@@ -254,6 +256,25 @@ export const fileAgeMs = (path: string): number | null => {
   } catch {
     return null;
   }
+};
+
+/** Whether `path` (following symlinks) is an executable regular file. */
+export const isExecutableFile = (path: string): boolean => {
+  try {
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Refuses to claim or run when the configured Nautilus Python binary is absent or not executable. */
+const assertPythonExecutable = (config: Config, io: NautilusWorkerIo): void => {
+  if (!io.canExecute(config.python))
+    throw new Error(
+      `VERTEX_NAUTILUS_PYTHON (${config.python}) is missing or not executable; run infra/research-worker/setup-nautilus-venv.sh`
+    );
 };
 
 /** The restart lock: held by another process, free, or not known (with the reason). */
@@ -411,23 +432,23 @@ const readConfig = (env: NautilusWorkerIo["env"]): Config => {
   return {
     apiKey: required(env, "VERTEX_AGENT_API_KEY"),
     budget: { requests: 0 },
+    idleMaxMs,
+    idleMs,
+    origin: new URL(required(env, "VERTEX_ORIGIN")).origin,
     pauseFile: stateFileOf(
       env,
       "VERTEX_WORKER_PAUSE_FILE",
       "vertex-nautilus-worker.pause"
     ),
+    processes,
+    python: required(env, "VERTEX_NAUTILUS_PYTHON"),
+    quietPauseMs,
+    requestBudget,
     restartLock: stateFileOf(
       env,
       "VERTEX_WORKER_RESTART_LOCK",
       "vertex-web-restart.lock"
     ),
-    processes,
-    quietPauseMs,
-    requestBudget,
-    idleMaxMs,
-    idleMs,
-    origin: new URL(required(env, "VERTEX_ORIGIN")).origin,
-    python: required(env, "VERTEX_NAUTILUS_PYTHON"),
   };
 };
 
@@ -879,11 +900,12 @@ const runPart = async (
   });
 };
 
-/** One claim cycle. Throws on an API error of claim. */
+/** One claim cycle. Throws when Python is missing or on an API error of claim. */
 const workOnce = async (
   config: Config,
   io: NautilusWorkerIo
 ): Promise<Cycle> => {
+  assertPythonExecutable(config, io);
   const { batch } = BacktestRunEngineClaimOutputSchema.parse(
     await call(config, io, "backtestRuns/engine/claim", {
       engine: BACKTEST_RUN_NAUTILUS_ENGINE,
@@ -978,8 +1000,8 @@ const quiet = async (
 
 /** Failed cycles in a row and whether this incident was alerted. */
 interface AlertState {
-  failures: number;
   alerted: boolean;
+  failures: number;
 }
 
 /** One alert per incident (ALERT_AFTER_FAILURES failed cycles in a row), one recovery line after. */
@@ -1041,9 +1063,9 @@ const waitAfter = async (
 
 /** Whether the worker is paused, and which notes were already logged. */
 interface PauseState {
+  lockProblemLogged: boolean;
   paused: boolean;
   staleLogged: boolean;
-  lockProblemLogged: boolean;
 }
 
 /** The pause reason of the pause file, or null; logs a stale file once. */
@@ -1125,6 +1147,7 @@ export const runNautilusWorker = async (
     const unknown = argv.filter((arg) => arg !== "--once");
     if (unknown.length > 0) throw new Error(`Unknown argument ${unknown[0]}`);
     config = readConfig(io.env);
+    assertPythonExecutable(config, io);
   } catch (error) {
     io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
     return 1;
