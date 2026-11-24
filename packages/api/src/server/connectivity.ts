@@ -34,7 +34,7 @@ import type { PriceAlertsNtfyConfig } from "./service-config.ts";
 // connectivity.recordAlertChat (card vertex-connectivity-audit-autofix; research diagnostics
 // and alerting only, no orders, arming, or secret rotation).
 
-const RECENT_FLOW_SAMPLES_LIMIT = 240;
+const RECENT_FLOW_SAMPLES_PER_SOURCE = 5;
 
 export type ConnectivityFailures = Readonly<{
   FORBIDDEN: (options?: { message?: string }) => Error;
@@ -94,7 +94,7 @@ export const handleConnectivityHealth = async (
     const [flowSamples, openbbRuns, state] = await Promise.all([
       deps.flow === undefined
         ? Promise.resolve([])
-        : deps.flow.recentSamples(RECENT_FLOW_SAMPLES_LIMIT),
+        : deps.flow.recentSamples(RECENT_FLOW_SAMPLES_PER_SOURCE),
       deps.openbb === undefined
         ? Promise.resolve([])
         : deps.openbb.latestRuns(),
@@ -146,7 +146,7 @@ export const handleCheckConnectivityAlerts = async (
     [flowSamples, openbbRuns] = await Promise.all([
       deps.flow === undefined
         ? Promise.resolve([])
-        : deps.flow.recentSamples(RECENT_FLOW_SAMPLES_LIMIT),
+        : deps.flow.recentSamples(RECENT_FLOW_SAMPLES_PER_SOURCE),
       deps.openbb === undefined
         ? Promise.resolve([])
         : deps.openbb.latestRuns(),

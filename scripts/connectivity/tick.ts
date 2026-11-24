@@ -287,7 +287,9 @@ export const checkConnectivityAlertsNow = async (
   }
   const delivered =
     reply.delivery === "sent" ||
-    (reply.action === "noop" && reply.activeAlertKeys.length > 0);
+    reply.action === "in-flight" ||
+    ((reply.action === "noop" || reply.action === "prune-active") &&
+      reply.activeAlertKeys.length > 0);
   return { delivered, ok: true, reply };
 };
 

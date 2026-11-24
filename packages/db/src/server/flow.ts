@@ -16,6 +16,7 @@ import {
 
 import {
   FLOW_SOURCE_VALUES,
+  FLOW_SYMBOL_VALUES,
   type FlowDirectionValue,
   type FlowEventKindValue,
   type FlowNetDriftTickerValue,
@@ -463,8 +464,8 @@ export type FlowRepository = Readonly<{
       latestOk: FlowSampleRecord[];
     }>
   >;
-  /** Newest flow collector samples across all symbols and sources, newest first (bounded 1..500). */
-  recentSamples: (limit: number) => Promise<FlowSampleRecord[]>;
+  /** Newest flow collector samples per (symbol, source) pair, newest first (bounded 1..20 per pair). */
+  recentSamples: (limitPerSource: number) => Promise<FlowSampleRecord[]>;
   readWindow: (query: FlowWindowQuery) => Promise<FlowWindowRows>;
   /** Stored flow events for a symbol in [from, to], optionally filtered by kind, newest first. */
   readEvents: (query: FlowEventsQuery) => Promise<FlowEventRecord[]>;
@@ -664,13 +665,26 @@ export const createFlowRepository = (
       }
       return { latest, latestOk };
     },
-    recentSamples: async (limit) => {
-      const bounded = Math.min(Math.max(Math.trunc(limit), 1), 500);
-      return await database
-        .select()
-        .from(flowSamples)
-        .orderBy(desc(flowSamples.at))
-        .limit(bounded);
+    recentSamples: async (limitPerSource) => {
+      const bounded = Math.min(Math.max(Math.trunc(limitPerSource), 1), 20);
+      const rows: FlowSampleRecord[] = [];
+      for (const symbol of FLOW_SYMBOL_VALUES) {
+        for (const source of FLOW_SOURCE_VALUES) {
+          const batch = await database
+            .select()
+            .from(flowSamples)
+            .where(
+              and(
+                eq(flowSamples.symbol, symbol),
+                eq(flowSamples.source, source)
+              )
+            )
+            .orderBy(desc(flowSamples.at))
+            .limit(bounded);
+          rows.push(...batch);
+        }
+      }
+      return rows;
     },
     marketPremiumLedger: async ({ from, to }) =>
       await database

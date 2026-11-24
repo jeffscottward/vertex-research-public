@@ -1824,7 +1824,7 @@ describe("createFlowRepository readMinutes", () => {
 });
 
 describe("createFlowRepository recentSamples", () => {
-  it("reads newest flow samples across symbols/sources with a bounded limit", async () => {
+  it("reads newest flow samples per (symbol, source) pair with a bounded per-pair limit", async () => {
     const sample: FlowSampleRecord = {
       at: FROM,
       items: 0,
@@ -1833,14 +1833,25 @@ describe("createFlowRepository recentSamples", () => {
       status: "unavailable",
       symbol: "SPY",
     };
-    const double = createDouble([[sample], [sample], [sample]]);
+    // 4 symbols x 6 sources = 24 per-pair queries; high-frequency ticks never evict options/gex/market_premium.
+    const perPairResults = Array.from({ length: 24 }, (_, index) =>
+      index === 2 ? [sample] : []
+    );
+    const double = createDouble([
+      ...perPairResults,
+      ...Array.from({ length: 24 }, () => []),
+      ...Array.from({ length: 24 }, () => []),
+    ]);
     const repository = createFlowRepository(double.database);
-    await expect(repository.recentSamples(200)).resolves.toEqual([sample]);
+    await expect(repository.recentSamples(5)).resolves.toEqual([sample]);
+    expect(double.operations).toHaveLength(24);
     expect(double.operations[0]?.table).toBe(flowSamples);
-    expect(double.operations[0]?.limit).toBe(200);
+    expect(double.operations[0]?.limit).toBe(5);
+    expect(whereOf(double.operations[0]).sql).toContain('"symbol" = $1');
+    expect(whereOf(double.operations[0]).sql).toContain('"source" = $2');
     await repository.recentSamples(0);
-    expect(double.operations[1]?.limit).toBe(1);
+    expect(double.operations[24]?.limit).toBe(1);
     await repository.recentSamples(999);
-    expect(double.operations[2]?.limit).toBe(500);
+    expect(double.operations[48]?.limit).toBe(20);
   });
 });

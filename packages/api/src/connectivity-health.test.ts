@@ -215,6 +215,20 @@ describe("evaluateConnectivityHealth & alertableConnectivityIssues", () => {
           startedAt: EARLIER,
           status: "failed",
         },
+        {
+          error: "FINRA upstream returned HTTP 403",
+          finishedAt: NOW,
+          job: "finra-otc",
+          startedAt: EARLIER,
+          status: "blocked_upstream",
+        },
+        {
+          error: "Yahoo returned HTTP 403",
+          finishedAt: NOW,
+          job: "daily-prices",
+          startedAt: EARLIER,
+          status: "blocked_upstream",
+        },
       ],
     });
 
@@ -236,6 +250,24 @@ describe("evaluateConnectivityHealth & alertableConnectivityIssues", () => {
     expect(alertableKeys).toContain("openbb:daily-prices:auth_failed");
     expect(alertableKeys).toContain("openbb:sec-filings:feed_error");
     expect(alertableKeys).toContain("openbb:cboe-vol:feed_error");
+    // Public OpenBB HTTP 403 / blocked_upstream runs never trigger false credential-rotation asks.
+    const finra = result.issues.find((issue) => issue.source === "finra-otc");
+    expect(finra).toMatchObject({
+      category: "feed_error",
+      envVars: [],
+      escalation: "alert",
+      httpStatus: 403,
+    });
+    const dailyBlocked = result.issues.find(
+      (issue) =>
+        issue.source === "daily-prices" && issue.category === "feed_error"
+    );
+    expect(dailyBlocked).toMatchObject({
+      category: "feed_error",
+      envVars: [],
+      escalation: "alert",
+      httpStatus: 403,
+    });
     // Single flow 502 and rate_limited are not paged
     expect(alertableKeys).not.toContain("flow:QQQ:gex:upstream_5xx");
     expect(alertableKeys).not.toContain("flow:NQ:depth:rate_limited");

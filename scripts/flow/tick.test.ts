@@ -255,6 +255,32 @@ describe("runFlowTick", () => {
     );
     expect(deliveredHarness.post).toHaveBeenCalledTimes(2);
 
+    // 1b. Already-handled actions ("in-flight" and "prune-active" with active keys) exit 0
+    for (const action of ["in-flight", "prune-active"] as const) {
+      const handledHarness = harnessFor(env);
+      handledHarness.post
+        .mockResolvedValueOnce(Response.json({ json: authResult }))
+        .mockResolvedValueOnce(
+          Response.json({
+            json: {
+              action,
+              activeAlertKeys: ["flow:SPY:options:auth_failed"],
+              alertableIssues: [{}],
+              delivery: null,
+              dryRun: false,
+              issues: [{}],
+              needsOwnerAsk: true,
+              newlyAlerted: [],
+              ntfyConfigured: true,
+              overallStatus: "auth_failed",
+              pendingChat: null,
+              plannedAlert: null,
+            },
+          })
+        );
+      await expect(runFlowTick(handledHarness.io)).resolves.toBe(0);
+    }
+
     // 2. Alert check fails -> auth failure is NOT swallowed, exits 1
     const undeliveredHarness = harnessFor(env);
     undeliveredHarness.post

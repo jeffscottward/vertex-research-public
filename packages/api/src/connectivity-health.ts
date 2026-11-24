@@ -180,9 +180,19 @@ const evaluateOpenbbIssues = (
       (run.status === "blocked_upstream"
         ? "OpenBB job blocked upstream"
         : "OpenBB job failed");
-    const classified = classifyConnectivityMessage(message);
+    const raw = classifyConnectivityMessage(message);
+    const isAuthenticatedOpenbbJob =
+      run.status === "failed" && run.job === "daily-prices";
+    const classified =
+      raw.category === "auth_failed" && !isAuthenticatedOpenbbJob
+        ? {
+            category: "feed_error" as const,
+            escalation: "alert" as const,
+            httpStatus: raw.httpStatus,
+          }
+        : raw;
     const envVars =
-      classified.category === "auth_failed" && run.job === "daily-prices"
+      classified.category === "auth_failed"
         ? ["VERTEX_HISTORY_URL", "VERTEX_DEPLOY_STATUS_TOKEN"]
         : [];
     issues.push({
