@@ -265,6 +265,27 @@ export type FlowStrikeHeatmapSymbol =
 export type FlowStrikeHeatmapBucketMinutes =
   (typeof FLOW_STRIKE_HEATMAP_BUCKETS)[number];
 
+// Option print bubbles on the intraday price chart (flow.optionBubbles): large stored option
+// prints overlaid on the newest options session's underlying price trajectory, sized by premium,
+// colored by right (call/put), and styled by aggressor side.
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_OPTION_BUBBLES_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_OPTION_BUBBLES_VERSION = "flow-option-bubbles.v1" as const;
+/** Supported minimum print premium thresholds in US dollars. */
+export const FLOW_OPTION_BUBBLES_MIN_PREMIUMS = [
+  100_000, 250_000, 500_000, 1_000_000,
+] as const;
+/** Maximum large option prints returned per session (largest prints by premium). */
+export const FLOW_OPTION_BUBBLES_MAX_BUBBLES = 120;
+/** One price point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
+export const FLOW_OPTION_BUBBLES_MAX_POINTS = 405;
+/** Maximum clipped open collector gap bands returned per session. */
+export const FLOW_OPTION_BUBBLES_MAX_GAPS = 50;
+export type FlowOptionBubblesSymbol =
+  (typeof FLOW_OPTION_BUBBLES_SYMBOLS)[number];
+export type FlowOptionBubblesMinPremiumUsd =
+  (typeof FLOW_OPTION_BUBBLES_MIN_PREMIUMS)[number];
+
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
 const nonNegative = finite.nonnegative();
@@ -1232,6 +1253,152 @@ export const FlowStrikeHeatmapSchema = z
   })
   .strict();
 
+const optionBubblesMinPremiumInput = z
+  .union([
+    z.literal(100_000),
+    z.literal(250_000),
+    z.literal(500_000),
+    z.literal(1_000_000),
+    z.literal("100000").transform(() => 100_000 as const),
+    z.literal("250000").transform(() => 250_000 as const),
+    z.literal("500000").transform(() => 500_000 as const),
+    z.literal("1000000").transform(() => 1_000_000 as const),
+  ])
+  .default(250_000);
+
+const optionBubblesMinPremiumOutput = z.union([
+  z.literal(100_000),
+  z.literal(250_000),
+  z.literal(500_000),
+  z.literal(1_000_000),
+]);
+
+export const FlowOptionBubblesInputSchema = z
+  .object({
+    minPremiumUsd: optionBubblesMinPremiumInput,
+    symbol: z.enum(FLOW_OPTION_BUBBLES_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of option print bubbles (packages/api/src/flow-option-bubbles-rules.ts). */
+export const FlowOptionBubblesRulesSchema = z
+  .object({
+    version: z.literal("option-bubbles.v1"),
+    /** Minimum print premium stored by the collector (US dollars). */
+    storedMinPremiumUsd: finite.positive(),
+    /** Default user-facing premium filter floor (US dollars). */
+    defaultMinPremiumUsd: optionBubblesMinPremiumOutput,
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Maximum big prints returned per session (largest by premium). */
+    maxBubbles: z.number().int().min(1).max(FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+  })
+  .strict();
+
+/** One clipped open collector gap interval inside the newest options session. */
+export const FlowOptionBubblesGapSchema = z
+  .object({
+    start: timestamp,
+    end: timestamp,
+  })
+  .strict();
+
+/** One minute of the intraday underlying price path from stored option prints. */
+export const FlowOptionBubblesPricePointSchema = z
+  .object({
+    minute: timestamp,
+    price: finite.positive(),
+    /** True when any open flow_option_gaps range overlaps this minute. */
+    unread: z.boolean(),
+  })
+  .strict();
+
+/** One big option print rendered as a bubble on the intraday price chart. */
+export const FlowOptionBubblesItemSchema = z
+  .object({
+    id: text(64),
+    at: timestamp,
+    contract: text(40),
+    right: z.enum(["call", "put"]),
+    strike: finite.positive(),
+    expiry: isoDate,
+    dte: nonNegative.nullable(),
+    size: count,
+    price: finite.nullable(),
+    premium: nonNegative,
+    /** Underlying price reported on the print; null when not reported (not plotted on Y axis). */
+    underlyingPrice: finite.positive().nullable(),
+    side: z.enum(FLOW_OPTION_SIDES),
+    /** Directional sign from shared OPTION_SIDE_SIGN: +1 bullish, -1 bearish, 0 unsigned. */
+    directionalSign: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
+    sentiment: z.enum(FLOW_OPTION_SENTIMENTS),
+    consolidation: z.enum(FLOW_CONSOLIDATIONS),
+    moneyness: z.enum(FLOW_MONEYNESS),
+    unusual: z.boolean(),
+    goldenSweep: z.boolean(),
+    opening: z.boolean(),
+    volumeOverOi: z.boolean(),
+    iv: finite.nullable(),
+  })
+  .strict();
+
+/** Summary totals of the newest options session and the returned big option print bubbles. */
+export const FlowOptionBubblesTotalsSchema = z
+  .object({
+    sessionPrints: count,
+    sessionGrossPremium: nonNegative,
+    shownBubbles: count,
+    plottedBubbles: count,
+    unplottedBubbles: count,
+    callBubbles: count,
+    putBubbles: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    askSidePremium: nonNegative,
+    bidSidePremium: nonNegative,
+    unsignedPremium: nonNegative,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    maxBubblePremium: nonNegative,
+    latestPrice: finite.positive().nullable(),
+  })
+  .strict();
+
+export const FlowOptionBubblesSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_OPTION_BUBBLES_VERSION),
+    symbol: z.enum(FLOW_OPTION_BUBBLES_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    /** Session open (09:30 New York) in ISO UTC; null when no print is stored. */
+    sessionStart: timestamp.nullable(),
+    /** Session close (16:15 New York) in ISO UTC; null when no print is stored. */
+    sessionEnd: timestamp.nullable(),
+    minPremiumUsd: optionBubblesMinPremiumOutput,
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+    /** Individual clipped open collector gap intervals for chart shading, oldest first. */
+    gaps: z.array(FlowOptionBubblesGapSchema).max(FLOW_OPTION_BUBBLES_MAX_GAPS),
+    rules: FlowOptionBubblesRulesSchema,
+    /** 1-minute underlying price trajectory across the session, oldest first. */
+    pricePoints: z
+      .array(FlowOptionBubblesPricePointSchema)
+      .max(FLOW_OPTION_BUBBLES_MAX_POINTS),
+    /** Largest prints meeting minPremiumUsd, ordered chronologically (at asc, id asc). */
+    bubbles: z
+      .array(FlowOptionBubblesItemSchema)
+      .max(FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+    /** True when more than rules.maxBubbles prints met minPremiumUsd in the session. */
+    truncated: z.boolean(),
+    totals: FlowOptionBubblesTotalsSchema,
+  })
+  .strict();
+
 export const FLOW_LIQUIDITY_HEATMAP_VERSION =
   "flow-liquidity-heatmap.v1" as const;
 export const FLOW_LIQUIDITY_HEATMAP_RULES_VERSION =
@@ -1524,6 +1691,18 @@ const strikeHeatmap = flow
   .input(FlowStrikeHeatmapInputSchema)
   .output(FlowStrikeHeatmapSchema);
 
+const optionBubbles = flow
+  .route({
+    method: "GET",
+    operationId: "flow.optionBubbles",
+    path: "/flow/option-bubbles",
+    summary:
+      "SPY or ES: big option prints as bubbles on the intraday underlying price chart over the newest options session (research input)",
+    tags,
+  })
+  .input(FlowOptionBubblesInputSchema)
+  .output(FlowOptionBubblesSchema);
+
 const liquidityHeatmap = flow
   .route({
     method: "GET",
@@ -1542,6 +1721,7 @@ export const flowContract = {
   events,
   hedgingPressure,
   liquidityHeatmap,
+  optionBubbles,
   putCallRatio,
   snapshot,
   strikeHeatmap,
@@ -1659,4 +1839,22 @@ export type FlowLiquidityHeatmapWall = z.infer<
 >;
 export type FlowLiquidityHeatmapRules = z.infer<
   typeof FlowLiquidityHeatmapRulesSchema
+>;
+export type FlowOptionBubblesInput = z.input<
+  typeof FlowOptionBubblesInputSchema
+>;
+export type FlowOptionBubblesParsedInput = z.output<
+  typeof FlowOptionBubblesInputSchema
+>;
+export type FlowOptionBubbles = z.infer<typeof FlowOptionBubblesSchema>;
+export type FlowOptionBubblesRules = z.infer<
+  typeof FlowOptionBubblesRulesSchema
+>;
+export type FlowOptionBubblesGap = z.infer<typeof FlowOptionBubblesGapSchema>;
+export type FlowOptionBubblesPricePoint = z.infer<
+  typeof FlowOptionBubblesPricePointSchema
+>;
+export type FlowOptionBubblesItem = z.infer<typeof FlowOptionBubblesItemSchema>;
+export type FlowOptionBubblesTotals = z.infer<
+  typeof FlowOptionBubblesTotalsSchema
 >;

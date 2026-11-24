@@ -110552,6 +110552,907 @@
         ]
       }
     },
+    "/flow/option-bubbles": {
+      "get": {
+        "operationId": "flow.optionBubbles",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "minPremiumUsd",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": 100000
+                },
+                {
+                  "const": 250000
+                },
+                {
+                  "const": 500000
+                },
+                {
+                  "const": 1000000
+                },
+                {
+                  "const": "100000"
+                },
+                {
+                  "const": "250000"
+                },
+                {
+                  "const": "500000"
+                },
+                {
+                  "const": "1000000"
+                }
+              ],
+              "default": 250000
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bubbles": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "consolidation": {
+                            "enum": [
+                              "sweep",
+                              "block",
+                              "split",
+                              "other"
+                            ],
+                            "type": "string"
+                          },
+                          "contract": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "directionalSign": {
+                            "anyOf": [
+                              {
+                                "const": -1
+                              },
+                              {
+                                "const": 0
+                              },
+                              {
+                                "const": 1
+                              }
+                            ]
+                          },
+                          "dte": {
+                            "anyOf": [
+                              {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiry": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "goldenSweep": {
+                            "type": "boolean"
+                          },
+                          "id": {
+                            "maxLength": 64,
+                            "type": "string"
+                          },
+                          "iv": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "moneyness": {
+                            "enum": [
+                              "itm",
+                              "atm",
+                              "otm",
+                              "not_reported"
+                            ],
+                            "type": "string"
+                          },
+                          "opening": {
+                            "type": "boolean"
+                          },
+                          "premium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "price": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "right": {
+                            "enum": [
+                              "call",
+                              "put"
+                            ],
+                            "type": "string"
+                          },
+                          "sentiment": {
+                            "enum": [
+                              "bullish",
+                              "bearish",
+                              "neutral"
+                            ],
+                            "type": "string"
+                          },
+                          "side": {
+                            "enum": [
+                              "above_ask",
+                              "ask",
+                              "mid",
+                              "bid",
+                              "below_bid",
+                              "not_classified"
+                            ],
+                            "type": "string"
+                          },
+                          "size": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "strike": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "underlyingPrice": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "unusual": {
+                            "type": "boolean"
+                          },
+                          "volumeOverOi": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "at",
+                          "contract",
+                          "right",
+                          "strike",
+                          "expiry",
+                          "dte",
+                          "size",
+                          "price",
+                          "premium",
+                          "underlyingPrice",
+                          "side",
+                          "directionalSign",
+                          "sentiment",
+                          "consolidation",
+                          "moneyness",
+                          "unusual",
+                          "goldenSweep",
+                          "opening",
+                          "volumeOverOi",
+                          "iv"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 120,
+                      "type": "array"
+                    },
+                    "gaps": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "end": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "start": {
+                            "maxLength": 40,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "start",
+                          "end"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 50,
+                      "type": "array"
+                    },
+                    "minPremiumUsd": {
+                      "anyOf": [
+                        {
+                          "const": 100000
+                        },
+                        {
+                          "const": 250000
+                        },
+                        {
+                          "const": 500000
+                        },
+                        {
+                          "const": 1000000
+                        }
+                      ]
+                    },
+                    "options": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "state",
+                        "lastOkAt",
+                        "ageSeconds",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen"
+                      ],
+                      "type": "object"
+                    },
+                    "pricePoints": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "minute": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "unread": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "minute",
+                          "price",
+                          "unread"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 405,
+                      "type": "array"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "defaultMinPremiumUsd": {
+                          "anyOf": [
+                            {
+                              "const": 100000
+                            },
+                            {
+                              "const": 250000
+                            },
+                            {
+                              "const": 500000
+                            },
+                            {
+                              "const": 1000000
+                            }
+                          ]
+                        },
+                        "maxBubbles": {
+                          "maximum": 120,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "retentionDays": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "storedMinPremiumUsd": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "version": {
+                          "const": "option-bubbles.v1"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "storedMinPremiumUsd",
+                        "defaultMinPremiumUsd",
+                        "retentionDays",
+                        "maxBubbles"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-option-bubbles.v1"
+                    },
+                    "session": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sessionEnd": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sessionStart": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "storedUntil": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "enum": [
+                        "SPY",
+                        "ES"
+                      ],
+                      "type": "string"
+                    },
+                    "ticker": {
+                      "enum": [
+                        "SPY",
+                        "SPX",
+                        "QQQ",
+                        "NDX"
+                      ],
+                      "type": "string"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "askSidePremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bearishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bidSidePremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bullishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "callBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "callPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "latestPrice": {
+                          "anyOf": [
+                            {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "maxBubblePremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "plottedBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "putBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "putPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "sessionGrossPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "sessionPrints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "shownBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "unplottedBubbles": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "unsignedPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "sessionPrints",
+                        "sessionGrossPremium",
+                        "shownBubbles",
+                        "plottedBubbles",
+                        "unplottedBubbles",
+                        "callBubbles",
+                        "putBubbles",
+                        "callPremium",
+                        "putPremium",
+                        "askSidePremium",
+                        "bidSidePremium",
+                        "unsignedPremium",
+                        "bullishPremium",
+                        "bearishPremium",
+                        "maxBubblePremium",
+                        "latestPrice"
+                      ],
+                      "type": "object"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "unread": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "from": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "ranges": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "to": {
+                              "maxLength": 40,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "from",
+                            "to",
+                            "ranges"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "symbol",
+                    "ticker",
+                    "session",
+                    "sessionStart",
+                    "sessionEnd",
+                    "minPremiumUsd",
+                    "storedUntil",
+                    "options",
+                    "unread",
+                    "gaps",
+                    "rules",
+                    "pricePoints",
+                    "bubbles",
+                    "truncated",
+                    "totals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "SPY or ES: big option prints as bubbles on the intraday underlying price chart over the newest options session (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
     "/flow/put-call-ratio": {
       "get": {
         "operationId": "flow.putCallRatio",
