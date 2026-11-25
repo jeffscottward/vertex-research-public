@@ -183,7 +183,7 @@ describe("FlowGammaLevelsChart & SVG helpers", () => {
         ?.getAttribute("text-anchor")
     ).toBe("end");
     expect(host.textContent).toContain("▲★ Call wall · King 615.00");
-    expect(host.textContent).toContain("Max pain:—");
+    expect(host.textContent).toContain("Max pain:not computed");
 
     // Spot-only fallback (no minute series) and null spot path.
     const spotOnly = await mount(

@@ -145,7 +145,7 @@ describe("GammaLevelsBar", () => {
     expect(stock.textContent).toContain("Call wall");
     expect(stock.textContent).toContain("615.00");
     expect(stock.textContent).toContain("at call wall");
-    expect(stock.textContent).toContain("—");
+    expect(stock.textContent).toContain("not computed");
     expect(stock.textContent).toContain("QuantData estimate");
 
     const futures = await render({

@@ -209,6 +209,13 @@ describe("gamma-levels-overlay builders and validation", () => {
 
   it("builds an overlay from flow_gex using symbolLevels for futures and never plots unshifted SPX on ES", () => {
     expect(gammaLevelsFromFlowGex("ES", null)).toBeNull();
+    // Cross-instrument GEX (e.g. SPY GEX passed for ES, or unknown symbol) must return null.
+    expect(
+      gammaLevelsFromFlowGex("ES", flowGexSample({ basis: 0, ticker: "SPY" }))
+    ).toBeNull();
+    expect(
+      gammaLevelsFromFlowGex("AAPL", flowGexSample({ basis: 0, ticker: "SPX" }))
+    ).toBeNull();
     // Futures without basis/symbolLevels must not plot raw SPX numbers on ES.
     expect(
       gammaLevelsFromFlowGex(
@@ -500,6 +507,22 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
       .map((f) => f.attrs.text);
     expect(narrowTexts).toContain("↑ Above: 2 (▲★ 615.00…)");
     expect(narrowTexts).toContain("↓ Below: 2 (◎ 600.00…)");
+
+    // Mid-width 460 px viewport also condenses 3+ off-scale groups when the full string would clip.
+    const midWidthFigs = gammaLevelsFigures(
+      [
+        { x: 50, y: -30 },
+        { x: 50, y: -20 },
+        { x: 50, y: -10 },
+        { x: 50, y: 120 },
+      ],
+      data,
+      { height: 360, width: 460 }
+    );
+    const midWidthTexts = midWidthFigs
+      .filter((f) => f.type === "text")
+      .map((f) => f.attrs.text);
+    expect(midWidthTexts).toContain("↑ Above: 3 (▲★ 615.00…)");
 
     // Missing/non-finite coordinates are skipped safely.
     expect(

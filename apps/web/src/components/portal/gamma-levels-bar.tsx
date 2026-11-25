@@ -35,7 +35,7 @@ export interface GammaLevelsBarProps {
 const STROKE_VAR_BY_KIND: Readonly<Record<GammaLevelKind, string>> = {
   callWall: "var(--success)",
   flip: "var(--warning)",
-  kingNode: "var(--chart-5)",
+  kingNode: "var(--chart-1)",
   maxPain: "var(--info)",
   putWall: "var(--destructive)",
 };
@@ -112,7 +112,7 @@ const GammaLevelsMetrics = ({
               </dt>
               <dd className="font-mono text-foreground tabular-nums">
                 {entry === undefined ? (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-muted-foreground">not computed</span>
                 ) : (
                   <>
                     <span className="font-semibold">

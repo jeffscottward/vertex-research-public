@@ -4,7 +4,7 @@
 //    inside GexPanel (works for SPY, QQQ, ES, and NQ).
 // 2) `buildFlowPriceOverlayLevels(...)`: horizontal level lines + off-scale edge summaries overlaid
 //    on existing /flow intraday price charts (FlowTradeBubblesPanel for ES/NQ,
-//    FlowOptionBubblesPanel for SPY/QQQ) without squashing the intraday candle/bubble Y-axis.
+//    FlowOptionBubblesPanel for SPY/ES) without squashing the intraday candle/bubble Y-axis.
 // Display only: research context, never a trade signal or order input.
 // Used by: components/portal/flow-gamma-levels-chart.tsx,
 // components/portal/flow-trade-bubbles-panel.tsx,
@@ -28,7 +28,7 @@ export const FLOW_GAMMA_COLOR_VAR: Readonly<Record<GammaLevelKind, string>> =
   Object.freeze({
     callWall: "var(--success)",
     flip: "var(--warning)",
-    kingNode: "var(--chart-5)",
+    kingNode: "var(--chart-1)",
     maxPain: "var(--info)",
     putWall: "var(--destructive)",
   });

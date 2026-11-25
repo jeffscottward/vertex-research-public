@@ -223,7 +223,7 @@ export const FlowGammaLevelsChart = ({
       <div className="overflow-x-auto">
         <svg
           aria-label={chart.ariaLabel}
-          className="h-60 w-full min-w-[320px] select-none"
+          className="aspect-[3/1] w-full min-w-[480px] select-none"
           data-flow-gex-svg=""
           role="img"
           viewBox={`0 0 ${chart.width} ${chart.height}`}
@@ -348,7 +348,7 @@ export const FlowGammaLevelsChart = ({
                 {meta.label}:
               </span>
               <span className="font-mono text-foreground tabular-nums">
-                {entry === undefined ? "—" : entry.price.toFixed(2)}
+                {entry === undefined ? "not computed" : entry.price.toFixed(2)}
               </span>
             </li>
           );

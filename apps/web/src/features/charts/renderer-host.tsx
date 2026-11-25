@@ -60,7 +60,7 @@ const readChartPalette = (element: HTMLElement): ChartPalette => {
     foreground,
     grid: token("--border", foreground),
     info: token("--info", foreground),
-    king: token("--chart-5", warning),
+    king: token("--chart-1", warning),
     rising: foreground,
     success: token("--success", foreground),
     warning,

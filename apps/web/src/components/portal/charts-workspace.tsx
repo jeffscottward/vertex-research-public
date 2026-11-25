@@ -1060,6 +1060,13 @@ export const ChartsWorkspace = ({
     secType: data?.request.secType ?? null,
     symbol: data?.request.symbol ?? null,
   });
+  const analyticsEligible =
+    data !== null &&
+    data.request.secType === "STK" &&
+    data.request.currency === "USD";
+  useEffect(() => {
+    if (!analyticsEligible) setAnalyticsReport(null);
+  }, [analyticsEligible]);
   const gammaLevels = useGammaLevelsView({
     analyticsReport,
     currency: data?.request.currency ?? null,

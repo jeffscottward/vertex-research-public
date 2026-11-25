@@ -461,4 +461,43 @@ describe("FlowTradeBubblesPanel", () => {
     expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
     expect(el.querySelector("[data-flow-gamma-offscale]")).toBeNull();
   });
+
+  it("omits gamma overlay when viewing SPY so SPY GEX levels are never plotted on the ES futures scale", () => {
+    const el = renderPanel({
+      document: sampleDocument(),
+      failure: null,
+      gex: {
+        at: "2026-11-25T15:30:00Z",
+        basis: 0,
+        ivRegime: "contango",
+        levels: {
+          callWall: 615,
+          flip: 602,
+          kingNode: 615,
+          maxPain: 600,
+          putWall: 590,
+        },
+        netDex: 1e6,
+        regime: "positive",
+        spot: 605,
+        symbolLevels: {
+          callWall: 615,
+          flip: 602,
+          kingNode: 615,
+          maxPain: 600,
+          putWall: 590,
+        },
+        ticker: "SPY",
+        totalGex: 1e9,
+        zeroDteShare: 0.4,
+      },
+      refreshMs: 60_000,
+      symbol: "SPY",
+    });
+    expect(
+      el.querySelector("[data-flow-trade-bubbles-gamma-toggle]")
+    ).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-offscale]")).toBeNull();
+  });
 });

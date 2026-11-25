@@ -6,7 +6,11 @@
 // components/portal/gamma-levels-bar.tsx, components/portal/use-gamma-levels.ts,
 // features/flow/gamma-levels-view-model.ts.
 
-import type { FlowGex, OptionsAnalyticsOutput } from "@darkfactory/api";
+import {
+  FLOW_INSTRUMENTS,
+  type FlowGex,
+  type OptionsAnalyticsOutput,
+} from "@darkfactory/api";
 
 import type { ChartPalette, GammaLevelsOverlay } from "./types.ts";
 
@@ -177,6 +181,13 @@ export const gammaLevelsFromFlowGex = (
 ): GammaLevelsOverlay | null => {
   if (gex === null) return null;
   const directTicker = gex.ticker === symbol;
+  if (!directTicker) {
+    const instrument = Object.hasOwn(FLOW_INSTRUMENTS, symbol)
+      ? FLOW_INSTRUMENTS[symbol as keyof typeof FLOW_INSTRUMENTS]
+      : undefined;
+    if (instrument === undefined || instrument.optionsTicker !== gex.ticker)
+      return null;
+  }
   const active = directTicker ? gex.levels : gex.symbolLevels;
   if (active === null) return null;
   const flip = positiveFiniteOrNull(active.flip);
@@ -677,13 +688,14 @@ export const gammaLevelsFigures = (
     items: readonly GammaLevelLineSpec[],
     direction: "↑ Above" | "↓ Below"
   ): string => {
-    if (narrow && items.length > 1) {
+    const full = `${direction}: ${items
+      .map((line) => `${line.glyphs} ${line.shortLabel} ${line.priceText}`)
+      .join(" · ")}`;
+    if (items.length > 1 && (narrow || full.length * 6.4 + 18 > width - 12)) {
       const first = items[0] as GammaLevelLineSpec;
       return `${direction}: ${items.length} (${first.glyphs} ${first.priceText}…)`;
     }
-    return `${direction}: ${items
-      .map((line) => `${line.glyphs} ${line.shortLabel} ${line.priceText}`)
-      .join(" · ")}`;
+    return full;
   };
   if (above.length > 0) {
     figures.push({

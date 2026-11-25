@@ -791,7 +791,7 @@ export const FlowTradeBubblesPanel = ({
       ) : (
         <TradeBubblesDocument
           document={activeDocument}
-          gex={gex}
+          gex={symbol === futureSymbol ? gex : null}
           key={activeDocument.symbol}
         />
       )}

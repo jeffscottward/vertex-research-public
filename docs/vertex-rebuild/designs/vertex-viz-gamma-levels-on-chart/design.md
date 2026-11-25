@@ -26,9 +26,9 @@ All five levels use the existing QuantData dealer-gamma estimate (`packages/api/
 | Call wall | `callWall` | Strike with the largest positive estimated net GEX (`gex > 0`) | Green (`--success`) solid · `▲` |
 | Put wall | `putWall` | Strike with the most negative estimated net GEX (`gex < 0`) | Red (`--destructive`) solid · `▼` |
 | Max pain | `maxPain` | Strike minimizing aggregate open-interest holder payout | Blue (`--info`) dotted `2 4` · `◎` |
-| King node | `kingNode` | Strike with the largest absolute estimated net GEX (`argmax \|gex\|`, `gex !== 0`) | Theme chart accent (`--chart-5`) dash-dot `10 3 2 3` · `★` |
+| King node | `kingNode` | Strike with the largest absolute estimated net GEX (`argmax \|gex\|`, `gex !== 0`) | Theme chart accent (`--chart-1`) dash-dot `10 3 2 3` · `★` |
 
-Because `kingNode` maximizes `|net GEX|`, it shares a strike with either `callWall` or `putWall` whenever non-zero GEX exists. `groupCoincidentGammaLevels` merges exact-price coincidences into one line with a combined pill (for example, `▲★ Call wall · King 615.00`) and a gold accent overlay dash, while legends and tables list all five levels explicitly.
+Because `kingNode` maximizes `|net GEX|`, it shares a strike with either `callWall` or `putWall` whenever non-zero GEX exists. `groupCoincidentGammaLevels` merges exact-price coincidences into one line with a combined pill (for example, `▲★ Call wall · King 615.00`) and a `--chart-1` accent overlay dash, while legends and tables list all five levels explicitly.
 
 ## Schema and contract changes
 
