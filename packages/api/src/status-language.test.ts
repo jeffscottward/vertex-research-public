@@ -29,8 +29,8 @@ import { STATUS_LANGUAGE_ALLOWLIST } from "./status-language-allowlist.ts";
 // `biome format --write` the list. Existing reasons are kept; a new text, or a higher count of a
 // listed text, gets "REASON REQUIRED" and the test fails until the reason is written.
 
-// Open (known ambiguous) entries on 2026-11-22. Lower it with each replacement; never raise it.
-const MAX_OPEN = 16;
+// Open (known ambiguous) entries on 2026-11-25. Lower it with each replacement; never raise it.
+const MAX_OPEN = 0;
 
 const ROOT = join(import.meta.dirname);
 

@@ -127,7 +127,11 @@ export const SmartMoneyRankingOutputSchema = z.object({
 
 export const SMART_MONEY_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Smart money storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Smart money storage: database request failed; no ranking was read; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   UNAVAILABLE: { message: "Smart money storage not configured", status: 503 },
 } as const;
