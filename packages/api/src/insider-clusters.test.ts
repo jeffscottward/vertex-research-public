@@ -206,4 +206,26 @@ describe("insiderClusters", () => {
       "100",
     ]);
   });
+
+  it("filters clusters by optional symbol before capping results", () => {
+    const at = daysAgo(1);
+    const rows = [
+      purchase("a1", at, { issuerCik: "1", issuerSymbol: "AAPL" }),
+      purchase("a2", at, { issuerCik: "1", issuerSymbol: "AAPL" }),
+      purchase("a3", at, { issuerCik: "1", issuerSymbol: "AAPL" }),
+      purchase("m1", at, { issuerCik: "2", issuerSymbol: "MSFT" }),
+      purchase("m2", at, { issuerCik: "2", issuerSymbol: "MSFT" }),
+      purchase("m3", at, { issuerCik: "2", issuerSymbol: "MSFT" }),
+    ];
+    const owners = [
+      owner("a1", "11"),
+      owner("a2", "12"),
+      owner("a3", "13"),
+      owner("m1", "21"),
+      owner("m2", "22"),
+      owner("m3", "23"),
+    ];
+    const filtered = insiderClusters(rows, owners, daysAgo(7), "MSFT");
+    expect(filtered.map((c) => c.issuerSymbol)).toEqual(["MSFT"]);
+  });
 });

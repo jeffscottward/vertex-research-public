@@ -81,6 +81,7 @@ describe("charts lab entry", () => {
     };
     await open("tape", "[data-time-sales]");
     await open("book", "[data-depth-ladder]");
+    expect(host.querySelector("[data-depth-curve-svg]")).not.toBeNull();
     expect(host.querySelector("[data-venue-notice]")?.textContent).toContain(
       "LAB-D"
     );

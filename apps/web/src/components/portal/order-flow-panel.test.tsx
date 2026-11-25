@@ -310,6 +310,12 @@ describe("OrderFlowPanel", () => {
     expect(notice).toContain("Top of book only: BATS");
     expect(notice).toContain("Missing market data permission");
     expect(notice).toContain("IEX");
+    expect(container.querySelector("[data-depth-curve]")).not.toBeNull();
+    expect(
+      container
+        .querySelector("[data-depth-curve-svg]")
+        ?.getAttribute("aria-label")
+    ).toContain("400 bid shares, 800 ask shares");
   });
 
   it("shows a crossed or locked book instead of a spread", async () => {
@@ -330,6 +336,12 @@ describe("OrderFlowPanel", () => {
       const state = container.querySelector("[data-book-state]");
       expect(state?.textContent).toBe(label);
       expect(state?.textContent).not.toContain("spread");
+      expect(
+        container
+          .querySelector("[data-depth-mid]")
+          ?.getAttribute("data-depth-mid")
+      ).toBe(bid === 100.03 ? "crossed" : "locked");
+      expect(container.querySelector("[data-depth-spread]")).toBeNull();
     }
   });
 
@@ -382,6 +394,7 @@ describe("OrderFlowPanel", () => {
     );
     expect(alert?.textContent).toContain("subscriptions are not active");
     expect(container.querySelector("[data-depth-ladder]")).toBeNull();
+    expect(container.querySelector("[data-depth-curve]")).toBeNull();
     await click(tab(container, "tape"));
     expect(container.querySelector("[data-time-sales]")).not.toBeNull();
     await click(tab(container, "tpo"));
@@ -458,6 +471,11 @@ describe("OrderFlowPanel", () => {
         (node) => node.textContent
       )
     ).not.toContain("Venue");
+    expect(
+      container
+        .querySelector("[data-depth-curve-svg]")
+        ?.getAttribute("aria-label")
+    ).toContain("9 bid contracts, 7 ask contracts");
   });
 
   it("moves between tabs with the arrow keys", async () => {
