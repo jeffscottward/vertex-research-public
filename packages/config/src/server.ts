@@ -213,17 +213,22 @@ const uiFlagsSchema = z.preprocess(
 );
 
 /**
- * True only when APP_ENV is explicitly development or test.
- * Production, an unset APP_ENV, and any other value disable client-side
- * query-string (?ff=) and localStorage overrides for experimental UI flags.
+ * True only when APP_ENV is explicitly development or test AND APP_URL is absent
+ * or points to a local hostname (localhost, *.localhost, loopback).
+ * Production, an unset APP_ENV, and deployed non-local origins (including the
+ * QuantVPS production serve, which uses APP_ENV=development on a non-local tailnet
+ * APP_URL) disable client-side query (?ff=) and localStorage flag overrides.
  */
 export const areUiFlagClientOverridesAllowed = (
   source: Readonly<Record<string, string | undefined>>
 ): boolean => {
   const appEnv = source["APP_ENV"];
-  return appEnv === "development" || appEnv === "test";
+  if (appEnv !== "development" && appEnv !== "test") return false;
+  const appUrl = source["APP_URL"]?.trim();
+  if (appUrl === undefined || appUrl.length === 0) return true;
+  const host = parseUrl(appUrl)?.hostname;
+  return host !== undefined && isLocalHostname(host);
 };
-
 /**
  * True only when VERTEX_UI_LAB=on and APP_ENV is explicitly development or test.
  * Production, an unset APP_ENV and any other value keep /lab closed (404).

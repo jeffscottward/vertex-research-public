@@ -6,7 +6,7 @@
 
 - **UI and research views only.** Every registered flag carries `area: "ui" | "research"`. Never gate or alter execution-engine code, live orders, arming, kill switches, or risk settings behind UI feature flags.
 - **Default off.** Every flag in `FEATURE_FLAG_REGISTRY` (`apps/web/src/lib/feature-flags.ts`) sets `defaultEnabled: false`.
-- **Production isolation.** Client-side query-string (`?ff=`) and `localStorage` overrides are permitted only when `APP_ENV` is explicitly `development` or `test` (`areUiFlagClientOverridesAllowed` in `packages/config/src/server.ts`). In `production`, client overrides are ignored and the dev/viewer toggle panel does not render.
+- **Production isolation.** Client-side query-string (`?ff=`) and `localStorage` overrides are permitted only when `APP_ENV` is explicitly `development` or `test` and `APP_URL` is absent or points to a local hostname (`areUiFlagClientOverridesAllowed` in `packages/config/src/server.ts`). In `production` and on deployed non-local origins (including the QuantVPS production serve, which uses `APP_ENV=development` on a non-local tailnet `APP_URL`), client overrides are ignored and the dev toggle panel does not render.
 
 ## Precedence
 

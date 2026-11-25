@@ -20,9 +20,10 @@ describe("server feature flags", () => {
     });
   });
 
-  it("enables flags from VERTEX_UI_FLAGS and gates client overrides by APP_ENV", () => {
+  it("enables flags from VERTEX_UI_FLAGS and gates client overrides by APP_ENV and local APP_URL", () => {
     const dev = getServerFeatureFlagSnapshot({
       APP_ENV: "development",
+      APP_URL: "https://darkfactory.localhost",
       VERTEX_UI_FLAGS: "ui-experiments-panel=on",
     });
     expect(dev.allowClientOverrides).toBe(true);
@@ -31,6 +32,14 @@ describe("server feature flags", () => {
       "research-prototype-slot": false,
       "ui-experiments-panel": true,
     });
+
+    const deployedDev = getServerFeatureFlagSnapshot({
+      APP_ENV: "development",
+      APP_URL: "https://vertex.example.ts.net:3451",
+      VERTEX_UI_FLAGS: "ui-experiments-panel=on",
+    });
+    expect(deployedDev.allowClientOverrides).toBe(false);
+    expect(deployedDev.flags["ui-experiments-panel"]).toBe(true);
 
     const prod = getServerFeatureFlagSnapshot({
       APP_ENV: "production",
@@ -43,10 +52,15 @@ describe("server feature flags", () => {
     });
   });
 
-  it("reads process.env by default in isServerFeatureFlagEnabled", () => {
+  it("reads process.env by default and accepts explicit source in isServerFeatureFlagEnabled", () => {
     vi.stubEnv("APP_ENV", "test");
     vi.stubEnv("VERTEX_UI_FLAGS", "ui-experiments-panel");
     expect(isServerFeatureFlagEnabled("ui-experiments-panel")).toBe(true);
     expect(isServerFeatureFlagEnabled("research-prototype-slot")).toBe(false);
+    expect(
+      isServerFeatureFlagEnabled("research-prototype-slot", {
+        VERTEX_UI_FLAGS: "research-prototype-slot=on",
+      })
+    ).toBe(true);
   });
 });

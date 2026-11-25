@@ -8,16 +8,16 @@ import { isServerFeatureFlagEnabled } from "../../../../lib/server-feature-flags
 export const metadata = { title: "Workspace settings" };
 
 export default function WorkspaceSettingsPage() {
-  const previewActiveOnServer = isServerFeatureFlagEnabled(
+  const serverPreviewActive = isServerFeatureFlagEnabled(
     "ui-experiments-panel"
   );
   return (
-    <div
-      className="space-y-6"
-      data-server-ui-preview={previewActiveOnServer ? "on" : "off"}
-    >
+    <>
       <SettingsWorkspaceSections />
-      <FeatureFlagsPanel />
-    </div>
+      <FeatureFlagsPanel
+        className="mt-6"
+        serverPreviewActive={serverPreviewActive}
+      />
+    </>
   );
 }

@@ -6,10 +6,27 @@ describe("areUiFlagClientOverridesAllowed", () => {
   it.each([
     [{}, false],
     [{ APP_ENV: "production" }, false],
+    [
+      { APP_ENV: "production", APP_URL: "https://darkfactory.localhost" },
+      false,
+    ],
     [{ APP_ENV: "staging" }, false],
     [{ APP_ENV: " development" }, false],
     [{ APP_ENV: "development" }, true],
+    [{ APP_ENV: "development", APP_URL: "   " }, true],
+    [
+      { APP_ENV: "development", APP_URL: "https://darkfactory.localhost" },
+      true,
+    ],
+    [{ APP_ENV: "development", APP_URL: "http://127.0.0.1:3000" }, true],
+    [
+      { APP_ENV: "development", APP_URL: "https://vertex.example.ts.net:3451" },
+      false,
+    ],
+    [{ APP_ENV: "development", APP_URL: "not-a-url" }, false],
     [{ APP_ENV: "test" }, true],
+    [{ APP_ENV: "test", APP_URL: "https://darkfactory.localhost" }, true],
+    [{ APP_ENV: "test", APP_URL: "https://darkfactory.example" }, false],
   ])("%o -> %s", (source, expected) => {
     expect(areUiFlagClientOverridesAllowed(source)).toBe(expected);
   });

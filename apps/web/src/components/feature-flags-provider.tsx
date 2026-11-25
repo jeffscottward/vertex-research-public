@@ -3,6 +3,7 @@
 //          apps/web/src/lab/entries/data-settings.tsx.
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   createContext,
   type ReactNode,
@@ -10,6 +11,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -90,60 +92,86 @@ export const FeatureFlagsProvider = ({
   envOverrides = EMPTY_OVERRIDES,
   initialQuery,
 }: FeatureFlagsProviderProps) => {
+  const pathname = usePathname();
   const [localOverrides, setLocalOverrides] =
     useState<FeatureFlagOverrides>(EMPTY_OVERRIDES);
+  const localOverridesRef = useRef<FeatureFlagOverrides>(EMPTY_OVERRIDES);
   const [browserQueryOverrides, setBrowserQueryOverrides] =
     useState<FeatureFlagOverrides>(EMPTY_OVERRIDES);
 
+  const explicitQueryKey =
+    initialQuery === undefined
+      ? null
+      : typeof initialQuery === "string"
+        ? initialQuery
+        : initialQuery.toString();
+
   const explicitQueryOverrides = useMemo(
     () =>
-      initialQuery === undefined
+      explicitQueryKey === null
         ? null
-        : parseFeatureFlagSearchParams(initialQuery),
-    [initialQuery]
+        : parseFeatureFlagSearchParams(explicitQueryKey),
+    [explicitQueryKey]
   );
 
   const queryOverrides = explicitQueryOverrides ?? browserQueryOverrides;
 
+  // Sync localStorage overrides on mount and across tabs.
   useEffect(() => {
     if (!allowClientOverrides) {
+      localOverridesRef.current = EMPTY_OVERRIDES;
       setLocalOverrides(EMPTY_OVERRIDES);
-      setBrowserQueryOverrides(EMPTY_OVERRIDES);
       return;
     }
-    setLocalOverrides(readStoredOverrides());
-    if (explicitQueryOverrides === null) {
-      setBrowserQueryOverrides(
-        parseFeatureFlagSearchParams(window.location.search)
-      );
-    }
+    const stored = readStoredOverrides();
+    localOverridesRef.current = stored;
+    setLocalOverrides(stored);
     const handleStorage = (event: StorageEvent): void => {
       if (event.key === null || event.key === FEATURE_FLAGS_STORAGE_KEY) {
-        setLocalOverrides(readStoredOverrides());
+        const refreshed = readStoredOverrides();
+        localOverridesRef.current = refreshed;
+        setLocalOverrides(refreshed);
       }
     };
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("storage", handleStorage);
     };
-  }, [allowClientOverrides, explicitQueryOverrides]);
+  }, [allowClientOverrides]);
+
+  // Sync browser ?ff= query overrides on route changes (pathname) and browser history navigation.
+  useEffect(() => {
+    if (!allowClientOverrides || explicitQueryKey !== null) {
+      setBrowserQueryOverrides(EMPTY_OVERRIDES);
+      return;
+    }
+    const syncQuery = (): void => {
+      setBrowserQueryOverrides(
+        parseFeatureFlagSearchParams(window.location.search)
+      );
+    };
+    syncQuery();
+    window.addEventListener("popstate", syncQuery);
+    return () => {
+      window.removeEventListener("popstate", syncQuery);
+    };
+  }, [allowClientOverrides, explicitQueryKey, pathname]);
 
   const setOverride = useCallback(
     (name: FeatureFlagName, enabled: boolean | null): void => {
       if (!allowClientOverrides) return;
-      setLocalOverrides((previous) => {
-        const next: Partial<Record<FeatureFlagName, boolean>> = {
-          ...previous,
-        };
-        if (enabled === null) {
-          delete next[name];
-        } else {
-          next[name] = enabled;
-        }
-        const frozen = Object.freeze(next);
-        writeStoredOverrides(frozen);
-        return frozen;
-      });
+      const next: Partial<Record<FeatureFlagName, boolean>> = {
+        ...localOverridesRef.current,
+      };
+      if (enabled === null) {
+        delete next[name];
+      } else {
+        next[name] = enabled;
+      }
+      const frozen = Object.freeze(next);
+      writeStoredOverrides(frozen);
+      localOverridesRef.current = frozen;
+      setLocalOverrides(frozen);
     },
     [allowClientOverrides]
   );
@@ -151,6 +179,7 @@ export const FeatureFlagsProvider = ({
   const clearOverrides = useCallback((): void => {
     if (!allowClientOverrides) return;
     writeStoredOverrides(EMPTY_OVERRIDES);
+    localOverridesRef.current = EMPTY_OVERRIDES;
     setLocalOverrides(EMPTY_OVERRIDES);
   }, [allowClientOverrides]);
 
@@ -203,6 +232,7 @@ export interface FeatureGateProps {
   readonly fallback?: ReactNode;
   readonly flag: FeatureFlagName;
 }
+
 export const FeatureGate = ({
   children,
   fallback = null,

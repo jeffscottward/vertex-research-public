@@ -22,6 +22,7 @@ const AREA_LABELS: Readonly<Record<FeatureFlagArea, string>> = Object.freeze({
   research: "Research",
   ui: "UI",
 });
+
 const SOURCE_LABELS: Readonly<Record<FeatureFlagSource, string>> =
   Object.freeze({
     default: "Default",
@@ -46,6 +47,7 @@ const FeatureFlagRow = ({
 }) => {
   const definition = FEATURE_FLAG_REGISTRY[entry.name];
   const lockedByQuery = entry.source === "query";
+  const labelId = `feature-flag-label-${entry.name}`;
   return (
     <li
       className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
@@ -53,7 +55,7 @@ const FeatureFlagRow = ({
     >
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-foreground text-sm">
+          <span className="font-medium text-foreground text-sm" id={labelId}>
             {definition.label}
           </span>
           <Badge variant="secondary">{AREA_LABELS[definition.area]}</Badge>
@@ -87,26 +89,45 @@ const FeatureFlagRow = ({
         </span>
         <button
           aria-checked={entry.enabled}
-          aria-label={`Toggle ${definition.label}`}
-          className={cn(
-            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border px-3 font-medium text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
-            entry.enabled
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-background text-foreground hover:bg-muted"
-          )}
+          aria-labelledby={labelId}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50"
           data-feature-flag-toggle={entry.name}
           disabled={lockedByQuery}
           onClick={() => onToggle(entry.name, !entry.enabled)}
           role="switch"
           type="button"
         >
-          {entry.enabled ? "Turn off" : "Turn on"}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors",
+              entry.enabled
+                ? "border-primary bg-primary"
+                : "border-border bg-muted"
+            )}
+          >
+            <span
+              className={cn(
+                "block size-4 rounded-full bg-background shadow-xs transition-transform",
+                entry.enabled ? "translate-x-5" : "translate-x-0"
+              )}
+            />
+          </span>
         </button>
       </div>
     </li>
   );
 };
-export const FeatureFlagsPanel = () => {
+
+export interface FeatureFlagsPanelProps {
+  readonly className?: string;
+  readonly serverPreviewActive?: boolean;
+}
+
+export const FeatureFlagsPanel = ({
+  className,
+  serverPreviewActive = false,
+}: FeatureFlagsPanelProps = {}) => {
   const {
     allowClientOverrides,
     clearOverrides,
@@ -120,12 +141,16 @@ export const FeatureFlagsPanel = () => {
   const hasAnyActiveSmoke = hasUiPreview || hasResearchPrototype;
   const localOverrideCount = Object.keys(localOverrides).length;
 
-  if (!(allowClientOverrides || hasAnyActiveSmoke)) {
+  if (!(allowClientOverrides || hasAnyActiveSmoke || serverPreviewActive)) {
     return null;
   }
 
   return (
-    <div className="space-y-4" data-feature-flags-section="">
+    <div
+      className={cn("space-y-4", className)}
+      data-feature-flags-section=""
+      {...(serverPreviewActive ? { "data-server-ui-preview": "on" } : {})}
+    >
       <FeatureGate flag="ui-experiments-panel">
         <div
           className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground"

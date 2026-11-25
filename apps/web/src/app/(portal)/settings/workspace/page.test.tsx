@@ -8,12 +8,13 @@ afterEach(() => {
 });
 
 describe("WorkspaceSettingsPage", () => {
-  it("exposes title metadata and reflects server-side ui-experiments-panel state", () => {
+  it("keeps zero extra DOM footprint when flags are off and reflects server-side ui-experiments-panel when on", () => {
     expect(metadata.title).toBe("Workspace settings");
 
     vi.stubEnv("VERTEX_UI_FLAGS", "");
     const offHtml = renderToStaticMarkup(<WorkspaceSettingsPage />);
-    expect(offHtml).toContain('data-server-ui-preview="off"');
+    expect(offHtml).not.toContain("data-server-ui-preview");
+    expect(offHtml).not.toContain("data-feature-flags-section");
 
     vi.stubEnv("VERTEX_UI_FLAGS", "ui-experiments-panel=on");
     const onHtml = renderToStaticMarkup(<WorkspaceSettingsPage />);

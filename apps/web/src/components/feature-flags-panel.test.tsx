@@ -65,6 +65,36 @@ describe("FeatureFlagsPanel", () => {
     expect(container.querySelector("[data-feature-flags-panel]")).toBeNull();
   });
 
+  it("renders only the research smoke banner in production when enabled via env alone", async () => {
+    const container = await mount(
+      <FeatureFlagsProvider
+        allowClientOverrides={false}
+        envOverrides={{ "research-prototype-slot": true }}
+      >
+        <FeatureFlagsPanel serverPreviewActive={false} />
+      </FeatureFlagsProvider>
+    );
+    expect(
+      container.querySelector(
+        '[data-feature-flag-smoke="research-prototype-slot"]'
+      )
+    ).not.toBeNull();
+    expect(container.querySelector("[data-feature-flags-panel]")).toBeNull();
+  });
+
+  it("marks server-active preview when serverPreviewActive is true", async () => {
+    const container = await mount(
+      <FeatureFlagsProvider allowClientOverrides={false} envOverrides={{}}>
+        <FeatureFlagsPanel serverPreviewActive />
+      </FeatureFlagsProvider>
+    );
+    expect(
+      container
+        .querySelector("[data-feature-flags-section]")
+        ?.getAttribute("data-server-ui-preview")
+    ).toBe("on");
+  });
+
   it("renders dev/viewer switches, toggles localStorage overrides, and resets them", async () => {
     const container = await mount(
       <FeatureFlagsProvider allowClientOverrides envOverrides={{}}>

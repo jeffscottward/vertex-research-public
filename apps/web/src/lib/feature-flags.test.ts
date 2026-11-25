@@ -78,7 +78,7 @@ describe("parseFeatureFlagTokens", () => {
   it("ignores unknown flags, empty segments, and invalid boolean tokens", () => {
     expect(
       parseFeatureFlagTokens(
-        " , nonexistent-flag, -nonexistent-flag, ui-experiments-panel=maybe, research-prototype-slot=on , "
+        " , nonexistent-flag, -nonexistent-flag, nonexistent-flag=on, ui-experiments-panel=maybe, research-prototype-slot=on , "
       )
     ).toEqual({
       "research-prototype-slot": true,

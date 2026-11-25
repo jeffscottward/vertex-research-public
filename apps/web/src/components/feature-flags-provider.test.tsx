@@ -94,10 +94,7 @@ describe("FeatureFlagsProvider and hooks", () => {
     };
 
     const container = await mount(
-      <FeatureFlagsProvider
-        allowClientOverrides={false}
-        envOverrides={{ "research-prototype-slot": false }}
-      >
+      <FeatureFlagsProvider envOverrides={{ "research-prototype-slot": false }}>
         <Reader />
       </FeatureFlagsProvider>
     );
@@ -185,6 +182,23 @@ describe("FeatureFlagsProvider and hooks", () => {
     });
     expect(observed.current?.localOverrides).toEqual({});
     expect(window.localStorage.getItem(FEATURE_FLAGS_STORAGE_KEY)).toBeNull();
+
+    // Browser history navigation (popstate) updates and clears ?ff= query overrides.
+    window.history.pushState({}, "", "/settings/workspace");
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(observed.current?.flags["ui-experiments-panel"]).toBe(false);
+
+    window.history.pushState(
+      {},
+      "",
+      "/settings/workspace?ff=research-prototype-slot"
+    );
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(observed.current?.flags["research-prototype-slot"]).toBe(true);
   });
 
   it("syncs localStorage changes from storage events and uses explicit initialQuery when provided", async () => {
