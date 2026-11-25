@@ -7,7 +7,7 @@ These endpoints let Vertex show the trading-stack state and a read-only session 
 | Endpoint | Audience | Document |
 | --- | --- | --- |
 | `https://quant-vps-host.example-tailnet.ts.net:8443/vertex-status/v1` | tailnet only, the rig and the VPS's own tailnet addresses, bearer token (checked by `vertex-status`) | `vertex-deploy-status-v1` only, also for `?schema=v2` and the v2 Accept header. The public `https://vertex.xyz/vertex-status/v1` route is retired (2026-11-05, owner decision "No use of vertex.XYZ at all"). |
-| `https://quant-vps-host.example-tailnet.ts.net:8443/vertex-status/v2` | tailnet only, **rig only** (remote_ip allow-list), bearer token | `vertex-deploy-status-v2`: v1 fields plus session, positions, orders, fills, equity, risk, logs |
+| `https://quant-vps-host.example-tailnet.ts.net:8443/vertex-status/v2` | tailnet only, the rig and the VPS's own tailnet addresses (`@status_v2_caller`), bearer token | `vertex-deploy-status-v2`: v1 fields plus session, positions, orders, fills, equity, risk, logs |
 | `https://quant-vps-host.example-tailnet.ts.net:8443/vertex-history/v1/bars` | tailnet only, **rig only**, bearer token (checked by Caddy and again by the service) | `vertex-history-bars-v1`: IBKR historical bars (read-only service, IB client id 77) |
 | `https://quant-vps-host.example-tailnet.ts.net:8443/vertex-ibkr-recovery/v1/*` | tailnet only, rig and the VPS's own tailnet addresses, **own** bearer token `VERTEX_RECOVERY_TOKEN` (checked by the service) | `vertex-ibkr-recovery-status-v1` / `-request-v1`: gateway login state and one human 2FA request (see below) |
 
@@ -25,6 +25,8 @@ The tailnet URL is not secret. It is reachable only by tailnet members that use 
 | 2026-10-03T11:42Z | VPS joined the tailnet; the user approved the device. |
 | 2026-10-03T11:49:55Z | v2 served on the tailnet interface, to the rig only. |
 | 2026-11-05T17:41Z | Public vertex.xyz retired. v1 moved to the tailnet listener; `vertex-status` published on 127.0.0.1:8790; the web app's `VERTEX_DEPLOY_STATUS_URL` points to the tailnet URL. |
+| 2026-11-16T01:10Z | Live QuantVPS `Caddyfile.tailnet` allowed `/vertex-status/v2` from the VPS's own tailnet IPs with bearer token (`vertex-deploy-status-v2-403-from-vps`). |
+| 2026-11-24 | Committed `@status_v2_caller` into `infra/quant-vps/status/Caddyfile.tailnet` (fixing template overwrite regression on 2026-11-20), added `status_v2_alert.py` + `vertex-status-v2-alert.{service,timer}` (2-min probe alerting `#omp-alerts`), and added `deploy-status-v2-alert.sh`. |
 
 ## Tracked sources (`infra/quant-vps/status/`)
 
@@ -38,6 +40,9 @@ The tailnet URL is not secret. It is reachable only by tailnet members that use 
 | `Caddyfile.status.v2` | Public v2 routing. **Not deployed; do not use.** |
 | `Caddyfile.tailnet` | Tailnet-only site template (deployed). |
 | `install-tailnet.sh` | Phase 2 installer (used). |
+| `deploy-status-v2-alert.sh` | Market-hours-guarded deployer for `Caddyfile.tailnet` (graceful reload) and `vertex-status-v2-alert.{service,timer}`. |
+| `status_v2_alert.py` | Read-only stdlib Python probe alerting `#omp-alerts` on `/vertex-status/v2` 403/failures (3 consecutive ticks) or auth bypass (immediate). Tests: `test_status_v2_alert.py`. |
+| `vertex-status-v2-alert.{service,timer}` | Hardened `DynamicUser=yes` unit (`LoadCredential` for token) running every 2 minutes. |
 | `install-remote.sh` | Public-v2 installer. Refuses to run unless `VERTEX_STATUS_ENABLE_V2=1`. **Do not use.** |
 | `Caddyfile.route.snippet` | Retirement note for the former public main-Caddy route. |
 | `SCHEMA.md` | v2 contract. |
@@ -51,7 +56,8 @@ Rig-side deployers live in `~/.local/state/vertex-vps-status/`: `deploy-tailnet.
 | Collector | `/opt/vertex-status/collect.py` + `vertex-status-collect.{service,timer}` (30 s, oneshot, `Nice=10`, `TimeoutStartSec=25`) | Writes the public `public/status.json` (v1). Writes v2 **only** to `/opt/vertex-status/private-v2/status-v2.json` (0700); it refuses the public dir and deletes any v2 file found there. Read-only inputs (see below). Never starts or stops containers, never calls portfolio-ui, never opens an IBKR client, never touches kill-switch files. |
 | v1 status server | container `vertex-status` (caddy:2-alpine; network `ibkr-nautilus-exec-node_prototype`; published on `127.0.0.1:8790` only; read-only; caps dropped except NET_BIND_SERVICE; 64 MB) | Mounts only `/opt/vertex-status/public`. Bearer token required, otherwise 401. |
 | Public route | none (retired 2026-11-05) | The main Caddy serves no public site. v1 is served by `vertex-status-tailnet` (`@status_v1_caller`). |
-| Tailnet status server | container `vertex-status-tailnet` (caddy:2-alpine; `--network host`; read-only; caps dropped except NET_BIND_SERVICE; 64 MB; restart unless-stopped) | Binds **only** 100.64.0.10:8443 and [fd7a:115c:a1e0::10]:8443. TLS certificate for `quant-vps-host.example-tailnet.ts.net` comes from tailscaled through the mounted socket. Allow-list `remote_ip 100.64.0.20 fd7a:115c:a1e0::20` (the rig's tailnet IPv4/IPv6). Responses: other sources 403; rig without or with a wrong token 401; rig with a valid token on `/vertex-status/v2` 200; any other path 404. Mounts `private-v2` read-only. |
+| Tailnet status server | container `vertex-status-tailnet` (caddy:2-alpine; `--network host`; read-only; caps dropped except NET_BIND_SERVICE; 64 MB; restart unless-stopped) | Binds **only** 100.64.0.10:8443 and [fd7a:115c:a1e0::10]:8443. TLS certificate for `quant-vps-host.example-tailnet.ts.net` comes from tailscaled through the mounted socket. `@status_v2_caller` allows the rig (`100.64.0.20`, `fd7a:115c:a1e0::20`) and VPS self (`100.64.0.10`, `fd7a:115c:a1e0::10`) with a valid bearer token on `/vertex-status/v2` (200); rig without/wrong token 401; VPS without/wrong token 403; other sources 403; `/vertex-history/v1/*` and `/vertex-portfolio/v1/*` stay rig-only. Mounts `private-v2` read-only. |
+| v2 alert probe | `/opt/vertex-status/status_v2_alert.py` + `vertex-status-v2-alert.{service,timer}` (2 min, `DynamicUser=yes`, `LoadCredential=status-token:/opt/vertex-status/token.env`, `TimeoutStartSec=60`) | Probes `/vertex-status/v2` with valid token (expect 200 + `vertex-deploy-status-v2` schema) plus no-token and wrong-token guards (expect 401/403). Alerts `#omp-alerts` via `http://127.0.0.1:47821/post` after 3 availability failures (once per incident + recovery) or immediately on any unauthorized 2xx bypass. State persists in `/var/lib/vertex-status-v2-alert/state.txt`. |
 | Tailscale | `tailscale 1.102.4` from the official apt repo (key `2596A99EAAB33821893C0A79458CA832957F5868`), node `quant-vps-host` | Prefs: `--accept-dns=false --accept-routes=false --ssh=false --netfilter-mode=off`; no exit node. Main routes, DNS and iptables are unchanged against `/opt/vertex-status/net-baseline-20261003T1140Z/`. tailscaled adds ip rules 5210–5270, and table 52 holds only tailnet routes. |
 | Token | `/opt/vertex-status/token.env` (0600) | Used by both status containers. |
 | Web app | `vertex-web.service` (`vite preview` of the prebuilt `dist/` folder of `apps/web` on 127.0.0.1:3450; tailnet proxy container `vertex-web-tailnet` on :3451) | Deploy and restart only through `infra/quantvps/restart-when-idle.sh` (idle wait, health check, rollback; see [infra/quantvps/README.md](../../infra/quantvps/README.md)). |
@@ -316,6 +322,16 @@ Owner decision 2026-10-30: the Nautilus node runs 24/7 and is disarmed by defaul
 ## Roll back
 
 On QuantVPS as root.
+
+### Roll back `@status_v2_caller` and the v2 alert probe
+
+```sh
+cat /opt/vertex-status/Caddyfile.tailnet.bak-<UTC>-v2alert > /opt/vertex-status/Caddyfile.tailnet   # keep inode
+docker exec vertex-status-tailnet caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --address unix//tmp/caddy-admin.sock
+systemctl disable --now vertex-status-v2-alert.timer
+rm -f /etc/systemd/system/vertex-status-v2-alert.{service,timer} /opt/vertex-status/status_v2_alert.py
+systemctl daemon-reload
+```
 
 ### Remove the tailnet v2 site (keep the public v1 endpoint)
 
