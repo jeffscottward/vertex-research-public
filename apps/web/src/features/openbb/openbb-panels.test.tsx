@@ -519,7 +519,13 @@ const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
   })),
   sec: vi.fn(async () => SEC),
   shorts: vi.fn(async () => SHORTS),
-  status: vi.fn(async () => ({ runs: [], tables: [] })),
+  status: vi.fn(async () => ({
+    checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+    overdueCount: 0,
+    runs: [],
+    sources: [],
+    tables: [],
+  })),
   volContext: vi.fn(async () => VOL),
   ...overrides,
 });
@@ -602,6 +608,8 @@ describe("OpenbbMarketsSection", () => {
     ).toHaveLength(0);
     const gateway = gatewayOf({
       status: async () => ({
+        checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+        overdueCount: 0,
         runs: [
           runOf("cboe-option-iv", {
             blocked: {
@@ -620,6 +628,7 @@ describe("OpenbbMarketsSection", () => {
           }),
           runOf("cboe-vol-indices"),
         ],
+        sources: [],
         tables: [],
       }),
     });
@@ -641,6 +650,8 @@ describe("OpenbbMarketsSection", () => {
     // A partial fallback run shows the Yahoo source note instead of the blocked notice.
     const fallback = gatewayOf({
       status: async () => ({
+        checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+        overdueCount: 0,
         runs: [
           runOf("cboe-option-iv", {
             rowsReceived: 12,
@@ -653,6 +664,7 @@ describe("OpenbbMarketsSection", () => {
           runOf("cboe-vx-curve"),
           runOf("cboe-vol-indices"),
         ],
+        sources: [],
         tables: [],
       }),
     });
@@ -977,7 +989,13 @@ describe("createBrowserOpenbbGateway", () => {
           makeIvHistory(input.symbol)
         ),
         macro: vi.fn(async () => ({ from: "2025-10-04", series: [] })),
-        status: vi.fn(async () => ({ runs: [], tables: [] })),
+        status: vi.fn(async () => ({
+          checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+          overdueCount: 0,
+          runs: [],
+          sources: [],
+          tables: [],
+        })),
         volContext: vi.fn(async () => EMPTY_VOL),
       },
     } as unknown as ApiClient;

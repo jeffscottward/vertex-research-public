@@ -1,0 +1,486 @@
+<svg
+  aria-labelledby="title"
+  font-family="DejaVu Sans, sans-serif"
+  height="680"
+  role="img"
+  viewBox="0 0 1200 680"
+  width="1200"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title id="title">
+    PR 6: Smart money page, stock filings sections, and overdue alerting —
+    before vs after
+  </title>
+  <defs>
+    <marker
+      id="arr-gold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="9"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#d4af37" />
+    </marker>
+    <marker
+      id="arr-green"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="9"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#7ee787" />
+    </marker>
+  </defs>
+
+  <rect fill="#0f1115" height="680" width="1200" />
+  <text fill="#f5f5f5" font-size="26" font-weight="700" x="40" y="48">
+    Smart money PR 6: unified lists, stock filings tab, overdue alerts
+  </text>
+  <text fill="#9aa3ad" font-size="15" x="40" y="76">
+    Research only. One list per source (no blended score). Reuses
+    price_freshness_state and price-alerts-ntfy. $0 new spend.
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    fill="#171a21"
+    height="320"
+    rx="14"
+    stroke="#3a3f4a"
+    width="520"
+    x="40"
+    y="98"
+  />
+  <text fill="#ff7b72" font-size="20" font-weight="700" x="64" y="132">
+    BEFORE
+  </text>
+
+  <!-- Before pictogram 1: /smart-money single panel -->
+  <rect
+    fill="#21262d"
+    height="62"
+    rx="8"
+    stroke="#484f58"
+    width="120"
+    x="64"
+    y="152"
+  />
+  <rect
+    fill="#d4af37"
+    height="10"
+    opacity="0.8"
+    rx="3"
+    width="100"
+    x="74"
+    y="164"
+  />
+  <rect fill="#6b7280" height="8" rx="3" width="76" x="74" y="182" />
+  <rect fill="#6b7280" height="8" rx="3" width="58" x="74" y="196" />
+  <text fill="#e6edf3" font-size="15" font-weight="600" x="200" y="176">
+    /smart-money: options only
+  </text>
+  <text fill="#ff7b72" font-size="13" x="200" y="198">
+    No insiders, Congress, or 13F lists
+  </text>
+
+  <!-- Before pictogram 2: /stock/[symbol]?tab=filings -->
+  <rect
+    fill="#21262d"
+    height="62"
+    rx="8"
+    stroke="#484f58"
+    width="120"
+    x="64"
+    y="232"
+  />
+  <line
+    stroke="#9aa3ad"
+    stroke-linecap="round"
+    stroke-width="5"
+    x1="76"
+    x2="148"
+    y1="250"
+    y2="250"
+  />
+  <line
+    stroke="#6b7280"
+    stroke-linecap="round"
+    stroke-width="5"
+    x1="76"
+    x2="164"
+    y1="266"
+    y2="266"
+  />
+  <line
+    stroke="#6b7280"
+    stroke-linecap="round"
+    stroke-width="5"
+    x1="76"
+    x2="124"
+    y1="282"
+    y2="282"
+  />
+  <text fill="#e6edf3" font-size="15" font-weight="600" x="200" y="256">
+    Stock Filings tab: SEC + FTD
+  </text>
+  <text fill="#ff7b72" font-size="13" x="200" y="278">
+    Missing Congress, clusters, options
+  </text>
+
+  <!-- Before pictogram 3: silent stale source -->
+  <circle
+    cx="124"
+    cy="356"
+    fill="none"
+    r="24"
+    stroke="#ff7b72"
+    stroke-dasharray="6 5"
+    stroke-width="4"
+  />
+  <line
+    stroke="#ff7b72"
+    stroke-linecap="round"
+    stroke-width="4"
+    x1="124"
+    x2="124"
+    y1="344"
+    y2="358"
+  />
+  <line
+    stroke="#ff7b72"
+    stroke-linecap="round"
+    stroke-width="4"
+    x1="124"
+    x2="136"
+    y1="358"
+    y2="364"
+  />
+  <text fill="#e6edf3" font-size="15" font-weight="600" x="200" y="348">
+    openbb.status: raw last runs
+  </text>
+  <text fill="#ff7b72" font-size="13" x="200" y="370">
+    No max-age registry, no overdue alerts
+  </text>
+
+  <!-- Transition Arrow -->
+  <line
+    marker-end="url(#arr-gold)"
+    stroke="#d4af37"
+    stroke-width="4"
+    x1="572"
+    x2="628"
+    y1="258"
+    y2="258"
+  />
+
+  <!-- AFTER -->
+  <rect
+    fill="#171a21"
+    height="320"
+    rx="14"
+    stroke="#d4af37"
+    width="520"
+    x="640"
+    y="98"
+  />
+  <text fill="#7ee787" font-size="20" font-weight="700" x="664" y="132">
+    AFTER
+  </text>
+
+  <!-- After pictogram 1: 4 distinct lists -->
+  <g transform="translate(664, 150)">
+    <rect
+      fill="#21262d"
+      height="28"
+      rx="5"
+      stroke="#d4af37"
+      width="56"
+      x="0"
+      y="0"
+    />
+    <rect
+      fill="#21262d"
+      height="28"
+      rx="5"
+      stroke="#7ee787"
+      width="56"
+      x="64"
+      y="0"
+    />
+    <rect
+      fill="#21262d"
+      height="28"
+      rx="5"
+      stroke="#58a6ff"
+      width="56"
+      x="0"
+      y="34"
+    />
+    <rect
+      fill="#21262d"
+      height="28"
+      rx="5"
+      stroke="#bc8cff"
+      width="56"
+      x="64"
+      y="34"
+    />
+    <text
+      fill="#d4af37"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="28"
+      y="19"
+    >
+      OPT
+    </text>
+    <text
+      fill="#7ee787"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="92"
+      y="19"
+    >
+      FORM4
+    </text>
+    <text
+      fill="#58a6ff"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="28"
+      y="53"
+    >
+      PTR
+    </text>
+    <text
+      fill="#bc8cff"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="92"
+      y="53"
+    >
+      13F
+    </text>
+  </g>
+  <text fill="#e6edf3" font-size="15" font-weight="600" x="802" y="174">
+    /smart-money: 4 separate lists
+  </text>
+  <text fill="#7ee787" font-size="13" x="802" y="196">
+    Own delay + overdue badge per source
+  </text>
+
+  <!-- After pictogram 2: Stock Filings tab -->
+  <g transform="translate(664, 232)">
+    <rect
+      fill="#21262d"
+      height="62"
+      rx="8"
+      stroke="#7ee787"
+      width="120"
+      x="0"
+      y="0"
+    />
+    <circle cx="18" cy="18" fill="#d4af37" r="5" />
+    <rect fill="#c9d1d9" height="7" rx="3" width="76" x="30" y="14" />
+    <circle cx="18" cy="33" fill="#7ee787" r="5" />
+    <rect fill="#c9d1d9" height="7" rx="3" width="66" x="30" y="29" />
+    <circle cx="18" cy="48" fill="#58a6ff" r="5" />
+    <rect fill="#c9d1d9" height="7" rx="3" width="80" x="30" y="44" />
+  </g>
+  <text fill="#e6edf3" font-size="15" font-weight="600" x="802" y="254">
+    Stock Filings tab: full context
+  </text>
+  <text fill="#7ee787" font-size="13" x="802" y="276">
+    + Options, Clusters, Congress (kept SEC/FTD)
+  </text>
+
+  <!-- After pictogram 3: Overdue bell + recovery -->
+  <g transform="translate(694, 330)">
+    <path
+      d="M30,8 C18,8 12,18 12,30 L12,42 L4,48 L56,48 L48,42 L48,30 C48,18 42,8 30,8 Z"
+      fill="none"
+      stroke="#7ee787"
+      stroke-width="3.5"
+    />
+    <circle cx="30" cy="54" fill="#7ee787" r="4" />
+    <circle cx="48" cy="14" fill="#d4af37" r="7" />
+  </g>
+  <text fill="#e6edf3" font-size="15" font-weight="600" x="802" y="348">
+    openbb.status + 15m QuantVPS timer
+  </text>
+  <text fill="#7ee787" font-size="13" x="802" y="370">
+    1 ntfy alert/incident + clear on recovery
+  </text>
+
+  <!-- BOTTOM FLOW DIAGRAM: Overdue Detection & Alert Pipeline -->
+  <rect
+    fill="#171a21"
+    height="202"
+    rx="14"
+    stroke="#30363d"
+    width="1120"
+    x="40"
+    y="442"
+  />
+  <text fill="#d4af37" font-size="17" font-weight="700" x="64" y="476">
+    Overdue state &amp; alert pipeline (no new DB table)
+  </text>
+
+  <!-- Node 1: Registries -->
+  <rect
+    fill="#0f1115"
+    height="114"
+    rx="10"
+    stroke="#484f58"
+    width="210"
+    x="64"
+    y="498"
+  />
+  <text
+    fill="#e6edf3"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="169"
+    y="524"
+  >
+    Max-Age Registries
+  </text>
+  <text fill="#9aa3ad" font-size="12" text-anchor="middle" x="169" y="548">
+    OPENBB_JOB_METADATA
+  </text>
+  <text fill="#9aa3ad" font-size="12" text-anchor="middle" x="169" y="568">
+    FLOW_SOURCE_METADATA
+  </text>
+  <text fill="#7ee787" font-size="11" text-anchor="middle" x="169" y="592">
+    30h · 10:00 ET · 72h · 30m
+  </text>
+
+  <line
+    marker-end="url(#arr-gold)"
+    stroke="#d4af37"
+    stroke-width="3"
+    x1="274"
+    x2="322"
+    y1="555"
+    y2="555"
+  />
+
+  <!-- Node 2: openbb.status + checkSourceOverdue -->
+  <rect
+    fill="#0f1115"
+    height="114"
+    rx="10"
+    stroke="#d4af37"
+    width="240"
+    x="330"
+    y="498"
+  />
+  <text
+    fill="#e6edf3"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="450"
+    y="524"
+  >
+    Overdue Evaluator
+  </text>
+  <text fill="#9aa3ad" font-size="12" text-anchor="middle" x="450" y="548">
+    openbb_ingest_runs + Form4 idx
+  </text>
+  <text fill="#9aa3ad" font-size="12" text-anchor="middle" x="450" y="568">
+    + flow_market_premium_sessions
+  </text>
+  <text fill="#d4af37" font-size="11" text-anchor="middle" x="450" y="592">
+    openbb.status &amp; openbb_status MCP
+  </text>
+
+  <line
+    marker-end="url(#arr-gold)"
+    stroke="#d4af37"
+    stroke-width="3"
+    x1="570"
+    x2="618"
+    y1="555"
+    y2="555"
+  />
+
+  <!-- Node 3: price_freshness_state monitor -->
+  <rect
+    fill="#0f1115"
+    height="114"
+    rx="10"
+    stroke="#58a6ff"
+    width="230"
+    x="626"
+    y="498"
+  />
+  <text
+    fill="#e6edf3"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="741"
+    y="524"
+  >
+    Incident State Outbox
+  </text>
+  <text fill="#9aa3ad" font-size="12" text-anchor="middle" x="741" y="548">
+    price_freshness_state
+  </text>
+  <text fill="#58a6ff" font-size="12" text-anchor="middle" x="741" y="568">
+    monitor = "openbb-overdue"
+  </text>
+  <text fill="#9aa3ad" font-size="11" text-anchor="middle" x="741" y="592">
+    1 alert/incident · 60s lease
+  </text>
+
+  <line
+    marker-end="url(#arr-green)"
+    stroke="#7ee787"
+    stroke-width="3"
+    x1="856"
+    x2="904"
+    y1="555"
+    y2="555"
+  />
+
+  <!-- Node 4: QuantVPS timer -> ntfy / fallback -->
+  <rect
+    fill="#0f1115"
+    height="114"
+    rx="10"
+    stroke="#7ee787"
+    width="224"
+    x="912"
+    y="498"
+  />
+  <text
+    fill="#e6edf3"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="1024"
+    y="524"
+  >
+    QuantVPS 15m Timer
+  </text>
+  <text fill="#7ee787" font-size="12" text-anchor="middle" x="1024" y="548">
+    1. sendPriceAlertsNtfy
+  </text>
+  <text fill="#9aa3ad" font-size="12" text-anchor="middle" x="1024" y="568">
+    2. #omp-alerts fallback
+  </text>
+  <text fill="#7ee787" font-size="11" text-anchor="middle" x="1024" y="592">
+    Clears + notifies on recovery
+  </text>
+</svg>
