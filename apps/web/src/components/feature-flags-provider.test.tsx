@@ -277,4 +277,21 @@ describe("FeatureFlagsProvider and hooks", () => {
     });
     expect(observed.current?.flags["ui-experiments-panel"]).toBe(true);
   });
+
+  it("avoids extra re-renders on mount when no browser overrides are present", async () => {
+    let renders = 0;
+    const Counter = () => {
+      useFeatureFlags();
+      renders += 1;
+      return null;
+    };
+
+    await mount(
+      <FeatureFlagsProvider allowClientOverrides>
+        <Counter />
+      </FeatureFlagsProvider>
+    );
+
+    expect(renders).toBe(1);
+  });
 });

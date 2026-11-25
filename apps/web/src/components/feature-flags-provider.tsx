@@ -17,6 +17,7 @@ import {
 
 import {
   DEFAULT_FEATURE_FLAGS,
+  FEATURE_FLAG_NAMES,
   FEATURE_FLAGS_STORAGE_KEY,
   type FeatureFlagName,
   type FeatureFlagOverrides,
@@ -41,6 +42,17 @@ export interface FeatureFlagsContextValue {
 
 const EMPTY_OVERRIDES: FeatureFlagOverrides = Object.freeze({});
 const NOOP = (): void => undefined;
+
+const areOverridesEqual = (
+  left: FeatureFlagOverrides,
+  right: FeatureFlagOverrides
+): boolean => FEATURE_FLAG_NAMES.every((name) => left[name] === right[name]);
+
+const replaceIfChanged = (
+  previous: FeatureFlagOverrides,
+  next: FeatureFlagOverrides
+): FeatureFlagOverrides =>
+  areOverridesEqual(previous, next) ? previous : next;
 
 const DEFAULT_CONTEXT: FeatureFlagsContextValue = Object.freeze({
   allowClientOverrides: false,
@@ -118,19 +130,19 @@ export const FeatureFlagsProvider = ({
 
   // Sync localStorage overrides on mount and across tabs.
   useEffect(() => {
+    const applyLocal = (next: FeatureFlagOverrides): void => {
+      if (areOverridesEqual(localOverridesRef.current, next)) return;
+      localOverridesRef.current = next;
+      setLocalOverrides(next);
+    };
     if (!allowClientOverrides) {
-      localOverridesRef.current = EMPTY_OVERRIDES;
-      setLocalOverrides(EMPTY_OVERRIDES);
+      applyLocal(EMPTY_OVERRIDES);
       return;
     }
-    const stored = readStoredOverrides();
-    localOverridesRef.current = stored;
-    setLocalOverrides(stored);
+    applyLocal(readStoredOverrides());
     const handleStorage = (event: StorageEvent): void => {
       if (event.key === null || event.key === FEATURE_FLAGS_STORAGE_KEY) {
-        const refreshed = readStoredOverrides();
-        localOverridesRef.current = refreshed;
-        setLocalOverrides(refreshed);
+        applyLocal(readStoredOverrides());
       }
     };
     window.addEventListener("storage", handleStorage);
@@ -142,13 +154,14 @@ export const FeatureFlagsProvider = ({
   // Sync browser ?ff= query overrides on route changes (pathname) and browser history navigation.
   useEffect(() => {
     if (!allowClientOverrides || explicitQueryKey !== null) {
-      setBrowserQueryOverrides(EMPTY_OVERRIDES);
+      setBrowserQueryOverrides((previous) =>
+        replaceIfChanged(previous, EMPTY_OVERRIDES)
+      );
       return;
     }
     const syncQuery = (): void => {
-      setBrowserQueryOverrides(
-        parseFeatureFlagSearchParams(window.location.search)
-      );
+      const next = parseFeatureFlagSearchParams(window.location.search);
+      setBrowserQueryOverrides((previous) => replaceIfChanged(previous, next));
     };
     syncQuery();
     window.addEventListener("popstate", syncQuery);
