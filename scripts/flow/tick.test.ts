@@ -314,4 +314,71 @@ describe("runFlowTick", () => {
       "flow tick alert check failed: connectivity.checkAlerts unreachable: raw-err"
     );
   });
+
+  it("prints widened option-print symbols (QQQ, NQ, IWM, NVDA) cleanly", async () => {
+    const harness = harnessFor(
+      env,
+      new Response(
+        JSON.stringify({
+          json: {
+            at: "2026-11-23T15:01:00.000Z",
+            budget: {
+              ibkrLimit: 6,
+              ibkrRecent: 0,
+              quantDataFree: 40,
+              quantDataReserve: 6,
+              runSeconds: 4,
+            },
+            busy: false,
+            pruned: 0,
+            runs: [
+              {
+                events: 1,
+                items: 12,
+                message: "12 prints",
+                source: "options",
+                status: "ok",
+                symbol: "QQQ",
+              },
+              {
+                events: 0,
+                items: 8,
+                message: "8 prints",
+                source: "options",
+                status: "ok",
+                symbol: "NQ",
+              },
+              {
+                events: 0,
+                items: 0,
+                message: "staggered: IWM options runs on even minutes",
+                source: "options",
+                status: "skipped",
+                symbol: "IWM",
+              },
+              {
+                events: 2,
+                items: 25,
+                message: "25 prints",
+                source: "options",
+                status: "ok",
+                symbol: "NVDA",
+              },
+            ],
+          },
+        }),
+        { status: 200 }
+      )
+    );
+    await expect(runFlowTick(harness.io)).resolves.toBe(0);
+    expect(harness.out.join("")).toContain(
+      "QQQ options ok items=12 events=1 12 prints"
+    );
+    expect(harness.out.join("")).toContain(
+      "NQ options ok items=8 events=0 8 prints"
+    );
+    expect(harness.out.join("")).toContain(
+      "NVDA options ok items=25 events=2 25 prints"
+    );
+  });
 });

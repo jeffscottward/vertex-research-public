@@ -60,7 +60,7 @@ A paid product (Unusual Whales) sells this data. The owner will not pay for it.
 
 ## Open Questions
 
-* **Question 1 (PR 4):** how many QuantData requests per minute does market-watch-bot use at the open and the close? Measured in PR 4 before any migration.
+* **Question 1 (PR 4):** answered 2026-11-23 in [plan-pr4.md](plan-pr4.md): `market-watch-gex` peaks at 122 req/60 s at the open (09:38-10:24 ET) and 49 req/60 s near the close; `market-watch-wheel` peaks at 32 req/60 s (staggered 5 min after gex); `market-watch-reentry` uses <= 24 req/60 s (staggered 1 min before gex). Spare budget after 25% safety margin (60 req/60 s) is 58 req/60 s at the open; raising the Vertex client cap to 54 req/60 s (6 reserved for `/charts`, 48 for the collector) supports activating `QQQ` and `NDX` and adding N=2 tickers (`IWM`, `NVDA`) with parity staggering (worst-case collector run 32 <= 48 req/60 s).
 * **Question 2 (PR 5):** how large are the full 13F information tables of the added filers? Measured in PR 5 before the job design is fixed.
 
 ## Glossary
@@ -150,10 +150,11 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 * History for backtests: the same job with `--since` (one parser, one key; about 21 hours of runs per year of filings). Older years, if needed, go to a separate research-only table from the SEC quarterly data sets.
 * Cadence: the daily index appears after about 22:00 ET, so Form 4 rows are "previous business day". The plan states the step stage and run math for the real rig cycle (stages run one after another; cycle up to about 41 minutes).
 
-### PR 4: Live option-print tickers
+### PR 4: Live option-print tickers (detail in [plan-pr4.md](plan-pr4.md))
 
-* Measure market-watch-bot's QuantData use at the open and the close from server-side counts (rate-limit headers alone were seen stuck). Compute spare = 240 per 60 s minus peak use minus 25% margin. The binding limit inside Vertex is the app's own client cap (30 per 60 s, 6 reserved for `/charts`); raising it is part of the PR. Each added ticker costs up to 8 order-flow pages per run (`FLOW_OPTION_RUN_PAGES_MAX`). Option tickers are a separate list from `FLOW_SYMBOLS`, so they add no IBKR requests.
-* If N >= 1: CHECK and enum migration with `vertex-flow.timer` paused (runbook in [flow-pipeline.md](../../flow-pipeline.md)); a down migration refuses while rows for new tickers exist. If N = 0: the measured numbers are recorded as a gap.
+* Measured 10 trading days (2026-11-10 through 2026-11-23) of server-side QuantData usage across all shared consumers (`market-watch-gex`, `market-watch-wheel`, `market-watch-reentry`) because `X-RateLimit-Remaining` stays stuck at `19`. Peak concurrent external demand at the open is 122 req/60 s, leaving 58 req/60 s after a 25% margin (60 req/60 s) against the 240 req/60 s account limit.
+* Raises the Vertex QuantData client cap from 30 to 54 req/60 s (`DEFAULT_QUOTA_RESERVE` 60, `FLOW_QUANTDATA_CALLER_RESERVE` 6 -> 48 collector starts/min), activates `QQQ` and `NDX`, and widens `FLOW_OPTION_TICKERS` by N=2 (`IWM`, `NVDA`) with minute-parity staggering (even minutes: `SPY, SPX, IWM`; odd minutes: `QQQ, NDX, NVDA`; worst-case run 32 <= 48 req/60 s). Option-only tickers (`IWM`, `NVDA`) add zero IBKR requests.
+* Migration `0095_flow_option_tickers.sql` widens the CHECK constraints on `flow_option_prints`, `flow_option_gaps`, `flow_samples` (options only for `IWM`/`NVDA`), and `flow_events` (quantdata only for `IWM`/`NVDA`) with `vertex-flow.timer` paused (runbook in [flow-pipeline.md](../../flow-pipeline.md)); `0095_flow_option_tickers.down.sql` refuses while rows for `IWM` or `NVDA` exist. Exposes `flow.optionPrints` (`flow-option-prints.v1`), the `/flow` 6-ticker Option Tape panel, and MCP tool `flow_option_prints`.
 
 ### PR 5: 13F changes and short volume
 

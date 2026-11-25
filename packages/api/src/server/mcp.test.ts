@@ -71,6 +71,7 @@ describe("MCP tool registry", () => {
       "master_rules_search",
       "flow_snapshot",
       "flow_control",
+      "flow_option_prints",
       "openbb_status",
       "openbb_vol_context",
       "openbb_iv_history",

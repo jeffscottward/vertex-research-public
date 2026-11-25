@@ -19,8 +19,9 @@ import {
   FLOW_SYMBOL_VALUES,
   type FlowDirectionValue,
   type FlowEventKindValue,
+  type FlowIndexOptionTickerValue,
   type FlowNetDriftTickerValue,
-  type FlowOptionTickerValue,
+  type FlowOptionPrintSymbolValue,
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowOptionSideValue,
@@ -49,6 +50,9 @@ import { InvalidRepositoryInputError } from "./repository-errors.ts";
 // Research only: no order path.
 
 export type {
+  FlowIndexOptionTickerValue,
+  FlowOptionPrintSymbolValue,
+  FlowOptionTickerValue,
   FlowSampleStatusValue,
   FlowSourceValue,
   FlowSymbolValue,
@@ -60,6 +64,28 @@ export type FlowBookRecord = typeof flowBook.$inferSelect;
 export type FlowBookSnapshotRecord = typeof flowBookSnapshots.$inferSelect;
 export type FlowOptionPrintRecord = typeof flowOptionPrints.$inferSelect;
 export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
+/** Full-window SQL totals for flow.optionPrints (independent of the newest-prints limit). */
+export type FlowOptionTapeSummaryRecord = Readonly<{
+  trades: number;
+  callPremium: number;
+  putPremium: number;
+  bullishPremium: number;
+  bearishPremium: number;
+  sweeps: number;
+  blocks: number;
+  goldenSweeps: number;
+  unusualCount: number;
+}>;
+export type FlowOptionTapeQuery = Readonly<{
+  symbol: FlowOptionPrintSymbolValue;
+  from: Date;
+  to: Date;
+  limit: number;
+}>;
+export type FlowOptionTapeReadResult = Readonly<{
+  summary: FlowOptionTapeSummaryRecord;
+  prints: FlowOptionPrintRecord[];
+}>;
 /** The columns of an option print that the hedging pressure line reads (flow.hedgingPressure). */
 export type FlowHedgingPrintRecord = Pick<
   FlowOptionPrintRecord,
@@ -420,9 +446,13 @@ export type FlowRepository = Readonly<{
   readOptionStrikeTotals: (
     query: FlowOptionStrikeTotalsQuery
   ) => Promise<FlowOptionStrikeTotalRecord[]>;
+  /** Full-window aggregates plus up to `limit` newest option prints for a symbol in [from, to]. */
+  readOptionTape: (
+    query: FlowOptionTapeQuery
+  ) => Promise<FlowOptionTapeReadResult>;
   /** Newest priced total net drift row of a ticker with minute <= at, or null. */
   netDriftPriceAtOrBefore: (
-    ticker: FlowOptionTickerValue,
+    ticker: FlowIndexOptionTickerValue,
     at: Date
   ) => Promise<Readonly<{ minute: Date; price: number }> | null>;
   /** Deletes rows older than each table's cutoff; returns the rows removed. */
@@ -436,19 +466,26 @@ export type FlowRepository = Readonly<{
     ticker: FlowNetDriftTickerValue
   ) => Promise<Date | null>;
   /** Newest stored option print time for a symbol (paging stops there). */
-  newestOptionPrintAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
+  newestOptionPrintAt: (
+    symbol: FlowOptionPrintSymbolValue
+  ) => Promise<Date | null>;
   /** Unfetched option-print ranges of a symbol, newest end first. */
-  optionGaps: (symbol: FlowSymbolValue) => Promise<FlowOptionGapRecord[]>;
+  optionGaps: (
+    symbol: FlowOptionPrintSymbolValue
+  ) => Promise<FlowOptionGapRecord[]>;
   /** Stores a new gap; a stored gap with the same symbol and start keeps the later end. */
   addOptionGap: (gap: FlowOptionGapRecord) => Promise<void>;
   /** Moves a stored gap's end back to where the next read resumes. */
   moveOptionGapEnd: (
-    symbol: FlowSymbolValue,
+    symbol: FlowOptionPrintSymbolValue,
     startTime: Date,
     endTime: Date
   ) => Promise<void>;
   /** Deletes a gap that was read completely. */
-  deleteOptionGap: (symbol: FlowSymbolValue, startTime: Date) => Promise<void>;
+  deleteOptionGap: (
+    symbol: FlowOptionPrintSymbolValue,
+    startTime: Date
+  ) => Promise<void>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
   newestDataAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
   /**
@@ -456,7 +493,7 @@ export type FlowRepository = Readonly<{
    * the sources that the caller uses (two queries per source); the default is every source.
    */
   latestSamples: (
-    symbol: FlowSymbolValue,
+    symbol: FlowOptionPrintSymbolValue,
     sources?: readonly FlowSourceValue[]
   ) => Promise<
     Readonly<{
@@ -556,7 +593,7 @@ export const createFlowRepository = (
   };
 
   const newestSample = async (
-    symbol: FlowSymbolValue,
+    symbol: FlowOptionPrintSymbolValue,
     source: FlowSourceValue,
     status: FlowSampleStatusValue | null
   ): Promise<FlowSampleRecord | null> => {
@@ -1183,6 +1220,75 @@ export const createFlowRepository = (
         pricedAt: toGroupedDate(row.pricedAt),
         slotIndex: Number(row.slotIndex),
       }));
+    },
+    readOptionTape: async ({ symbol, from, to, limit }) => {
+      if (!Number.isInteger(limit) || limit < 1)
+        throw new InvalidRepositoryInputError(
+          "readOptionTape limit must be a positive integer."
+        );
+      const range = and(
+        eq(flowOptionPrints.symbol, symbol),
+        gte(flowOptionPrints.tradedAt, from),
+        lte(flowOptionPrints.tradedAt, to)
+      );
+      const [[totals], prints] = await Promise.all([
+        database
+          .select({
+            bearishPremium:
+              sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.sentiment} = 'bearish'), 0)`.mapWith(
+                Number
+              ),
+            blocks:
+              sql`count(*) filter (where ${flowOptionPrints.consolidation} = 'block')`.mapWith(
+                Number
+              ),
+            bullishPremium:
+              sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.sentiment} = 'bullish'), 0)`.mapWith(
+                Number
+              ),
+            callPremium:
+              sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+                Number
+              ),
+            goldenSweeps:
+              sql`count(*) filter (where ${flowOptionPrints.goldenSweep} = true)`.mapWith(
+                Number
+              ),
+            putPremium:
+              sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+                Number
+              ),
+            sweeps:
+              sql`count(*) filter (where ${flowOptionPrints.consolidation} = 'sweep')`.mapWith(
+                Number
+              ),
+            trades: sql`count(*)`.mapWith(Number),
+            unusualCount:
+              sql`count(*) filter (where ${flowOptionPrints.unusual} = true)`.mapWith(
+                Number
+              ),
+          })
+          .from(flowOptionPrints)
+          .where(range),
+        database
+          .select()
+          .from(flowOptionPrints)
+          .where(range)
+          .orderBy(desc(flowOptionPrints.tradedAt), desc(flowOptionPrints.id))
+          .limit(limit),
+      ]);
+      const summary: FlowOptionTapeSummaryRecord = totals ?? {
+        bearishPremium: 0,
+        blocks: 0,
+        bullishPremium: 0,
+        callPremium: 0,
+        goldenSweeps: 0,
+        putPremium: 0,
+        sweeps: 0,
+        trades: 0,
+        unusualCount: 0,
+      };
+      return { prints, summary };
     },
     readOptionPrintMinutes: async ({ symbol, from, to }) => {
       const bucket = sql<

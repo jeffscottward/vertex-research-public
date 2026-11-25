@@ -152,13 +152,14 @@ describe("flow.strikeHeatmap input", () => {
     expect(FlowStrikeHeatmapInputSchema.safeParse(input).success).toBe(false);
   });
 
-  it("matches every instrument that collects option prints", () => {
+  it("stays scoped to SPY and ES, which collect option prints", () => {
     const collected = FLOW_SYMBOLS.filter((symbol) =>
       FLOW_INSTRUMENTS[symbol].sources.includes("options")
     );
-    expect([...FLOW_STRIKE_HEATMAP_SYMBOLS].sort()).toEqual(
-      [...collected].sort()
-    );
+    expect([...FLOW_STRIKE_HEATMAP_SYMBOLS].sort()).toEqual(["ES", "SPY"]);
+    for (const symbol of FLOW_STRIKE_HEATMAP_SYMBOLS) {
+      expect(collected).toContain(symbol);
+    }
   });
 });
 
