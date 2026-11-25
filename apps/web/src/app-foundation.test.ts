@@ -1211,6 +1211,22 @@ describe("root layout request composition", () => {
     ).not.toContain("nonce=");
   });
 
+  it("passes server-resolved UI feature flags into RootDocument", async () => {
+    vi.stubEnv("APP_ENV", "development");
+    vi.stubEnv("APP_URL", "https://darkfactory.example");
+    vi.stubEnv("VERTEX_UI_FLAGS", "ui-experiments-panel=on");
+
+    const result = await RootLayout({ children: "flagged" });
+    expect(result.props.initialFeatureFlags).toEqual({
+      allowClientOverrides: true,
+      envOverrides: { "ui-experiments-panel": true },
+      flags: {
+        "research-prototype-slot": false,
+        "ui-experiments-panel": true,
+      },
+    });
+  });
+
   return it("uses the canonical origin for blank configuration and rejects HTTP", async () => {
     vi.stubEnv("APP_URL", "   ");
     const canonical = await RootLayout({ children: "canonical" });
