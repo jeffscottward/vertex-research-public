@@ -230,7 +230,9 @@ describe("TRUE SLAP criteria", () => {
     expect(result.entry.evidence).toBe(
       "At 91% of the 52-week range, below the 50-day average $20.50."
     );
-    expect(result.substance.evidence).toBe("Revenue $0 (FY ?).");
+    expect(result.substance.evidence).toBe(
+      "Revenue $0 (fiscal year not in SEC data)."
+    );
     return expect(result.price.evidence).toBe(
       "EV ÷ sales not computed (no market cap or positive revenue reported), price ÷ book 20.00."
     );
@@ -276,12 +278,12 @@ describe("TRUE SLAP criteria", () => {
     ).toBe("Debt ÷ equity 0.00 (debt $0, equity $5.0M).");
     const { peerCount: _count, ...unknownCount } = strong;
     expect(scoreDeepValueCriteria(unknownCount).upside.evidence).toContain(
-      "(n=?)"
+      "(peer count not in peer data)"
     );
     const { firstYear: _first, sma50: _sma, ...gaps } = strong;
     const result = scoreDeepValueCriteria({ ...gaps, priceAdjusted: 7 });
     expect(result.longevity.evidence).toBe(
-      "15 years of SEC financial data (since ?)."
+      "15 years of SEC financial data (first reporting year not in SEC data)."
     );
     expect(result.entry).toEqual({
       evidence: "At 17% of the 52-week range.",

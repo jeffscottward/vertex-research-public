@@ -92525,7 +92525,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Congress trade storage unavailable",
+                          "default": "Congress trade storage: database request failed; no filings were read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -141352,7 +141352,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market notes storage unavailable",
+                          "default": "Market notes storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -142187,7 +142187,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market notes storage unavailable",
+                          "default": "Market notes storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -142842,7 +142842,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market notes storage unavailable",
+                          "default": "Market notes storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -143540,7 +143540,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market notes storage unavailable",
+                          "default": "Market notes storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -144238,7 +144238,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market notes storage unavailable",
+                          "default": "Market notes storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -191060,7 +191060,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research screen storage unavailable",
+                          "default": "Research screen storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether the tick was recorded, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -191363,7 +191363,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research screen storage unavailable",
+                          "default": "Research screen storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether the tick was recorded, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -200125,7 +200125,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Smart money storage unavailable",
+                          "default": "Smart money storage: database request failed; no ranking was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -225119,7 +225119,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -226008,7 +226008,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -226630,7 +226630,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -227297,7 +227297,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -227964,7 +227964,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -228584,7 +228584,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -229265,7 +229265,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -230143,7 +230143,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -231312,7 +231312,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -231891,7 +231891,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -232488,7 +232488,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -233810,7 +233810,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -234526,7 +234526,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -235718,7 +235718,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -236644,7 +236644,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -238703,7 +238703,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -240008,7 +240008,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -241092,7 +241092,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -241752,7 +241752,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -242771,7 +242771,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -243885,7 +243885,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -244644,7 +244644,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -245663,7 +245663,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -246217,7 +246217,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -246995,7 +246995,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -247580,7 +247580,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -248224,7 +248224,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -248964,7 +248964,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -249536,7 +249536,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -250216,7 +250216,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -250932,7 +250932,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -251594,7 +251594,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -252351,7 +252351,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -253398,7 +253398,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -254045,7 +254045,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Worker service unavailable",
+                          "default": "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
                           "type": "string"
                         },
                         "status": {
@@ -254713,7 +254713,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -255432,7 +255432,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -256806,7 +256806,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -257501,7 +257501,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -259680,7 +259680,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -260253,7 +260253,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -260733,7 +260733,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -262098,7 +262098,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -262653,7 +262653,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -263681,7 +263681,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -264486,7 +264486,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -265129,7 +265129,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -265605,7 +265605,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -266451,7 +266451,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex capability unavailable",
+                          "default": "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -267330,7 +267330,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex read service unavailable",
+                          "default": "Vertex read request failed: the service is not configured, the request was cancelled, or its store did not answer; no data was changed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -267844,7 +267844,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex read service unavailable",
+                          "default": "Vertex read request failed: the service is not configured, the request was cancelled, or its store did not answer; no data was changed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -268302,7 +268302,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -268887,7 +268887,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -269344,7 +269344,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -270130,7 +270130,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -270917,7 +270917,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -271502,7 +271502,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -272022,7 +272022,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -272835,7 +272835,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -273292,7 +273292,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -273903,7 +273903,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -274554,7 +274554,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -275175,7 +275175,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -275738,7 +275738,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -276460,7 +276460,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -277048,7 +277048,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -277625,7 +277625,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -278191,7 +278191,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -278910,7 +278910,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -279924,7 +279924,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -280765,7 +280765,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -281406,7 +281406,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -282028,7 +282028,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -283170,7 +283170,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -283807,7 +283807,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex research chat service unavailable",
+                          "default": "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
                           "type": "string"
                         },
                         "status": {
@@ -284368,7 +284368,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Vertex read service unavailable",
+                          "default": "Vertex read request failed: the service is not configured, the request was cancelled, or its store did not answer; no data was changed; retry",
                           "type": "string"
                         },
                         "status": {

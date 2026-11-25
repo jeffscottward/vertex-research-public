@@ -703,7 +703,7 @@ describe("source-bound runtime model use", () => {
     });
     await expect(
       evidence.objectBytes(fixtureScope, "synthetic-key", fixtureDigest)
-    ).rejects.toThrow();
+    ).rejects.toThrow("Model-use object body failed size or key verification");
     expect(capabilities.getBounded).toHaveBeenCalledWith(
       "synthetic-key",
       1_048_576
@@ -717,7 +717,30 @@ describe("source-bound runtime model use", () => {
     });
     await expect(
       aborted.objectBytes(fixtureScope, "synthetic-key", fixtureDigest)
-    ).rejects.toThrow();
+    ).rejects.toThrow("Model-use object read cancelled by caller signal");
+    const notFound = createVertexRuntimeModelEvidence({
+      objectCapabilities: () =>
+        ({
+          getBounded: vi.fn(async () => ({ status: "not-found" })),
+        }) as never,
+      clock: { now: () => fixtureAt },
+    });
+    await expect(
+      notFound.objectBytes(fixtureScope, "synthetic-key", fixtureDigest)
+    ).rejects.toThrow("Model-use object not found in object store");
+    const unconfigured = createVertexRuntimeModelEvidence({
+      objectCapabilities: () =>
+        ({
+          getBounded: vi.fn(async () => ({
+            status: "unavailable",
+            state: "unconfigured",
+          })),
+        }) as never,
+      clock: { now: () => fixtureAt },
+    });
+    await expect(
+      unconfigured.objectBytes(fixtureScope, "synthetic-key", fixtureDigest)
+    ).rejects.toThrow("Model-use object store is unconfigured");
     return expect(capabilities.getBounded).toHaveBeenCalledTimes(1);
   });
   it("uses the latest review overlay without rewriting original unreviewed bytes", async () => {

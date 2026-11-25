@@ -111,7 +111,11 @@ export const CongressTradesFeedOutputSchema = z.object({
 
 export const CONGRESS_TRADES_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Congress trade storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Congress trade storage: database request failed; no filings were read; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   UNAVAILABLE: {
     message: "Congress trade storage not configured",
