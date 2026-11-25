@@ -1,0 +1,298 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 500"
+  width="1200"
+  height="500"
+  font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+>
+  <title>Index ETF Dossiers Read-Time Data Flow</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <marker
+      id="arr-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arr-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#f59e0b" />
+    </marker>
+    <marker
+      id="arr-slate"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="500" rx="16" fill="url(#bg)" />
+  <text x="48" y="48" fill="#f8fafc" font-size="22" font-weight="700">
+    Read-Time Dossier Refresh &amp; Freshness Gate
+  </text>
+  <text x="48" y="72" fill="#94a3b8" font-size="13">
+    One stored daily bar source (market_bar_series 1d) feeds catalog,
+    technicals, and bar-backed index ETFs
+  </text>
+
+  <!-- Column 1: Storage -->
+  <rect
+    x="44"
+    y="106"
+    width="240"
+    height="140"
+    rx="12"
+    fill="#0f172a"
+    stroke="#10b981"
+    stroke-width="1.5"
+  />
+  <text x="64" y="134" fill="#34d399" font-size="12" font-weight="700">
+    NIGHTLY WRITER (EXISTING)
+  </text>
+  <text x="64" y="158" fill="#f8fafc" font-size="15" font-weight="700">
+    market_bar_series (1d)
+  </text>
+  <text x="64" y="180" fill="#cbd5e1" font-size="12">
+    SPY, QQQ, IWM, DIA, GLD,
+  </text>
+  <text x="64" y="198" fill="#cbd5e1" font-size="12">
+    SLV, USO + 7 Core 7 futures
+  </text>
+  <text x="64" y="226" fill="#6ee7b7" font-size="11">
+    Updated before 06:00 ET nightly
+  </text>
+
+  <rect
+    x="44"
+    y="280"
+    width="240"
+    height="140"
+    rx="12"
+    fill="#0f172a"
+    stroke="#475569"
+    stroke-width="1.5"
+  />
+  <text x="64" y="308" fill="#94a3b8" font-size="12" font-weight="700">
+    SNAPSHOT IMPORT (EXISTING)
+  </text>
+  <text x="64" y="332" fill="#f8fafc" font-size="15" font-weight="700">
+    research_reports
+  </text>
+  <text x="64" y="354" fill="#cbd5e1" font-size="12">
+    58 imported workspace reports
+  </text>
+  <text x="64" y="372" fill="#cbd5e1" font-size="12">
+    + immutable dataset revisions
+  </text>
+  <text x="64" y="400" fill="#94a3b8" font-size="11">
+    Pinned revisions stay exact
+  </text>
+
+  <!-- Arrows Col 1 -> Col 2 -->
+  <path
+    d="M 284 176 L 348 176 L 348 232 L 372 232"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arr-green)"
+  />
+  <path
+    d="M 284 350 L 348 350 L 348 292 L 372 292"
+    fill="none"
+    stroke="#94a3b8"
+    stroke-width="2"
+    marker-end="url(#arr-slate)"
+  />
+
+  <!-- Column 2: Server resolution -->
+  <rect
+    x="376"
+    y="106"
+    width="350"
+    height="314"
+    rx="12"
+    fill="#111827"
+    stroke="#f59e0b"
+    stroke-width="1.5"
+  />
+  <text x="396" y="134" fill="#fbbf24" font-size="12" font-weight="700">
+    oRPC READ HANDLERS (packages/api)
+  </text>
+  <text x="396" y="158" fill="#f8fafc" font-size="15" font-weight="700">
+    researchReports.* (operator + viewer)
+  </text>
+
+  <!-- Sub-boxes inside Col 2 -->
+  <rect
+    x="396"
+    y="176"
+    width="310"
+    height="68"
+    rx="8"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text x="410" y="198" fill="#f8fafc" font-size="13" font-weight="600">
+    1. Catalog merge (list)
+  </text>
+  <text x="410" y="216" fill="#cbd5e1" font-size="11">
+    Add missing IWM/DIA when 1d bars exist;
+  </text>
+  <text x="410" y="232" fill="#cbd5e1" font-size="11">
+    attach dataDate, dataSource, freshness
+  </text>
+
+  <rect
+    x="396"
+    y="256"
+    width="310"
+    height="72"
+    rx="8"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text x="410" y="278" fill="#f8fafc" font-size="13" font-weight="600">
+    2. Bar selection (technicals)
+  </text>
+  <text x="410" y="296" fill="#cbd5e1" font-size="11">
+    Explicit revision → stored bars only.
+  </text>
+  <text x="410" y="312" fill="#cbd5e1" font-size="11">
+    Default view → newer market_bars (1d)
+  </text>
+
+  <rect
+    x="396"
+    y="340"
+    width="310"
+    height="64"
+    rx="8"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text x="410" y="362" fill="#f8fafc" font-size="13" font-weight="600">
+    3. Freshness gate (nyse-calendar)
+  </text>
+  <text x="410" y="380" fill="#cbd5e1" font-size="11">
+    sessionsBehind(lastDate, expectedSession)
+  </text>
+  <text x="410" y="395" fill="#fbbf24" font-size="11">
+    &gt; 2 NYSE sessions → stale + stale stage label
+  </text>
+
+  <!-- Arrows Col 2 -> Col 3 -->
+  <line
+    x1="726"
+    y1="208"
+    x2="796"
+    y2="174"
+    stroke="#f59e0b"
+    stroke-width="2"
+    marker-end="url(#arr-gold)"
+  />
+  <line
+    x1="726"
+    y1="292"
+    x2="796"
+    y2="292"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arr-green)"
+  />
+  <line
+    x1="726"
+    y1="372"
+    x2="796"
+    y2="394"
+    stroke="#f59e0b"
+    stroke-width="2"
+    marker-end="url(#arr-gold)"
+  />
+
+  <!-- Column 3: Outputs -->
+  <rect
+    x="800"
+    y="106"
+    width="356"
+    height="96"
+    rx="12"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text x="820" y="132" fill="#f8fafc" font-size="14" font-weight="700">
+    Catalog (/research/reports)
+  </text>
+  <text x="820" y="154" fill="#cbd5e1" font-size="12">
+    SPY, QQQ, IWM, DIA all listed
+  </text>
+  <text x="820" y="174" fill="#94a3b8" font-size="12">
+    Data date column + Stale badge on old rows
+  </text>
+
+  <rect
+    x="800"
+    y="220"
+    width="356"
+    height="110"
+    rx="12"
+    fill="#0f172a"
+    stroke="#10b981"
+  />
+  <text x="820" y="246" fill="#f8fafc" font-size="14" font-weight="700">
+    Dossier Page (/research/reports/:id)
+  </text>
+  <text x="820" y="268" fill="#cbd5e1" font-size="12">
+    Page header badge: Data as of YYYY-MM-DD
+  </text>
+  <text x="820" y="288" fill="#cbd5e1" font-size="12">
+    Current Close, SMAs, RSI, ATR, Trend checks
+  </text>
+  <text x="820" y="308" fill="#6ee7b7" font-size="12">
+    IWM &amp; DIA tabs render cleanly without 404s
+  </text>
+
+  <rect
+    x="800"
+    y="348"
+    width="356"
+    height="96"
+    rx="12"
+    fill="#0f172a"
+    stroke="#f59e0b"
+  />
+  <text x="820" y="374" fill="#fbbf24" font-size="14" font-weight="700">
+    Weinstein Stage Guard
+  </text>
+  <text x="820" y="396" fill="#fef3c7" font-size="12">
+    weinstein.isStale + staleReason + label suffix
+  </text>
+  <text x="820" y="416" fill="#fcd34d" font-size="12">
+    Never presents an old stage as current
+  </text>
+
+  <!-- Footer -->
+  <text x="48" y="472" fill="#64748b" font-size="12">
+    Access unchanged: operator session &amp; read-only agent viewer. No order,
+    risk, arming, or trading-engine paths touched.
+  </text>
+</svg>

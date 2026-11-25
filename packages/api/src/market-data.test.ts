@@ -27,11 +27,13 @@ import {
   buildMarketBarsUrl,
   buildMarketDepthHistoryUrl,
   buildMarketDepthUrl,
+  buildMarketDomUrl,
   buildMarketTapeUrl,
   buildMarketTicksUrl,
   fetchMarketBars,
   fetchMarketDepth,
   fetchMarketDepthHistory,
+  fetchMarketDom,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -1534,5 +1536,176 @@ describe("fetchMarketDepthHistory", () => {
         }
       )
     ).rejects.toBeInstanceOf(MarketDataError);
+  });
+});
+
+describe("fetchMarketDom", () => {
+  const config: DeployStatusConfig = {
+    token: "t".repeat(40),
+    url: "https://history.example.test/vertex-history/v1/",
+  };
+
+  it("builds /dom URLs with and without since", () => {
+    expect(
+      buildMarketDomUrl(config.url, {
+        rows: 10,
+        symbol: "ES",
+        windowSeconds: 900,
+      })
+    ).toBe(
+      "https://history.example.test/vertex-history/v1/dom?rows=10&symbol=ES&windowSeconds=900"
+    );
+    expect(
+      buildMarketDomUrl(config.url, {
+        rows: 5,
+        since: 1_763_900_000,
+        symbol: "NQ",
+        windowSeconds: 300,
+      })
+    ).toBe(
+      "https://history.example.test/vertex-history/v1/dom?rows=5&symbol=NQ&windowSeconds=300&since=1763900000"
+    );
+  });
+
+  it("parses valid vertex-history-dom-v1 payloads, redacts stream errors, and maps 404 to NOT_FOUND", async () => {
+    const at = new Date("2026-11-24T14:30:00.000Z");
+    const payload = {
+      asks: [[6012.5, 42]],
+      bids: [[6012.25, 58]],
+      client_id: 77,
+      contract: {
+        conId: 42,
+        currency: "USD",
+        exchange: "CME",
+        lastTradeDateOrContractMonth: "20261218",
+        localSymbol: "ESZ6",
+        longName: "E-mini S&P 500",
+        matches: 1,
+        multiplier: "50",
+        secType: "FUT",
+        timeZoneId: "US/Central",
+      },
+      depthStream: {
+        error: "account U1234567 depth warn",
+        lastAt: "2026-11-24T14:30:00Z",
+        state: "live",
+      },
+      depthUpdates: 10,
+      fetchedAt: "2026-11-24T14:30:00Z",
+      lastTrade: {
+        price: 6012.5,
+        side: "buy",
+        size: 3,
+        t: 1_763_994_600,
+      },
+      minTick: 0.25,
+      schema: "vertex-history-dom-v1",
+      seq: 15,
+      since: null,
+      source: "ibkr-gateway",
+      symbol: "ES",
+      tapeSeq: 5,
+      tapeStream: {
+        error: "account DU987654 tape warn",
+        lastAt: "2026-11-24T14:30:00Z",
+        state: "live",
+      },
+      volumeByPrice: [[6012.5, 30, 10, 0, 4]],
+      windowSeconds: 900,
+    };
+
+    const parsed = await fetchMarketDom(
+      config,
+      { rows: 10, symbol: "ES", windowSeconds: 900 },
+      {
+        fetch: vi.fn(
+          async () =>
+            new Response(JSON.stringify(payload), {
+              headers: { "content-type": "application/json" },
+              status: 200,
+            })
+        ),
+        now: () => at,
+      }
+    );
+    expect(parsed.symbol).toBe("ES");
+    expect(parsed.receivedAt).toBe(at.toISOString());
+    expect(parsed.depthStream.error).not.toContain("U1234567");
+    expect(parsed.tapeStream.error).not.toContain("DU987654");
+
+    const notFound = await fetchMarketDom(
+      config,
+      { rows: 10, symbol: "ES", windowSeconds: 900 },
+      {
+        fetch: vi.fn(
+          async () =>
+            new Response(JSON.stringify({ error: "not_found" }), {
+              headers: { "content-type": "application/json" },
+              status: 404,
+            })
+        ),
+      }
+    ).catch((error: unknown) => error);
+    expect(notFound).toBeInstanceOf(MarketDataError);
+    expect((notFound as MarketDataError).code).toBe("NOT_FOUND");
+
+    await expect(
+      fetchMarketDom(
+        config,
+        { rows: 10, symbol: "ES", windowSeconds: 900 },
+        {
+          fetch: vi.fn(
+            async () =>
+              new Response(JSON.stringify({ bad: true }), {
+                headers: { "content-type": "application/json" },
+                status: 200,
+              })
+          ),
+        }
+      )
+    ).rejects.toBeInstanceOf(MarketDataError);
+
+    // Pre-aborted external signal cancels immediately
+    const preAborted = new AbortController();
+    preAborted.abort();
+    const cancelled = await fetchMarketDom(
+      config,
+      { rows: 10, symbol: "ES", windowSeconds: 900 },
+      {
+        fetch: vi.fn(async (_url, init) => {
+          if (init?.signal?.aborted) throw new Error("aborted");
+          return new Response("{}", { status: 200 });
+        }),
+        signal: preAborted.signal,
+      }
+    ).catch((error: unknown) => error);
+    expect(cancelled).toBeInstanceOf(MarketDataError);
+    expect((cancelled as MarketDataError).message).toBe(
+      "History request cancelled"
+    );
+
+    // Mid-flight external signal abort cleans up listener and reports cancelled
+    const midAbort = new AbortController();
+    const pending = fetchMarketDom(
+      config,
+      { rows: 10, symbol: "ES", windowSeconds: 900 },
+      {
+        fetch: vi.fn(
+          (_url, init) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () =>
+                reject(new Error("aborted"))
+              );
+            })
+        ),
+        signal: midAbort.signal,
+      }
+    ).catch((error: unknown) => error);
+    midAbort.abort();
+    const midErr = await pending;
+    expect(midErr).toBeInstanceOf(MarketDataError);
+    expect((midErr as MarketDataError).message).toBe(
+      "History request cancelled"
+    );
   });
 });

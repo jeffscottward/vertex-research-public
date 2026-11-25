@@ -15,6 +15,7 @@ import type {
   CandleRenderer,
   CandleRendererFactory,
   DisplayCandle,
+  ExpectedMoveCone,
   SeriesPane,
 } from "./types.ts";
 import type { Drawing } from "./workstation.ts";
@@ -428,10 +429,14 @@ describe("chart workstation series pane", () => {
     precision: 0,
     title: "OI change",
   };
-  const seriesRenderer = (setSeriesPane = vi.fn()) => ({
+  const seriesRenderer = (
+    setSeriesPane = vi.fn(),
+    setExpectedMove = vi.fn()
+  ) => ({
     dispose: vi.fn(),
     replace: vi.fn(),
     resize: vi.fn(),
+    setExpectedMove,
     setSeriesPane,
   });
   // Each factory call takes the next renderer; the last one is used again.
@@ -449,7 +454,10 @@ describe("chart workstation series pane", () => {
     document.body.append(host);
     const root = createRoot(host);
     roots.push(root);
-    const render = async (props: { seriesPane?: SeriesPane | null }) => {
+    const render = async (props: {
+      expectedMove?: ExpectedMoveCone | null;
+      seriesPane?: SeriesPane | null;
+    }) => {
       await act(async () =>
         root.render(
           <ChartWorkstation
@@ -524,6 +532,48 @@ describe("chart workstation series pane", () => {
     await render({ seriesPane: pane });
     expect(host.textContent).toContain(
       "A data pane could not be drawn on the chart."
+    );
+  });
+
+  it("applies expected move cone, lists it in the object tree, and handles renderer errors", async () => {
+    const cone: ExpectedMoveCone = {
+      basis: "atm_straddle_mid",
+      dte: 10,
+      expectedMove: 12,
+      expectedMovePct: 0.02,
+      expiry: "2026-11-20",
+      expiryCloseMs: Date.parse("2026-11-20T21:00:00.000Z"),
+      lowerBand: 588,
+      spot: 600,
+      straddleLower: 590,
+      straddlePrice: 10,
+      straddleUpper: 610,
+      upperBand: 612,
+    };
+    const failing = seriesRenderer(
+      vi.fn(),
+      vi.fn((next: ExpectedMoveCone | null) => {
+        if (next !== null) throw new TypeError("Bad cone");
+      })
+    );
+    const ok = seriesRenderer();
+    const { host, render } = await mountSeries([ok]);
+    await render({ expectedMove: cone });
+    expect(ok.setExpectedMove).toHaveBeenLastCalledWith(cone);
+    const inspectorBtn = Array.from(host.querySelectorAll("button")).find(
+      (btn) =>
+        btn.textContent?.includes("Object tree") ||
+        btn.textContent?.includes("Inspector")
+    );
+    if (inspectorBtn) {
+      await act(async () => inspectorBtn.click());
+    }
+    expect(host.textContent).toContain("Expected move (2026-11-20)");
+
+    const { host: errHost, render: renderErr } = await mountSeries([failing]);
+    await renderErr({ expectedMove: cone });
+    expect(errHost.textContent).toContain(
+      "Expected move cone could not be drawn on the chart."
     );
   });
 });

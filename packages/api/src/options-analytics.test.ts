@@ -21,7 +21,15 @@ import {
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
+  buildOptionsAnalytics,
+  flowWindow,
+  setOptionsAnalyticsForTesting,
+  storedPrintsSymbol,
+  storedProfileFlow,
+} from "./server/options-analytics.ts";
+import {
   blackScholesGamma,
+  type ChainRow,
   daysUntil,
   displayStrikes,
   exposure,
@@ -41,25 +49,17 @@ import {
   strikeProfiles,
   summarizeFlow,
   termStructure,
-  type ChainRow,
   withProfileFlow,
 } from "./server/options-analytics-engine.ts";
 import {
-  buildOptionsAnalytics,
-  flowWindow,
-  setOptionsAnalyticsForTesting,
-  storedPrintsSymbol,
-  storedProfileFlow,
-} from "./server/options-analytics.ts";
-import {
   createQuantDataClient,
   parseRetryAfter,
-  resolveQuantDataConfig,
   type QuantDataClient,
   type QuantDataConfig,
   type QuantDataEndpoint,
   type QuantDataFetch,
   type QuantDataResult,
+  resolveQuantDataConfig,
   withCallerReserve,
 } from "./server/quantdata-client.ts";
 
@@ -82,21 +82,21 @@ const json = (body: unknown, init: ResponseInit = {}): Response =>
 const chainData = {
   "2026-10-01": { "100.0": { CALL: { delta: 0.5, iv: 30 } } },
   "2026-10-23": {
-    "80.0": { PUT: { delta: -0.1, iv: 45 }, CALL: { delta: 0.97, iv: 2160 } },
-    "90.0": { PUT: { delta: -0.25, iv: 38 }, CALL: { delta: 0.85, iv: 30 } },
+    "80.0": { CALL: { delta: 0.97, iv: 2160 }, PUT: { delta: -0.1, iv: 45 } },
+    "90.0": { CALL: { delta: 0.85, iv: 30 }, PUT: { delta: -0.25, iv: 38 } },
     "95.0": { PUT: { delta: -0.4, iv: 33 } },
     "100.0": { CALL: { delta: 0.52, iv: 28 }, PUT: { delta: -0.48, iv: 30 } },
     "105.0": { CALL: { delta: 0.4, iv: 26 } },
     "110.0": { CALL: { delta: 0.25, iv: 25 }, PUT: { delta: -0.9 } },
     "120.0": { CALL: { delta: 0.1, iv: "24" } },
-    bad: { CALL: { delta: 0.5, iv: 30 } },
     "130.0": { CALL: null },
+    bad: { CALL: { delta: 0.5, iv: 30 } },
   },
   "2026-11-20": {
     "100.0": { CALL: { delta: 3, iv: 0.27 }, PUT: { delta: -0.5, iv: 0.29 } },
   },
-  "not-a-date": {},
   "2026-12-18": { "140.0": 5, "150.0": { CALL: { delta: 0.2 } } },
+  "not-a-date": {},
 };
 const oiData = {
   "80.0": { callOpenInterest: 10, putOpenInterest: 500 },
@@ -628,6 +628,80 @@ describe("quantdata client", () => {
     clock = 71_000;
     expect(client.cooldownSeconds()).toBe(0);
     return expect(JSON.stringify(limited)).not.toContain(KEY);
+  });
+
+  it("classifies HTTP 401/403 as auth_failed, enters auth cooldown without setting rate-limit cooldown, and recovers on 200", async () => {
+    let clock = 10_000;
+    const responses = [
+      new Response("unauthorized", { status: 401 }),
+      json({ data: { ok: 1 } }),
+      new Response("forbidden", { status: 403 }),
+    ];
+    const doFetch = vi.fn(
+      async () => responses.shift() ?? json({ data: { ok: 2 } })
+    );
+    const client = createQuantDataClient(config, {
+      authCooldownSeconds: 300,
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    const first = await client.request("orderFlow", { a: 1 }, 60_000);
+    expect(first).toMatchObject({
+      httpStatus: 401,
+      message:
+        "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+      ok: false,
+      reason: "auth_failed",
+      retryAfterSeconds: 300,
+    });
+    // Rate-limit cooldown stays 0 so UI never mislabels 401 as rate-limited.
+    expect(client.cooldownSeconds()).toBe(0);
+    expect(JSON.stringify(first)).not.toContain(KEY);
+
+    // Subsequent call during auth cooldown fails fast without touching fetch.
+    clock = 70_000;
+    const cooling = await client.request("termStructure", { a: 1 }, 60_000);
+    expect(cooling).toMatchObject({
+      httpStatus: 401,
+      message:
+        "QuantData termStructure: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+      ok: false,
+      reason: "auth_failed",
+      retryAfterSeconds: 240,
+    });
+    expect(doFetch).toHaveBeenCalledTimes(1);
+
+    // After auth cooldown expires, a 200 response clears auth failure state.
+    clock = 320_000;
+    const recovered = await client.request("orderFlow", { a: 2 }, 60_000);
+    expect(recovered).toMatchObject({ data: { ok: 1 }, ok: true });
+    expect(doFetch).toHaveBeenCalledTimes(2);
+
+    // HTTP 403 also classifies as auth_failed.
+    const forbidden = await client.request("netDrift", { a: 3 }, 60_000);
+    expect(forbidden).toMatchObject({
+      httpStatus: 403,
+      message:
+        "QuantData netDrift: HTTP 403 (access forbidden — check QUANTDATA_API_KEY or subscription).",
+      ok: false,
+      reason: "auth_failed",
+      retryAfterSeconds: 300,
+    });
+
+    // authCooldownSeconds: 0 disables cooldown and returns retryAfterSeconds: null.
+    const noCooldown = createQuantDataClient(config, {
+      authCooldownSeconds: 0,
+      fetch: async () => new Response("no", { status: 401 }),
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    expect(await noCooldown.request("orderFlow", {}, 1)).toMatchObject({
+      httpStatus: 401,
+      ok: false,
+      reason: "auth_failed",
+      retryAfterSeconds: null,
+    });
   });
 
   it("returns typed failures without the key", async () => {
@@ -1537,8 +1611,8 @@ describe("buildOptionsAnalytics", () => {
     // A local budget refusal has no provider cooldown; its own wait time is reported.
     const budget = await buildOptionsAnalytics(input, {
       client: fakeClient({
-        orderFlow: { ...limited, retryAfterSeconds: 39.5 },
         openInterest: { ...limited, retryAfterSeconds: null },
+        orderFlow: { ...limited, retryAfterSeconds: 39.5 },
       }),
       now: () => NOW,
     });

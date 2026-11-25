@@ -1,0 +1,31 @@
+# Probe QuantVPS /vertex-status/v2 tailnet snapshot and alert #omp-alerts (127.0.0.1:47821)
+# after 3 consecutive availability failures (e.g. HTTP 403 Caddy allow-list regression) or
+# immediately on an unauthenticated/wrong-token 2xx auth bypass. Read-only; never touches trading.
+[Unit]
+Description=Vertex tailnet /vertex-status/v2 snapshot 403 & auth-guard alert probe
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -B -I /opt/vertex-status/status_v2_alert.py
+DynamicUser=yes
+StateDirectory=vertex-status-v2-alert
+LoadCredential=status-token:/opt/vertex-status/token.env
+TimeoutStartSec=60
+Nice=10
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictNamespaces=yes
+SystemCallFilter=@system-service

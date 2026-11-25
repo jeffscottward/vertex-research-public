@@ -1,0 +1,702 @@
+<svg
+  aria-label="Before and after Vertex connectivity failure detection and escalation flow"
+  height="560"
+  role="img"
+  viewBox="0 0 1120 560"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <marker
+      id="arrow-red"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="arrow-green"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrow-amber"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24" />
+    </marker>
+  </defs>
+
+  <rect fill="#0b0f17" height="560" rx="16" width="1120" />
+
+  <!-- Header -->
+  <text
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="22"
+    font-weight="700"
+    x="40"
+    y="46"
+  >
+    Vertex Connectivity Audit &amp; Alert Escalation
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    x="40"
+    y="70"
+  >
+    QuantData · OpenBB · IBKR Read-Only · oRPC · UI
+  </text>
+
+  <!-- BEFORE Panel -->
+  <rect
+    fill="#131926"
+    height="190"
+    rx="12"
+    stroke="#7f1d1d"
+    stroke-width="1.5"
+    width="1048"
+    x="36"
+    y="92"
+  />
+  <rect
+    fill="#450a0a"
+    height="24"
+    rx="12"
+    stroke="#f87171"
+    stroke-width="1"
+    width="96"
+    x="52"
+    y="106"
+  />
+  <text
+    fill="#fca5a5"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="100"
+    y="122"
+  >
+    BEFORE
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    x="164"
+    y="122"
+  >
+    HTTP 401/403 hammered upstream, exited 0, hid behind "All sources fresh"
+  </text>
+
+  <!-- Before nodes -->
+  <!-- 1: Upstream 401 -->
+  <rect
+    fill="#1e1b24"
+    height="106"
+    rx="10"
+    stroke="#f87171"
+    stroke-width="1.5"
+    width="170"
+    x="56"
+    y="148"
+  />
+  <circle cx="84" cy="176" fill="#450a0a" r="14" />
+  <text
+    fill="#f87171"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="84"
+    y="181"
+  >
+    !
+  </text>
+  <text
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="108"
+    y="180"
+  >
+    QuantData 401
+  </text>
+  <text
+    fill="#fca5a5"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    x="72"
+    y="210"
+  >
+    Generic "http" error
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="72"
+    y="230"
+  >
+    No cooldown · retried 1/min
+  </text>
+
+  <line
+    marker-end="url(#arrow-red)"
+    stroke="#f87171"
+    stroke-width="2"
+    x1="226"
+    x2="274"
+    y1="201"
+    y2="201"
+  />
+
+  <!-- 2: Flow Tick -->
+  <rect
+    fill="#182032"
+    height="106"
+    rx="10"
+    stroke="#475569"
+    stroke-width="1.5"
+    width="190"
+    x="282"
+    y="148"
+  />
+  <rect fill="#064e3b" height="22" rx="6" width="54" x="298" y="164" />
+  <text
+    fill="#6ee7b7"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="325"
+    y="179"
+  >
+    EXIT 0
+  </text>
+  <text
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="362"
+    y="179"
+  >
+    flow/tick.ts
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    x="298"
+    y="210"
+  >
+    HTTP 200 from collect
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="298"
+    y="230"
+  >
+    No ntfy · no Discord alert
+  </text>
+
+  <line
+    marker-end="url(#arrow-red)"
+    stroke="#f87171"
+    stroke-width="2"
+    x1="472"
+    x2="520"
+    y1="201"
+    y2="201"
+  />
+
+  <!-- 3: UI Hidden -->
+  <rect
+    fill="#182032"
+    height="106"
+    rx="10"
+    stroke="#475569"
+    stroke-width="1.5"
+    width="236"
+    x="528"
+    y="148"
+  />
+  <rect
+    fill="#1e293b"
+    height="22"
+    rx="6"
+    stroke="#34d399"
+    stroke-width="1"
+    width="108"
+    x="544"
+    y="164"
+  />
+  <text
+    fill="#6ee7b7"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+    x="598"
+    y="179"
+  >
+    All sources fresh
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    x="662"
+    y="179"
+  >
+    /flow UI
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    x="544"
+    y="210"
+  >
+    Collapsed when closed/fresh
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="544"
+    y="230"
+  >
+    Muted text · no /connections view
+  </text>
+
+  <line
+    marker-end="url(#arrow-red)"
+    stroke="#f87171"
+    stroke-width="2"
+    x1="764"
+    x2="812"
+    y1="201"
+    y2="201"
+  />
+
+  <!-- 4: Backlog -->
+  <rect
+    fill="#1e1b24"
+    height="106"
+    rx="10"
+    stroke="#7f1d1d"
+    stroke-width="1.5"
+    width="240"
+    x="820"
+    y="148"
+  />
+  <circle cx="848" cy="176" fill="#334155" r="14" />
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="848"
+    y="181"
+  >
+    …
+  </text>
+  <text
+    fill="#fca5a5"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="872"
+    y="180"
+  >
+    Silent Backlog
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    x="836"
+    y="210"
+  >
+    No owner ask triggered
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="836"
+    y="230"
+  >
+    Feed stays dark unnoticed
+  </text>
+
+  <!-- AFTER Panel -->
+  <rect
+    fill="#111a24"
+    height="226"
+    rx="12"
+    stroke="#065f46"
+    stroke-width="1.5"
+    width="1048"
+    x="36"
+    y="302"
+  />
+  <rect
+    fill="#064e3b"
+    height="24"
+    rx="12"
+    stroke="#34d399"
+    stroke-width="1"
+    width="88"
+    x="52"
+    y="316"
+  />
+  <text
+    fill="#6ee7b7"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="96"
+    y="332"
+  >
+    AFTER
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    x="156"
+    y="332"
+  >
+    Typed auth_failed + 300s backoff, durable alert outbox, immediate UI banners
+    &amp; Needs-you escalation
+  </text>
+
+  <!-- 1: Classified Client -->
+  <rect
+    fill="#162231"
+    height="146"
+    rx="10"
+    stroke="#34d399"
+    stroke-width="1.5"
+    width="186"
+    x="56"
+    y="358"
+  />
+  <circle cx="84" cy="386" fill="#064e3b" r="14" />
+  <text
+    fill="#34d399"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="84"
+    y="391"
+  >
+    ✓
+  </text>
+  <text
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="108"
+    y="390"
+  >
+    Typed Clients
+  </text>
+  <text
+    fill="#6ee7b7"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    x="72"
+    y="420"
+  >
+    QuantData · IBKR · Recov
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="72"
+    y="442"
+  >
+    401/403 → auth_failed
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="72"
+    y="462"
+  >
+    300s auth cooldown
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="72"
+    y="482"
+  >
+    Never prints secrets
+  </text>
+
+  <line
+    marker-end="url(#arrow-green)"
+    stroke="#34d399"
+    stroke-width="2"
+    x1="242"
+    x2="286"
+    y1="431"
+    y2="431"
+  />
+
+  <!-- 2: connectivity.* oRPC -->
+  <rect
+    fill="#162231"
+    height="146"
+    rx="10"
+    stroke="#34d399"
+    stroke-width="1.5"
+    width="224"
+    x="294"
+    y="358"
+  />
+  <rect fill="#0c4a6e" height="22" rx="6" width="128" x="310" y="374" />
+  <text
+    fill="#7dd3fc"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="374"
+    y="389"
+  >
+    connectivity.*
+  </text>
+  <text
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="310"
+    y="420"
+  >
+    Flow + OpenBB + Config
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="310"
+    y="442"
+  >
+    401/403 → immediate alert
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="310"
+    y="462"
+  >
+    5xx/down ≥2x → feed alert
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="310"
+    y="482"
+  >
+    Postgres dedupe + recovery
+  </text>
+
+  <!-- Branch top: Alert escalation -->
+  <path
+    d="M 518 400 L 566 400"
+    marker-end="url(#arrow-amber)"
+    stroke="#fbbf24"
+    stroke-width="2"
+  />
+  <rect
+    fill="#231c10"
+    height="68"
+    rx="10"
+    stroke="#fbbf24"
+    stroke-width="1.5"
+    width="244"
+    x="574"
+    y="358"
+  />
+  <text
+    fill="#fde68a"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="590"
+    y="382"
+  >
+    ntfy + #omp-alerts Escalation
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="590"
+    y="402"
+  >
+    [NEEDS YOU — CREDENTIAL ROTATION]
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="590"
+    y="418"
+  >
+    flow/tick exits 1 if alert undelivered
+  </text>
+
+  <!-- Branch bottom: UI Banners -->
+  <path
+    d="M 518 464 L 566 464"
+    marker-end="url(#arrow-green)"
+    stroke="#34d399"
+    stroke-width="2"
+  />
+  <rect
+    fill="#162231"
+    height="68"
+    rx="10"
+    stroke="#34d399"
+    stroke-width="1.5"
+    width="244"
+    x="574"
+    y="436"
+  />
+  <text
+    fill="#6ee7b7"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="590"
+    y="460"
+  >
+    /flow · /charts · /connections
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="590"
+    y="480"
+  >
+    Auto-expanded role="alert" banners
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    x="590"
+    y="496"
+  >
+    10-provider health panel on /connections
+  </text>
+
+  <!-- Final Outcome -->
+  <line
+    marker-end="url(#arrow-amber)"
+    stroke="#fbbf24"
+    stroke-width="2"
+    x1="818"
+    x2="862"
+    y1="392"
+    y2="424"
+  />
+  <line
+    marker-end="url(#arrow-green)"
+    stroke="#34d399"
+    stroke-width="2"
+    x1="818"
+    x2="862"
+    y1="470"
+    y2="440"
+  />
+  <rect
+    fill="#0f2922"
+    height="98"
+    rx="10"
+    stroke="#34d399"
+    stroke-width="1.5"
+    width="190"
+    x="870"
+    y="382"
+  />
+  <text
+    fill="#6ee7b7"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="965"
+    y="410"
+  >
+    Owner Notified
+  </text>
+  <text
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    text-anchor="middle"
+    x="965"
+    y="432"
+  >
+    Exact env var named
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+    x="965"
+    y="452"
+  >
+    Zero silent failures
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+    x="965"
+    y="470"
+  >
+    No live order changes
+  </text>
+</svg>

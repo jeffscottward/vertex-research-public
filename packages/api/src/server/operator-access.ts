@@ -97,6 +97,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "optionsChain.expiries",
   "optionsChain.chain",
   "optionsChain.snapshot",
+  "connectivity.health",
 ]);
 
 type OperatorErrorFactories = Readonly<{

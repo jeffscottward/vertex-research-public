@@ -28,14 +28,14 @@ import {
   type OptionsQuoteSnapshot,
   type OptionsQuoteSource,
 } from "./server/options-chain-source.ts";
+import fixture from "./server/options-chain-yahoo.fixture.json" with {
+  type: "json",
+};
 import {
   createYahooOptionsSource,
   parseYahooOptions,
   type YahooFetch,
 } from "./server/options-chain-yahoo.ts";
-import fixture from "./server/options-chain-yahoo.fixture.json" with {
-  type: "json",
-};
 import type {
   QuantDataConfig,
   QuantDataFetch,
@@ -1870,5 +1870,65 @@ describe("optionsChain.spread", () => {
       }),
     });
     await expectCode(operator().optionsChain.spread(bearPut), "UNAVAILABLE");
+  });
+});
+
+describe("optionsChain.expectedMove", () => {
+  it("computes expected move bands from the cached chain and maps missing/failed sources", async () => {
+    const source = yahooFake(async () => snapshot);
+    setOptionsChainForTesting({ now: () => NOW, yahoo: source });
+    await expectCode(
+      apiFor(null).optionsChain.expectedMove({ symbol: "DEMO" }),
+      "UNAUTHORIZED"
+    );
+    await expectCode(
+      apiFor(session("outsider")).optionsChain.expectedMove({ symbol: "DEMO" }),
+      "FORBIDDEN"
+    );
+    const api = operator();
+    const em = await api.optionsChain.expectedMove({ symbol: "DEMO" });
+    expect(em.expiry).toBe("2026-11-06");
+    expect(em.band).not.toBeNull();
+    expect(em.band?.atmStrike).toBe(100);
+    expect(em.band?.basis).toBe("atm_straddle_last");
+    expect(em.band?.upperBand).toBeGreaterThan(100);
+    expect(em.band?.lowerBand).toBeLessThan(100);
+    // Shares the 60 s cache with optionsChain.chain
+    await api.optionsChain.chain({ symbol: "DEMO" });
+    expect(source.read).toHaveBeenCalledTimes(1);
+
+    await expectCode(
+      api.optionsChain.expectedMove({ expiry: "2026-11-27", symbol: "DEMO" }),
+      "NOT_FOUND"
+    );
+
+    setOptionsChainForTesting({
+      now: () => NOW,
+      yahoo: yahooFake(async () => ({
+        ...snapshot,
+        calls: [],
+        expiries: [],
+        expiry: null,
+        puts: [],
+      })),
+    });
+    await expectCode(
+      operator().optionsChain.expectedMove({ symbol: "NONE" }),
+      "NOT_FOUND"
+    );
+
+    setOptionsChainForTesting({
+      now: () => NOW,
+      yahoo: yahooFake(async () => {
+        throw new OptionsChainSourceError(
+          "UNAVAILABLE",
+          "Yahoo did not answer"
+        );
+      }),
+    });
+    await expectCode(
+      operator().optionsChain.expectedMove({ symbol: "DEMO" }),
+      "UNAVAILABLE"
+    );
   });
 });
