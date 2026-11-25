@@ -77,6 +77,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "flow.control",
   "flow.events",
   "openbb.status",
+  "openbb.changes13f",
   "openbb.volContext",
   "openbb.ivHistory",
   "openbb.cot",
