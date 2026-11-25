@@ -16,6 +16,8 @@ import type { SecurityGateway } from "../../components/account/security-client.t
 import { SecurityPageClient } from "../../components/account/security-page-client.tsx";
 import type { AdminUsersGateway } from "../../components/admin/admin-users-client.ts";
 import { AdminUsersPageClient } from "../../components/admin/admin-users-page-client.tsx";
+import { FeatureFlagsPanel } from "../../components/feature-flags-panel.tsx";
+import { FeatureFlagsProvider } from "../../components/feature-flags-provider.tsx";
 import {
   createResearchReadScope,
   ResearchReadScopeProvider,
@@ -285,11 +287,16 @@ export const DATA_SETTINGS_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: "Settings",
     id: "settings-workspace",
-    render: () => (
+    render: (params) => (
       <SettingsFrame route="/settings/workspace">
-        <LabScope>
-          <SettingsWorkspaceSections />
-        </LabScope>
+        <FeatureFlagsProvider allowClientOverrides initialQuery={params}>
+          <div className="space-y-6">
+            <LabScope>
+              <SettingsWorkspaceSections />
+            </LabScope>
+            <FeatureFlagsPanel />
+          </div>
+        </FeatureFlagsProvider>
       </SettingsFrame>
     ),
     route: "/settings/workspace",
