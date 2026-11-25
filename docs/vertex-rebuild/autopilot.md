@@ -103,7 +103,7 @@ Other `autopilot.*` procedures are outside the agent-key scope list (`AGENT_API_
 
 ## Scheduler
 
-Install the user timer (every minute) on the research host that runs the Vertex web app. A tick works for each running campaign's slice and never runs in a trading tick loop.
+Install the timer (every minute on `:00`, `OnCalendar=*-*-* *:*:00` with `AccuracySec=1s`) on the research host that runs the Vertex web app. Sharing the `:00` boundary with `infra/flow/quantvps/vertex-flow.timer` prevents phase drift from splitting the minute into `<35 s` gaps and blocking `infra/quantvps/restart-when-idle.sh`. A tick works for each running campaign's slice and never runs in a trading tick loop.
 
 ```sh
 install -m 0600 /dev/null ~/.config/vertex/autopilot.env   # then add VERTEX_ORIGIN and VERTEX_AGENT_API_KEY (operator write key)
@@ -129,6 +129,7 @@ The page's **Run one tick now** button runs one slice with the operator session.
 - Broker isolation (import graph): `packages/api/src/autopilot-isolation.test.ts`.
 - Repository: `packages/db/src/server/autopilot.test.ts`; real Postgres: `tests/integration/database/autopilot.test.ts`.
 - Page: `apps/web/src/components/portal/autopilot-workspace.test.tsx`; browser flow: `tests/e2e/autopilot.spec.ts`.
+- Scheduler units and timer alignment: `infra/autopilot/units.test.ts`.
 
 ## Limits
 

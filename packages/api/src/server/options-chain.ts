@@ -11,6 +11,7 @@ import {
   type OptionsChainReads,
   type OptionsSourceRead,
 } from "../options-chain-merge.ts";
+import { computeOptionsExpectedMove } from "../options-expected-move.ts";
 import { STRATEGY_IV_INDEX } from "../strategy-dsl.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -30,7 +31,7 @@ import {
 import { createYahooOptionsSource } from "./options-chain-yahoo.ts";
 import { buildOptionsSpread, type StoredCloses } from "./options-spread.ts";
 
-// Read-only options chain (optionsChain.expiries, optionsChain.chain, optionsChain.spread). One
+// Read-only options chain (optionsChain.expiries, optionsChain.chain, optionsChain.expectedMove, optionsChain.spread). One
 // request reads three sources in parallel and merges them (options-chain-merge.ts), Quant Data first:
 // Quant Data analytics (context.quantData), IBKR live quotes (context.marketHistory) and the Yahoo
 // snapshot (always). The reads of one symbol and expiry are cached for 60 s. One source failing
@@ -340,6 +341,29 @@ const chain = api.optionsChain.chain
     return mergeOptionsChain(read.reads, read.expiry, now);
   });
 
+const expectedMove = api.optionsChain.expectedMove
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const now = clock();
+    let read: ChainRead;
+    try {
+      read = await readChain(context, input.symbol, input.expiry, now);
+    } catch (error) {
+      throw mapFailure(error, errors);
+    }
+    if (read.expiry === null)
+      throw errors.NOT_FOUND({
+        message:
+          input.expiry === undefined
+            ? `No listed options for ${input.symbol}`
+            : `No ${input.symbol} options expire on ${input.expiry}`,
+      });
+    return computeOptionsExpectedMove(
+      mergeOptionsChain(read.reads, read.expiry, now),
+      now
+    );
+  });
+
 // The spread reads the same cached chain and the latest stored IV index and IRX closes (the model
 // part is null with a reason when they cannot be read).
 const spread = api.optionsChain.spread
@@ -374,6 +398,7 @@ const spread = api.optionsChain.spread
 
 export const optionsChainRouter = {
   chain,
+  expectedMove,
   expiries,
   spread,
   ...optionsChainSnapshotHandlers,

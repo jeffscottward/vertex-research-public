@@ -325,6 +325,19 @@ describe("createIbkrOptionsQuoteSource", () => {
     );
   });
 
+  it("surfaces HTTP 401 as an explicit upstream authentication error", async () => {
+    const { source } = sourceFor(
+      () => new Response("unauthorized", { status: 401 })
+    );
+    const error = await failure(source.read("DEMO"));
+    expect(error).toBeInstanceOf(OptionsChainSourceError);
+    expect(error).toMatchObject({
+      code: "UPSTREAM_ERROR",
+      message:
+        "IBKR history service returned HTTP 401 (authentication failed — check VERTEX_DEPLOY_STATUS_TOKEN)",
+    });
+  });
+
   it("takes the status from the response, never from upstream body text", async () => {
     // Body messages that repeat the transport's own text for a 403 or a 404.
     const cases: readonly (readonly [number, string, string])[] = [

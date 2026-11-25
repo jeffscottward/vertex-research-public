@@ -11,6 +11,8 @@
 
 import { z } from "zod";
 
+import { checkConnectivityAlertsNow } from "../connectivity/tick.ts";
+
 export type FlowTickIo = Readonly<{
   argv: readonly string[];
   env: Readonly<Record<string, string | undefined>>;
@@ -22,18 +24,18 @@ export type FlowTickIo = Readonly<{
 const CollectSchema = z.object({
   json: z.object({
     at: z.string(),
-    busy: z.boolean(),
-    pruned: z.number(),
     // Optional, so the script also works against the previous app after a rollback.
     budget: z
       .object({
+        ibkrLimit: z.number(),
+        ibkrRecent: z.number().nullable(),
         quantDataFree: z.number().nullable(),
         quantDataReserve: z.number(),
-        ibkrRecent: z.number().nullable(),
-        ibkrLimit: z.number(),
         runSeconds: z.number(),
       })
       .optional(),
+    busy: z.boolean(),
+    pruned: z.number(),
     runs: z.array(
       z.object({
         events: z.number(),
@@ -53,6 +55,11 @@ const CollectSchema = z.object({
  */
 class TransientError extends Error {}
 const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+const AUTH_FAILURE_PATTERN =
+  /\bHTTP\s+(?:401|403)\b|\b(authentication failed|access forbidden|unauthorized)\b/iu;
+
+const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 const required = (
   env: FlowTickIo["env"],
@@ -64,7 +71,12 @@ const required = (
   return value;
 };
 
-const tick = async (io: FlowTickIo): Promise<string[]> => {
+type TickResult = Readonly<{
+  exitCode: number;
+  lines: string[];
+}>;
+
+const tick = async (io: FlowTickIo): Promise<TickResult> => {
   const unknown = io.argv.filter(
     (argument) => argument !== "--dry-run" && argument !== "--seed"
   );
@@ -88,9 +100,7 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
       method: "POST",
     })
     .catch((error: unknown) => {
-      throw new TransientError(
-        `flow.collect unreachable: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new TransientError(`flow.collect unreachable: ${messageOf(error)}`);
     });
   const text = await response.text();
   if (TRANSIENT_STATUSES.has(response.status))
@@ -117,9 +127,14 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
         .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
         .join("; ")}`
     );
+  const dryRun = io.argv.includes("--dry-run");
   const { at, budget, busy, pruned, runs } = parsed.data.json;
-  if (busy) return [`flow collect ${at}: another run is still active; skipped`];
-  return [
+  if (busy)
+    return {
+      exitCode: 0,
+      lines: [`flow collect ${at}: another run is still active; skipped`],
+    };
+  const lines = [
     `flow collect ${at}: ${runs.length} run(s), pruned ${pruned}`,
     ...runs
       .filter(
@@ -135,13 +150,40 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
           `budget quantdata_free=${budget.quantDataFree ?? "unread"} reserve=${budget.quantDataReserve} ibkr=${budget.ibkrRecent ?? "unread"}/${budget.ibkrLimit} run=${budget.runSeconds}s`,
         ]),
   ];
+  const unavailable = runs.filter((run) => run.status === "unavailable");
+  if (unavailable.length === 0 || dryRun) {
+    return { exitCode: 0, lines };
+  }
+  const authFailures = unavailable.filter(
+    (run) => run.message !== null && AUTH_FAILURE_PATTERN.test(run.message)
+  );
+  for (const run of authFailures) {
+    io.stderr.write(
+      `flow tick auth failure: ${run.symbol} ${run.source}: ${run.message}\n`
+    );
+  }
+  let alertDelivered = false;
+  try {
+    const checked = await checkConnectivityAlertsNow(
+      io,
+      { apiKey, origin },
+      false
+    );
+    alertDelivered = checked.delivered;
+  } catch (error) {
+    io.stderr.write(`flow tick alert check failed: ${messageOf(error)}\n`);
+  }
+  // Never exit 0 silently when an auth/credential failure occurred and no alert channel delivered it.
+  const exitCode = authFailures.length > 0 && !alertDelivered ? 1 : 0;
+  return { exitCode, lines };
 };
 
 /** Runs one collection and returns the process exit code (0 on success). */
 export const runFlowTick = async (io: FlowTickIo): Promise<number> => {
   try {
-    for (const line of await tick(io)) io.stdout.write(`${line}\n`);
-    return 0;
+    const result = await tick(io);
+    for (const line of result.lines) io.stdout.write(`${line}\n`);
+    return result.exitCode;
   } catch (error) {
     if (error instanceof TransientError) {
       io.stderr.write(
@@ -149,9 +191,7 @@ export const runFlowTick = async (io: FlowTickIo): Promise<number> => {
       );
       return 0;
     }
-    io.stderr.write(
-      `flow tick failed: ${error instanceof Error ? error.message : String(error)}\n`
-    );
+    io.stderr.write(`flow tick failed: ${messageOf(error)}\n`);
     return 1;
   }
 };

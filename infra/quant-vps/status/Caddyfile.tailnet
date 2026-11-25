@@ -1,8 +1,8 @@
-# vertex-status-tailnet: serves the v2 session snapshot and the read-only IBKR history service ONLY on the
-# VPS tailnet address, ONLY to the rig.
+# vertex-status-tailnet: serves the tailnet-only Vertex status, lenses, recovery, history, and portfolio
+# routes on the VPS tailnet addresses. History and portfolio stay rig-only; status v2 allows rig + VPS self.
 # Container: caddy:2-alpine, --network host, read-only, caps dropped; mounts this file, the non-public
 # /opt/vertex-status/private-v2 (as /srv) and tailscaled.sock (TLS certificate for the *.ts.net name).
-# Placeholders substituted at install: __TS_HOST__ (MagicDNS name), __TS_IP__ (tailnet IPv4), __RIG_IP__.
+# Placeholders substituted at install: __TS_HOST__ (MagicDNS name), __TS_IP__ (VPS tailnet IPs), __RIG_IP__.
 # Admin API only on a unix socket in the container's tmpfs, for graceful reloads via docker exec.
 {
   admin unix//tmp/caddy-admin.sock
@@ -55,16 +55,24 @@ https://__TS_HOST__:8443 {
     uri strip_prefix /vertex-research-lenses/v1
     file_server
   }
+  # Session snapshot v2: the rig and this VPS's own tailnet addresses (the Vertex web Deployments
+  # page reads it; owner approval 2026-11-15), bearer VERTEX_STATUS_TOKEN.
+  @status_v2_caller {
+    remote_ip __RIG_IP__ __TS_IP__
+    path /vertex-status/v2
+    header Authorization "Bearer {$VERTEX_STATUS_TOKEN}"
+  }
+  handle @status_v2_caller {
+    root * /srv
+    rewrite * /status-v2.json
+    file_server
+  }
   @not_rig not remote_ip __RIG_IP__
   handle @not_rig {
     respond "forbidden" 403
   }
   handle @rig_authorized {
     root * /srv
-    handle /vertex-status/v2 {
-      rewrite * /status-v2.json
-      file_server
-    }
     handle /vertex-history/v1/* {
       reverse_proxy 127.0.0.1:8791 {
         transport http {

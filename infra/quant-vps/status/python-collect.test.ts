@@ -13,24 +13,21 @@ import { describe, expect, it } from "vitest";
 // deletes the TMPDIR also after a failed or killed run.
 const here = fileURLToPath(new URL(".", import.meta.url));
 const PYTHON_TIMEOUT_MS = 120_000;
+const SUITES = ["test_collect.py", "test_status_v2_alert.py"] as const;
 
-describe("test_collect.py", () => {
+describe.each(SUITES)("%s", (suite) => {
   it("passes under python3 and leaves no temp folders", {
     timeout: PYTHON_TIMEOUT_MS + 30_000,
   }, () => {
     const tempDir = mkdtempSync(join(tmpdir(), "vertex-status-tmpdir-"));
     try {
       // -B: no __pycache__ in the source tree; -I: no user site packages (tempfile still reads TMPDIR).
-      const result = spawnSync(
-        "python3",
-        ["-B", "-I", "-W", "ignore", "test_collect.py"],
-        {
-          cwd: here,
-          encoding: "utf8",
-          env: { ...process.env, TMPDIR: tempDir },
-          timeout: PYTHON_TIMEOUT_MS,
-        }
-      );
+      const result = spawnSync("python3", ["-B", "-I", "-W", "ignore", suite], {
+        cwd: here,
+        encoding: "utf8",
+        env: { ...process.env, NO_COLOR: "1", TMPDIR: tempDir },
+        timeout: PYTHON_TIMEOUT_MS,
+      });
       expect(result.error).toBeUndefined();
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
       expect(result.stderr).toMatch(/^OK$/mu);

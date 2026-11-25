@@ -1,10 +1,12 @@
-# Runs the Autopilot tick every minute. Each running campaign works for its tick slice (default 20 s).
+# Runs the Autopilot tick every minute on the :00 boundary so it shares the minute tick with
+# vertex-flow.timer and leaves a >35 s quiet window for infra/quantvps/restart-when-idle.sh.
+# Each running campaign works for its tick slice (default 20 s); Type=oneshot skips overlapping runs.
 [Unit]
 Description=Vertex Autopilot tick timer (research only)
 
 [Timer]
-OnBootSec=3min
-OnUnitActiveSec=1min
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
 Persistent=false
 
 [Install]

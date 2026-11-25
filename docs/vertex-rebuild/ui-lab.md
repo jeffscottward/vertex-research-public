@@ -64,3 +64,7 @@ The image goes to `~/Documents/reports/vertex-ui-review/<page>/review.jpg` (neve
 
 - Unit: `apps/web/src/lab/**/*.test.ts(x)`, `apps/web/src/app/lab/route-files.test.tsx` (404 when off or in production), `packages/config/src/ui-lab-env.test.ts`, `scripts/vertex-ui/*.test.ts`.
 - Browser (CI only): `tests/e2e/ui-lab.spec.ts`. The E2E server sets `VERTEX_UI_LAB=on` (`tests/e2e/env.ts`).
+
+## Related
+
+- [UI feature flags](ui-feature-flags.md) (`VERTEX_UI_FLAGS`, `?ff=`, and `localStorage` overrides for isolating experimental UI/research prototypes).

@@ -65,7 +65,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-VERSION = "1.7.1"
+VERSION = "1.8.0"
 SCHEMA = "vertex-history-bars-v2"
 MIN_CLIENT_VER = 163  # lowest ibapi.server_versions.MAX_CLIENT_VER accepted (10.30.1 has 187); older clients get wrong sizes
 # The client's UNSET_DECIMAL is Decimal(2**127 - 1); any size at or above this bound is "not set".
@@ -74,6 +74,7 @@ STARTED_AT = time.time()
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
 DEPTH_HISTORY_SCHEMA = "vertex-history-depth-history-v1"
+DOM_SCHEMA = "vertex-history-dom-v1"
 SOURCE = "ibkr-gateway"
 CLIENT_ID = 77
 LISTEN_HOST = "127.0.0.1"
@@ -145,6 +146,13 @@ DEPTH_QUIET_SECONDS = 1800.0  # 30 minutes without a depth update triggers resub
 DEPTH_RETRY_SECONDS = 30.0
 DEPTH_RETRY_MAX_SECONDS = 300.0
 DEPTH_CAP_CODE = 309  # IBKR account-wide market depth subscription cap: halt depth stream until restart
+# Live DOM (1.8.0): uncached live CME L2 book + live unsettled tape volume for front-month ES and NQ.
+DOM_SYMBOLS = DEPTH_STREAM_SYMBOLS
+DOM_ROWS_MIN, DOM_ROWS_MAX, DOM_ROWS_DEFAULT = 1, DEPTH_STREAM_ROWS, DEPTH_STREAM_ROWS
+DOM_WINDOW_SECONDS_ALLOWED = (300, 900, 1800, 3600)
+DOM_WINDOW_SECONDS_DEFAULT = 900
+DOM_MAX_PRINTS = 50_000
+DOM_MAX_VOLUME_LEVELS = 200
 # Tape (1.5.0): tick-by-tick trades and quotes of the front-month ES and NQ contracts, a ring of prints per symbol.
 TAPE_SCHEMA = "vertex-history-tape-v1"
 TAPE_OFF_FILE = "tape-off"  # in the configuration directory: while it exists, no tick-by-tick subscription
@@ -223,6 +231,7 @@ PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "w
 TICKS_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "count", "useRTH", "quotes")
 DEPTH_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "rows")
 TAPE_PARAMS = ("symbol", "since")
+DOM_PARAMS = ("symbol", "rows", "windowSeconds", "since")
 NEWS_PARAMS = ("symbol", "secType", "exchange", "currency", "count")
 OPTION_CHAIN_PARAMS = ("symbol", "expiry", "strikes")
 EXPIRY_RE = re.compile(r"[0-9]{8}")  # fullmatch, ASCII
@@ -456,6 +465,32 @@ def depth_stream_request(symbol):
     """Contract request for one streamed CME L2 depth feed (front month)."""
     return {"symbol": symbol, "secType": "CONTFUT", "exchange": "CME", "currency": "USD",
             "contractMonth": None, "rows": DEPTH_STREAM_ROWS, "smartDepth": False}
+
+
+def validate_dom(raw):
+    """Live DOM snapshot: one of DOM_SYMBOLS, bounded rows, preset windowSeconds, optional since epoch."""
+    values = _single_values(raw, DOM_PARAMS)
+    symbol = values.get("symbol", "").strip().upper()
+    if symbol not in DOM_SYMBOLS:
+        raise BadRequest("symbol must be one of %s" % ", ".join(DOM_SYMBOLS))
+    rows = _bounded_int(values, "rows", DOM_ROWS_DEFAULT, DOM_ROWS_MIN, DOM_ROWS_MAX)
+    raw_window = values.get("windowSeconds", "")
+    if raw_window == "":
+        window_seconds = DOM_WINDOW_SECONDS_DEFAULT
+    else:
+        if not INT_RE.match(raw_window):
+            raise BadRequest("windowSeconds must be one of %s" % ", ".join(str(x) for x in DOM_WINDOW_SECONDS_ALLOWED))
+        window_seconds = int(raw_window)
+        if window_seconds not in DOM_WINDOW_SECONDS_ALLOWED:
+            raise BadRequest("windowSeconds must be one of %s" % ", ".join(str(x) for x in DOM_WINDOW_SECONDS_ALLOWED))
+    raw_since = values.get("since", "").strip()
+    if raw_since == "":
+        since = None
+    else:
+        if not SINCE_RE.match(raw_since) or int(raw_since) < 1:
+            raise BadRequest("since must be positive epoch seconds (1 to 10 digits)")
+        since = int(raw_since)
+    return {"symbol": symbol, "rows": rows, "windowSeconds": window_seconds, "since": since}
 
 
 def _reject_bars_only(inst, kind):
@@ -1208,6 +1243,42 @@ class HistoryService:
                        fetchedAt=now_iso(now))
         return 200, payload
 
+    def dom(self, raw):
+        """Uncached live CME L2 book + live unsettled tape volume for one futures symbol: no IBKR call, no cache."""
+        try:
+            req = validate_dom(raw)
+        except BadRequest as e:
+            return 400, {"error": "bad_request", "message": str(e)}
+        now = self.clock()
+        symbol = req["symbol"]
+        depth_feed, depth_reason = self.depth_stream.feeds[symbol], self.depth_stream.reason()
+        tape_feed, tape_reason = self.tape_stream.feeds[symbol], self.tape_stream.reason()
+        book = depth_feed.live_dom_book(req["rows"], now, depth_reason)
+        vol = tape_feed.live_volume(req["windowSeconds"], now, req["since"], tape_reason)
+        contract = book["contract"] if book["contract"] is not None else vol["contract"]
+        min_tick = book["minTick"] if book["minTick"] is not None else vol["minTick"]
+        payload = {
+            "schema": DOM_SCHEMA,
+            "source": SOURCE,
+            "client_id": CLIENT_ID,
+            "symbol": symbol,
+            "contract": contract,
+            "minTick": min_tick,
+            "seq": book["depthUpdates"] + vol["tapeSeq"],
+            "depthUpdates": book["depthUpdates"],
+            "tapeSeq": vol["tapeSeq"],
+            "windowSeconds": req["windowSeconds"],
+            "since": vol["since"],
+            "bids": book["bids"],
+            "asks": book["asks"],
+            "volumeByPrice": vol["volumeByPrice"],
+            "lastTrade": vol["lastTrade"],
+            "depthStream": book["depthStream"],
+            "tapeStream": vol["tapeStream"],
+            "fetchedAt": now_iso(now),
+        }
+        return 200, payload
+
     def news(self, raw):
         """Newest IBKR news headlines for one stock (camelCase fields, like ticks and depth)."""
         try:
@@ -1408,6 +1479,70 @@ def _positive_depth_pairs(levels):
     return out
 
 
+def _aggregate_depth_pairs(levels, descending, rows):
+    """Filters positive finite levels, sums duplicate prices, sorts best-first, then slices to `rows`."""
+    by_price = {}
+    for price, size in _positive_depth_pairs(levels):
+        key = round(price, 6)
+        if key in by_price:
+            by_price[key][1] += size
+        else:
+            by_price[key] = [price, size]
+    ordered = sorted(by_price.values(), key=lambda pair: -pair[0] if descending else pair[0])
+    return ordered[:rows]
+
+
+def _sign_dom_prints(rows, previous, different):
+    """Signs live tape prints (quote rule first, tick rule fallback, else 'unsigned') and aggregates volume by price."""
+    by_price = {}
+    last_trade = None
+    prev, diff = previous, different
+    for t, price, size, bid, ask in rows:
+        quote_side = None
+        if bid is not None and ask is not None and bid > 0 and ask > bid:
+            if price >= ask:
+                quote_side = "buy"
+            elif price <= bid:
+                quote_side = "sell"
+        tick_side = None
+        if prev is not None:
+            if price > prev:
+                tick_side = "buy"
+            elif price < prev:
+                tick_side = "sell"
+            elif diff is not None:
+                tick_side = "buy" if price > diff else "sell"
+        if prev is not None and price != prev:
+            diff = prev
+        prev = price
+        side = quote_side if quote_side is not None else (tick_side if tick_side is not None else "unsigned")
+        key = round(price, 6)
+        bucket = by_price.get(key)
+        if bucket is None:
+            bucket = [price, 0.0, 0.0, 0.0, 0]
+            by_price[key] = bucket
+        if side == "buy":
+            bucket[1] += size
+        elif side == "sell":
+            bucket[2] += size
+        else:
+            bucket[3] += size
+        bucket[4] += 1
+        last_trade = {"t": t, "price": price, "size": size, "side": side}
+    levels = list(by_price.values())
+    if len(levels) > DOM_MAX_VOLUME_LEVELS:
+        anchor = last_trade["price"] if last_trade is not None else 0.0
+        poc = max(levels, key=lambda b: (b[1] + b[2] + b[3], -abs(b[0] - anchor), b[0]))
+        poc_key = round(poc[0], 6)
+        nearest = sorted(
+            (b for b in levels if round(b[0], 6) != poc_key),
+            key=lambda b: (abs(b[0] - anchor), -(b[1] + b[2] + b[3]), -b[0]),
+        )[: DOM_MAX_VOLUME_LEVELS - 1]
+        levels = [poc] + nearest
+    levels.sort(key=lambda b: -b[0])
+    return levels, last_trade
+
+
 class DepthFeed(_Holder):
     """Continuous L2 book and 5-second snapshot ring of one streamed futures symbol."""
 
@@ -1502,6 +1637,44 @@ class DepthFeed(_Holder):
                 return None
             return self.info, {"minTick": self.min_tick, "bids": raw_bids, "asks": raw_asks,
                                "sizeMultiplier": 1, "venues": self.book.venues, "updates": updates}
+
+    def _state_locked(self, now, halted=None):
+        if halted == "switched off":
+            return "off"
+        if halted:
+            return "halted"
+        if self.req_id is None:
+            return "down"
+        ready_after = max(self.attached_at, self.reset_at)
+        if self.last_update >= ready_after and (now - self.last_update) <= DEPTH_IDLE_SECONDS:
+            return "live"
+        return "starting"
+
+    def live_dom_book(self, rows, now, halted=None):
+        """Uncached live CME L2 book for /dom: filters/aggregates positive prices before slicing `rows`."""
+        with self.lock:
+            settled = halted is None and self._settled_locked(now) and self.info is not None
+            state = self._state_locked(now, halted)
+            if state == "live" and not settled:
+                state = "starting"
+            last_at = now_iso(self.last_update) if self.last_update > 0 else None
+            err = halted or self.last_error
+            info, min_tick = self.info, self.min_tick
+            if settled:
+                raw_bids, raw_asks, updates = self.book.snapshot(max(DEPTH_STREAM_ROWS * 4, rows))
+            else:
+                _, _, updates = self.book.snapshot(0)
+                raw_bids, raw_asks = [], []
+        bids = _aggregate_depth_pairs(raw_bids, True, rows) if raw_bids else []
+        asks = _aggregate_depth_pairs(raw_asks, False, rows) if raw_asks else []
+        return {
+            "contract": info,
+            "minTick": min_tick,
+            "depthUpdates": updates,
+            "bids": bids,
+            "asks": asks,
+            "depthStream": {"state": state, "error": scrub(err) if err is not None else None, "lastAt": last_at},
+        }
 
     def read(self, since, now):
         with self.lock:
@@ -1629,10 +1802,21 @@ class TapeFeed(_Holder):
         self.attached_at = self.trades_at = None
         self.trades_due = 0.0
         self.retry_at, self.delay = 0.0, TAPE_RETRY_SECONDS  # no new subscription before retry_at; the next wait
+        self._rollover_gen = 0
+        self._dom_cache_key = None
+        self._dom_cache_val = None
 
     def attach(self, info, min_tick, quote_id, now):
         """A new subscription starts with the quote stream; the trade stream follows at trades_due."""
         with self.lock:
+            old_con_id = self.info.get("conId") if isinstance(self.info, dict) else None
+            new_con_id = info.get("conId") if isinstance(info, dict) else None
+            if old_con_id is not None and new_con_id is not None and old_con_id != new_con_id:
+                self.prints.clear()
+                self.spans.clear()
+                self._rollover_gen += 1
+                self._dom_cache_key = None
+                self._dom_cache_val = None
             self.done.clear()
             self.error = None
             self.info, self.min_tick = info, min_tick
@@ -1800,6 +1984,56 @@ class TapeFeed(_Holder):
                 covered.append([low, high])
         return {"since": start, "until": until, "more": more, "trades": [list(row) for row in rows],
                 "covered": covered, "previousPrice": previous, "previousDifferentPrice": different}
+
+    def live_volume(self, window_seconds, now, since=None, halted=None):
+        """Live unsettled per-price traded volume for /dom: copies slice under lock, signs outside lock, caches."""
+        now_sec = int(now)
+        base_cutoff = now_sec - window_seconds
+        eff_since = min(since, now_sec) if since is not None else None
+        effective_cutoff = max(base_cutoff, eff_since) if eff_since is not None else base_cutoff
+        state = self.state(now, halted)
+        with self.lock:
+            rollover_gen = self._rollover_gen
+            tape_seq = self.count
+            info, min_tick = self.info, self.min_tick
+            last_at = now_iso(self.last_print) if self.last_print is not None else None
+            err = halted or self.cause()
+            cache_key_now = (rollover_gen, tape_seq, effective_cutoff)
+            cached = self._dom_cache_val if self._dom_cache_key == cache_key_now else None
+            rows, previous, different = [], None, None
+            if cached is None:
+                scanned = 0
+                for row in reversed(self.prints):
+                    if row[0] >= effective_cutoff and len(rows) < DOM_MAX_PRINTS:
+                        rows.append(row)
+                        continue
+                    if scanned == 0:
+                        previous = row[1]
+                    elif row[1] != previous:
+                        different = row[1]
+                        break
+                    scanned += 1
+                    if scanned >= TAPE_SEED_SCAN:
+                        break
+        if cached is not None:
+            levels, last_trade = cached
+        else:
+            rows.reverse()
+            levels, last_trade = _sign_dom_prints(rows, previous, different)
+            with self.lock:
+                if self._rollover_gen == rollover_gen and self.count == tape_seq:
+                    self._dom_cache_key = cache_key_now
+                    self._dom_cache_val = (levels, last_trade)
+        return {
+            "contract": info,
+            "minTick": min_tick,
+            "tapeSeq": tape_seq,
+            "windowSeconds": window_seconds,
+            "since": eff_since,
+            "lastTrade": dict(last_trade) if last_trade is not None else None,
+            "volumeByPrice": [list(row) for row in levels],
+            "tapeStream": {"state": state, "error": scrub(err) if err is not None else None, "lastAt": last_at},
+        }
 
     def state(self, now, halted=None):
         """off: the stream is switched off or halted. live: the trade stream is requested and a tick arrived in
@@ -2788,8 +3022,9 @@ class DepthStream:
 def make_handler(service, token):
     expected = ("Bearer " + token).encode()
     routes = {PREFIX + "/bars": service.bars, PREFIX + "/ticks": service.ticks, PREFIX + "/depth": service.depth,
-              PREFIX + "/depth-history": service.depth_history, PREFIX + "/news": service.news,
-              PREFIX + "/option-chain": service.option_chain, PREFIX + "/tape": service.tape}
+              PREFIX + "/depth-history": service.depth_history, PREFIX + "/dom": service.dom,
+              PREFIX + "/news": service.news, PREFIX + "/option-chain": service.option_chain,
+              PREFIX + "/tape": service.tape}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "vertex-history/" + VERSION

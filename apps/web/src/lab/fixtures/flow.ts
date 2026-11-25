@@ -7,12 +7,20 @@
 // Used by: apps/web/src/lab/entries/research.tsx.
 import {
   buildFlowLiquidityHeatmap,
+  buildFlowLiveDom,
+  buildFlowTradeBubbles,
   FLOW_TAPE_SPEED_RULES,
-  type FlowLiquidityHeatmap,
   type FlowControl,
   type FlowGroupId,
   type FlowHedgingPressure,
   type FlowHedgingSymbol,
+  type FlowLiquidityHeatmap,
+  type FlowLiveDom,
+  type FlowLiveDomStreamEvent,
+  type FlowLiveDomWindowSeconds,
+  type FlowOptionBubbles,
+  type FlowOptionBubblesMinPremiumUsd,
+  type FlowOptionBubblesSymbol,
   type FlowPutCallRatio,
   type FlowPutCallRatioSymbol,
   type FlowSnapshot,
@@ -21,13 +29,21 @@ import {
   type FlowStrikeHeatmapSymbol,
   type FlowTapeSpeed,
   type FlowTapeSymbol,
+  type FlowTradeBubbles,
+  foldOptionBubbles,
   foldPutCallDays,
   foldPutCallSession,
   foldStrikeHeatmap,
+  OPTION_BUBBLES_RULES,
+  type OptionBubblesGapRow,
+  type OptionBubblesMinuteRow,
+  type OptionBubblesPrintRow,
   PUT_CALL_RATIO_RULES,
   type PutCallDayRow,
   type PutCallMinuteRow,
   STRIKE_HEATMAP_RULES,
+  type StoredTradeBubbleInput,
+  type StoredTradeCandleInput,
   type StrikeHeatmapBucketRow,
   type StrikeHeatmapGapRow,
   type StrikeHeatmapSlotPriceRow,
@@ -1520,5 +1536,395 @@ export const labFlowStrikeHeatmap = (
           to: gapEnd.toISOString(),
         }
       : null,
+  };
+};
+
+/** Deterministic Jigsaw-style Live DOM ladder fixture for /lab/flow and tests (ES or NQ). */
+export const labFlowLiveDom = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null
+): FlowLiveDom => {
+  const isEs = symbol === "ES";
+  const baseBid = isEs ? 6012.25 : 21_140.25;
+  const scale = since === null ? 1 : 0.25;
+  return buildFlowLiveDom({
+    asks: [
+      [baseBid + 0.25, isEs ? 52 : 18],
+      [baseBid + 0.5, isEs ? 86 : 24],
+      [baseBid + 0.75, isEs ? 215 : 42],
+      [baseBid + 1.0, isEs ? 148 : 31],
+      [baseBid + 1.25, isEs ? 94 : 19],
+    ],
+    bids: [
+      [baseBid, isEs ? 68 : 22],
+      [baseBid - 0.25, isEs ? 264 : 58],
+      [baseBid - 0.5, isEs ? 112 : 29],
+      [baseBid - 0.75, isEs ? 140 : 35],
+      [baseBid - 1.0, isEs ? 95 : 21],
+    ],
+    capturedAt: "2026-10-30T15:00:00.000Z",
+    contract: isEs ? "ESZ6" : "NQZ6",
+    depthFeed: {
+      error: null,
+      lastAt: "2026-10-30T15:00:00.000Z",
+      state: "live",
+    },
+    depthUpdates: isEs ? 1240 : 890,
+    lastTrade: {
+      price: baseBid + 0.25,
+      side: "buy",
+      size: isEs ? 6 : 2,
+      t: "2026-10-30T14:59:59.000Z",
+    },
+    minTick: 0.25,
+    seq: isEs ? 1540 : 1090,
+    since,
+    source: "live_stream",
+    symbol,
+    tapeFeed: {
+      error: null,
+      lastAt: "2026-10-30T14:59:59.000Z",
+      state: "live",
+    },
+    tapeSeq: isEs ? 300 : 200,
+    volumeByPrice: [
+      [baseBid + 0.75, Math.round(168 * scale), Math.round(84 * scale), 0, 14],
+      [baseBid + 0.5, Math.round(110 * scale), Math.round(72 * scale), 0, 11],
+      [baseBid + 0.25, Math.round(240 * scale), Math.round(60 * scale), 0, 24],
+      [baseBid, Math.round(45 * scale), Math.round(195 * scale), 0, 19],
+      [baseBid - 0.25, Math.round(310 * scale), Math.round(290 * scale), 0, 42],
+      [baseBid - 0.5, Math.round(125 * scale), Math.round(140 * scale), 0, 16],
+    ],
+    volumeSource: "streamed_tape",
+    windowSeconds,
+  });
+};
+
+/** Deterministic single-frame async stream for /lab/flow and workspace tests. */
+export const labFlowLiveDomStream = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null,
+  signal?: AbortSignal
+): AsyncIterable<FlowLiveDomStreamEvent> => ({
+  async *[Symbol.asyncIterator]() {
+    yield {
+      frame: labFlowLiveDom(symbol, windowSeconds, since),
+      type: "frame",
+    };
+    await new Promise<void>((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      signal?.addEventListener("abort", () => resolve(), { once: true });
+    });
+  },
+});
+
+export const labFlowTradeBubbles = (
+  symbol: FlowTapeSymbol,
+  minutes = 120
+): FlowTradeBubbles => {
+  const rand = createSeededRandom(
+    `lab-flow-trade-bubbles-${symbol}-${minutes}`
+  );
+  const windowEnd = new Date(LAB_NOW.getTime());
+  const windowStart = new Date(windowEnd.getTime() - minutes * 60_000);
+  const isEs = symbol === "ES";
+  const basePrice = isEs ? 5812.25 : 20_418.5;
+  const tick = 0.25;
+  const limitSize = isEs ? 40 : 10;
+  const minuteBars: StoredTradeCandleInput[] = [];
+  const largeTrades: StoredTradeBubbleInput[] = [];
+
+  let price = basePrice;
+  let cumulativeNotional = 0;
+  let cumulativeVolume = 0;
+
+  for (let i = 0; i < minutes; i += 1) {
+    const minuteMs = windowStart.getTime() + i * 60_000;
+    const open = price;
+    const drift = Math.round((rand() - 0.48) * (isEs ? 8 : 24)) * tick;
+    const close = roundTo(open + drift, 2);
+    const high = roundTo(
+      Math.max(open, close) + Math.ceil(rand() * (isEs ? 4 : 12)) * tick,
+      2
+    );
+    const low = roundTo(
+      Math.min(open, close) - Math.ceil(rand() * (isEs ? 4 : 12)) * tick,
+      2
+    );
+    const volume = Math.round(
+      (isEs ? 900 : 420) + rand() * (isEs ? 1100 : 580)
+    );
+    cumulativeNotional += ((high + low + close) / 3) * volume;
+    cumulativeVolume += volume;
+    const vwap = roundTo(cumulativeNotional / cumulativeVolume, 2);
+    minuteBars.push({
+      close,
+      coveredSeconds: 60,
+      high,
+      low,
+      minute: new Date(minuteMs),
+      open,
+      volume,
+      vwap,
+    });
+
+    if (i % 5 === 2) {
+      const buy = (i + (isEs ? 0 : 1)) % 3 !== 0;
+      const size = Math.round(limitSize * (1 + rand() * 3.2));
+      const tradePrice = roundTo(
+        low + Math.round(rand() * ((high - low) / tick)) * tick,
+        2
+      );
+      largeTrades.push({
+        capture: "streamed",
+        limitSize,
+        price: tradePrice,
+        second: new Date(minuteMs + Math.round(rand() * 55) * 1000),
+        seq: 0,
+        side: buy ? "buy" : "sell",
+        signing: i % 4 === 0 ? "tick" : "quote",
+        size,
+      });
+    }
+    price = close;
+  }
+
+  return buildFlowTradeBubbles({
+    largeTrades,
+    minuteBars,
+    minutes,
+    symbol,
+    tape: {
+      ageSeconds: 8,
+      lastOkAt: new Date(windowEnd.getTime() - 8000).toISOString(),
+      lastStatus: "ok",
+      message: `streamed tape ${symbol}: ${largeTrades.length} deep prints`,
+      sessionOpen: true,
+      source: "ticks",
+      state: "fresh",
+    },
+    windowEnd,
+    windowStart,
+  });
+};
+
+/**
+ * A deterministic flow.optionBubbles response for the session of LAB_NOW (Friday 2026-10-30,
+ * 09:30 to 16:15 New York). SPY includes calls and puts across above_ask, ask, bid, below_bid,
+ * and mid sides, golden sweeps, one open collector gap (11:10 to 11:25 ET), and one unplotted
+ * print. ES (SPX options) includes larger index prints with no open gap.
+ */
+export const labFlowOptionBubbles = (
+  symbol: FlowOptionBubblesSymbol,
+  minPremiumUsd: FlowOptionBubblesMinPremiumUsd = OPTION_BUBBLES_RULES.defaultMinPremiumUsd
+): FlowOptionBubbles => {
+  const spy = symbol === "SPY";
+  const ticker = spy ? "SPY" : "SPX";
+  const basePrice = spy ? 581.45 : 5810;
+  const step = spy ? 0.14 : 1.4;
+  const gapStart = new Date(LAB_SESSION_OPEN + 100 * 60_000);
+  const gapEnd = new Date(LAB_SESSION_OPEN + 115 * 60_000);
+  const gaps: OptionBubblesGapRow[] = spy
+    ? [{ endTime: gapEnd, startTime: gapStart }]
+    : [];
+
+  const minutes: OptionBubblesMinuteRow[] = [];
+  for (let offset = 0; offset < 360; offset += 5) {
+    const minuteMs = LAB_SESSION_OPEN + offset * 60_000;
+    if (spy && minuteMs >= gapStart.getTime() && minuteMs < gapEnd.getTime())
+      continue;
+    const wave = Math.sin(offset / 35) * 10 + (offset / 360) * 14;
+    const price = roundTo(basePrice + wave * step, 2);
+    minutes.push({
+      callPremium: spy ? 420_000 : 1_100_000,
+      callPrints: 8,
+      lastPrice: price,
+      lastTradedAt: new Date(minuteMs + 40_000),
+      minute: new Date(minuteMs),
+      putPremium: spy ? 360_000 : 950_000,
+      putPrints: 6,
+    });
+  }
+
+  const templates: readonly Readonly<{
+    offsetMin: number;
+    premium: number;
+    right: "call" | "put";
+    side: OptionBubblesPrintRow["side"];
+    consolidation: OptionBubblesPrintRow["consolidation"];
+    strikeDelta: number;
+    goldenSweep?: boolean;
+    unusual?: boolean;
+    opening?: boolean;
+    volumeOverOi?: boolean;
+    unplotted?: boolean;
+  }>[] = [
+    {
+      consolidation: "sweep",
+      offsetMin: 18,
+      opening: true,
+      premium: spy ? 185_000 : 320_000,
+      right: "call",
+      side: "ask",
+      strikeDelta: 2,
+    },
+    {
+      consolidation: "sweep",
+      goldenSweep: true,
+      offsetMin: 44,
+      opening: true,
+      premium: spy ? 1_420_000 : 2_850_000,
+      right: "call",
+      side: "above_ask",
+      strikeDelta: 4,
+      unusual: true,
+      volumeOverOi: true,
+    },
+    {
+      consolidation: "block",
+      offsetMin: 78,
+      premium: spy ? 680_000 : 1_350_000,
+      right: "put",
+      side: "ask",
+      strikeDelta: -3,
+      unusual: true,
+    },
+    {
+      consolidation: "split",
+      offsetMin: 132,
+      premium: spy ? 460_000 : 880_000,
+      right: "call",
+      side: "bid",
+      strikeDelta: 5,
+    },
+    {
+      consolidation: "sweep",
+      goldenSweep: true,
+      offsetMin: 185,
+      premium: spy ? 1_850_000 : 3_400_000,
+      right: "put",
+      side: "above_ask",
+      strikeDelta: -2,
+      unusual: true,
+      volumeOverOi: true,
+    },
+    {
+      consolidation: "block",
+      offsetMin: 224,
+      premium: spy ? 390_000 : 720_000,
+      right: "put",
+      side: "below_bid",
+      strikeDelta: -4,
+    },
+    {
+      consolidation: "other",
+      offsetMin: 268,
+      premium: spy ? 310_000 : 540_000,
+      right: "call",
+      side: "mid",
+      strikeDelta: 0,
+    },
+    {
+      consolidation: "sweep",
+      offsetMin: 312,
+      opening: true,
+      premium: spy ? 940_000 : 1_900_000,
+      right: "call",
+      side: "ask",
+      strikeDelta: 3,
+      volumeOverOi: true,
+    },
+    {
+      consolidation: "block",
+      offsetMin: 334,
+      premium: spy ? 280_000 : 490_000,
+      right: "put",
+      side: "unknown",
+      strikeDelta: -1,
+      unplotted: spy,
+    },
+  ];
+
+  const prints: OptionBubblesPrintRow[] = templates.map((item, idx) => {
+    const wave =
+      Math.sin(item.offsetMin / 35) * 10 + (item.offsetMin / 360) * 14;
+    const spot = roundTo(basePrice + wave * step, 2);
+    const strikeStep = spy ? 1 : 5;
+    const strike =
+      Math.round(spot / strikeStep) * strikeStep +
+      item.strikeDelta * strikeStep;
+    const optionPrice = spy ? 3.4 : 24.5;
+    return {
+      consolidation: item.consolidation,
+      dte: 7,
+      expiry: "2026-11-06",
+      goldenSweep: item.goldenSweep === true,
+      id: `lab-bub-${symbol.toLowerCase()}-${idx + 1}`,
+      iv: spy ? 17.8 : 16.4,
+      moneyness: item.strikeDelta === 0 ? "atm" : "otm",
+      opening: item.opening === true,
+      premium: item.premium,
+      price: optionPrice,
+      right: item.right,
+      sentiment:
+        item.side === "mid" || item.side === "unknown"
+          ? "neutral"
+          : (item.right === "call") ===
+              (item.side === "ask" || item.side === "above_ask")
+            ? "bullish"
+            : "bearish",
+      side: item.side,
+      size: Math.max(10, Math.round(item.premium / (optionPrice * 100))),
+      strike,
+      ticker,
+      tradedAt: new Date(LAB_SESSION_OPEN + item.offsetMin * 60_000 + 22_000),
+      underlyingPrice: item.unplotted ? null : spot,
+      unusual: item.unusual === true,
+      volumeOverOi: item.volumeOverOi === true,
+    };
+  });
+
+  const range = {
+    from: new Date(LAB_SESSION_OPEN),
+    to: new Date(LAB_SESSION_CLOSE),
+  };
+  const fold = foldOptionBubbles({
+    gaps,
+    minPremiumUsd,
+    minutes,
+    prints,
+    range,
+  });
+
+  return {
+    bubbles: fold.bubbles,
+    gaps: fold.gaps,
+    minPremiumUsd,
+    options: {
+      ageSeconds: 45,
+      lastOkAt: new Date(LAB_NOW.getTime() - 45_000).toISOString(),
+      lastStatus: "ok",
+      message: `quantdata flow ${ticker}: 3 pages, 1240 prints`,
+      sessionOpen: true,
+      source: "options",
+      state: "fresh",
+    },
+    pricePoints: fold.pricePoints,
+    rules: { ...OPTION_BUBBLES_RULES },
+    schemaVersion: "flow-option-bubbles.v1",
+    session: "2026-10-30",
+    sessionEnd: range.to.toISOString(),
+    sessionStart: range.from.toISOString(),
+    storedUntil: fold.storedUntil,
+    symbol,
+    ticker,
+    totals: fold.totals,
+    truncated: fold.truncated,
+    unread: fold.unread,
   };
 };
