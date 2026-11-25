@@ -92,6 +92,8 @@ export type OptionBubblesPlot = Readonly<{
   priceSegments: readonly string[];
   priceDots: readonly Readonly<{ x: number; y: number }>[];
   latestSpot: Readonly<{ price: number; label: string; y: number }> | null;
+  priceMax: number;
+  priceMin: number;
   /** Plotted bubbles ordered chronologically (at asc, id asc) for keyboard navigation. */
   chronologicalBubbles: readonly OptionBubblesPlotBubble[];
   /** Same plotted bubbles ordered largest-first so smaller bubbles draw on top. */
@@ -610,6 +612,8 @@ export const buildOptionBubblesPlot = (
     height: BUBBLES_CHART_HEIGHT,
     latestSpot,
     priceDots,
+    priceMax: yMax,
+    priceMin: yMin,
     priceSegments,
     priceTicks,
     scaleMax,

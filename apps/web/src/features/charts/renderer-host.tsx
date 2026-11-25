@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { Component, useEffect, useId, useRef, useState } from "react";
+import { utcClock } from "../../components/status-time.ts";
 import type {
   CandleRenderer,
   CandleRendererFactory,
@@ -10,7 +11,6 @@ import type {
   ChartStudies,
   DisplayCandle,
 } from "./types.ts";
-import { utcClock } from "../../components/status-time.ts";
 import { paneStudyCount } from "./vertex-studies.ts";
 
 // What the host keeps of a caught renderer error: the step that failed, the error's name and
@@ -51,14 +51,19 @@ const readChartPalette = (element: HTMLElement): ChartPalette => {
   const foreground = token("--foreground", style.color);
   const background = token("--background", style.backgroundColor);
   const accent = token("--vx-gold", foreground);
+  const warning = token("--warning", accent);
   return {
     accent,
     background,
+    destructive: token("--destructive", foreground),
     falling: token("--muted-foreground", foreground),
     foreground,
     grid: token("--border", foreground),
+    info: token("--info", foreground),
+    king: token("--chart-5", warning),
     rising: foreground,
-    warning: token("--warning", accent),
+    success: token("--success", foreground),
+    warning,
   };
 };
 
@@ -244,8 +249,8 @@ export const CandleCanvas = ({
         }
       />
       <figcaption
-        id={description}
         className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
+        id={description}
       >
         {state.phase === "error"
           ? failureCaption(
@@ -276,8 +281,8 @@ export class ChartRendererBoundary extends Component<
     if (this.state.failed)
       return (
         <p
-          role="status"
           className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
+          role="status"
         >
           The renderer could not display the selected data. The exact table
           remains available.

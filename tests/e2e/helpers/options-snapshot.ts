@@ -28,6 +28,7 @@ export const EMPTY_GEX_CONTEXT: GexContext = {
     dailyMove: null,
     flip: null,
     flipMoves: null,
+    kingNode: null,
     putWall: null,
     putWallMoves: null,
   },

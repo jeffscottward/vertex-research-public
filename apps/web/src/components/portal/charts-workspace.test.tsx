@@ -1514,4 +1514,120 @@ describe("ChartsWorkspace order-flow marks", () => {
     expect(host.querySelector("[data-expected-move-bar]")).not.toBeNull();
     expect(chartProps.last?.["expectedMove"]).not.toBeNull();
   });
+
+  it("passes QuantData gamma levels from OptionsAnalyticsPanel to MarketBarsChart and toggles them off", async () => {
+    const market = marketGateway(async () => output());
+    const analytics: OptionsAnalyticsGateway = {
+      snapshot: vi.fn(async () => ({
+        context: {
+          dealerSignAssumption: "dealers long calls, short puts" as const,
+          expiry: {
+            monthlyOpexDays: 10,
+            nextExpiry: "2026-11-27",
+            nextExpiryDte: 2,
+            nextMonthlyOpex: "2026-12-18",
+          },
+          factors: [],
+          flow: {
+            bearishPremium: 0,
+            bias: "balanced" as const,
+            bullishPremium: 0,
+            newestTradeAt: null,
+            weekShare: null,
+            zeroDteShare: null,
+          },
+          greeks: { netCharm: null, netDex: null, netVanna: null },
+          iv: { backIv: null, frontIv: null, regime: "no_term_data" as const },
+          levels: {
+            callWall: 615,
+            callWallMoves: 1.5,
+            dailyMove: 6,
+            flip: 602.5,
+            flipMoves: -0.4,
+            kingNode: 615,
+            putWall: 590,
+            putWallMoves: -2.5,
+          },
+          regime: "positive" as const,
+          session: "midday" as const,
+        },
+        exposure: {
+          gexExpiry: "2026-11-27",
+          maxPain: 600,
+          message: null,
+          status: "ok" as const,
+          strikes: [],
+          totalGex: 1e9,
+        },
+        flow: {
+          buckets: [],
+          callPremium: 0,
+          events: [],
+          hours: 24,
+          message: null,
+          putPremium: 0,
+          status: "empty" as const,
+        },
+        notes: [],
+        rateLimited: false,
+        receivedAt: "2026-11-25T15:30:00Z",
+        retryAfterSeconds: null,
+        source: "quantdata" as const,
+        spot: 605,
+        strikeProfiles: {
+          flow: {
+            complete: true,
+            newestTradeAt: null,
+            offLadderTrades: 0,
+            oldestTradeAt: null,
+            source: "quantdata_page" as const,
+            trades: 0,
+          },
+          strikes: [],
+        },
+        symbol: "SPY",
+        volatility: {
+          message: null,
+          skew: [],
+          status: "empty" as const,
+          surface: { moneyness: [], rows: [] },
+          termStructure: [],
+        },
+      })),
+    };
+    const host = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={pendingFlowEventsGateway()}
+        jevVerdict={jevGateway()}
+        marketData={market}
+        optionsAnalytics={analytics}
+      />
+    );
+    const toggle = host.querySelector<HTMLInputElement>(
+      "[data-gamma-levels-toggle]"
+    );
+    expect(toggle?.checked).toBe(true);
+    expect(analytics.snapshot).toHaveBeenCalledTimes(1);
+    expect(
+      host.querySelector('[data-gamma-levels-status="ready"]')
+    ).not.toBeNull();
+    expect(chartProps.last?.["gammaLevels"]).toMatchObject({
+      callWall: 615,
+      flip: 602.5,
+      kingNode: 615,
+      maxPain: 600,
+      putWall: 590,
+      source: "optionsAnalytics",
+      symbol: "SPY",
+    });
+
+    await act(async () => {
+      toggle?.click();
+      await flush();
+    });
+    expect(toggle?.checked).toBe(false);
+    expect(chartProps.last?.["gammaLevels"]).toBeNull();
+    expect(host.querySelector("[data-gamma-levels-bar]")).toBeNull();
+  });
 });

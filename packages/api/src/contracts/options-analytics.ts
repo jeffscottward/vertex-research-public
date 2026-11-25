@@ -13,13 +13,6 @@ export const IV_SKEW_TARGET_DELTAS = [-40, -25, -10, 10, 25, 40] as const;
 
 export const OptionsAnalyticsInputSchema = z
   .object({
-    symbol: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .regex(/^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$/, {
-        message: "Symbol: letters and digits, optional class suffix",
-      }),
     // GET query values arrive as strings; coerce, then allow only the listed windows.
     flowHours: z.coerce
       .number()
@@ -29,6 +22,13 @@ export const OptionsAnalyticsInputSchema = z
         { message: "flowHours: 1, 6, 24 or 72" }
       )
       .default(24),
+    symbol: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$/, {
+        message: "Symbol: letters and digits, optional class suffix",
+      }),
   })
   .strict();
 
@@ -36,9 +36,9 @@ export const OPTIONS_SECTION_STATUSES = ["ok", "empty", "unavailable"] as const;
 const SectionStatusSchema = z.enum(OPTIONS_SECTION_STATUSES);
 
 const sectionBase = {
-  status: SectionStatusSchema,
   // Plain-text reason when status is "empty" or "unavailable"; null when "ok".
   message: z.string().max(300).nullable(),
+  status: SectionStatusSchema,
 };
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -46,9 +46,9 @@ const finite = z.number().finite();
 
 export const TermStructurePointSchema = z
   .object({
-    expiry: isoDate,
-    dte: z.number().int().nonnegative(),
     atmIv: finite,
+    dte: z.number().int().nonnegative(),
+    expiry: isoDate,
   })
   .strict();
 
@@ -56,17 +56,17 @@ export const TermStructurePointSchema = z
 // the chosen contract's own rounded delta, which can be up to 18 points away.
 export const SkewPointSchema = z
   .object({
-    expiry: isoDate,
-    target: z.number().int(),
     delta: z.number().int(),
+    expiry: isoDate,
     iv: finite,
+    target: z.number().int(),
   })
   .strict();
 
 export const SurfaceRowSchema = z
   .object({
-    expiry: isoDate,
     dte: z.number().int().nonnegative(),
+    expiry: isoDate,
     ivs: z.array(finite.nullable()),
   })
   .strict();
@@ -74,56 +74,56 @@ export const SurfaceRowSchema = z
 export const VolatilitySectionSchema = z
   .object({
     ...sectionBase,
-    termStructure: z.array(TermStructurePointSchema),
     skew: z.array(SkewPointSchema),
     surface: z
       .object({ moneyness: z.array(finite), rows: z.array(SurfaceRowSchema) })
       .strict(),
+    termStructure: z.array(TermStructurePointSchema),
   })
   .strict();
 
 export const ExposureStrikeSchema = z
   .object({
-    strike: finite,
     callOpenInterest: z.number().int().nonnegative(),
-    putOpenInterest: z.number().int().nonnegative(),
     // Estimated gamma exposure in dollars per 1% move; null when no IV was available.
     gex: finite.nullable(),
+    putOpenInterest: z.number().int().nonnegative(),
+    strike: finite,
   })
   .strict();
 
 export const ExposureSectionSchema = z
   .object({
     ...sectionBase,
-    strikes: z.array(ExposureStrikeSchema),
-    maxPain: finite.nullable(),
-    totalGex: finite.nullable(),
     // Expiry whose IVs were used for the gamma estimate.
     gexExpiry: isoDate.nullable(),
+    maxPain: finite.nullable(),
+    strikes: z.array(ExposureStrikeSchema),
+    totalGex: finite.nullable(),
   })
   .strict();
 
 export const FlowEventSchema = z
   .object({
-    time: z.string(),
     contract: z.string().max(40),
-    right: z.enum(["call", "put"]),
-    strike: finite,
     expiry: isoDate,
-    premium: finite,
-    size: z.number().int().nonnegative(),
-    sentiment: z.enum(["bullish", "bearish", "neutral"]),
     flowType: z.string().max(24).nullable(),
+    premium: finite,
+    right: z.enum(["call", "put"]),
+    sentiment: z.enum(["bullish", "bearish", "neutral"]),
+    size: z.number().int().nonnegative(),
+    strike: finite,
+    time: z.string(),
     unusual: z.boolean(),
   })
   .strict();
 
 export const FlowBucketSchema = z
   .object({
-    start: z.string(),
     callPremium: finite,
-    putPremium: finite,
     netPremium: finite,
+    putPremium: finite,
+    start: z.string(),
     trades: z.number().int().nonnegative(),
   })
   .strict();
@@ -131,11 +131,11 @@ export const FlowBucketSchema = z
 export const FlowSectionSchema = z
   .object({
     ...sectionBase,
-    hours: z.number().int().positive(),
-    callPremium: finite,
-    putPremium: finite,
-    events: z.array(FlowEventSchema),
     buckets: z.array(FlowBucketSchema),
+    callPremium: finite,
+    events: z.array(FlowEventSchema),
+    hours: z.number().int().positive(),
+    putPremium: finite,
   })
   .strict();
 
@@ -181,73 +181,75 @@ export const MARKET_SESSIONS = [
 
 export const GexContextFactorSchema = z
   .object({
+    detail: z.string().max(300),
     key: z.enum(GEX_CONTEXT_FACTOR_KEYS),
     label: z.string().max(40),
-    value: z.string().max(80),
     tone: z.enum(GEX_CONTEXT_TONES),
-    detail: z.string().max(300),
+    value: z.string().max(80),
   })
   .strict();
 
 export const GexContextSchema = z
   .object({
-    regime: z.enum(GEX_REGIMES),
     // Sign convention behind GEX, the levels, vanna and charm.
     dealerSignAssumption: z.literal("dealers long calls, short puts"),
-    levels: z
+    expiry: z
       .object({
-        // Spot where the estimated GEX profile crosses zero (nearest crossing to spot).
-        flip: finite.nullable(),
-        // Strikes with the largest positive and the most negative estimated GEX.
-        callWall: finite.nullable(),
-        putWall: finite.nullable(),
-        // One-day implied move in dollars: spot x front ATM IV / sqrt(252).
-        dailyMove: finite.nullable(),
-        // Signed distance from spot to each level, in daily implied moves.
-        flipMoves: finite.nullable(),
-        callWallMoves: finite.nullable(),
-        putWallMoves: finite.nullable(),
+        monthlyOpexDays: z.number().int().nonnegative(),
+        nextExpiry: isoDate.nullable(),
+        nextExpiryDte: z.number().int().nonnegative().nullable(),
+        nextMonthlyOpex: isoDate,
+      })
+      .strict(),
+    factors: z.array(GexContextFactorSchema),
+    flow: z
+      .object({
+        bearishPremium: finite,
+        bias: z.enum(GEX_FLOW_BIASES),
+        bullishPremium: finite,
+        newestTradeAt: z.string().nullable(),
+        weekShare: finite.nullable(),
+        // Share of flow premium in contracts expiring today and within 7 days.
+        zeroDteShare: finite.nullable(),
       })
       .strict(),
     greeks: z
       .object({
+        // Estimated change of dealer delta (dollars) per calendar day.
+        netCharm: finite.nullable(),
         // Net delta of open interest in dollars, holders' side (calls +, puts -); the
         // only field here that does not use the dealer-sign assumption.
         netDex: finite.nullable(),
         // Estimated change of dealer delta (dollars) per +1 IV point.
         netVanna: finite.nullable(),
-        // Estimated change of dealer delta (dollars) per calendar day.
-        netCharm: finite.nullable(),
-      })
-      .strict(),
-    flow: z
-      .object({
-        bias: z.enum(GEX_FLOW_BIASES),
-        bullishPremium: finite,
-        bearishPremium: finite,
-        newestTradeAt: z.string().nullable(),
-        // Share of flow premium in contracts expiring today and within 7 days.
-        zeroDteShare: finite.nullable(),
-        weekShare: finite.nullable(),
-      })
-      .strict(),
-    expiry: z
-      .object({
-        nextExpiry: isoDate.nullable(),
-        nextExpiryDte: z.number().int().nonnegative().nullable(),
-        nextMonthlyOpex: isoDate,
-        monthlyOpexDays: z.number().int().nonnegative(),
       })
       .strict(),
     iv: z
       .object({
-        regime: z.enum(IV_TERM_REGIMES),
-        frontIv: finite.nullable(),
         backIv: finite.nullable(),
+        frontIv: finite.nullable(),
+        regime: z.enum(IV_TERM_REGIMES),
       })
       .strict(),
+    levels: z
+      .object({
+        // Strikes with the largest positive and the most negative estimated GEX.
+        callWall: finite.nullable(),
+        callWallMoves: finite.nullable(),
+        // One-day implied move in dollars: spot x front ATM IV / sqrt(252).
+        dailyMove: finite.nullable(),
+        // Spot where the estimated GEX profile crosses zero (nearest crossing to spot).
+        flip: finite.nullable(),
+        // Signed distance from spot to each level, in daily implied moves.
+        flipMoves: finite.nullable(),
+        // Strike with the largest absolute estimated net GEX (dealer gamma magnet).
+        kingNode: finite.nullable(),
+        putWall: finite.nullable(),
+        putWallMoves: finite.nullable(),
+      })
+      .strict(),
+    regime: z.enum(GEX_REGIMES),
     session: z.enum(MARKET_SESSIONS),
-    factors: z.array(GexContextFactorSchema),
   })
   .strict();
 
@@ -262,76 +264,76 @@ export const STRIKE_PROFILE_FLOW_SOURCES = [
 
 export const StrikeProfileRowSchema = z
   .object({
-    strike: finite,
+    bearishPremium: finite.nonnegative(),
+    // Premium by QuantData sentiment; neutral prints add to neither.
+    bullishPremium: finite.nonnegative(),
     callOpenInterest: z.number().int().nonnegative(),
-    putOpenInterest: z.number().int().nonnegative(),
+    // Contracts in the counted flow prints (not total exchange volume).
+    callVolume: z.number().int().nonnegative(),
     // Intrinsic value in dollars of all open contracts (all expiries) if the underlying
     // settles at this strike; the smallest is max pain.
     holderPayout: finite.nonnegative(),
-    // Contracts in the counted flow prints (not total exchange volume).
-    callVolume: z.number().int().nonnegative(),
+    putOpenInterest: z.number().int().nonnegative(),
     putVolume: z.number().int().nonnegative(),
-    // Premium by QuantData sentiment; neutral prints add to neither.
-    bullishPremium: finite.nonnegative(),
-    bearishPremium: finite.nonnegative(),
+    strike: finite,
     trades: z.number().int().nonnegative(),
   })
   .strict();
 
 export const StrikeProfilesSchema = z
   .object({
-    // Ascending strike, at most 81 rows.
-    strikes: z.array(StrikeProfileRowSchema),
     flow: z
       .object({
-        source: z.enum(STRIKE_PROFILE_FLOW_SOURCES),
-        // Counted prints of the source, and those at strikes that are not on the ladder.
-        trades: z.number().int().nonnegative(),
-        offLadderTrades: z.number().int().nonnegative(),
-        oldestTradeAt: z.string().nullable(),
-        newestTradeAt: z.string().nullable(),
         // Page: no further provider page. Stored: no collector gap overlaps the window and
         // the collector's options source is not stale.
         complete: z.boolean(),
+        newestTradeAt: z.string().nullable(),
+        offLadderTrades: z.number().int().nonnegative(),
+        oldestTradeAt: z.string().nullable(),
+        source: z.enum(STRIKE_PROFILE_FLOW_SOURCES),
+        // Counted prints of the source, and those at strikes that are not on the ladder.
+        trades: z.number().int().nonnegative(),
       })
       .strict(),
+    // Ascending strike, at most 81 rows.
+    strikes: z.array(StrikeProfileRowSchema),
   })
   .strict();
 
 export const OptionsAnalyticsOutputSchema = z
   .object({
-    symbol: z.string(),
-    source: z.literal("quantdata"),
-    receivedAt: z.string(),
-    spot: finite.nullable(),
-    rateLimited: z.boolean(),
-    retryAfterSeconds: z.number().nonnegative().nullable(),
-    // Data limits the reader must know (proxies, approximations, missing fields).
-    notes: z.array(z.string().max(300)),
-    volatility: VolatilitySectionSchema,
+    context: GexContextSchema,
     exposure: ExposureSectionSchema,
     flow: FlowSectionSchema,
-    context: GexContextSchema,
+    // Data limits the reader must know (proxies, approximations, missing fields).
+    notes: z.array(z.string().max(300)),
+    rateLimited: z.boolean(),
+    receivedAt: z.string(),
+    retryAfterSeconds: z.number().nonnegative().nullable(),
+    source: z.literal("quantdata"),
+    spot: finite.nullable(),
     strikeProfiles: StrikeProfilesSchema,
+    symbol: z.string(),
+    volatility: VolatilitySectionSchema,
   })
   .strict();
 
 export const OPTIONS_ANALYTICS_ERRORS = {
-  BAD_REQUEST: { status: 400, message: "Invalid request" },
-  UNAUTHORIZED: { status: 401, message: "Authentication required" },
-  FORBIDDEN: { status: 403, message: "Forbidden" },
+  BAD_REQUEST: { message: "Invalid request", status: 400 },
+  FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_CONFIGURED: {
-    status: 503,
     message: "QuantData is not configured (QUANTDATA_API_KEY)",
+    status: 503,
   },
+  UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
 const snapshot = oc
   .errors(OPTIONS_ANALYTICS_ERRORS)
   .route({
     method: "GET",
-    path: "/options-analytics/snapshot",
     operationId: "optionsAnalytics.snapshot",
+    path: "/options-analytics/snapshot",
     summary:
       "Read-only IV term structure, skew, IV surface, estimated GEX, option flow and the GEX context (caveats) for one symbol",
     tags: ["Market data"],

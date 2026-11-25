@@ -1,0 +1,1 @@
+ALTER TABLE "flow_gex" ADD COLUMN "king_node" double precision;

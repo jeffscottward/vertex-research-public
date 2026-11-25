@@ -14,8 +14,8 @@ import { nyseSession } from "../strategy-dsl-compile.ts";
 import {
   type ChainRow,
   daysUntil,
-  gammaModel,
   type GammaModel,
+  gammaModel,
 } from "./options-analytics-engine.ts";
 
 // GEX context: the caveats a reader (or a research agent) needs before trusting an
@@ -149,20 +149,32 @@ export const gexFlip = (
   return best;
 };
 
-// Call wall: largest positive estimated GEX strike; put wall: most negative.
+// Call wall: largest positive estimated GEX strike; put wall: most negative;
+// king node: strike with the largest absolute estimated GEX (dealer gamma magnet).
 export const gexWalls = (
   strikes: readonly StrikeOi[]
-): Readonly<{ callWall: number | null; putWall: number | null }> => {
+): Readonly<{
+  callWall: number | null;
+  putWall: number | null;
+  kingNode: number | null;
+}> => {
   let callWall: Readonly<{ strike: number; gex: number }> | null = null;
   let putWall: Readonly<{ strike: number; gex: number }> | null = null;
+  let kingNode: Readonly<{ strike: number; absGex: number }> | null = null;
   for (const { strike, gex } of strikes) {
     if (gex !== null && gex > 0 && (callWall === null || gex > callWall.gex))
       callWall = { gex, strike };
     if (gex !== null && gex < 0 && (putWall === null || gex < putWall.gex))
       putWall = { gex, strike };
+    if (gex !== null && Number.isFinite(gex) && gex !== 0) {
+      const absGex = Math.abs(gex);
+      if (kingNode === null || absGex > kingNode.absGex)
+        kingNode = { absGex, strike };
+    }
   }
   return {
     callWall: callWall?.strike ?? null,
+    kingNode: kingNode?.strike ?? null,
     putWall: putWall?.strike ?? null,
   };
 };
@@ -299,8 +311,8 @@ export const nextMonthlyOpex = (today: string): string => {
 };
 
 const SESSION_LABELS: Readonly<Record<MarketSession, string>> = {
-  afternoon: "PM session",
   afterhours: "After hours",
+  afternoon: "PM session",
   closed: "Market closed",
   midday: "Midday",
   morning: "Morning",
@@ -353,6 +365,7 @@ const NO_LEVELS: Levels = {
   dailyMove: null,
   flip: null,
   flipMoves: null,
+  kingNode: null,
   putWall: null,
   putWallMoves: null,
 };
@@ -415,6 +428,7 @@ const dealerContext = (
       dailyMove,
       flip,
       flipMoves: distance(flip),
+      kingNode: walls.kingNode,
       putWall: walls.putWall,
       putWallMoves: distance(walls.putWall),
     },
@@ -497,8 +511,8 @@ const DEALER_SIGN_FACTOR: GexContextFactor = {
 
 const REGIME_VALUES: Readonly<Record<GexContext["regime"], string>> = {
   negative: "Negative GEX, not a dump promise",
-  positive: "Positive GEX, not a range promise",
   no_data: "Not computed: no GEX estimate",
+  positive: "Positive GEX, not a range promise",
   zero: "Not computed: net GEX is 0",
 };
 

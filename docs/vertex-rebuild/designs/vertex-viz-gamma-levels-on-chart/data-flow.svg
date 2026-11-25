@@ -1,0 +1,575 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1160 440"
+  role="img"
+  aria-label="Data flow from QuantData and Postgres flow_gex through gexWalls, optionsAnalytics.snapshot, and flow.snapshot into /charts KLineCharts and /flow SVG price charts"
+>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#feda00" />
+    </marker>
+    <marker
+      id="arrowMuted"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#60a5fa" />
+    </marker>
+  </defs>
+
+  <rect width="1160" height="440" rx="14" fill="#0d1117" />
+  <rect x="0" y="0" width="1160" height="4" fill="#feda00" />
+
+  <text
+    x="32"
+    y="38"
+    fill="#f4f6f8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="20"
+    font-weight="700"
+  >
+    Data Flow — Gamma Levels on /charts &amp; /flow
+  </text>
+  <text
+    x="32"
+    y="58"
+    fill="#9ca3af"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+  >
+    Zero duplicate QuantData calls on /charts; single nullable king_node column
+    in flow_gex (migration 0095)
+  </text>
+
+  <!-- Column 1: Sources -->
+  <g transform="translate(32, 92)">
+    <rect
+      width="230"
+      height="128"
+      rx="10"
+      fill="#161b22"
+      stroke="#eab308"
+      stroke-width="1.3"
+    />
+    <text
+      x="16"
+      y="26"
+      fill="#fde047"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      SOURCE 1 · EQUITIES
+    </text>
+    <text
+      x="16"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      QuantData API
+    </text>
+    <text
+      x="16"
+      y="70"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      gexWalls(strikes) →
+    </text>
+    <text
+      x="16"
+      y="88"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      flip · callWall · putWall
+    </text>
+    <text
+      x="16"
+      y="106"
+      fill="#feda00"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      kingNode = argmax |GEX|
+    </text>
+  </g>
+
+  <g transform="translate(32, 256)">
+    <rect
+      width="230"
+      height="136"
+      rx="10"
+      fill="#161b22"
+      stroke="#3b82f6"
+      stroke-width="1.3"
+    />
+    <text
+      x="16"
+      y="26"
+      fill="#93c5fd"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      SOURCE 2 · COLLECTOR
+    </text>
+    <text
+      x="16"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      Postgres flow_gex
+    </text>
+    <text
+      x="16"
+      y="70"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      0095_flow_gex_king_node
+    </text>
+    <text
+      x="16"
+      y="88"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      SPY · QQQ · ES · NQ
+    </text>
+    <text
+      x="16"
+      y="106"
+      fill="#93c5fd"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      + basis shift (ES−SPX)
+    </text>
+    <text
+      x="16"
+      y="122"
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      flow-collect.ts → insertGex
+    </text>
+  </g>
+
+  <!-- Arrows col1 -> col2 -->
+  <path
+    d="M 262 156 L 326 156"
+    stroke="#feda00"
+    stroke-width="2"
+    fill="none"
+    marker-end="url(#arrow)"
+  />
+  <path
+    d="M 147 220 L 147 254"
+    stroke="#60a5fa"
+    stroke-width="1.8"
+    stroke-dasharray="4 3"
+    fill="none"
+    marker-end="url(#arrowMuted)"
+  />
+  <path
+    d="M 262 324 L 326 324"
+    stroke="#60a5fa"
+    stroke-width="2"
+    fill="none"
+    marker-end="url(#arrowMuted)"
+  />
+
+  <!-- Column 2: oRPC Contracts -->
+  <g transform="translate(332, 92)">
+    <rect
+      width="246"
+      height="128"
+      rx="10"
+      fill="#161b22"
+      stroke="#30363d"
+      stroke-width="1.3"
+    />
+    <text
+      x="16"
+      y="26"
+      fill="#86efac"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      oRPC CONTRACT
+    </text>
+    <text
+      x="16"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      optionsAnalytics.snapshot
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      context.levels.kingNode
+    </text>
+    <text
+      x="16"
+      y="90"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      exposure.maxPain
+    </text>
+    <text
+      x="16"
+      y="108"
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      Shared with OptionsAnalyticsPanel
+    </text>
+  </g>
+
+  <g transform="translate(332, 256)">
+    <rect
+      width="246"
+      height="136"
+      rx="10"
+      fill="#161b22"
+      stroke="#30363d"
+      stroke-width="1.3"
+    />
+    <text
+      x="16"
+      y="26"
+      fill="#93c5fd"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      oRPC CONTRACT
+    </text>
+    <text
+      x="16"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="14"
+      font-weight="700"
+    >
+      flow.snapshot
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      gex.levels (SPX/NDX/SPY/QQQ)
+    </text>
+    <text
+      x="16"
+      y="90"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      gex.symbolLevels (basis-shifted)
+    </text>
+    <text
+      x="16"
+      y="108"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      minutes[] (close + VWAP)
+    </text>
+  </g>
+
+  <!-- Arrows col2 -> col3 -->
+  <path
+    d="M 578 156 L 638 205"
+    stroke="#feda00"
+    stroke-width="2"
+    fill="none"
+    marker-end="url(#arrow)"
+  />
+  <path
+    d="M 578 324 L 638 255"
+    stroke="#60a5fa"
+    stroke-width="2"
+    fill="none"
+    marker-end="url(#arrowMuted)"
+  />
+
+  <!-- Column 3: Pure Shared Geometry -->
+  <g transform="translate(644, 152)">
+    <rect
+      width="214"
+      height="162"
+      rx="10"
+      fill="#161b22"
+      stroke="#feda00"
+      stroke-width="1.4"
+    />
+    <text
+      x="14"
+      y="26"
+      fill="#feda00"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      PURE VIEW-MODEL
+    </text>
+    <text
+      x="14"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="13.5"
+      font-weight="700"
+    >
+      gamma-levels-overlay.ts
+    </text>
+    <text
+      x="14"
+      y="72"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Coincident merge (▲★)
+    </text>
+    <text
+      x="14"
+      y="92"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • resolveGammaLabelY()
+    </text>
+    <text
+      x="14"
+      y="112"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • In-bounds vs off-scale
+    </text>
+    <text
+      x="14"
+      y="132"
+      fill="#86efac"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Zero unshifted futures
+    </text>
+    <text
+      x="14"
+      y="150"
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      100% unit-tested pure TS
+    </text>
+  </g>
+
+  <!-- Arrows col3 -> col4 -->
+  <path
+    d="M 858 200 L 908 156"
+    stroke="#feda00"
+    stroke-width="2"
+    fill="none"
+    marker-end="url(#arrow)"
+  />
+  <path
+    d="M 858 266 L 908 318"
+    stroke="#60a5fa"
+    stroke-width="2"
+    fill="none"
+    marker-end="url(#arrowMuted)"
+  />
+
+  <!-- Column 4: UI Surfaces -->
+  <g transform="translate(914, 84)">
+    <rect
+      width="214"
+      height="142"
+      rx="10"
+      fill="#161b22"
+      stroke="#22c55e"
+      stroke-width="1.3"
+    />
+    <text
+      x="14"
+      y="26"
+      fill="#86efac"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      /charts WORKSTATION
+    </text>
+    <text
+      x="14"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="13.5"
+      font-weight="700"
+    >
+      vxGammaLevels Overlay
+    </text>
+    <text
+      x="14"
+      y="70"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • KLineCharts locked layer
+    </text>
+    <text
+      x="14"
+      y="88"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Toolbar toggle + Bar
+    </text>
+    <text
+      x="14"
+      y="106"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Hidden in bar replay
+    </text>
+    <text
+      x="14"
+      y="124"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • STK (USD) + ES/NQ FUT
+    </text>
+  </g>
+
+  <g transform="translate(914, 248)">
+    <rect
+      width="214"
+      height="152"
+      rx="10"
+      fill="#161b22"
+      stroke="#22c55e"
+      stroke-width="1.3"
+    />
+    <text
+      x="14"
+      y="26"
+      fill="#86efac"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      /flow PRICE CHARTS
+    </text>
+    <text
+      x="14"
+      y="48"
+      fill="#f4f6f8"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="13.5"
+      font-weight="700"
+    >
+      SVG Lines + Ladder
+    </text>
+    <text
+      x="14"
+      y="70"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • GexPanel price ladder
+    </text>
+    <text
+      x="14"
+      y="88"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Trade bubbles (ES/NQ)
+    </text>
+    <text
+      x="14"
+      y="106"
+      fill="#d1d5db"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Option bubbles (SPY/ES)
+    </text>
+    <text
+      x="14"
+      y="124"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      • Off-scale edge strip
+    </text>
+    <text
+      x="14"
+      y="140"
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      • 5-row GEX table + King
+    </text>
+  </g>
+</svg>

@@ -563,4 +563,118 @@ describe("FlowOptionBubblesPanel", () => {
       container.querySelector("[data-flow-option-bubbles-inspector]")
     ).toBeNull();
   });
+
+  it("overlays gamma level lines and off-scale strips from gex and lets users toggle them off", async () => {
+    const { container } = await mount(
+      <FlowOptionBubblesPanel
+        document={makeDocument()}
+        failure={null}
+        gex={{
+          at: "2026-11-25T15:30:00Z",
+          basis: 0,
+          ivRegime: "contango",
+          levels: {
+            callWall: 700,
+            flip: 682.5,
+            kingNode: 700,
+            maxPain: 681,
+            putWall: 660,
+          },
+          netDex: 1e6,
+          regime: "positive",
+          spot: 682,
+          symbolLevels: {
+            callWall: 700,
+            flip: 682.5,
+            kingNode: 700,
+            maxPain: 681,
+            putWall: 660,
+          },
+          ticker: "SPY",
+          totalGex: 1e9,
+          zeroDteShare: 0.4,
+        }}
+        minPremiumUsd={250_000}
+        onMinPremiumChange={vi.fn()}
+        onRetry={vi.fn()}
+        pending={false}
+        refreshMs={60_000}
+        symbol="SPY"
+      />
+    );
+    const toggle = container.querySelector<HTMLButtonElement>(
+      "[data-flow-option-bubbles-gamma-toggle]"
+    );
+    expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector("[data-flow-gamma-lines]")).not.toBeNull();
+    expect(
+      container.querySelector("[data-flow-gamma-offscale]")
+    ).not.toBeNull();
+    await click(toggle);
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelector("[data-flow-gamma-lines]")).toBeNull();
+    expect(container.querySelector("[data-flow-gamma-offscale]")).toBeNull();
+  });
+
+  it("plots unshifted SPX gamma levels on ES option bubbles rather than basis-shifted ES futures levels", async () => {
+    const { container } = await mount(
+      <FlowOptionBubblesPanel
+        document={makeDocument({
+          bubbles: [
+            makeBubble("spx-1", {
+              contract: "SPX 2026-11-27 6010C",
+              strike: 6010,
+              underlyingPrice: 6005,
+            }),
+          ],
+          pricePoints: [
+            { minute: "2026-11-20T14:30:00.000Z", price: 6000, unread: false },
+            { minute: "2026-11-20T15:30:00.000Z", price: 6012, unread: false },
+          ],
+          symbol: "ES",
+          ticker: "SPX",
+          totals: {
+            ...makeDocument().totals,
+            latestPrice: 6012,
+          },
+        })}
+        failure={null}
+        gex={{
+          at: "2026-11-25T15:30:00Z",
+          basis: 25,
+          ivRegime: "contango",
+          levels: {
+            callWall: 6050,
+            flip: 6005,
+            kingNode: 6050,
+            maxPain: 6008,
+            putWall: 5950,
+          },
+          netDex: 1e6,
+          regime: "positive",
+          spot: 6008,
+          symbolLevels: {
+            callWall: 6075,
+            flip: 6030,
+            kingNode: 6075,
+            maxPain: 6033,
+            putWall: 5975,
+          },
+          ticker: "SPX",
+          totalGex: 1e9,
+          zeroDteShare: 0.4,
+        }}
+        minPremiumUsd={250_000}
+        onMinPremiumChange={vi.fn()}
+        onRetry={vi.fn()}
+        pending={false}
+        refreshMs={60_000}
+        symbol="ES"
+      />
+    );
+    const lines = container.querySelector("[data-flow-gamma-lines]");
+    expect(lines?.textContent).toContain("6005.00");
+    expect(lines?.textContent).toContain("6008.00");
+    expect(lines?.textContent).not.toContain("6030.00");
+  });
 });

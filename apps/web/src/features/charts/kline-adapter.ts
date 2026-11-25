@@ -16,6 +16,15 @@ import {
   sameExpectedMoveCone,
   validExpectedMoveCone,
 } from "./expected-move-overlay.ts";
+import {
+  GAMMA_LEVELS_GROUP_ID,
+  GAMMA_LEVELS_OVERLAY,
+  gammaLevelsFigures,
+  gammaLevelsOverlayData,
+  groupCoincidentGammaLevels,
+  sameGammaLevelsOverlay,
+  validGammaLevelsOverlay,
+} from "./gamma-levels-overlay.ts";
 import type {
   CandleRendererFactory,
   ChartMarker,
@@ -23,6 +32,7 @@ import type {
   ChartStudies,
   DisplayCandle,
   ExpectedMoveCone,
+  GammaLevelsOverlay,
   ScriptLayer,
   SeriesPane,
 } from "./types.ts";
@@ -731,6 +741,16 @@ export const createKLineRenderer: CandleRendererFactory = async (
     needDefaultYAxisFigure: false,
     totalStep: 6,
   });
+  library.registerOverlay({
+    createPointFigures: ({ bounding, coordinates, overlay }) => [
+      ...gammaLevelsFigures(coordinates, overlay.extendData, bounding),
+    ],
+    name: GAMMA_LEVELS_OVERLAY,
+    needDefaultPointFigure: false,
+    needDefaultXAxisFigure: false,
+    needDefaultYAxisFigure: false,
+    totalStep: 2,
+  });
   for (const id of VERTEX_STUDY_IDS)
     library.registerIndicator(
       indicatorTemplate(VERTEX_STUDIES[id], options.pricePrecision)
@@ -877,6 +897,27 @@ export const createKLineRenderer: CandleRendererFactory = async (
       ],
     });
   };
+  let activeGammaLevels: GammaLevelsOverlay | null = null;
+  const applyGammaLevels = (levels: GammaLevelsOverlay | null) => {
+    chart.removeOverlay({ groupId: GAMMA_LEVELS_GROUP_ID });
+    if (levels === null || previous.length === 0) return;
+    const groups = groupCoincidentGammaLevels(levels, options.pricePrecision);
+    const anchorIndex = previous.length - 1;
+    chart.createOverlay({
+      extendData: gammaLevelsOverlayData(
+        levels,
+        palette,
+        options.pricePrecision
+      ),
+      groupId: GAMMA_LEVELS_GROUP_ID,
+      lock: true,
+      name: GAMMA_LEVELS_OVERLAY,
+      points: groups.map((group) => ({
+        dataIndex: anchorIndex,
+        value: group.price,
+      })),
+    });
+  };
   const remember = (
     values: readonly DisplayCandle[],
     newLast: number,
@@ -888,6 +929,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     if (reapplied || newLast !== oldLast || values.length !== oldCount) {
       redrawAfter(Math.min(oldLast, newLast));
       if (activeCone !== null) applyExpectedMove(activeCone, false);
+      if (activeGammaLevels !== null) applyGammaLevels(activeGammaLevels);
     }
   };
   const replace = (values: readonly DisplayCandle[]) => {
@@ -904,6 +946,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
       chart.clearData();
       previous = [];
       applyExpectedMove(null, false);
+      applyGammaLevels(null);
       return;
     }
     const samePrefix =
@@ -1276,6 +1319,13 @@ export const createKLineRenderer: CandleRendererFactory = async (
     activeCone = cone;
     applyExpectedMove(cone, true);
   };
+  const setGammaLevels = (levels: GammaLevelsOverlay | null) => {
+    if (levels !== null && !validGammaLevelsOverlay(levels))
+      throw new TypeError("Invalid gamma levels overlay");
+    if (disposed || sameGammaLevelsOverlay(activeGammaLevels, levels)) return;
+    activeGammaLevels = levels;
+    applyGammaLevels(levels);
+  };
   const setChartType = (type: ChartType) => {
     if (disposed) return;
     chart.setStyles({
@@ -1306,6 +1356,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     setChartType,
     setDrawings,
     setExpectedMove,
+    setGammaLevels,
     setMarkers,
     setScriptPlots,
     setSeriesPane,

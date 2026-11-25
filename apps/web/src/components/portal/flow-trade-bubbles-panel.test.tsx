@@ -415,4 +415,50 @@ describe("FlowTradeBubblesPanel", () => {
     expect(svg?.getAttribute("aria-hidden")).toBe("true");
     expect(svg?.getAttribute("role")).toBeNull();
   });
+
+  it("overlays gamma level lines and off-scale strips from gex and lets users toggle them off", () => {
+    const el = renderPanel({
+      document: sampleDocument(),
+      failure: null,
+      gex: {
+        at: "2026-11-25T15:30:00Z",
+        basis: 10,
+        ivRegime: "contango",
+        levels: {
+          callWall: 6050,
+          flip: 6002,
+          kingNode: 6050,
+          maxPain: 6003,
+          putWall: 5950,
+        },
+        netDex: 1e6,
+        regime: "positive",
+        spot: 6002,
+        symbolLevels: {
+          callWall: 6060,
+          flip: 6012,
+          kingNode: 6060,
+          maxPain: 6013,
+          putWall: 5960,
+        },
+        ticker: "SPX",
+        totalGex: 1e9,
+        zeroDteShare: 0.4,
+      },
+      refreshMs: 60_000,
+      symbol: "ES",
+    });
+    const toggle = el.querySelector<HTMLButtonElement>(
+      "[data-flow-trade-bubbles-gamma-toggle]"
+    );
+    expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+    expect(el.querySelector("[data-flow-gamma-lines]")).not.toBeNull();
+    expect(el.querySelector("[data-flow-gamma-offscale]")).not.toBeNull();
+    act(() => {
+      toggle?.click();
+    });
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-offscale]")).toBeNull();
+  });
 });

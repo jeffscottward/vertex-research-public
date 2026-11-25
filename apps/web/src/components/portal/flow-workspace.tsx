@@ -114,6 +114,7 @@ import {
 import { loadFailedLabel } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
+import { FlowGammaLevelsChart } from "./flow-gamma-levels-chart.tsx";
 import {
   type FlowHedgingPressureFailure,
   FlowHedgingPressurePanel,
@@ -600,6 +601,7 @@ const GexPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
     >
       <div className="space-y-5">
         <MetricGrid metrics={gexMetrics(gex)} name="gex" />
+        <FlowGammaLevelsChart snapshot={snapshot} />
         <Table className="text-sm">
           <TableCaption className="sr-only">GEX levels</TableCaption>
           <TableHeader>
@@ -1199,6 +1201,7 @@ export const FlowWorkspace = ({
       <FlowTradeBubblesPanel
         document={tradeBubbles}
         failure={tradeBubblesFailure}
+        gex={snapshot?.symbol === symbol ? snapshot.gex : null}
         refreshMs={refreshMs}
         symbol={symbol}
       />
@@ -1230,6 +1233,7 @@ export const FlowWorkspace = ({
             optionBubbles?.symbol === bubblesSymbol ? optionBubbles : null
           }
           failure={optionBubblesFailure}
+          gex={snapshot?.symbol === symbol ? snapshot.gex : null}
           minPremiumUsd={bubblesMinPremiumUsd}
           onMinPremiumChange={handleBubblesMinPremiumChange}
           onRetry={handleBubblesRetry}

@@ -108078,10 +108078,10 @@
                         }
                       },
                       "required": [
+                        "ibkrLimit",
+                        "ibkrRecent",
                         "quantDataFree",
                         "quantDataReserve",
-                        "ibkrRecent",
-                        "ibkrLimit",
                         "runSeconds"
                       ],
                       "type": "object"
@@ -108153,12 +108153,12 @@
                           }
                         },
                         "required": [
-                          "symbol",
+                          "events",
+                          "items",
+                          "message",
                           "source",
                           "status",
-                          "items",
-                          "events",
-                          "message"
+                          "symbol"
                         ],
                         "type": "object"
                       },
@@ -108167,11 +108167,11 @@
                   },
                   "required": [
                     "at",
+                    "budget",
                     "busy",
                     "dryRun",
-                    "runs",
-                    "budget",
-                    "pruned"
+                    "pruned",
+                    "runs"
                   ],
                   "type": "object"
                 }
@@ -108494,11 +108494,11 @@
                         }
                       },
                       "required": [
-                        "state",
+                        "detail",
                         "direction",
                         "label",
-                        "detail",
-                        "since"
+                        "since",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -108550,12 +108550,12 @@
                         }
                       },
                       "required": [
-                        "ticker",
+                        "detail",
+                        "oldestUnreadAt",
                         "result",
                         "storedPrints",
-                        "unreadRanges",
-                        "oldestUnreadAt",
-                        "detail"
+                        "ticker",
+                        "unreadRanges"
                       ],
                       "type": "object"
                     },
@@ -108595,9 +108595,9 @@
                             },
                             "required": [
                               "at",
+                              "detail",
                               "direction",
-                              "price",
-                              "detail"
+                              "price"
                             ],
                             "type": "object"
                           },
@@ -108639,8 +108639,8 @@
                           },
                           "required": [
                             "seenSeconds",
-                            "windowSeconds",
-                            "share"
+                            "share",
+                            "windowSeconds"
                           ],
                           "type": "object"
                         },
@@ -108675,10 +108675,10 @@
                               }
                             },
                             "required": [
-                              "minute",
                               "buyVolume",
-                              "sellVolume",
-                              "coveredSeconds"
+                              "coveredSeconds",
+                              "minute",
+                              "sellVolume"
                             ],
                             "type": "object"
                           },
@@ -108725,9 +108725,9 @@
                           },
                           "required": [
                             "buyVolume",
-                            "sellVolume",
+                            "cumulativeFrom",
                             "netVolume",
-                            "cumulativeFrom"
+                            "sellVolume"
                           ],
                           "type": "object"
                         },
@@ -108776,10 +108776,10 @@
                             },
                             "required": [
                               "at",
-                              "side",
-                              "size",
                               "price",
-                              "signing"
+                              "side",
+                              "signing",
+                              "size"
                             ],
                             "type": "object"
                           },
@@ -108788,16 +108788,16 @@
                         }
                       },
                       "required": [
-                        "symbol",
-                        "limitSize",
-                        "signing",
+                        "absorptions",
                         "capture",
                         "coverage",
-                        "sums",
-                        "trades",
-                        "totalTrades",
+                        "limitSize",
                         "minutes",
-                        "absorptions"
+                        "signing",
+                        "sums",
+                        "symbol",
+                        "totalTrades",
+                        "trades"
                       ],
                       "type": "object"
                     },
@@ -108865,12 +108865,12 @@
                           }
                         },
                         "required": [
-                          "source",
-                          "instrument",
-                          "state",
-                          "lastOkAt",
                           "ageSeconds",
-                          "message"
+                          "instrument",
+                          "lastOkAt",
+                          "message",
+                          "source",
+                          "state"
                         ],
                         "type": "object"
                       },
@@ -108953,8 +108953,8 @@
                             }
                           },
                           "required": [
-                            "numerator",
                             "denominator",
+                            "numerator",
                             "rows"
                           ],
                           "type": "object"
@@ -109048,19 +109048,19 @@
                         }
                       },
                       "required": [
-                        "instrument",
-                        "state",
-                        "noDataReason",
-                        "direction",
-                        "label",
-                        "detail",
-                        "since",
                         "asOf",
-                        "ratio",
+                        "detail",
+                        "direction",
                         "enterRatio",
-                        "windowStart",
-                        "windowEnd",
                         "inputs",
+                        "instrument",
+                        "label",
+                        "noDataReason",
+                        "ratio",
+                        "since",
+                        "state",
+                        "windowEnd",
+                        "windowStart",
                         "hold",
                         "trades"
                       ],
@@ -109114,12 +109114,12 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "windowMinutes",
                         "enterRatio",
                         "exitRatio",
-                        "minMinutes",
                         "minBuckets",
+                        "minMinutes",
+                        "version",
+                        "windowMinutes",
                         "maxMissingMinutes",
                         "minCoveredSeconds",
                         "minTrades"
@@ -109196,12 +109196,12 @@
                             }
                           },
                           "required": [
-                            "ticker",
-                            "sessionOpen",
+                            "previousClose",
                             "sessionHigh",
                             "sessionLow",
-                            "previousClose",
-                            "source"
+                            "sessionOpen",
+                            "source",
+                            "ticker"
                           ],
                           "type": "object"
                         },
@@ -109330,11 +109330,11 @@
                                 }
                               },
                               "required": [
+                                "longer",
                                 "minute",
                                 "total",
-                                "zeroDte",
-                                "longer",
-                                "underlyingPrice"
+                                "underlyingPrice",
+                                "zeroDte"
                               ],
                               "type": "object"
                             },
@@ -109401,10 +109401,10 @@
                                       }
                                     },
                                     "required": [
-                                      "netCallPremiumUsd",
-                                      "netPutPremiumUsd",
                                       "callMinusPutUsd",
+                                      "netCallPremiumUsd",
                                       "netCallVolume",
+                                      "netPutPremiumUsd",
                                       "netPutVolume"
                                     ],
                                     "type": "object"
@@ -109436,10 +109436,10 @@
                                       }
                                     },
                                     "required": [
-                                      "netCallPremiumUsd",
-                                      "netPutPremiumUsd",
                                       "callMinusPutUsd",
+                                      "netCallPremiumUsd",
                                       "netCallVolume",
+                                      "netPutPremiumUsd",
                                       "netPutVolume"
                                     ],
                                     "type": "object"
@@ -109471,10 +109471,10 @@
                                       }
                                     },
                                     "required": [
-                                      "netCallPremiumUsd",
-                                      "netPutPremiumUsd",
                                       "callMinusPutUsd",
+                                      "netCallPremiumUsd",
                                       "netCallVolume",
+                                      "netPutPremiumUsd",
                                       "netPutVolume"
                                     ],
                                     "type": "object"
@@ -109487,24 +109487,24 @@
                             },
                             "required": [
                               "cumulativeFrom",
+                              "longer",
                               "total",
-                              "zeroDte",
-                              "longer"
+                              "zeroDte"
                             ],
                             "type": "object"
                           }
                         },
                         "required": [
-                          "ticker",
-                          "role",
                           "asOf",
                           "filterProfile",
-                          "totals",
-                          "partsStatus",
                           "partsDetail",
+                          "partsStatus",
+                          "points",
+                          "role",
                           "slopeUsdPerMinute",
                           "slopeWindowMinutes",
-                          "points"
+                          "ticker",
+                          "totals"
                         ],
                         "type": "object"
                       },
@@ -109599,8 +109599,8 @@
                             }
                           },
                           "required": [
-                            "numerator",
                             "denominator",
+                            "numerator",
                             "rows"
                           ],
                           "type": "object"
@@ -109698,22 +109698,22 @@
                         }
                       },
                       "required": [
-                        "instrument",
-                        "state",
-                        "noDataReason",
-                        "direction",
-                        "label",
-                        "detail",
-                        "since",
                         "asOf",
-                        "ratio",
+                        "detail",
+                        "direction",
                         "enterRatio",
-                        "windowStart",
-                        "windowEnd",
                         "inputs",
-                        "primaryTicker",
+                        "instrument",
+                        "label",
+                        "noDataReason",
+                        "ratio",
+                        "since",
+                        "state",
+                        "windowEnd",
+                        "windowStart",
+                        "checkState",
                         "checkTicker",
-                        "checkState"
+                        "primaryTicker"
                       ],
                       "type": "object"
                     },
@@ -109751,12 +109751,12 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "windowMinutes",
                         "enterRatio",
                         "exitRatio",
+                        "minBuckets",
                         "minMinutes",
-                        "minBuckets"
+                        "version",
+                        "windowMinutes"
                       ],
                       "type": "object"
                     },
@@ -109795,10 +109795,10 @@
                       },
                       "required": [
                         "date",
-                        "open",
-                        "optionsOpen",
+                        "event",
                         "futuresOpen",
-                        "event"
+                        "open",
+                        "optionsOpen"
                       ],
                       "type": "object"
                     },
@@ -109850,33 +109850,33 @@
                         }
                       },
                       "required": [
+                        "agreementDetail",
+                        "detail",
+                        "rulesVersion",
                         "status",
                         "strategyId",
-                        "testedOn",
-                        "rulesVersion",
-                        "detail",
-                        "agreementDetail"
+                        "testedOn"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "schemaVersion",
-                    "group",
-                    "generatedAt",
-                    "session",
-                    "levels",
-                    "rules",
-                    "futuresRules",
-                    "futures",
-                    "options",
                     "agreement",
-                    "netDrift",
-                    "deepTrades",
                     "crossCheck",
-                    "study",
+                    "deepTrades",
                     "freshness",
-                    "notes"
+                    "futures",
+                    "futuresRules",
+                    "generatedAt",
+                    "group",
+                    "levels",
+                    "netDrift",
+                    "notes",
+                    "options",
+                    "rules",
+                    "schemaVersion",
+                    "session",
+                    "study"
                   ],
                   "type": "object"
                 }
@@ -110139,34 +110139,7 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "symbol",
-            "required": true,
-            "schema": {
-              "enum": [
-                "SPY",
-                "ES",
-                "QQQ",
-                "NQ"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "from",
-            "required": true,
-            "schema": {
-              "maxLength": 40,
-              "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
-            "name": "to",
             "required": true,
             "schema": {
               "maxLength": 40,
@@ -110212,6 +110185,33 @@
               "maximum": 200,
               "minimum": 1,
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES",
+                "QQQ",
+                "NQ"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
             }
           }
         ],
@@ -110291,12 +110291,12 @@
                         },
                         "required": [
                           "at",
-                          "kind",
+                          "detail",
                           "direction",
-                          "price",
-                          "size",
+                          "kind",
                           "premium",
-                          "detail"
+                          "price",
+                          "size"
                         ],
                         "type": "object"
                       },
@@ -110328,11 +110328,11 @@
                     }
                   },
                   "required": [
+                    "events",
+                    "from",
                     "schemaVersion",
                     "symbol",
-                    "from",
                     "to",
-                    "events",
                     "truncated"
                   ],
                   "type": "object"
@@ -110690,13 +110690,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -110737,13 +110737,13 @@
                           }
                         },
                         "required": [
-                          "minute",
-                          "net",
                           "calls",
-                          "puts",
+                          "minute",
                           "minuteNet",
+                          "net",
+                          "price",
                           "prints",
-                          "price"
+                          "puts"
                         ],
                         "type": "object"
                       },
@@ -110770,9 +110770,9 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "rate",
                         "dividendYield",
+                        "rate",
+                        "version",
                         "volFallback"
                       ],
                       "type": "object"
@@ -110909,17 +110909,17 @@
                         }
                       },
                       "required": [
-                        "prints",
-                        "signed",
-                        "notSigned",
-                        "notPriced",
-                        "ivAdjusted",
-                        "net",
                         "calls",
-                        "puts",
                         "gross",
+                        "ivAdjusted",
+                        "largestFall",
                         "largestRise",
-                        "largestFall"
+                        "net",
+                        "notPriced",
+                        "notSigned",
+                        "prints",
+                        "puts",
+                        "signed"
                       ],
                       "type": "object"
                     },
@@ -110947,8 +110947,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -110959,17 +110959,17 @@
                     }
                   },
                   "required": [
+                    "options",
+                    "points",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "storedUntil",
                     "symbol",
                     "ticker",
-                    "session",
-                    "rules",
-                    "options",
-                    "storedUntil",
-                    "truncated",
-                    "unread",
                     "totals",
-                    "points"
+                    "truncated",
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -111516,13 +111516,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -114116,27 +114116,27 @@
                           }
                         },
                         "required": [
-                          "id",
                           "at",
-                          "contract",
-                          "right",
-                          "strike",
-                          "expiry",
-                          "dte",
-                          "size",
-                          "price",
-                          "premium",
-                          "underlyingPrice",
-                          "side",
-                          "directionalSign",
-                          "sentiment",
                           "consolidation",
-                          "moneyness",
-                          "unusual",
+                          "contract",
+                          "directionalSign",
+                          "dte",
+                          "expiry",
                           "goldenSweep",
+                          "id",
+                          "iv",
+                          "moneyness",
                           "opening",
-                          "volumeOverOi",
-                          "iv"
+                          "premium",
+                          "price",
+                          "right",
+                          "sentiment",
+                          "side",
+                          "size",
+                          "strike",
+                          "underlyingPrice",
+                          "unusual",
+                          "volumeOverOi"
                         ],
                         "type": "object"
                       },
@@ -114157,8 +114157,8 @@
                           }
                         },
                         "required": [
-                          "start",
-                          "end"
+                          "end",
+                          "start"
                         ],
                         "type": "object"
                       },
@@ -114257,13 +114257,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -114331,11 +114331,11 @@
                         }
                       },
                       "required": [
-                        "version",
-                        "storedMinPremiumUsd",
                         "defaultMinPremiumUsd",
+                        "maxBubbles",
                         "retentionDays",
-                        "maxBubbles"
+                        "storedMinPremiumUsd",
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -114484,22 +114484,22 @@
                         }
                       },
                       "required": [
-                        "sessionPrints",
-                        "sessionGrossPremium",
-                        "shownBubbles",
-                        "plottedBubbles",
-                        "unplottedBubbles",
-                        "callBubbles",
-                        "putBubbles",
-                        "callPremium",
-                        "putPremium",
                         "askSidePremium",
-                        "bidSidePremium",
-                        "unsignedPremium",
-                        "bullishPremium",
                         "bearishPremium",
+                        "bidSidePremium",
+                        "bullishPremium",
+                        "callBubbles",
+                        "callPremium",
+                        "latestPrice",
                         "maxBubblePremium",
-                        "latestPrice"
+                        "plottedBubbles",
+                        "putBubbles",
+                        "putPremium",
+                        "sessionGrossPremium",
+                        "sessionPrints",
+                        "shownBubbles",
+                        "unplottedBubbles",
+                        "unsignedPremium"
                       ],
                       "type": "object"
                     },
@@ -114527,8 +114527,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -114539,22 +114539,22 @@
                     }
                   },
                   "required": [
+                    "bubbles",
+                    "gaps",
+                    "minPremiumUsd",
+                    "options",
+                    "pricePoints",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "sessionEnd",
+                    "sessionStart",
+                    "storedUntil",
                     "symbol",
                     "ticker",
-                    "session",
-                    "sessionStart",
-                    "sessionEnd",
-                    "minPremiumUsd",
-                    "storedUntil",
-                    "options",
-                    "unread",
-                    "gaps",
-                    "rules",
-                    "pricePoints",
-                    "bubbles",
+                    "totals",
                     "truncated",
-                    "totals"
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -114913,18 +114913,18 @@
                           }
                         },
                         "required": [
-                          "session",
-                          "prints",
-                          "callPrints",
-                          "putPrints",
                           "callPremium",
-                          "putPremium",
+                          "callPrints",
                           "callVolume",
-                          "putVolume",
+                          "incomplete",
                           "premiumRatio",
-                          "volumeRatio",
                           "price",
-                          "incomplete"
+                          "prints",
+                          "putPremium",
+                          "putPrints",
+                          "putVolume",
+                          "session",
+                          "volumeRatio"
                         ],
                         "type": "object"
                       },
@@ -115007,13 +115007,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -115082,15 +115082,15 @@
                           }
                         },
                         "required": [
+                          "callPremium",
+                          "callVolume",
                           "minute",
                           "premiumRatio",
-                          "volumeRatio",
-                          "callPremium",
-                          "putPremium",
-                          "callVolume",
-                          "putVolume",
+                          "price",
                           "prints",
-                          "price"
+                          "putPremium",
+                          "putVolume",
+                          "volumeRatio"
                         ],
                         "type": "object"
                       },
@@ -115117,10 +115117,10 @@
                         }
                       },
                       "required": [
-                        "version",
                         "minPremiumUsd",
+                        "parity",
                         "retentionDays",
-                        "parity"
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -115325,19 +115325,19 @@
                         }
                       },
                       "required": [
-                        "prints",
-                        "callPrints",
-                        "putPrints",
                         "callPremium",
-                        "putPremium",
+                        "callPrints",
                         "callVolume",
-                        "putVolume",
-                        "premiumRatio",
-                        "volumeRatio",
                         "premiumHigh",
                         "premiumLow",
+                        "premiumRatio",
+                        "prints",
+                        "putPremium",
+                        "putPrints",
+                        "putVolume",
                         "volumeHigh",
-                        "volumeLow"
+                        "volumeLow",
+                        "volumeRatio"
                       ],
                       "type": "object"
                     },
@@ -115362,8 +115362,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -115374,17 +115374,17 @@
                     }
                   },
                   "required": [
+                    "days",
+                    "options",
+                    "points",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "storedUntil",
                     "symbol",
                     "ticker",
-                    "session",
-                    "rules",
-                    "options",
-                    "storedUntil",
-                    "unread",
                     "totals",
-                    "points",
-                    "days"
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -115647,6 +115647,19 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 390,
+              "minimum": 15,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
             "name": "symbol",
             "required": true,
             "schema": {
@@ -115657,19 +115670,6 @@
                 "NQ"
               ],
               "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
-            "name": "minutes",
-            "required": false,
-            "schema": {
-              "default": 120,
-              "maximum": 390,
-              "minimum": 15,
-              "type": "integer"
             }
           }
         ],
@@ -115730,11 +115730,11 @@
                               }
                             },
                             "required": [
+                              "detail",
                               "key",
                               "label",
-                              "vote",
                               "value",
-                              "detail"
+                              "vote"
                             ],
                             "type": "object"
                           },
@@ -115761,12 +115761,12 @@
                         }
                       },
                       "required": [
-                        "summary",
-                        "label",
-                        "bullish",
                         "bearish",
+                        "bullish",
+                        "factors",
                         "known",
-                        "factors"
+                        "label",
+                        "summary"
                       ],
                       "type": "object"
                     },
@@ -115839,12 +115839,12 @@
                         },
                         "required": [
                           "at",
-                          "kind",
+                          "detail",
                           "direction",
-                          "price",
-                          "size",
+                          "kind",
                           "premium",
-                          "detail"
+                          "price",
+                          "size"
                         ],
                         "type": "object"
                       },
@@ -115928,13 +115928,13 @@
                           }
                         },
                         "required": [
-                          "source",
-                          "state",
-                          "lastOkAt",
                           "ageSeconds",
+                          "lastOkAt",
                           "lastStatus",
                           "message",
-                          "sessionOpen"
+                          "sessionOpen",
+                          "source",
+                          "state"
                         ],
                         "type": "object"
                       },
@@ -115995,6 +115995,16 @@
                                     }
                                   ]
                                 },
+                                "kingNode": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "maxPain": {
                                   "anyOf": [
                                     {
@@ -116017,10 +116027,11 @@
                                 }
                               },
                               "required": [
-                                "flip",
                                 "callWall",
-                                "putWall",
-                                "maxPain"
+                                "flip",
+                                "kingNode",
+                                "maxPain",
+                                "putWall"
                               ],
                               "type": "object"
                             },
@@ -116078,6 +116089,16 @@
                                         }
                                       ]
                                     },
+                                    "kingNode": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
                                     "maxPain": {
                                       "anyOf": [
                                         {
@@ -116100,10 +116121,11 @@
                                     }
                                   },
                                   "required": [
-                                    "flip",
                                     "callWall",
-                                    "putWall",
-                                    "maxPain"
+                                    "flip",
+                                    "kingNode",
+                                    "maxPain",
+                                    "putWall"
                                   ],
                                   "type": "object"
                                 },
@@ -116144,16 +116166,16 @@
                           },
                           "required": [
                             "at",
-                            "ticker",
-                            "spot",
                             "basis",
-                            "regime",
-                            "totalGex",
-                            "netDex",
-                            "zeroDteShare",
                             "ivRegime",
                             "levels",
-                            "symbolLevels"
+                            "netDex",
+                            "regime",
+                            "spot",
+                            "symbolLevels",
+                            "ticker",
+                            "totalGex",
+                            "zeroDteShare"
                           ],
                           "type": "object"
                         },
@@ -116251,22 +116273,22 @@
                           }
                         },
                         "required": [
-                          "minute",
-                          "trades",
-                          "volume",
+                          "bearishPremium",
+                          "bookPressure",
+                          "bullishPremium",
                           "buyVolume",
-                          "sellVolume",
-                          "delta",
-                          "cvd",
-                          "vwap",
+                          "callPremium",
                           "close",
                           "coveredSeconds",
-                          "bookPressure",
+                          "cvd",
+                          "delta",
+                          "minute",
                           "optionTrades",
-                          "callPremium",
                           "putPremium",
-                          "bullishPremium",
-                          "bearishPremium"
+                          "sellVolume",
+                          "trades",
+                          "volume",
+                          "vwap"
                         ],
                         "type": "object"
                       },
@@ -116460,21 +116482,21 @@
                             },
                             "required": [
                               "at",
-                              "contract",
-                              "right",
-                              "strike",
-                              "expiry",
-                              "size",
-                              "price",
-                              "premium",
-                              "side",
-                              "sentiment",
                               "consolidation",
-                              "moneyness",
-                              "unusual",
+                              "contract",
+                              "expiry",
                               "goldenSweep",
-                              "volumeOverOi",
-                              "opening"
+                              "moneyness",
+                              "opening",
+                              "premium",
+                              "price",
+                              "right",
+                              "sentiment",
+                              "side",
+                              "size",
+                              "strike",
+                              "unusual",
+                              "volumeOverOi"
                             ],
                             "type": "object"
                           },
@@ -116508,25 +116530,25 @@
                         }
                       },
                       "required": [
-                        "ticker",
-                        "trades",
-                        "callPremium",
-                        "putPremium",
-                        "putCallPremiumRatio",
-                        "bullishPremium",
-                        "bearishPremium",
                         "askSidePremium",
+                        "bearishPremium",
                         "bidSidePremium",
-                        "sweeps",
-                        "sweepPremium",
-                        "blocks",
                         "blockPremium",
+                        "blocks",
+                        "bullishPremium",
+                        "callPremium",
+                        "openingPremiumShare",
+                        "otmPremiumShare",
+                        "putCallPremiumRatio",
+                        "putPremium",
+                        "sweepPremium",
+                        "sweeps",
+                        "ticker",
+                        "topPrints",
+                        "trades",
                         "unusual",
                         "volumeOverOi",
-                        "otmPremiumShare",
-                        "zeroDtePremiumShare",
-                        "openingPremiumShare",
-                        "topPrints"
+                        "zeroDtePremiumShare"
                       ],
                       "type": "object"
                     },
@@ -116587,13 +116609,13 @@
                                 }
                               },
                               "required": [
-                                "at",
-                                "bestBid",
-                                "bestAsk",
-                                "bidSize",
                                 "askSize",
-                                "pressure",
-                                "levels"
+                                "at",
+                                "bestAsk",
+                                "bestBid",
+                                "bidSize",
+                                "levels",
+                                "pressure"
                               ],
                               "type": "object"
                             },
@@ -116666,16 +116688,16 @@
                         }
                       },
                       "required": [
-                        "volume",
+                        "book",
+                        "coveredSeconds",
                         "delta",
                         "deltaRatio",
-                        "coveredSeconds",
-                        "windowSeconds",
                         "largePrints",
-                        "offExchangeShare",
                         "lastPrice",
+                        "offExchangeShare",
+                        "volume",
                         "vwap",
-                        "book"
+                        "windowSeconds"
                       ],
                       "type": "object"
                     },
@@ -116701,19 +116723,19 @@
                     }
                   },
                   "required": [
+                    "confluence",
+                    "events",
+                    "freshness",
+                    "generatedAt",
+                    "gex",
+                    "minutes",
+                    "notes",
+                    "optionsFlow",
+                    "orderFlow",
                     "schemaVersion",
                     "symbol",
-                    "generatedAt",
-                    "windowStart",
                     "windowEnd",
-                    "freshness",
-                    "minutes",
-                    "orderFlow",
-                    "optionsFlow",
-                    "gex",
-                    "events",
-                    "confluence",
-                    "notes"
+                    "windowStart"
                   ],
                   "type": "object"
                 }
@@ -117090,15 +117112,15 @@
                           }
                         },
                         "required": [
-                          "strike",
-                          "slotIndex",
-                          "netPremium",
-                          "bullishPremium",
                           "bearishPremium",
+                          "bullishPremium",
                           "callPremium",
-                          "putPremium",
                           "grossPremium",
+                          "netPremium",
                           "prints",
+                          "putPremium",
+                          "slotIndex",
+                          "strike",
                           "unsignedPrints",
                           "volume"
                         ],
@@ -117183,13 +117205,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -117228,11 +117250,11 @@
                         }
                       },
                       "required": [
-                        "version",
+                        "defaultBucketMinutes",
+                        "maxStrikes",
                         "minPremiumUsd",
                         "retentionDays",
-                        "maxStrikes",
-                        "defaultBucketMinutes"
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -117313,18 +117335,18 @@
                           }
                         },
                         "required": [
-                          "index",
-                          "start",
-                          "end",
-                          "netPremium",
-                          "bullishPremium",
                           "bearishPremium",
+                          "bullishPremium",
+                          "end",
                           "grossPremium",
-                          "prints",
-                          "unsignedPrints",
-                          "volume",
+                          "index",
+                          "netPremium",
                           "price",
-                          "unread"
+                          "prints",
+                          "start",
+                          "unread",
+                          "unsignedPrints",
+                          "volume"
                         ],
                         "type": "object"
                       },
@@ -117390,14 +117412,14 @@
                           }
                         },
                         "required": [
-                          "strike",
-                          "netPremium",
-                          "bullishPremium",
                           "bearishPremium",
+                          "bullishPremium",
                           "callPremium",
-                          "putPremium",
                           "grossPremium",
+                          "netPremium",
                           "prints",
+                          "putPremium",
+                          "strike",
                           "unsignedPrints",
                           "volume"
                         ],
@@ -117503,22 +117525,22 @@
                         }
                       },
                       "required": [
-                        "netPremium",
-                        "bullishPremium",
                         "bearishPremium",
+                        "bullishPremium",
                         "callPremium",
-                        "putPremium",
                         "grossPremium",
-                        "prints",
-                        "unsignedPrints",
-                        "volume",
-                        "totalStrikes",
-                        "shownStrikes",
-                        "omittedStrikes",
+                        "latestPrice",
+                        "netPremium",
                         "omittedGrossPremium",
                         "omittedNetPremium",
                         "omittedPrints",
-                        "latestPrice"
+                        "omittedStrikes",
+                        "prints",
+                        "putPremium",
+                        "shownStrikes",
+                        "totalStrikes",
+                        "unsignedPrints",
+                        "volume"
                       ],
                       "type": "object"
                     },
@@ -117543,8 +117565,8 @@
                           },
                           "required": [
                             "from",
-                            "to",
-                            "ranges"
+                            "ranges",
+                            "to"
                           ],
                           "type": "object"
                         },
@@ -117555,19 +117577,19 @@
                     }
                   },
                   "required": [
+                    "bucketMinutes",
+                    "cells",
+                    "options",
+                    "rules",
                     "schemaVersion",
+                    "session",
+                    "slots",
+                    "storedUntil",
+                    "strikes",
                     "symbol",
                     "ticker",
-                    "session",
-                    "bucketMinutes",
-                    "storedUntil",
-                    "options",
-                    "unread",
-                    "rules",
-                    "slots",
-                    "strikes",
-                    "cells",
-                    "totals"
+                    "totals",
+                    "unread"
                   ],
                   "type": "object"
                 }
@@ -117830,6 +117852,19 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 390,
+              "minimum": 15,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
             "name": "symbol",
             "required": true,
             "schema": {
@@ -117838,19 +117873,6 @@
                 "NQ"
               ],
               "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
-            "name": "minutes",
-            "required": false,
-            "schema": {
-              "default": 120,
-              "maximum": 390,
-              "minimum": 15,
-              "type": "integer"
             }
           }
         ],
@@ -117913,14 +117935,14 @@
                           }
                         },
                         "required": [
+                          "burstSeconds",
+                          "contracts",
+                          "coveredSeconds",
+                          "peakContracts",
+                          "peakTrades",
                           "start",
                           "state",
-                          "coveredSeconds",
-                          "trades",
-                          "contracts",
-                          "peakTrades",
-                          "peakContracts",
-                          "burstSeconds"
+                          "trades"
                         ],
                         "type": "object"
                       },
@@ -117971,12 +117993,12 @@
                           }
                         },
                         "required": [
-                          "start",
-                          "seconds",
-                          "peakTrades",
-                          "contracts",
                           "baseline",
-                          "multiple"
+                          "contracts",
+                          "multiple",
+                          "peakTrades",
+                          "seconds",
+                          "start"
                         ],
                         "type": "object"
                       },
@@ -118022,11 +118044,11 @@
                         }
                       },
                       "required": [
-                        "version",
                         "baselineSeconds",
+                        "floorTrades",
                         "minBaselineCoveredSeconds",
                         "multiple",
-                        "floorTrades"
+                        "version"
                       ],
                       "type": "object"
                     },
@@ -118127,13 +118149,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -118157,25 +118179,25 @@
                         }
                       },
                       "required": [
+                        "bursts",
                         "coveredSeconds",
-                        "evaluatedSeconds",
-                        "bursts"
+                        "evaluatedSeconds"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "schemaVersion",
-                    "symbol",
-                    "contract",
                     "axisStart",
-                    "bucketSeconds",
-                    "storedUntil",
-                    "rules",
-                    "tape",
-                    "totals",
                     "bars",
-                    "bursts"
+                    "bucketSeconds",
+                    "bursts",
+                    "contract",
+                    "rules",
+                    "schemaVersion",
+                    "storedUntil",
+                    "symbol",
+                    "tape",
+                    "totals"
                   ],
                   "type": "object"
                 }
@@ -118750,13 +118772,13 @@
                         }
                       },
                       "required": [
-                        "source",
-                        "state",
-                        "lastOkAt",
                         "ageSeconds",
+                        "lastOkAt",
                         "lastStatus",
                         "message",
-                        "sessionOpen"
+                        "sessionOpen",
+                        "source",
+                        "state"
                       ],
                       "type": "object"
                     },
@@ -158689,17 +158711,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "symbol",
-            "required": true,
-            "schema": {
-              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
-              "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "flowHours",
             "required": false,
             "schema": {
@@ -158707,6 +158718,17 @@
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "type": "string"
             }
           }
         ],
@@ -158760,10 +158782,10 @@
                             }
                           },
                           "required": [
+                            "monthlyOpexDays",
                             "nextExpiry",
                             "nextExpiryDte",
-                            "nextMonthlyOpex",
-                            "monthlyOpexDays"
+                            "nextMonthlyOpex"
                           ],
                           "type": "object"
                         },
@@ -158809,11 +158831,11 @@
                               }
                             },
                             "required": [
+                              "detail",
                               "key",
                               "label",
-                              "value",
                               "tone",
-                              "detail"
+                              "value"
                             ],
                             "type": "object"
                           },
@@ -158870,12 +158892,12 @@
                             }
                           },
                           "required": [
+                            "bearishPremium",
                             "bias",
                             "bullishPremium",
-                            "bearishPremium",
                             "newestTradeAt",
-                            "zeroDteShare",
-                            "weekShare"
+                            "weekShare",
+                            "zeroDteShare"
                           ],
                           "type": "object"
                         },
@@ -158914,9 +158936,9 @@
                             }
                           },
                           "required": [
+                            "netCharm",
                             "netDex",
-                            "netVanna",
-                            "netCharm"
+                            "netVanna"
                           ],
                           "type": "object"
                         },
@@ -158954,9 +158976,9 @@
                             }
                           },
                           "required": [
-                            "regime",
+                            "backIv",
                             "frontIv",
-                            "backIv"
+                            "regime"
                           ],
                           "type": "object"
                         },
@@ -159013,6 +159035,16 @@
                                 }
                               ]
                             },
+                            "kingNode": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "putWall": {
                               "anyOf": [
                                 {
@@ -159035,12 +159067,13 @@
                             }
                           },
                           "required": [
-                            "flip",
                             "callWall",
-                            "putWall",
-                            "dailyMove",
-                            "flipMoves",
                             "callWallMoves",
+                            "dailyMove",
+                            "flip",
+                            "flipMoves",
+                            "kingNode",
+                            "putWall",
                             "putWallMoves"
                           ],
                           "type": "object"
@@ -159067,15 +159100,15 @@
                         }
                       },
                       "required": [
-                        "regime",
                         "dealerSignAssumption",
-                        "levels",
-                        "greeks",
-                        "flow",
                         "expiry",
+                        "factors",
+                        "flow",
+                        "greeks",
                         "iv",
-                        "session",
-                        "factors"
+                        "levels",
+                        "regime",
+                        "session"
                       ],
                       "type": "object"
                     },
@@ -159151,10 +159184,10 @@
                               }
                             },
                             "required": [
-                              "strike",
                               "callOpenInterest",
+                              "gex",
                               "putOpenInterest",
-                              "gex"
+                              "strike"
                             ],
                             "type": "object"
                           },
@@ -159172,12 +159205,12 @@
                         }
                       },
                       "required": [
-                        "status",
                         "message",
-                        "strikes",
+                        "status",
+                        "gexExpiry",
                         "maxPain",
-                        "totalGex",
-                        "gexExpiry"
+                        "strikes",
+                        "totalGex"
                       ],
                       "type": "object"
                     },
@@ -159207,10 +159240,10 @@
                               }
                             },
                             "required": [
-                              "start",
                               "callPremium",
-                              "putPremium",
                               "netPremium",
+                              "putPremium",
+                              "start",
                               "trades"
                             ],
                             "type": "object"
@@ -159277,15 +159310,15 @@
                               }
                             },
                             "required": [
-                              "time",
                               "contract",
-                              "right",
-                              "strike",
                               "expiry",
-                              "premium",
-                              "size",
-                              "sentiment",
                               "flowType",
+                              "premium",
+                              "right",
+                              "sentiment",
+                              "size",
+                              "strike",
+                              "time",
                               "unusual"
                             ],
                             "type": "object"
@@ -159322,13 +159355,13 @@
                         }
                       },
                       "required": [
-                        "status",
                         "message",
-                        "hours",
+                        "status",
+                        "buckets",
                         "callPremium",
-                        "putPremium",
                         "events",
-                        "buckets"
+                        "hours",
+                        "putPremium"
                       ],
                       "type": "object"
                     },
@@ -159417,12 +159450,12 @@
                             }
                           },
                           "required": [
-                            "source",
-                            "trades",
+                            "complete",
+                            "newestTradeAt",
                             "offLadderTrades",
                             "oldestTradeAt",
-                            "newestTradeAt",
-                            "complete"
+                            "source",
+                            "trades"
                           ],
                           "type": "object"
                         },
@@ -159472,14 +159505,14 @@
                               }
                             },
                             "required": [
-                              "strike",
-                              "callOpenInterest",
-                              "putOpenInterest",
-                              "holderPayout",
-                              "callVolume",
-                              "putVolume",
-                              "bullishPremium",
                               "bearishPremium",
+                              "bullishPremium",
+                              "callOpenInterest",
+                              "callVolume",
+                              "holderPayout",
+                              "putOpenInterest",
+                              "putVolume",
+                              "strike",
                               "trades"
                             ],
                             "type": "object"
@@ -159488,8 +159521,8 @@
                         }
                       },
                       "required": [
-                        "strikes",
-                        "flow"
+                        "flow",
+                        "strikes"
                       ],
                       "type": "object"
                     },
@@ -159533,10 +159566,10 @@
                               }
                             },
                             "required": [
-                              "expiry",
-                              "target",
                               "delta",
-                              "iv"
+                              "expiry",
+                              "iv",
+                              "target"
                             ],
                             "type": "object"
                           },
@@ -159587,8 +159620,8 @@
                                   }
                                 },
                                 "required": [
-                                  "expiry",
                                   "dte",
+                                  "expiry",
                                   "ivs"
                                 ],
                                 "type": "object"
@@ -159620,9 +159653,9 @@
                               }
                             },
                             "required": [
-                              "expiry",
+                              "atmIv",
                               "dte",
-                              "atmIv"
+                              "expiry"
                             ],
                             "type": "object"
                           },
@@ -159630,28 +159663,28 @@
                         }
                       },
                       "required": [
-                        "status",
                         "message",
-                        "termStructure",
+                        "status",
                         "skew",
-                        "surface"
+                        "surface",
+                        "termStructure"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
-                    "symbol",
-                    "source",
-                    "receivedAt",
-                    "spot",
-                    "rateLimited",
-                    "retryAfterSeconds",
-                    "notes",
-                    "volatility",
+                    "context",
                     "exposure",
                     "flow",
-                    "context",
-                    "strikeProfiles"
+                    "notes",
+                    "rateLimited",
+                    "receivedAt",
+                    "retryAfterSeconds",
+                    "source",
+                    "spot",
+                    "strikeProfiles",
+                    "symbol",
+                    "volatility"
                   ],
                   "type": "object"
                 }

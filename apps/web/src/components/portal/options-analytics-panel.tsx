@@ -35,6 +35,7 @@ import {
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
 import { StrikeProfilesPanel } from "./strike-profiles-panel.tsx";
+import type { OptionsAnalyticsReport } from "./use-gamma-levels.ts";
 
 // Per-symbol options research panel on /charts and the stock page: IV term structure, skew
 // and surface, estimated GEX with OI walls and its context strip, strike profiles (OI, flow
@@ -402,6 +403,11 @@ const Exposure = ({
               context.levels.putWall,
               "no negative GEX",
             ],
+            [
+              "King node (largest |GEX|)",
+              context.levels.kingNode,
+              "no non-zero GEX",
+            ],
           ] as const
         ).map(([label, level, missing]) => (
           <div key={label}>
@@ -578,12 +584,14 @@ const Flow = ({ section }: { readonly section: FlowSection }) => {
 
 export interface OptionsAnalyticsPanelProps {
   readonly gateway?: OptionsAnalyticsGateway | undefined;
+  readonly onReport?: (report: OptionsAnalyticsReport) => void;
   readonly symbol: string;
 }
 
 export const OptionsAnalyticsPanel = ({
   symbol,
   gateway: supplied,
+  onReport,
 }: OptionsAnalyticsPanelProps) => {
   const headingId = useId();
   const selectId = useId();
@@ -593,19 +601,31 @@ export const OptionsAnalyticsPanel = ({
   const [hours, setHours] = useState<number>(24);
   const [state, setState] = useState<State>({ type: "loading" });
   const generation = useRef(0);
+  const latestOnReport = useRef(onReport);
+  latestOnReport.current = onReport;
 
   const load = useCallback(async () => {
     const mine = ++generation.current;
     setState({ type: "loading" });
+    latestOnReport.current?.({ symbol, type: "loading" });
     try {
       const data = await gateway.snapshot({ flowHours: hours, symbol });
-      if (mine === generation.current) setState({ data, type: "ready" });
+      if (mine === generation.current) {
+        setState({ data, type: "ready" });
+        latestOnReport.current?.({ data, symbol, type: "ready" });
+      }
     } catch (error) {
-      if (mine === generation.current)
-        setState({ type: "error", ...describeMarketDataFailure(error) });
+      if (mine === generation.current) {
+        const failure = describeMarketDataFailure(error);
+        setState({ type: "error", ...failure });
+        latestOnReport.current?.({
+          message: failure.message,
+          symbol,
+          type: "error",
+        });
+      }
     }
   }, [gateway, hours, symbol]);
-
   useEffect(() => {
     void load();
     // A late answer after unmount or a symbol/window change must not set state.
