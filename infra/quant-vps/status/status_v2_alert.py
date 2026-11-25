@@ -80,6 +80,7 @@ class CheckResult:
     ok: bool
     avail_ok: bool
     bypass_ok: bool
+    bypass_verified: bool
     auth_http: int | None
     no_token_http: int | None
     wrong_token_http: int | None
@@ -202,6 +203,7 @@ def run_probes(
             ok=False,
             avail_ok=False,
             bypass_ok=True,
+            bypass_verified=False,
             auth_http=auth.http_status,
             no_token_http=None,
             wrong_token_http=None,
@@ -268,10 +270,15 @@ def run_probes(
         extra = "; ".join(guard_avail_reasons)
         avail_detail = extra if avail_detail == "ok" else f"{avail_detail}; {extra}"
 
+    bypass_verified = (
+        no_tok.http_status in (401, 403) and wrong_tok.http_status in (401, 403)
+    )
+
     return CheckResult(
         ok=avail_ok and bypass_ok,
         avail_ok=avail_ok,
         bypass_ok=bypass_ok,
+        bypass_verified=bypass_verified,
         auth_http=auth.http_status,
         no_token_http=no_tok.http_status,
         wrong_token_http=wrong_tok.http_status,
@@ -284,7 +291,7 @@ def load_state(path: Path) -> AlertState:
     state = AlertState()
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeError):
         return state
     kv: dict[str, str] = {}
     for raw in text.splitlines():
@@ -347,7 +354,18 @@ def save_state(path: Path, state: AlertState) -> None:
         raise
 
 
+def validate_post_url(post_url: str) -> str:
+    parsed = urllib.parse.urlsplit(post_url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme == "http" and host in LOOPBACK_HOSTS:
+        return post_url
+    raise ValueError(
+        "invalid --post-url: require loopback http:// (127.0.0.1, ::1, localhost)"
+    )
+
+
 def post_alert(post_url: str, channel: str, text: str, timeout: float = 8.0) -> bool:
+    validate_post_url(post_url)
     body = json.dumps({"channel": channel, "text": text}).encode("utf-8")
     req = urllib.request.Request(
         post_url,
@@ -356,7 +374,7 @@ def post_alert(post_url: str, channel: str, text: str, timeout: float = 8.0) -> 
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - loopback URL
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - validated loopback URL
             return 200 <= int(getattr(resp, "status", resp.getcode())) < 300
     except (urllib.error.URLError, TimeoutError, OSError):
         return False
@@ -409,19 +427,21 @@ def step_state(
                 alert_sent = True
 
     # 2. Auth-bypass incident state machine (immediate tick-1 alert, independent of avail).
+    # Only clear bypass_alert_open when BOTH guard probes explicitly returned 401/403.
     if result.bypass_ok:
-        if state.bypass_alert_open:
-            msg = (
-                "✅ QuantVPS `/vertex-status/v2` auth guard recovered: unauthenticated and "
-                f"wrong-token requests are rejected again (no-token={result.no_token_http}, "
-                f"wrong-token={result.wrong_token_http})."
-            )
-            if post(msg):
-                state.bypass_alert_open = False
-                state.bypass_started_at = ""
-                state.bypass_reason = ""
-                recovery_sent = True
-        state.bypass_failures = 0
+        if result.bypass_verified:
+            if state.bypass_alert_open:
+                msg = (
+                    "✅ QuantVPS `/vertex-status/v2` auth guard recovered: unauthenticated and "
+                    f"wrong-token requests are rejected again (no-token={result.no_token_http}, "
+                    f"wrong-token={result.wrong_token_http})."
+                )
+                if post(msg):
+                    state.bypass_alert_open = False
+                    state.bypass_started_at = ""
+                    state.bypass_reason = ""
+                    recovery_sent = True
+            state.bypass_failures = 0
     else:
         state.bypass_failures += 1
         if not state.bypass_started_at:
@@ -461,6 +481,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         url = resolve_probe_url(args.url, Path(args.hosts_env))
+        post_url = validate_post_url(args.post_url)
         token = resolve_token(args.token_env)
     except ValueError as exc:
         print(json.dumps({"error": str(exc), "ok": False}))
@@ -473,8 +494,7 @@ def main(argv: list[str] | None = None) -> int:
     def _post(text: str) -> bool:
         if args.dry_run:
             return False
-        return post_alert(args.post_url, args.channel, text, timeout=min(args.timeout, 8.0))
-
+        return post_alert(post_url, args.channel, text, timeout=min(args.timeout, 8.0))
     state = load_state(state_path)
     state, alert_sent, recovery_sent = step_state(
         state, result, now, args.threshold, _post

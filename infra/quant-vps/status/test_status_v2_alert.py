@@ -142,9 +142,12 @@ class CaddyfileInvariantTests(unittest.TestCase):
         self.assertEqual(text.count("/status-v2.json"), 1)
         self.assertNotIn("handle /vertex-status/v2 {", text)
 
-        # Non-rig callers without matching block still receive 403.
-        self.assertIn('respond "forbidden" 403', text)
-        # History and portfolio stay behind @not_rig / @rig_authorized.
+        # Non-rig callers without matching block still receive 403 inside handle @not_rig.
+        not_rig_handle = text.find("handle @not_rig {", not_rig_idx)
+        self.assertGreater(not_rig_handle, not_rig_idx)
+        not_rig_end = text.find("\n  }", not_rig_handle)
+        self.assertGreater(not_rig_end, not_rig_handle)
+        self.assertIn('respond "forbidden" 403', text[not_rig_handle:not_rig_end])
         self.assertGreater(text.find("handle /vertex-history/v1/*"), not_rig_idx)
         self.assertGreater(text.find("handle /vertex-portfolio/v1/*"), not_rig_idx)
         # Public repo: zero concrete tailnet hostnames or IPs.
@@ -524,6 +527,66 @@ class StatusV2AlertTests(unittest.TestCase):
         self.assertEqual(loaded.avail_failures, 2)
         self.assertTrue(loaded.avail_alert_open)
         self.assertEqual(loaded.avail_reason, "line1 line2 line3")
+
+    def test_bypass_alert_stays_open_when_guards_skipped_or_500(self) -> None:
+        # Open an auth-bypass alert first.
+        self.mock.no_token_status = 200
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["bypass_alert_open"])
+        self.assertEqual(len(self.mock.posts), 1)
+
+        # Guard probe returning 500 must NOT falsely clear bypass_alert_open (counts as avail failure).
+        self.mock.no_token_status = 500
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertTrue(out["bypass_alert_open"])
+        self.assertEqual(out["avail_failures"], 1)
+        self.assertFalse(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 1)
+
+        # Authorized transport error skipping guard probes must NOT clear bypass_alert_open.
+        def _transport_fail(
+            _url: str, _headers: dict[str, str], _timeout: float
+        ) -> mod.ProbeOutcome:
+            return mod.ProbeOutcome(None, None, "transport error (TimeoutError)", True)
+
+        res = mod.run_probes(self.url, "tok-secret-999", 5.0, fetcher=_transport_fail)
+        self.assertFalse(res.bypass_verified)
+        st = mod.load_state(self.state_file)
+        posted: list[str] = []
+        st2, _, rec = mod.step_state(
+            st, res, datetime(2026, 11, 25, 4, 2, tzinfo=timezone.utc), 3, lambda m: (posted.append(m) or True)
+        )
+        self.assertTrue(st2.bypass_alert_open)
+        self.assertFalse(rec)
+        self.assertEqual(posted, [])
+
+        # Once BOTH guard probes explicitly return 403, bypass_alert_open clears and recovers.
+        self.mock.no_token_status = 403
+        self.mock.wrong_token_status = 403
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["bypass_alert_open"])
+        self.assertTrue(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 2)
+
+    def test_invalid_utf8_state_file_resets_safely(self) -> None:
+        self.state_file.write_bytes(b"\xff\xfe\xfd\x80not-utf8")
+        loaded = mod.load_state(self.state_file)
+        self.assertEqual(loaded.avail_failures, 0)
+        self.assertFalse(loaded.avail_alert_open)
+        self.assertFalse(loaded.bypass_alert_open)
+
+    def test_resolve_probe_url_from_hosts_env_and_reject_non_loopback_post_url(self) -> None:
+        self.assertEqual(
+            mod.resolve_probe_url(None, self.hosts_env),
+            "https://quant-vps-host.example-tailnet.ts.net:8443/vertex-status/v2",
+        )
+        rc, _ = self._run("--post-url", "https://example.com/post")
+        self.assertEqual(rc, 1)
 
 
 if __name__ == "__main__":

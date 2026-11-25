@@ -29,7 +29,7 @@ for req in Caddyfile.tailnet status_v2_alert.py vertex-status-v2-alert.service v
 done
 
 TS_HOST=$(sed -n 's/^VERTEX_TAILNET_HOST=//p' /etc/vertex/hosts.env 2>/dev/null | tail -1 || true)
-[ -n "$TS_HOST" ] || { echo "VERTEX_TAILNET_HOST missing in /etc/vertex/hosts.env; nothing changed"; exit 3; }
+[[ "$TS_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "VERTEX_TAILNET_HOST missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
 TS_IP4=$(tailscale ip -4 | head -1)
 TS_IP6=$(tailscale ip -6 | head -1)
 [ -n "$TS_IP4" ] && [ -n "$TS_IP6" ] || { echo "tailscale ip missing; nothing changed"; exit 3; }
