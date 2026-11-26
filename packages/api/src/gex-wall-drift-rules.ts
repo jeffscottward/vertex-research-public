@@ -8,7 +8,7 @@
 // the GEX sign assumes customers sell calls and buy puts (gex-context.ts).
 // Research only: a read describes what was observed; it is never a trade signal.
 // Doc: docs/vertex-rebuild/designs/gex-wall-drift-confluence/design.md.
-import type { FlowOptionTicker } from "./contracts/flow.ts";
+import type { FlowIndexOptionTicker } from "./contracts/flow.ts";
 
 export type GexWallDriftRules = Readonly<{
   version: string;
@@ -85,7 +85,7 @@ export type GexFlipSide = "above" | "below" | "no_flip" | "not_read";
 export type GexWallLevelsInput =
   | Readonly<{
       kind: "levels";
-      ticker: FlowOptionTicker;
+      ticker: FlowIndexOptionTicker;
       /** "flow_gex" (/flow, the study source) or "options_analytics" (/stock). */
       source: "flow_gex" | "options_analytics";
       /** ISO time of the GEX estimate. */
@@ -112,7 +112,7 @@ export type GexDriftPoint = Readonly<{
 export type GexDriftInput =
   | Readonly<{
       kind: "series";
-      ticker: FlowOptionTicker;
+      ticker: FlowIndexOptionTicker;
       /** Settled minutes only, oldest first. */
       points: readonly GexDriftPoint[];
     }>
@@ -145,7 +145,7 @@ export type GexWallDriftRead = Readonly<{
   code: GexWallDriftCode | null;
   wall: GexWall;
   flipSide: GexFlipSide;
-  ticker: FlowOptionTicker | null;
+  ticker: FlowIndexOptionTicker | null;
   levelsSource: "flow_gex" | "options_analytics" | null;
   levelsAt: string | null;
   price: number | null;

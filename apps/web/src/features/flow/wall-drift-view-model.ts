@@ -6,10 +6,10 @@
 // Research only: the read describes what was observed and is never a trade signal.
 // Doc: docs/vertex-rebuild/designs/gex-wall-drift-confluence/design.md.
 import {
-  FLOW_OPTION_TICKERS,
+  FLOW_INDEX_OPTION_TICKERS,
   type FlowControl,
   type FlowGroupId,
-  type FlowOptionTicker,
+  type FlowIndexOptionTicker,
   type FlowSnapshot,
   flowSymbolForTicker,
   type GexDriftInput,
@@ -70,19 +70,20 @@ const WALL_CONTEXT: Readonly<Record<string, string>> = {
   wall_geometry: "Call wall not above put wall",
 };
 
-const OPTION_TICKERS: ReadonlySet<string> = new Set(FLOW_OPTION_TICKERS);
+const OPTION_TICKERS: ReadonlySet<string> = new Set(FLOW_INDEX_OPTION_TICKERS);
 
 /** The four tickers with net drift (SPY, SPX, QQQ, NDX). */
-export const isWallDriftTicker = (symbol: string): symbol is FlowOptionTicker =>
-  OPTION_TICKERS.has(symbol);
+export const isWallDriftTicker = (
+  symbol: string
+): symbol is FlowIndexOptionTicker => OPTION_TICKERS.has(symbol);
 
 /** The flow.control group whose net drift covers the ticker. */
-export const wallDriftGroupOf = (ticker: FlowOptionTicker): FlowGroupId =>
+export const wallDriftGroupOf = (ticker: FlowIndexOptionTicker): FlowGroupId =>
   groupOfSymbol(flowSymbolForTicker(ticker));
 
 const driftOf = (
   state: WallDriftControlState,
-  ticker: FlowOptionTicker
+  ticker: FlowIndexOptionTicker
 ): Readonly<{ drift: GexDriftInput; note: string | null }> => {
   if (state.kind !== "ready")
     return {
@@ -212,7 +213,7 @@ export type WallDriftAnalyticsState =
 
 /** The stock page (operators, SPY/SPX/QQQ/NDX only): options analytics GEX and net drift. */
 export const stockWallDriftView = (
-  ticker: FlowOptionTicker,
+  ticker: FlowIndexOptionTicker,
   analytics: WallDriftAnalyticsState,
   control: WallDriftControlState,
   now: Date

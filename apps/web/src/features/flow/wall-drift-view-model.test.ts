@@ -101,9 +101,9 @@ describe("wall drift copy", () => {
 
 describe("wall drift tickers", () => {
   it("covers the four net drift tickers and maps them to their group", () => {
-    expect(["SPY", "SPX", "QQQ", "NDX", "AAPL"].map(isWallDriftTicker)).toEqual(
-      [true, true, true, true, false]
-    );
+    expect(
+      ["SPY", "SPX", "QQQ", "NDX", "AAPL", "IWM"].map(isWallDriftTicker)
+    ).toEqual([true, true, true, true, false, false]);
     expect(wallDriftGroupOf("SPY")).toBe("sp500");
     expect(wallDriftGroupOf("SPX")).toBe("sp500");
     expect(wallDriftGroupOf("QQQ")).toBe("nasdaq100");
