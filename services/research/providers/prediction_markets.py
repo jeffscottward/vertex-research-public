@@ -303,8 +303,17 @@ def calibration_by_price(positions: Iterable[Position]) -> CalibrationReport:
         bucket = totals.setdefault(position.price_cents, [0, 0])
         bucket[0] += 1
         bucket[1] += 1 if position.won else 0
+    return report_from_totals({price: (total, wins) for price, (total, wins) in totals.items()}, out_of_range)
+
+
+def report_from_totals(totals: Mapping[int, tuple[int, int]], out_of_range: int = 0) -> CalibrationReport:
+    """Report from ``price_cents -> (positions, wins)`` counts of prices 1..99.
+
+    ``calibration_by_price`` counts positions into this form; a resampling
+    caller (for example a bootstrap by market) can sum counts and call it directly.
+    """
     buckets = tuple(PriceBucket(price, total, wins, 100.0 * wins / total)
-                    for price, (total, wins) in sorted(totals.items()))
+                    for price, (total, wins) in sorted(totals.items()) if total > 0)
     total_trades = sum(bucket.total_trades for bucket in buckets)
     if total_trades == 0:
         return CalibrationReport((), 0, None, None, None, out_of_range)
