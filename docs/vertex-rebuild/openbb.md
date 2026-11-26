@@ -546,11 +546,11 @@ writes, and no tool places or changes orders.
   sample membership or clear the caveat. A carry-forward skip, zero-row run, incomplete write,
   failed run, or blocked run does not qualify. `null` means no qualifying run record, not clean
   history.
-- Rollout order for the daily IV `source` column: apply migration `0096_common_mikhail_rasputin`
+- Rollout order for the daily IV `source` column: apply migration `0097_common_mikhail_rasputin`
   first, then deploy the API that accepts payloads with and without `source`, then update the
   producer that sends `source`. An old strict API refuses the new producer payload. To roll back,
   roll the producer back before the API; run
-  `packages/db/rollback/0096_common_mikhail_rasputin.down.sql` last. It refuses to run while any
+  `packages/db/rollback/0097_common_mikhail_rasputin.down.sql` last. It refuses to run while any
   row has a known source.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.

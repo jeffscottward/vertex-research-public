@@ -92,7 +92,7 @@ flowchart LR
 * The rig's `vertex-openbb.timer` runs every five minutes, and `cboe-option-iv` is a current-snapshot job. It does not support `--since`, so a missed session cannot be recovered by backfill. This task does not deploy or restart services.
 * Apply the additive database migration before the API change. The source column defaults to `unknown`, so existing rows and old API writes remain valid.
 * Deploy the API version that accepts both legacy payloads without `source` and tagged payloads before updating the rig producer. The API leaves a missing source unset, so the database default stores `unknown`; supplied values must be `cboe` or `yahoo_fallback`.
-* Keep API ingestion `source` optional; the database default supplies `unknown`. A new producer payload is incompatible with the old strict API. If rollback is needed, roll the producer back before the API, then run `packages/db/rollback/0096_common_mikhail_rasputin.down.sql` last. It refuses to run while any row has a known source.
+* Keep API ingestion `source` optional; the database default supplies `unknown`. A new producer payload is incompatible with the old strict API. If rollback is needed, roll the producer back before the API, then run `packages/db/rollback/0097_common_mikhail_rasputin.down.sql` last. It refuses to run while any row has a known source.
 * Share versioned payload fixtures at `packages/api/src/contracts/fixtures/openbb-option-iv-daily-v1.json` (no source) and `packages/api/src/contracts/fixtures/openbb-option-iv-daily-v2.json` (tagged source) between API and Python tests. Prove that v1 input is accepted as `unknown`, v2 input preserves its valid source, and invalid tags are rejected.
 
 ### Expected touch points
@@ -112,7 +112,7 @@ flowchart LR
 | Create | `packages/db/migrations/<next>_<descriptive_name>.sql` | Generate after syncing to the protected base; record the actual migration number and filename. |
 | Create | `packages/db/migrations/meta/<next>_snapshot.json` | Generate the matching Drizzle snapshot after syncing to the protected base. |
 | Modify | `packages/db/migrations/meta/_journal.json` | Add the generated migration entry. |
-| Create | `packages/db/rollback/0096_common_mikhail_rasputin.down.sql` | Guarded reversal; refuses to run while any row has a known source. |
+| Create | `packages/db/rollback/0097_common_mikhail_rasputin.down.sql` | Guarded reversal; refuses to run while any row has a known source. |
 | Modify | `packages/db/src/server/openbb.ts` | Persist source atomically and query the latest fully written fallback-bearing run. |
 | Modify | `packages/db/src/server/openbb.test.ts` | Test upsert, migration evidence, and approved audit rules. |
 | Modify | `tests/integration/database/openbb.test.ts` | Test the migration and stored source in PostgreSQL. |
@@ -168,7 +168,7 @@ The current design stores source with future daily rows and derives `historyStat
 
 ## Remaining Verification Gates
 
-On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed before the exact-suffix correction. The final SQL matcher now uses a literal terminal suffix; focused DB unit (22 tests) and Postgres integration (15 tests) pass, including the `rate 4x` near miss. Earlier responsive E2E at 375, 768, 1024, and 1440 px, six-suite Python CI, Graphify, Drizzle, DB/OpenAPI, and diff checks passed. A fresh-context EGM drift rerun at `4edd340515348808512d9fbf7fe0720b970a047d` found no drift. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is recorded on PR #411. PR #408 merged first with migration `0092_price_freshness_state`; this branch was updated from the remote base and its migration renumbered to `0096_common_mikhail_rasputin` with `bun run db:renumber`. `bun run db:generate` reports no schema changes.
+On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed before the exact-suffix correction. The final SQL matcher now uses a literal terminal suffix; focused DB unit (22 tests) and Postgres integration (15 tests) pass, including the `rate 4x` near miss. Earlier responsive E2E at 375, 768, 1024, and 1440 px, six-suite Python CI, Graphify, Drizzle, DB/OpenAPI, and diff checks passed. A fresh-context EGM drift rerun at `4edd340515348808512d9fbf7fe0720b970a047d` found no drift. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is recorded on PR #411. PR #408 merged first with migration `0092_price_freshness_state`; this branch was updated from the remote base and its migration renumbered to `0097_common_mikhail_rasputin` with `bun run db:renumber`. `bun run db:generate` reports no schema changes.
 
 ## Critical User Journeys
 

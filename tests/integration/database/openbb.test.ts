@@ -27,10 +27,10 @@ const rollbackSql = read(
   "../../../packages/db/rollback/0064_openbb_sources.down.sql"
 );
 const sourceMigrationSql = read(
-  "../../../packages/db/migrations/0096_common_mikhail_rasputin.sql"
+  "../../../packages/db/migrations/0097_common_mikhail_rasputin.sql"
 );
 const sourceRollbackSql = read(
-  "../../../packages/db/rollback/0096_common_mikhail_rasputin.down.sql"
+  "../../../packages/db/rollback/0097_common_mikhail_rasputin.down.sql"
 );
 const congressMigrationSql = read(
   "../../../packages/db/migrations/0085_congress_trades.sql"
