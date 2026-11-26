@@ -4,6 +4,8 @@
 -- Refuses if any operator edited or recertified the five smart-money terms, their SQL attributes,
 -- or their relationships, or if any other SQL attribute uses the five added grains.
 -- Revokes the 11 smart-money SELECT grants from vertex_semantic_reader and restores the 0058 grain check.
+-- Drizzle ledger reconciliation is deliberately not automated: after this rollback the 0100 row stays in
+-- drizzle.__drizzle_migrations, so `db:migrate` skips 0100; delete that row before re-applying.
 BEGIN;
 
 DO $$
