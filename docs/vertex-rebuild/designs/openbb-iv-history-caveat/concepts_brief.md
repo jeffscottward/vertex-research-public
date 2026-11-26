@@ -61,9 +61,9 @@ Label newest IV-row source separately from the history caveat; do not imply eith
 | Source-less daily upserts are minimal, but same-key replacement erases source history. | Add a source field to each daily row so later Cboe writes replace Yahoo provenance atomically with the value. |
 | Separate endpoint reads preserve existing boundaries but can fail or differ in freshness. | Keep membership with the percentile result; define `affected`, `clean`, and `source_unverified` while preserving numeric IV data. |
 
-## Provisional method and remaining verification
+## Method and verification
 
-1. **KB route and evidence:** the owner approved the current OMP default and only the QuantFinanceToGo and DeepEdge Intelligence origins. Spreads Trading remains excluded; no allowlist change was added. The required consultation waits for a server-issued one-task claim from card `kbchat-default-omp-vertex`. Two earlier KB threads ran before that claim and lacked relevant source-backed evidence; they do not count as the required consultation. The method stays provisional until that consultation runs.
+1. **KB route and evidence:** the owner approved the current OMP default and only the QuantFinanceToGo and DeepEdge Intelligence origins. Spreads Trading remains excluded; no allowlist change was added. Two earlier KB threads ran before that claim and lacked relevant source-backed evidence; they do not count as the required consultation. The claimed consultation ran on 2026-11-25 (card `kbchat-vertex-claim-ship-and-iv-consult`) and confirmed the method.
 2. **Legacy mapping:** keep legacy rows `unknown`. The old run ledger has no row-specific source mapping; do not use a calendar cutoff, warning absence, or aggregate count.
 3. **Storage and data model:** use source on `openbb_option_iv_daily`, updated atomically with the same-key IV row. Do not add a sidecar or event ledger.
 4. **API/UI contract:** derive `historyState` from the exact sample used for percentile. Keep raw source private. Show `affected`, `clean`, or `source_unverified`; keep numeric values visible and the latest-run note separate.

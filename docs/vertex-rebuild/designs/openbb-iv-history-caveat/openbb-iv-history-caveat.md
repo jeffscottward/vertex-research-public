@@ -5,7 +5,7 @@
 ![MOCK: IV table before and after the history caveat](openbb-iv-history-before-after.svg)
 
 * **Author:** OMP agent (`openbb-iv-history-caveat`)
-* **Status:** EGM review and source-tagging/history/status/API/UI implementation are complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract tests, 684 integration tests, 197 browser tests). A fresh-context review found four issues; all are fixed. The method stays **provisional**: the required KB consultation waits for the server-issued one-task claim on card `kbchat-default-omp-vertex`. The two earlier KB threads ran before that claim and do not count as the required consultation. The claimed consultation ran on 2026-11-25 and confirmed the policy (see the status of [plan.md](plan.md)).
+* **Status:** EGM review and source-tagging/history/status/API/UI implementation are complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract tests, 684 integration tests, 197 browser tests). A fresh-context review found four issues; all are fixed. The two earlier KB threads ran before the server-issued claim and do not count as the required consultation. The claimed consultation ran on 2026-11-25 and confirmed the policy (see the status of [plan.md](plan.md)).
 * **Merge decision (2026-11-25):** the merge hold is lifted; see the status of [plan.md](plan.md). Card `kbchat-vertex-claim-ship-and-iv-consult` runs the claimed consultation later; if the KB answers differ, a new PR changes the policy.
 
 * **Date:** 2026-11-22
@@ -16,7 +16,7 @@
 
 Show a durable, per-underlying caveat when Yahoo-derived implied-volatility history remains in the exact sample used by Vol Context. Keep this historical caveat separate from the existing notice about the latest ingestion run. The caveat must describe evidence about rows that are stored and selected for the sample; aggregate run warnings alone do not prove current row membership.
 
-The selected direction is row-level provenance for current IV samples and a separate, audit-only status field. `historyState` comes from the same rows used for the percentile. Legacy rows remain `unknown` because the current ledger has no row-specific source mapping. The required KB consultation is still pending (card `kbchat-default-omp-vertex`); two earlier threads gave no relevant evidence and do not count. Until it runs, repository code and the row-source contract define a provisional method.
+The selected direction is row-level provenance for current IV samples and a separate, audit-only status field. `historyState` comes from the same rows used for the percentile. Legacy rows remain `unknown` because the current ledger has no row-specific source mapping. Two earlier threads gave no relevant evidence and do not count. The claimed consultation ran on 2026-11-25 (card `kbchat-vertex-claim-ship-and-iv-consult`) and confirmed the method; the repository code and the row-source contract define it.
 
 ## The Problem
 
@@ -126,9 +126,9 @@ flowchart LR
 | Modify | `apps/web/src/features/openbb/openbb-panels.test.tsx` | Test visible copy and retained IV values. |
 | Modify | `docs/vertex-rebuild/openbb.md` | Document the source field, history state, and approved timestamp semantics. |
 | Modify | `packages/api/openapi.json` | Regenerate from the updated contract. |
-| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/concepts_brief.md` | Record the concepts and the provisional method. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/concepts_brief.md` | Record the concepts and the method. |
 | Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/plan.md` | Record the implementation phases and evidence gates. |
-| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.svg` | Dark method infographic, aligned with the provisional method. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.svg` | Dark method infographic, aligned with the method. |
 | Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.md` | This design and implementation plan. |
 | Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-before-after.svg` | MOCK before/after graphic of the IV table. |
 | Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/design_draft.md` | Superseded EGM draft, kept as history. |
@@ -164,7 +164,7 @@ The inline row-source field is the selected choice for future writes. These alte
 
 ## Current Disposition
 
-The current design stores source with future daily rows and derives `historyState` from the exact ranked sample. Legacy rows remain `unknown` because the old run ledger has no row-specific source mapping. `lastFallbackAt` records the latest fully written non-empty `cboe-option-iv` run whose warnings contain the successful Yahoo-row suffix. It is audit-only and does not clear the sample caveat. Two earlier KB threads found no relevant evidence but do not count as the required consultation, which is still pending; the method and timestamp policy stay provisional. The private method report records the answers, provenance, route, repository evidence, decision, and proof path.
+The current design stores source with future daily rows and derives `historyState` from the exact ranked sample. Legacy rows remain `unknown` because the old run ledger has no row-specific source mapping. `lastFallbackAt` records the latest fully written non-empty `cboe-option-iv` run whose warnings contain the successful Yahoo-row suffix. It is audit-only and does not clear the sample caveat. Two earlier KB threads found no relevant evidence but do not count as the required consultation. The claimed consultation ran on 2026-11-25 (card `kbchat-vertex-claim-ship-and-iv-consult`) and confirmed the method and the timestamp policy. The private method report records the answers, provenance, route, repository evidence, decision, and proof path.
 
 ## Remaining Verification Gates
 
@@ -188,7 +188,7 @@ On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed
 
 ### Implementation boundary
 
-This feature is research-only. Preserve IV values, the 252-row sample, percentile math, source selection, risk, orders, and live services. The history query/status, audit timestamp, and UI are now in scope under the provisional method. Do not deploy or restart a service.
+This feature is research-only. Preserve IV values, the 252-row sample, percentile math, source selection, risk, orders, and live services. The history query/status, audit timestamp, and UI are now in scope under the confirmed method. Do not deploy or restart a service.
 
 ### Domain shapes
 
@@ -200,15 +200,15 @@ These are domain names. The code expresses the source set as the database CHECK 
 
 ### Phased implementation plan
 
-#### Phase 0: Record route, source, and method evidence — provisional
+#### Phase 0: Record route, source, and method evidence
 
-* The owner approved the current OMP default and only the QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading is excluded. The required consultation still waits for a server-issued one-task claim (card `kbchat-default-omp-vertex`).
+* The owner approved the current OMP default and only the QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading is excluded. The claimed consultation ran on 2026-11-25 (card `kbchat-vertex-claim-ship-and-iv-consult`) and confirmed the method.
 * Two earlier KB threads ran before that claim. They do not count as the required consultation.
 * Live health identified the current route and both thread provenance records showed only the approved origin. The private report records those details and both KB answers.
 * Neither KB returned relevant evidence for Vertex, OpenBB, Yahoo fallback, or IV-history provenance. Their suggestions are not treated as source-backed rules.
 * Code shows that the exact successful Yahoo-row warning is emitted after row construction; only a non-empty run with `rowsReceived = rowsWritten` can support the audit event. The daily row source, not the run ledger, establishes current sample membership.
 * No row-specific legacy source proof exists in the current write path or ledger. Keep legacy rows `unknown`.
-* **Checkpoint:** The route decision is recorded; the method decision is provisional until the required KB consultation runs. Implement `historyState` from the same ranked sample and implement `lastFallbackAt` with the exact fully-written-run rule. Do not backfill legacy source.
+* **Checkpoint:** The route decision is recorded; the method decision was confirmed by the claimed KB consultation on 2026-11-25. Implement `historyState` from the same ranked sample and implement `lastFallbackAt` with the exact fully-written-run rule. Do not backfill legacy source.
 
 #### Phase 1: Expand storage and API compatibility
 
