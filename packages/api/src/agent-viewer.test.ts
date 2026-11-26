@@ -310,6 +310,7 @@ const REVIEWED_READS: readonly string[] = [
   "openbb.shorts",
   "openbb.status",
   "openbb.volContext",
+  "optionsAnalytics.greekHeatmap",
   "optionsAnalytics.snapshot",
   "optionsChain.chain",
   "optionsChain.expectedMove",

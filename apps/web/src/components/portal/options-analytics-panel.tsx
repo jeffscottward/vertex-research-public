@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  classifyConnectivityMessage,
   type ExposureSection,
   type FlowSection,
   type GexContext,
+  type GreekHeatmapMetric,
   IV_SKEW_TARGET_DELTAS,
   OPTIONS_FLOW_HOURS,
   type OptionsAnalyticsOutput,
@@ -30,11 +30,13 @@ import {
 import { centerMarkedRow } from "./center-marked-row.ts";
 import { GexContextStrip } from "./gex-context-strip.tsx";
 import { GexSpotCurve } from "./gex-spot-curve.tsx";
+import { GreekHeatmapPanel } from "./greek-heatmap-panel.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
+import { ProviderFailureAlert } from "./provider-failure-alert.tsx";
 import { StrikeProfilesPanel } from "./strike-profiles-panel.tsx";
 import { StockWallDrift } from "./wall-drift-badge.tsx";
 
@@ -58,7 +60,8 @@ const MAX_FLOW_ROWS = 25;
 
 type State =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput }>
+  // `symbol` is the symbol that was asked for; the prop can already name the next one.
+  | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput; symbol: string }>
   | Readonly<{ type: "error"; code: string; message: string }>;
 
 const pct = (value: number | null): string =>
@@ -126,9 +129,6 @@ const SectionShell = ({
   readonly children?: ReactNode;
 }) => {
   const unavailable = status === "unavailable" && message !== null;
-  const authFailed =
-    unavailable &&
-    classifyConnectivityMessage(message).category === "auth_failed";
   return (
     <section
       aria-labelledby={id}
@@ -139,19 +139,7 @@ const SectionShell = ({
         {title}
       </h3>
       {message === null ? null : unavailable ? (
-        <div
-          className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs"
-          data-auth-error={authFailed ? "" : undefined}
-          role="alert"
-        >
-          <p className="font-medium text-destructive">{message}</p>
-          {authFailed ? (
-            <p className="mt-1 text-muted-foreground">
-              Owner action required: rotate the upstream provider credential
-              (never auto-rotated).
-            </p>
-          ) : null}
-        </div>
+        <ProviderFailureAlert message={message} />
       ) : (
         <p className="text-muted-foreground text-xs" role="status">
           {message}
@@ -624,6 +612,8 @@ export const OptionsAnalyticsPanel = ({
     () => supplied ?? createBrowserOptionsAnalyticsGateway()
   );
   const [hours, setHours] = useState<number>(24);
+  // Kept here because the heatmap is mounted again after each reload of the snapshot.
+  const [heatmapTab, setHeatmapTab] = useState<GreekHeatmapMetric>("gex");
   const [state, setState] = useState<State>({ type: "loading" });
   const generation = useRef(0);
 
@@ -632,7 +622,8 @@ export const OptionsAnalyticsPanel = ({
     setState({ type: "loading" });
     try {
       const data = await gateway.snapshot({ flowHours: hours, symbol });
-      if (mine === generation.current) setState({ data, type: "ready" });
+      if (mine === generation.current)
+        setState({ data, symbol, type: "ready" });
     } catch (error) {
       if (mine === generation.current)
         setState({ type: "error", ...describeMarketDataFailure(error) });
@@ -740,6 +731,17 @@ export const OptionsAnalyticsPanel = ({
             section={state.data.exposure}
             spot={state.data.spot}
           />
+          {/* Mounted only after the snapshot of this symbol answered, so its term-structure
+              request is a cache hit. On a symbol change the old snapshot is still on screen
+              for one render; the heatmap must not ask for the new symbol then. */}
+          {state.symbol === symbol ? (
+            <GreekHeatmapPanel
+              gateway={gateway}
+              initialTab={heatmapTab}
+              onTabChange={setHeatmapTab}
+              symbol={symbol}
+            />
+          ) : null}
           <StrikeProfilesPanel snapshot={state.data} />
           <Flow section={state.data.flow} />
           <details className="text-muted-foreground text-xs">

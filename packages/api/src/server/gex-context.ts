@@ -25,7 +25,7 @@ import {
 // Sign convention everywhere: dealers are long calls and short puts.
 
 const TRADING_DAYS = 252;
-const DAYS_PER_YEAR = 365;
+export const DAYS_PER_YEAR = 365;
 // Flow bias needs this share of signed premium on one side.
 const FLOW_BIAS_SHARE = 0.2;
 // Front/back ATM IV ratio outside 0.95-1.05 is inverted or contango.
@@ -33,8 +33,8 @@ const IV_TERM_BAND = 0.05;
 // The back point for the term regime: the first expiry at least this far out.
 const IV_BACK_MIN_DTE = 25;
 // Flip search: spot x (1 +/- FLIP_RANGE) in FLIP_STEPS steps.
-const FLIP_RANGE = 0.3;
-const FLIP_STEPS = 120;
+export const FLIP_RANGE = 0.3;
+export const FLIP_STEPS = 120;
 const DAY_MS = 86_400_000;
 
 type StrikeOi = ExposureSection["strikes"][number];
