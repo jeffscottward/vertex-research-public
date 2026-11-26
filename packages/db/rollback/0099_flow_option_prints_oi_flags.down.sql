@@ -1,9 +1,9 @@
--- Guarded reversal of 0098_flow_option_prints_oi_flags only. The normal rollback path is to deploy
+-- Guarded reversal of 0099_flow_option_prints_oi_flags only. The normal rollback path is to deploy
 -- the previous app, which runs cleanly against nullable opening/volume_over_oi because
 -- flow_option_prints_check restricts NULL flags to open_interest = 0 rows.
 -- This down migration refuses to run while any row has NULL opening or volume_over_oi.
 -- No row deletes, updates, truncation or cascading drops. Drizzle ledger reconciliation is
--- deliberately not automated: after this rollback the 0098 row stays in drizzle.__drizzle_migrations.
+-- deliberately not automated: after this rollback the 0099 row stays in drizzle.__drizzle_migrations.
 -- Outside discoverable migrations.
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
@@ -17,7 +17,7 @@ BEGIN
     WHERE "opening" IS NULL OR "volume_over_oi" IS NULL
     INTO remaining;
   IF remaining > 0 THEN
-    RAISE EXCEPTION 'cannot roll back 0098_flow_option_prints_oi_flags while % rows have NULL opening or volume_over_oi', remaining;
+    RAISE EXCEPTION 'cannot roll back 0099_flow_option_prints_oi_flags while % rows have NULL opening or volume_over_oi', remaining;
   END IF;
 END
 $$;

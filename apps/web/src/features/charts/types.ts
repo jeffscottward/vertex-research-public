@@ -1,4 +1,4 @@
-import type { ExpectedMoveBasis } from "@darkfactory/api";
+import type { ExpectedMoveBasis, GexContext } from "@darkfactory/api";
 import type {
   Candle,
   Quote,
@@ -89,6 +89,10 @@ export type ChartPalette = Readonly<{
   falling: string;
   accent: string;
   warning?: string;
+  success?: string;
+  destructive?: string;
+  info?: string;
+  king?: string;
 }>;
 export type CandleRendererOptions = Readonly<{
   palette: ChartPalette;
@@ -160,6 +164,22 @@ export type ExpectedMoveCone = Readonly<{
   straddlePrice: number | null;
   basis: ExpectedMoveBasis;
 }>;
+// Horizontal dealer gamma positioning levels drawn on price charts (display only).
+export type GammaLevelsSource = "optionsAnalytics" | "flowGex";
+export type GammaLevelsOverlay = Readonly<{
+  source: GammaLevelsSource;
+  symbol: string;
+  underlyingTicker: string | null;
+  asOf: string;
+  spot: number | null;
+  basis: number | null;
+  regime: GexContext["regime"];
+  flip: number | null;
+  callWall: number | null;
+  putWall: number | null;
+  maxPain: number | null;
+  kingNode: number | null;
+}>;
 export type CandleRenderer = Readonly<{
   replace: (candles: readonly DisplayCandle[]) => void;
   resize: () => void;
@@ -168,6 +188,8 @@ export type CandleRenderer = Readonly<{
   setMarkers?: (markers: readonly ChartMarker[]) => void;
   // Replace the forward expected-move cone overlay (null clears it and restores right offset).
   setExpectedMove?: (cone: ExpectedMoveCone | null) => void;
+  // Replace the horizontal gamma levels overlay (null clears it).
+  setGammaLevels?: (levels: GammaLevelsOverlay | null) => void;
   // Replace all applied script layers (an empty list removes them and their panes).
   setScriptPlots?: (layers: readonly ScriptLayer[]) => void;
   // Replace the page-supplied histogram pane (null removes it and its pane).

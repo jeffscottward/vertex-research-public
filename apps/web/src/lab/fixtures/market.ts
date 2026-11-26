@@ -274,6 +274,7 @@ const labGexContext = (
       dailyMove: roundTo(dailyMove, 2),
       flip: atm - strikeStep,
       flipMoves: moves(atm - strikeStep),
+      kingNode: atm + strikeStep,
       putWall: atm - 2 * strikeStep,
       putWallMoves: moves(atm - 2 * strikeStep),
     },

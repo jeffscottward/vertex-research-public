@@ -163,6 +163,7 @@ export type FlowGexRow = Readonly<{
   callWall: number | null;
   putWall: number | null;
   maxPain: number | null;
+  kingNode: number | null;
   netDex: number | null;
   zeroDteShare: number | null;
   ivRegime: string;
@@ -599,6 +600,7 @@ export const buildGexView = (gex: FlowGexRow | null): FlowSnapshot["gex"] => {
     levels: {
       callWall: gex.callWall,
       flip: gex.flip,
+      kingNode: gex.kingNode,
       maxPain: gex.maxPain,
       putWall: gex.putWall,
     },
@@ -611,6 +613,7 @@ export const buildGexView = (gex: FlowGexRow | null): FlowSnapshot["gex"] => {
         : {
             callWall: shift(gex.callWall, basis),
             flip: shift(gex.flip, basis),
+            kingNode: shift(gex.kingNode, basis),
             maxPain: shift(gex.maxPain, basis),
             putWall: shift(gex.putWall, basis),
           },

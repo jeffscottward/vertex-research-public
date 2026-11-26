@@ -60,7 +60,13 @@ const snapshotAt = (
     gex: {
       ...gex,
       at: minutesAgo(5),
-      levels: { callWall: 620, flip: 590, maxPain: 600, putWall: 600 },
+      levels: {
+        callWall: 620,
+        flip: 590,
+        kingNode: null,
+        maxPain: 600,
+        putWall: 600,
+      },
       spot: 600.4,
       ticker: "SPY",
       ...overrides,
@@ -83,7 +89,13 @@ describe("wall drift copy", () => {
       ),
       flowWallDriftView(
         snapshotAt({
-          levels: { callWall: 601, flip: null, maxPain: null, putWall: 590 },
+          levels: {
+            callWall: 601,
+            flip: null,
+            kingNode: null,
+            maxPain: null,
+            putWall: 590,
+          },
         }),
         null,
         ready(controlWith("SPY", risingCallPoints)),
@@ -145,7 +157,13 @@ describe("flowWallDriftView", () => {
 
   it("labels break risk, a wall without a flip and no-read without a wall", () => {
     const callWall = snapshotAt({
-      levels: { callWall: 601, flip: null, maxPain: null, putWall: 590 },
+      levels: {
+        callWall: 601,
+        flip: null,
+        kingNode: null,
+        maxPain: null,
+        putWall: 590,
+      },
     });
     expect(
       flowWallDriftView(
@@ -161,7 +179,13 @@ describe("flowWallDriftView", () => {
     });
     const away = flowWallDriftView(
       snapshotAt({
-        levels: { callWall: 620, flip: 590, maxPain: null, putWall: 580 },
+        levels: {
+          callWall: 620,
+          flip: 590,
+          kingNode: null,
+          maxPain: null,
+          putWall: 580,
+        },
       }),
       null,
       ready(controlWith("SPY", risingCallPoints)),
@@ -222,7 +246,13 @@ describe("flowWallDriftView", () => {
     expect(
       flowWallDriftView(
         snapshotAt({
-          levels: { callWall: 601, flip: 590, maxPain: null, putWall: 600 },
+          levels: {
+            callWall: 601,
+            flip: 590,
+            kingNode: null,
+            maxPain: null,
+            putWall: 600,
+          },
         }),
         null,
         control,
@@ -232,7 +262,13 @@ describe("flowWallDriftView", () => {
     expect(
       flowWallDriftView(
         snapshotAt({
-          levels: { callWall: 600, flip: 590, maxPain: null, putWall: 601 },
+          levels: {
+            callWall: 600,
+            flip: 590,
+            kingNode: null,
+            maxPain: null,
+            putWall: 601,
+          },
         }),
         null,
         control,

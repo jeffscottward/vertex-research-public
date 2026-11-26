@@ -15,7 +15,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // The unit tests compare the rendered SQL text only. This suite runs the
-// flow_option_prints_check of migration 0098 on real Postgres: NULL
+// flow_option_prints_check of migration 0099 on real Postgres: NULL
 // opening/volume_over_oi (not reported) is allowed only on open_interest = 0
 // prints, and then for both flags together. It then applies the guarded rollback.
 
@@ -66,7 +66,7 @@ const makePrint = (
   ...overrides,
 });
 
-describe("migration 0098 flow option print OI flags on real Postgres", {
+describe("migration 0099 flow option print OI flags on real Postgres", {
   concurrent: false,
 }, () => {
   beforeAll(async () => {
@@ -174,13 +174,13 @@ describe("migration 0098 flow option print OI flags on real Postgres", {
   it("refuses the guarded rollback while not-reported rows exist, then applies it", async () => {
     const rollback = readFileSync(
       new URL(
-        "../../../packages/db/rollback/0098_flow_option_prints_oi_flags.down.sql",
+        "../../../packages/db/rollback/0099_flow_option_prints_oi_flags.down.sql",
         import.meta.url
       ),
       "utf8"
     );
     await expect(testDatabase.query(rollback)).rejects.toThrow(
-      /cannot roll back 0098_flow_option_prints_oi_flags while 1 rows/
+      /cannot roll back 0099_flow_option_prints_oi_flags while 1 rows/
     );
     await testDatabase.query("rollback");
 

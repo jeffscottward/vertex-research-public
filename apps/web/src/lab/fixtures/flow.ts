@@ -150,6 +150,7 @@ export const labFlowSnapshot = (
   const gexLevels = {
     callWall: instrument.strike + 25,
     flip: instrument.strike - 10,
+    kingNode: instrument.strike + 25,
     maxPain: instrument.strike,
     putWall: instrument.strike - 40,
   };
@@ -262,6 +263,7 @@ export const labFlowSnapshot = (
       symbolLevels: {
         callWall: shift(gexLevels.callWall),
         flip: shift(gexLevels.flip),
+        kingNode: shift(gexLevels.kingNode),
         maxPain: shift(gexLevels.maxPain),
         putWall: shift(gexLevels.putWall),
       },

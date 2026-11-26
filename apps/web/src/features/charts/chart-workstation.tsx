@@ -13,6 +13,7 @@ import {
   subscribeChartCommands,
 } from "./chart-bus.ts";
 import { CHART_BUTTON as BUTTON } from "./chart-ui.ts";
+import { gammaLevelsObjectLabel } from "./gamma-levels-overlay.ts";
 import { validScriptLayer } from "./kline-adapter.ts";
 import { dataWindowRows, displayValues } from "./market-bars.ts";
 import { CandleCanvas } from "./renderer-host.tsx";
@@ -25,6 +26,7 @@ import type {
   ChartStudies,
   DisplayCandle,
   ExpectedMoveCone,
+  GammaLevelsOverlay,
   ScriptLayer,
   SeriesPane,
 } from "./types.ts";
@@ -53,6 +55,8 @@ export type ChartWorkstationProps = Readonly<{
   markers: readonly ChartMarker[];
   // Optional forward ±1σ expected move cone overlay; null clears it.
   expectedMove?: ExpectedMoveCone | null;
+  // Optional horizontal dealer gamma levels overlay; null clears it.
+  gammaLevels?: GammaLevelsOverlay | null;
   // One histogram pane under the candles; missing or null means none.
   seriesPane?: SeriesPane | null;
   factory: CandleRendererFactory;
@@ -136,6 +140,7 @@ export const ChartWorkstation = ({
   studies: requestedStudies,
   markers,
   expectedMove,
+  gammaLevels,
   seriesPane,
   factory,
   captions,
@@ -253,6 +258,14 @@ export const ChartWorkstation = ({
     }
     return;
   }, [renderer, expectedMove]);
+  useEffect(() => {
+    try {
+      renderer?.setGammaLevels?.(gammaLevels ?? null);
+    } catch {
+      setStatus("Gamma levels could not be drawn on the chart.");
+    }
+    return;
+  }, [renderer, gammaLevels]);
   // A script from the Quant assistant: the stored copy first, then the command's own.
   const requests = useRef(0);
   const takePendingScript = useCallback(
@@ -499,6 +512,7 @@ export const ChartWorkstation = ({
                 ...(studies.panes ?? []),
                 markers.length > 0 ? `Trade markers (${markers.length})` : null,
                 expectedMove ? `Expected move (${expectedMove.expiry})` : null,
+                gammaLevels ? gammaLevelsObjectLabel(gammaLevels) : null,
               ]
                 .filter((entry): entry is string => entry !== null)
                 .map((entry) => (

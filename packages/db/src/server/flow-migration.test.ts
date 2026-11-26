@@ -67,8 +67,14 @@ describe("0052_flow_pipeline migration", () => {
       const sqlColumns = [...body.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map(
         (match) => match[1]
       );
+      // Columns added by later migrations (0098_flow_gex_king_node) are verified in their own suites.
       expect([...sqlColumns].sort()).toEqual(
-        config.columns.map((column) => column.name).sort()
+        config.columns
+          .map((column) => column.name)
+          .filter(
+            (name) => !(config.name === "flow_gex" && name === "king_node")
+          )
+          .sort()
       );
       for (const check of config.checks)
         expect(body).toContain(`CONSTRAINT "${check.name}" CHECK`);
@@ -519,14 +525,49 @@ describe("0095_flow_option_tickers migration", () => {
   });
 });
 
-describe("0098_flow_option_prints_oi_flags migration", () => {
+describe("0098_flow_gex_king_node migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0098_flow_gex_king_node.sql");
+  const rollback = read("../../rollback/0098_flow_gex_king_node.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+
+  it("only adds nullable king_node to flow_gex and changes no row", () => {
+    expect(migration).not.toMatch(
+      /^\s*(TRUNCATE|UPDATE|DELETE|INSERT|DROP)\s/im
+    );
+    expect(migration.trim()).toBe(
+      'ALTER TABLE "flow_gex" ADD COLUMN "king_node" double precision;'
+    );
+    expect(
+      getTableConfig(flowGex).columns.map((column) => column.name)
+    ).toContain("king_node");
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0098_flow_gex_king_node"
+    );
+  });
+
+  it("the rollback drops only king_node without cascade or deletes", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DELETE /u);
+    expect(rollback).toContain(
+      'ALTER TABLE "public"."flow_gex" DROP COLUMN "king_node";'
+    );
+  });
+});
+
+describe("0099_flow_option_prints_oi_flags migration", () => {
   const read = (path: string) =>
     readFileSync(new URL(path, import.meta.url), "utf8");
   const migration = read(
-    "../../migrations/0098_flow_option_prints_oi_flags.sql"
+    "../../migrations/0099_flow_option_prints_oi_flags.sql"
   );
   const rollback = read(
-    "../../rollback/0098_flow_option_prints_oi_flags.down.sql"
+    "../../rollback/0099_flow_option_prints_oi_flags.down.sql"
   );
   const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
     entries: Array<{ tag: string }>;
@@ -554,11 +595,11 @@ describe("0098_flow_option_prints_oi_flags migration", () => {
 
   it("has a journal entry with its tag", () => {
     expect(journal.entries.map((entry) => entry.tag)).toContain(
-      "0098_flow_option_prints_oi_flags"
+      "0099_flow_option_prints_oi_flags"
     );
   });
 
-  it("the rollback refuses while NULL flags exist, mutates no rows, and restores pre-0098 check and NOT NULL", () => {
+  it("the rollback refuses while NULL flags exist, mutates no rows, and restores pre-0099 check and NOT NULL", () => {
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DELETE |UPDATE /u);
     expect(rollback).toContain("RAISE EXCEPTION");
     expect(rollback).toContain('"opening" IS NULL OR "volume_over_oi" IS NULL');

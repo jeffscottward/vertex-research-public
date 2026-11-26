@@ -17,7 +17,7 @@ side with the options side (section "Control document").
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
 | Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
-| GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
+| GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, king node, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
 | Tape speed counts (ES, NQ) | the streamed tape of the ticks row | `flow_tape_seconds` (per minute: the prints and the contracts of each of its 60 seconds, and which seconds were covered) | with each tape read |
 
@@ -218,7 +218,7 @@ check of the tape against IBKR history is a future improvement.
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or
   $1M (SPX), and every golden sweep. A print that reports open interest 0 has QuantData's Opening
   and Vol > OI flags set on every print (cards `vertex-flow-print-flags-oi-zero` and
-  `vertex-flow-print-flags-oi-zero-third-state`). Migration `0098_flow_option_prints_oi_flags`
+  `vertex-flow-print-flags-oi-zero-third-state`). Migration `0099_flow_option_prints_oi_flags`
   makes `flow_option_prints.opening` and `volume_over_oi` nullable and extends
   `flow_option_prints_check` so both flags are `NULL` together and only when `open_interest = 0`.
   `parseOptionPrints` stores `NULL` ("not reported") for both flags when `openInterest === 0`,

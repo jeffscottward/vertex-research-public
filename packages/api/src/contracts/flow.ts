@@ -572,6 +572,7 @@ const levels = z
     callWall: finite.nullable(),
     putWall: finite.nullable(),
     maxPain: finite.nullable(),
+    kingNode: finite.nullable(),
   })
   .strict();
 
