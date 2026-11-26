@@ -80,7 +80,7 @@ export const OptionContractSourcesSchema = z
     // model: Black-Scholes from the chosen IV.
     delta: z.enum(["quantdata", "model"]).nullable(),
     iv: z.enum(["quantdata", "yahoo"]).nullable(),
-    openInterest: z.enum(["quantdata", "yahoo"]).nullable(),
+    openInterest: z.enum(["yahoo", "quantdata"]).nullable(),
     // Bid and ask come from one source together.
     quote: z.enum(["ibkr", "yahoo"]).nullable(),
   })
@@ -193,7 +193,7 @@ export const OptionsChainOutputSchema = z
     dte: z.number().int().nonnegative(),
     expiry: isoDate,
     // True when the Quant Data order-flow answer had more pages than the one read: `flow` and
-    // the Quant Data open interest then cover the first provider page only.
+    // the Quant Data print open interest then cover the first provider page only.
     flowFirstPageOnly: z.boolean(),
     // Data limits the reader must know (sources used, delay, computed Greeks, missing IV).
     notes: z.array(z.string().max(300)).max(10),

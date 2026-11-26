@@ -21,7 +21,9 @@ import type { OptionsChainGateway } from "./options-chain-client.ts";
 // volumes and open interest are generated from the symbol; none of it is real market data.
 // The chain mimics the merged response (Quant Data first, then IBKR, then Yahoo): the 13 strikes
 // nearest the spot carry an "IBKR" quote and "Quant Data" open interest and flow, the rest are
-// tagged Yahoo.
+// tagged Yahoo. The real merge takes the open interest from Yahoo first and tags it "Quant Data"
+// only for a contract that Yahoo does not have; the fake keeps that tag on the 13 strikes so
+// the page shows both source tags.
 // Special symbols: NOOPT lists no options, FAIL makes every request fail.
 
 export const FAKE_NOW = new Date("2026-11-04T15:00:00.000Z");

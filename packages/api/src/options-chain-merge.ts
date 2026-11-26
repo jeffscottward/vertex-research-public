@@ -42,7 +42,13 @@ export const OPTIONS_CHAIN_PRIORITY = {
   // carry the bid and ask at the time of a past trade, and that is never shown as a quote.
   quote: ["ibkr", "yahoo"],
   iv: ["quantdata", "yahoo"],
-  openInterest: ["quantdata", "yahoo"],
+  // Yahoo first: the exception to "Quant Data first". Quant Data has no chain open interest,
+  // only the value on an order-flow print. In a check against Yahoo and the Nasdaq option
+  // chain, that value was 0 or lower than both for about a third of the contracts, and Yahoo
+  // was equal to Nasdaq (numbers in docs/data-sources-and-platform-roles.md, "Options chain
+  // on /stock/<SYMBOL>"). A print value fills a contract that Yahoo does not have, for example
+  // on the day it expires. Yahoo's own 0 is a reported value and is shown.
+  openInterest: ["yahoo", "quantdata"],
   // model: Black-Scholes from the chosen IV.
   delta: ["quantdata", "model"],
   spot: ["quantdata", "ibkr", "yahoo"],
@@ -60,7 +66,7 @@ export const OPTIONS_CHAIN_PRIORITY = {
 
 /** Fixed risk-free rate assumption for the Greeks (continuously compounded, decimal). */
 export const OPTIONS_CHAIN_RISK_FREE_RATE = 0.04;
-/** Window of the Quant Data order-flow prints behind `flow` and the Quant Data open interest. */
+/** Window of the Quant Data order-flow prints behind `flow` and the Quant Data print open interest. */
 export const OPTIONS_CHAIN_FLOW_HOURS = 24;
 
 /** One source read: its data, or why there is none (`message` is safe to show). */
@@ -349,6 +355,11 @@ const YAHOO_DELAY_NOTE =
   "Yahoo Finance values can be delayed by 15 minutes or more; its bid and ask can show 0 outside market hours.";
 const FLOW_FIRST_PAGE_NOTE =
   "Only the first provider page of prints was read: flow totals can be too low and contracts can be missing.";
+// OPTIONS_CHAIN_PRIORITY.openInterest and the 0 rule of options-chain-quantdata.ts, said to the
+// reader. It shares the IV and open interest note: the output contract allows at most 10 notes
+// of at most 300 characters, and 10 notes can already occur.
+const PRINT_OPEN_INTEREST_NOTE =
+  "A Quant Data print value is used only when no other source has the open interest. A print value of 0 is read as not reported.";
 
 type NoteFacts = Readonly<{
   contracts: readonly OptionContract[];
@@ -414,10 +425,12 @@ const chainNotes = (facts: NoteFacts): string[] => {
   return [
     `${spotNote}${expiriesNote}Bid and ask: ${split("quote")} (of ${contracts.length} contracts).`,
     ...optional(age !== "", age),
-    `IV: ${split("iv")}. Open interest: ${split("openInterest")}.`,
+    `IV: ${split("iv")}. Open interest: ${split("openInterest")}.${
+      facts.quantDataRows ? ` ${PRINT_OPEN_INTEREST_NOTE}` : ""
+    }`,
     ...optional(
       facts.quantDataRows,
-      `Quant Data open interest and flow come from the order-flow prints of the last ${OPTIONS_CHAIN_FLOW_HOURS} hours, so a contract without a print shows neither.${
+      `Quant Data flow and print open interest come from the order-flow prints of the last ${OPTIONS_CHAIN_FLOW_HOURS} hours, so a contract without a print has neither.${
         facts.flowFirstPageOnly ? ` ${FLOW_FIRST_PAGE_NOTE}` : ""
       }`
     ),
