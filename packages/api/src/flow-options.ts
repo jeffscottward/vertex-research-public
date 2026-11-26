@@ -181,11 +181,10 @@ export const oiFlags = (
     ? { opening: null, volumeOverOi: null }
     : { opening: print.opening, volumeOverOi: print.volumeOverOi };
 
-/** True when the print reports both OI-derived flags (Opening and Vol > OI). */
-export const oiFlagsKnown = (print: OiFlagFields): boolean => {
-  const flags = oiFlags(print);
-  return flags.opening !== null && flags.volumeOverOi !== null;
-};
+/** True when the print reports both OI-derived flags (oiFlags pairs both as null or boolean). */
+export const oiFlagsKnown = (print: OiFlagFields): boolean =>
+  oiFlags(print).opening !== null;
+
 const optionKind = (print: FlowOptionPrintRow): FlowEventRow["kind"] => {
   if (print.goldenSweep) return "option_golden_sweep";
   if (print.consolidation === "sweep") return "option_sweep";

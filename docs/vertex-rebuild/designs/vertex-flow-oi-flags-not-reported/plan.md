@@ -67,7 +67,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
 ### Invariants
 
 - **Database invariant (extended `flow_option_prints_check`):**
-  `(("opening" is null) = ("volume_over_oi" is null)) and ("opening" is not null or "open_interest" = 0)`
+  `(("opening" is null) = ("volume_over_oi" is null)) and ("opening" is not null or ("open_interest" is not null and "open_interest" = 0))`
   Pre-migration rows (`opening` and `volume_over_oi` both non-null) satisfy this constraint without backfill; post-migration rows can only store `NULL` as a pair and only when `open_interest = 0`.
 - **Summary invariants:** `0 <= oiFlagsNotReported <= trades`; `volumeOverOi + oiFlagsNotReported <= trades`; when `oiFlagsNotReported === trades`, `volumeOverOi === 0` and `openingPremiumShare === null`.
 - **Transition window:** Keep the `openInterest === 0` branch in `oiFlags` until a production query confirms zero rows match `open_interest = 0 and (opening is not null or volume_over_oi is not null)` (and do not extend `flow_option_prints` retention past 14 days before that without a backfill).
@@ -132,7 +132,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
 
 ### Phase 2 — Schema, Migration & Rollback SQL
 
-1. Update `packages/db/src/schema/flow.ts`: remove `.notNull()` on `opening` and `volumeOverOi` and extend `flow_option_prints_check` with `and (${table.opening} is null) = (${table.volumeOverOi} is null) and (${table.opening} is not null or ${table.openInterest} = 0)`.
+1. Update `packages/db/src/schema/flow.ts`: remove `.notNull()` on `opening` and `volumeOverOi` and extend `flow_option_prints_check` with `and (${table.opening} is null) = (${table.volumeOverOi} is null) and (${table.opening} is not null or (${table.openInterest} is not null and ${table.openInterest} = 0))`.
 2. Generate migration `0098_flow_option_prints_oi_flags` with `DATABASE_URL` set (`pnpm --filter @darkfactory/db exec drizzle-kit generate --name flow_option_prints_oi_flags`).
 3. Create `packages/db/rollback/0098_flow_option_prints_oi_flags.down.sql` with a `DO $$ ... RAISE EXCEPTION ... $$` guard refusing rollback while `opening IS NULL OR volume_over_oi IS NULL` rows exist, then restoring pre-0098 `flow_option_prints_check` and `SET NOT NULL` on both columns.
 4. Add `describe("0098_flow_option_prints_oi_flags migration", ...)` to `packages/db/src/server/flow-migration.test.ts` verifying forward SQL (`DROP NOT NULL`, `ADD CONSTRAINT "flow_option_prints_check"`, no `UPDATE`/`DELETE`), journal tag, and guarded rollback SQL.

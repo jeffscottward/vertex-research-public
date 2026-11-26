@@ -547,7 +547,7 @@ describe("0098_flow_option_prints_oi_flags migration", () => {
       '("flow_option_prints"."opening" is null) = ("flow_option_prints"."volume_over_oi" is null)'
     );
     expect(migration).toContain(
-      '("flow_option_prints"."opening" is not null or "flow_option_prints"."open_interest" = 0)'
+      '("flow_option_prints"."opening" is not null or ("flow_option_prints"."open_interest" is not null and "flow_option_prints"."open_interest" = 0))'
     );
     expect(migration).not.toMatch(/UPDATE |DELETE |TRUNCATE /u);
   });

@@ -213,7 +213,7 @@ export const flowOptionPrints = pgTable(
     ),
     check(
       "flow_option_prints_check",
-      sql`${optionPrintSymbolCheck(table.symbol)} and ${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and ${table.right} in ('call', 'put') and ${table.premium} >= 0 and length(${table.id}) <= 64 and (${table.opening} is null) = (${table.volumeOverOi} is null) and (${table.opening} is not null or ${table.openInterest} = 0)`
+      sql`${optionPrintSymbolCheck(table.symbol)} and ${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and ${table.right} in ('call', 'put') and ${table.premium} >= 0 and length(${table.id}) <= 64 and (${table.opening} is null) = (${table.volumeOverOi} is null) and (${table.opening} is not null or (${table.openInterest} is not null and ${table.openInterest} = 0))`
     ),
   ]
 );

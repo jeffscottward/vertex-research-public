@@ -1,5 +1,5 @@
 {
-  "id": "34d75322-5151-4ff8-ad82-ce6e5a52c841",
+  "id": "7686d91a-6c56-4dbd-9d1a-250766f61c55",
   "prevId": "d08d30f0-5cb8-484f-9330-84faa167fd81",
   "version": "7",
   "dialect": "postgresql",
@@ -26096,7 +26096,7 @@
       "checkConstraints": {
         "flow_option_prints_check": {
           "name": "flow_option_prints_check",
-          "value": "\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA') and \"flow_option_prints\".\"ticker\" in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and \"flow_option_prints\".\"right\" in ('call', 'put') and \"flow_option_prints\".\"premium\" >= 0 and length(\"flow_option_prints\".\"id\") <= 64 and (\"flow_option_prints\".\"opening\" is null) = (\"flow_option_prints\".\"volume_over_oi\" is null) and (\"flow_option_prints\".\"opening\" is not null or \"flow_option_prints\".\"open_interest\" = 0)"
+          "value": "\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA') and \"flow_option_prints\".\"ticker\" in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and \"flow_option_prints\".\"right\" in ('call', 'put') and \"flow_option_prints\".\"premium\" >= 0 and length(\"flow_option_prints\".\"id\") <= 64 and (\"flow_option_prints\".\"opening\" is null) = (\"flow_option_prints\".\"volume_over_oi\" is null) and (\"flow_option_prints\".\"opening\" is not null or (\"flow_option_prints\".\"open_interest\" is not null and \"flow_option_prints\".\"open_interest\" = 0))"
         }
       },
       "isRLSEnabled": false
