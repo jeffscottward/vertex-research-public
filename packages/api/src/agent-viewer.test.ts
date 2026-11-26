@@ -295,6 +295,7 @@ const REVIEWED_READS: readonly string[] = [
   "marketNews.watchlist",
   "marketNotes.get",
   "marketNotes.list",
+  "marketRegime.get",
   "masterRules.search",
   "nautilusArm.status",
   "openbb.changes13f",

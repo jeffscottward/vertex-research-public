@@ -124,6 +124,9 @@ describe("vertex-market-note wrapper", () => {
       join(rig.root, ".config/vertex/market-notes.env"),
       `VERTEX_ORIGIN=https://vertex.example.com\nMARKET_NOTES_PYTHON=${other}\n`
     );
+    // writeFile applies the host umask (0002 gives group write); the wrapper
+    // refuses a group-writable settings file, so set the mode explicitly.
+    chmodSync(join(rig.root, ".config/vertex/market-notes.env"), 0o644);
     const result = run(rig, ["list"]);
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe(

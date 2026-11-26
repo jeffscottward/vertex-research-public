@@ -1,0 +1,226 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="640"
+  viewBox="0 0 1200 640"
+  font-family="Manrope, Public Sans, sans-serif"
+  role="img"
+>
+  <title>
+    Before and after: two panels become one GEX wall x net drift read (MOCK
+    badge)
+  </title>
+  <rect width="1200" height="640" fill="#0f1115" />
+  <text x="40" y="52" fill="#e8e6df" font-size="28" font-weight="700">
+    GEX wall × net drift read
+  </text>
+  <text x="40" y="82" fill="#9a9aa2" font-size="16">
+    Research only · no orders · rules gex-wall-drift-rules.v1 · badge text is a
+    MOCK drawing
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    x="40"
+    y="110"
+    width="540"
+    height="490"
+    rx="16"
+    fill="#171a21"
+    stroke="#2a2e38"
+  />
+  <text x="64" y="148" fill="#c9a227" font-size="20" font-weight="700">
+    BEFORE
+  </text>
+  <text x="64" y="174" fill="#9a9aa2" font-size="14">
+    Two separate panels. The reader joins them by eye.
+  </text>
+  <!-- GEX levels table -->
+  <rect x="64" y="196" width="220" height="150" rx="10" fill="#1f232c" />
+  <text x="80" y="222" fill="#e8e6df" font-size="14" font-weight="700">
+    GEX levels
+  </text>
+  <text x="80" y="252" fill="#9a9aa2" font-size="13">Call wall</text>
+  <text x="250" y="252" fill="#e8e6df" font-size="13" text-anchor="end">
+    610
+  </text>
+  <text x="80" y="280" fill="#9a9aa2" font-size="13">Gamma flip</text>
+  <text x="250" y="280" fill="#e8e6df" font-size="13" text-anchor="end">
+    590
+  </text>
+  <text x="80" y="308" fill="#9a9aa2" font-size="13">Put wall</text>
+  <text x="250" y="308" fill="#e8e6df" font-size="13" text-anchor="end">
+    600
+  </text>
+  <!-- drift chart -->
+  <rect x="304" y="196" width="252" height="150" rx="10" fill="#1f232c" />
+  <text x="320" y="222" fill="#e8e6df" font-size="14" font-weight="700">
+    Net drift
+  </text>
+  <polyline
+    points="320,320 360,310 400,300 440,280 480,262 540,240"
+    fill="none"
+    stroke="#4caf7a"
+    stroke-width="3"
+  />
+  <polyline
+    points="320,312 360,316 400,318 440,316 480,320 540,322"
+    fill="none"
+    stroke="#e5534b"
+    stroke-width="3"
+  />
+  <text x="540" y="234" fill="#4caf7a" font-size="12" text-anchor="end">
+    calls
+  </text>
+  <text x="540" y="338" fill="#e5534b" font-size="12" text-anchor="end">
+    puts
+  </text>
+  <!-- question -->
+  <circle
+    cx="310"
+    cy="430"
+    r="44"
+    fill="none"
+    stroke="#9a9aa2"
+    stroke-width="3"
+    stroke-dasharray="6 6"
+  />
+  <text
+    x="310"
+    y="446"
+    fill="#9a9aa2"
+    font-size="48"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    ?
+  </text>
+  <text x="310" y="510" fill="#9a9aa2" font-size="14" text-anchor="middle">
+    Price at a wall: hold or break?
+  </text>
+  <text x="310" y="534" fill="#9a9aa2" font-size="14" text-anchor="middle">
+    No rule, no study, no missing-data state.
+  </text>
+  <line x1="180" y1="346" x2="270" y2="400" stroke="#2a2e38" stroke-width="2" />
+  <line x1="430" y1="346" x2="350" y2="400" stroke="#2a2e38" stroke-width="2" />
+
+  <!-- arrow -->
+  <path d="M592 355 L612 355" stroke="#c9a227" stroke-width="4" />
+  <path d="M608 343 L624 355 L608 367 Z" fill="#c9a227" />
+
+  <!-- AFTER -->
+  <rect
+    x="636"
+    y="110"
+    width="524"
+    height="490"
+    rx="16"
+    fill="#171a21"
+    stroke="#2a2e38"
+  />
+  <text x="660" y="148" fill="#c9a227" font-size="20" font-weight="700">
+    AFTER
+  </text>
+  <text x="660" y="174" fill="#9a9aa2" font-size="14">
+    One pure rule grades the touch; a badge shows it on /flow and /stock.
+  </text>
+  <!-- price scene -->
+  <line
+    x1="660"
+    y1="232"
+    x2="1136"
+    y2="232"
+    stroke="#4caf7a"
+    stroke-width="2"
+    stroke-dasharray="8 6"
+  />
+  <text x="1136" y="224" fill="#4caf7a" font-size="12" text-anchor="end">
+    call wall 610
+  </text>
+  <line
+    x1="660"
+    y1="292"
+    x2="1136"
+    y2="292"
+    stroke="#c9a227"
+    stroke-width="2"
+    stroke-dasharray="3 5"
+  />
+  <text x="1136" y="284" fill="#c9a227" font-size="12" text-anchor="end">
+    gamma flip 590 (price above)
+  </text>
+  <line
+    x1="660"
+    y1="352"
+    x2="1136"
+    y2="352"
+    stroke="#e5534b"
+    stroke-width="2"
+    stroke-dasharray="8 6"
+  />
+  <text x="664" y="372" fill="#e5534b" font-size="12">put wall 600</text>
+  <polyline
+    points="672,250 720,270 770,300 820,330 860,348 890,352"
+    fill="none"
+    stroke="#e8e6df"
+    stroke-width="3"
+  />
+  <circle cx="890" cy="352" r="8" fill="#e8e6df" />
+  <!-- flow arrows at the wall -->
+  <path d="M930 420 L930 372" stroke="#4caf7a" stroke-width="6" />
+  <path d="M918 378 L930 360 L942 378 Z" fill="#4caf7a" />
+  <text x="946" y="404" fill="#4caf7a" font-size="13">
+    call drift rising → Hold (A)
+  </text>
+  <path d="M1010 330 L1010 378" stroke="#e5534b" stroke-width="6" />
+  <path d="M998 372 L1010 390 L1022 372 Z" fill="#e5534b" />
+  <text x="1026" y="350" fill="#e5534b" font-size="13">put drift rising →</text>
+  <text x="1026" y="366" fill="#e5534b" font-size="13">Break risk</text>
+  <!-- badge mock -->
+  <rect
+    x="660"
+    y="450"
+    width="476"
+    height="120"
+    rx="10"
+    fill="#1f232c"
+    stroke="#2a2e38"
+  />
+  <text x="676" y="480" fill="#e8e6df" font-size="15" font-weight="700">
+    Wall × drift · SPY
+  </text>
+  <rect
+    x="828"
+    y="463"
+    width="92"
+    height="24"
+    rx="12"
+    fill="#163a27"
+    stroke="#2f7d52"
+  />
+  <text x="874" y="480" fill="#7fd6a3" font-size="13" text-anchor="middle">
+    Hold (A)
+  </text>
+  <text x="932" y="480" fill="#9a9aa2" font-size="12">
+    Put wall 600 · above flip 590
+  </text>
+  <text x="676" y="508" fill="#9a9aa2" font-size="12">
+    call drift rising at put wall 600, above gamma flip 590;
+  </text>
+  <text x="676" y="526" fill="#9a9aa2" font-size="12">
+    call +$1.50M, put $0.00M in 15 min
+  </text>
+  <text x="676" y="552" fill="#c9a227" font-size="12">
+    Unvalidated: study accruing · research only
+  </text>
+  <text
+    x="1120"
+    y="560"
+    fill="#e5534b"
+    font-size="12"
+    font-weight="700"
+    text-anchor="end"
+  >
+    MOCK
+  </text>
+</svg>

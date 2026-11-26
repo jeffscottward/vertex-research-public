@@ -132,6 +132,10 @@ describe("charts lab entry", () => {
     });
     expect(heatmap.status).toBe("ok");
     expect(heatmap.symbol).toBe("NVDA");
+    const control = await labOptionsAnalyticsGateway.flowControl?.({
+      group: "nasdaq100",
+    });
+    expect(control?.group).toBe("nasdaq100");
   });
 
   it("serves an empty JEV verdict and refuses Ask JEV", async () => {
