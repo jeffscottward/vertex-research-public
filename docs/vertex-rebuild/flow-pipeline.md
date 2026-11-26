@@ -218,9 +218,10 @@ check of the tape against IBKR history is a future improvement.
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or
   $1M (SPX), and every golden sweep. A print that reports open interest 0 has QuantData's Opening
   and Vol > OI flags set on every print (card `vertex-flow-print-flags-oi-zero`), so readers treat
-  them as not known (`oiFlags` in `packages/api/src/flow-options.ts`): such prints never show or
-  count those flags, and the opening premium share leaves their premium out. The stored row keeps
-  the values as sent.
+  them as not known (`oiFlags` in `packages/api/src/flow-options.ts`): the print views, bubbles
+  and options summary never show or count those flags, and the opening premium share leaves their
+  premium out. The stored print row keeps the values as sent. Option event text is written at
+  collect time, so only events stored after this change leave out ", vol > OI" for such prints.
 - **GEX:** estimate (dealers assumed long calls, short puts). ES uses SPX levels shifted by the
   ES − SPX basis (ES book mid or last price minus the SPX spot at the snapshot).
 

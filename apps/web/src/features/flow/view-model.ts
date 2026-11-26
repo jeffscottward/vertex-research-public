@@ -299,7 +299,13 @@ export const optionsMetrics = (options: FlowOptionsFlow): readonly Metric[] => [
   },
   {
     label: "Opening share",
-    value: formatShare(options.openingPremiumShare, "no option premium"),
+    // Null with premium: every print reported open interest 0, so the Opening flag is not known.
+    value: formatShare(
+      options.openingPremiumShare,
+      options.callPremium + options.putPremium > 0
+        ? "not known (open interest 0)"
+        : "no option premium"
+    ),
   },
 ];
 
