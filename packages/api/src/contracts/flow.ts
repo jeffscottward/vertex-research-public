@@ -1,4 +1,4 @@
-import { oc } from "@orpc/contract";
+import { eventIterator, oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
@@ -17,10 +17,22 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // flow.putCallRatio reads the stored SPY or SPX option prints as gross put/call premium and volume
 // ratios over the newest options session and over stored sessions (flow-put-call-ratio.v1):
 // research context only, never a trade signal.
+// flow.tradeBubbles reads the stored ES or NQ 1-minute prices and deep futures trades as
+// size-proportional bubbles on the price chart (flow-trade-bubbles.v1): research context only,
+// never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
-export const FLOW_OPTION_TICKERS = ["SPY", "SPX", "QQQ", "NDX"] as const;
+export const FLOW_INDEX_OPTION_TICKERS = ["SPY", "SPX", "QQQ", "NDX"] as const;
+export const FLOW_EXTRA_OPTION_TICKERS = ["IWM", "NVDA"] as const;
+export const FLOW_OPTION_TICKERS = [
+  ...FLOW_INDEX_OPTION_TICKERS,
+  ...FLOW_EXTRA_OPTION_TICKERS,
+] as const;
+export const FLOW_OPTION_PRINT_SYMBOLS = [
+  ...FLOW_SYMBOLS,
+  ...FLOW_EXTRA_OPTION_TICKERS,
+] as const;
 export const FLOW_SOURCES = [
   "ticks",
   "depth",
@@ -29,6 +41,47 @@ export const FLOW_SOURCES = [
   "net_drift",
   "market_premium",
 ] as const;
+/** Maximum age metadata for every QuantVPS flow collector source (single source of truth). */
+export type FlowSourceMetadata = Readonly<{
+  label: string;
+  /** Seconds after which a source's newest data counts as stale while its market is open. */
+  maxAgeSeconds: number;
+  smartMoney: boolean;
+}>;
+export const FLOW_SOURCE_METADATA: Readonly<
+  Record<(typeof FLOW_SOURCES)[number], FlowSourceMetadata>
+> = {
+  depth: {
+    label: "Order book depth",
+    maxAgeSeconds: 180,
+    smartMoney: false,
+  },
+  gex: {
+    label: "Options GEX",
+    maxAgeSeconds: 1800,
+    smartMoney: false,
+  },
+  market_premium: {
+    label: "Large options premium (QuantData)",
+    maxAgeSeconds: 1800,
+    smartMoney: true,
+  },
+  net_drift: {
+    label: "Options net drift",
+    maxAgeSeconds: 300,
+    smartMoney: false,
+  },
+  options: {
+    label: "Options prints",
+    maxAgeSeconds: 300,
+    smartMoney: false,
+  },
+  ticks: {
+    label: "Trade ticks",
+    maxAgeSeconds: 600,
+    smartMoney: false,
+  },
+};
 /**
  * The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only, and
  * market_premium (market-wide, recorded under SPY) is in smartMoney.ranking only.
@@ -116,9 +169,17 @@ export const FLOW_SNAPSHOT_MAX_EVENTS = 60;
 export const FLOW_SNAPSHOT_MAX_PRINTS = 25;
 export const FLOW_EVENTS_VERSION = "flow-events.v1" as const;
 export const FLOW_EVENTS_MAX = 200;
+export const FLOW_OPTION_PRINTS_VERSION = "flow-option-prints.v1" as const;
+export const FLOW_OPTION_PRINTS_DEFAULT_WINDOW_MINUTES = 60;
+export const FLOW_OPTION_PRINTS_MAX_WINDOW_MINUTES = 390;
+export const FLOW_OPTION_PRINTS_DEFAULT_LIMIT = 50;
+export const FLOW_OPTION_PRINTS_MAX_LIMIT = 200;
 
 export type FlowSymbol = (typeof FLOW_SYMBOLS)[number];
+export type FlowIndexOptionTicker = (typeof FLOW_INDEX_OPTION_TICKERS)[number];
+export type FlowExtraOptionTicker = (typeof FLOW_EXTRA_OPTION_TICKERS)[number];
 export type FlowOptionTicker = (typeof FLOW_OPTION_TICKERS)[number];
+export type FlowOptionPrintSymbol = (typeof FLOW_OPTION_PRINT_SYMBOLS)[number];
 export type FlowSource = (typeof FLOW_SOURCES)[number];
 export type FlowSnapshotSource = (typeof FLOW_SNAPSHOT_SOURCES)[number];
 export type FlowExpiryPart = (typeof FLOW_EXPIRY_PARTS)[number];
@@ -265,6 +326,27 @@ export type FlowStrikeHeatmapSymbol =
 export type FlowStrikeHeatmapBucketMinutes =
   (typeof FLOW_STRIKE_HEATMAP_BUCKETS)[number];
 
+// Option print bubbles on the intraday price chart (flow.optionBubbles): large stored option
+// prints overlaid on the newest options session's underlying price trajectory, sized by premium,
+// colored by right (call/put), and styled by aggressor side.
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_OPTION_BUBBLES_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_OPTION_BUBBLES_VERSION = "flow-option-bubbles.v1" as const;
+/** Supported minimum print premium thresholds in US dollars. */
+export const FLOW_OPTION_BUBBLES_MIN_PREMIUMS = [
+  100_000, 250_000, 500_000, 1_000_000,
+] as const;
+/** Maximum large option prints returned per session (largest prints by premium). */
+export const FLOW_OPTION_BUBBLES_MAX_BUBBLES = 120;
+/** One price point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
+export const FLOW_OPTION_BUBBLES_MAX_POINTS = 405;
+/** Maximum clipped open collector gap bands returned per session. */
+export const FLOW_OPTION_BUBBLES_MAX_GAPS = 50;
+export type FlowOptionBubblesSymbol =
+  (typeof FLOW_OPTION_BUBBLES_SYMBOLS)[number];
+export type FlowOptionBubblesMinPremiumUsd =
+  (typeof FLOW_OPTION_BUBBLES_MIN_PREMIUMS)[number];
+
 // Off-exchange (dark pool) print levels (flow.offExchangeLevels): SPY sampled IBKR FINRA TRF
 // prints (>= 10,000 shares) clustered into horizontal price levels on the price chart, paired
 // with FINRA weekly OTC (ATS and non-ATS) context. Research input only.
@@ -324,13 +406,17 @@ export const FlowCollectInputSchema = z
      */
     seed: z.boolean().default(false),
     /** Limit the run to these symbols (default: all). */
-    symbols: z.array(z.enum(FLOW_SYMBOLS)).min(1).max(4).optional(),
+    symbols: z
+      .array(z.enum(FLOW_OPTION_PRINT_SYMBOLS))
+      .min(1)
+      .max(FLOW_OPTION_PRINT_SYMBOLS.length)
+      .optional(),
   })
   .strict();
 
 export const FlowCollectRunSchema = z
   .object({
-    symbol: z.enum(FLOW_SYMBOLS),
+    symbol: z.enum(FLOW_OPTION_PRINT_SYMBOLS),
     source: z.enum(FLOW_SOURCES),
     status: z.enum(FLOW_SAMPLE_STATUSES),
     /** Rows written (minutes, book snapshots, option prints or GEX snapshots). */
@@ -486,9 +572,11 @@ export const FlowOptionsSummarySchema = z
     blocks: count,
     blockPremium: nonNegative,
     unusual: count,
+    /** Prints with Vol > OI; prints that report open interest 0 never count (flag not known). */
     volumeOverOi: count,
     otmPremiumShare: finite.nullable(),
     zeroDtePremiumShare: finite.nullable(),
+    /** Opening premium ÷ premium of prints whose open interest is not 0; null without any. */
     openingPremiumShare: finite.nullable(),
     topPrints: z.array(FlowOptionPrintViewSchema).max(FLOW_SNAPSHOT_MAX_PRINTS),
   })
@@ -506,7 +594,7 @@ const levels = z
 export const FlowGexSchema = z
   .object({
     at: timestamp,
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     /** Options underlying price at the snapshot. */
     spot: finite.nullable(),
     /** Symbol price − options underlying price (ES − SPX); 0 for SPY; null when unknown. */
@@ -612,8 +700,8 @@ export const FlowControlSideSchema = z
   .strict();
 
 export const FlowControlOptionsSideSchema = FlowControlSideSchema.extend({
-  primaryTicker: z.enum(FLOW_OPTION_TICKERS),
-  checkTicker: z.enum(FLOW_OPTION_TICKERS),
+  primaryTicker: z.enum(FLOW_INDEX_OPTION_TICKERS),
+  checkTicker: z.enum(FLOW_INDEX_OPTION_TICKERS),
   checkState: z.enum(FLOW_CONTROL_STATES),
 }).strict();
 
@@ -660,7 +748,7 @@ export const FlowNetDriftPointSchema = z
 
 export const FlowNetDriftSeriesSchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     role: z.enum(FLOW_TICKER_ROLES),
     asOf: timestamp.nullable(),
     filterProfile: text(40),
@@ -744,7 +832,7 @@ export const FlowDeepTradesSchema = z
 
 export const FlowCrossCheckSchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     result: z.enum(FLOW_CROSS_CHECK_RESULTS),
     storedPrints: count,
     unreadRanges: count,
@@ -777,7 +865,7 @@ export const FlowControlFreshnessSchema = z
 
 export const FlowSessionLevelsSchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     sessionOpen: z.number().nullable(),
     sessionHigh: z.number().nullable(),
     sessionLow: z.number().nullable(),
@@ -975,7 +1063,7 @@ export const FlowHedgingPressureSchema = z
   .object({
     schemaVersion: z.literal(FLOW_HEDGING_PRESSURE_VERSION),
     symbol: z.enum(FLOW_HEDGING_SYMBOLS),
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     /** New York date of the options session; null when no print is stored. */
     session: isoDate.nullable(),
     rules: FlowHedgingPressureRulesSchema,
@@ -1082,7 +1170,7 @@ export const FlowPutCallRatioSchema = z
   .object({
     schemaVersion: z.literal(FLOW_PUT_CALL_RATIO_VERSION),
     symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     /** New York date of the newest options session; null when no print is stored. */
     session: isoDate.nullable(),
     rules: FlowPutCallRatioRulesSchema,
@@ -1228,7 +1316,7 @@ export const FlowStrikeHeatmapSchema = z
   .object({
     schemaVersion: z.literal(FLOW_STRIKE_HEATMAP_VERSION),
     symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
     /** New York date of the newest options session; null when no print is stored. */
     session: isoDate.nullable(),
     bucketMinutes: strikeHeatmapBucketMinutesOutput,
@@ -1249,6 +1337,152 @@ export const FlowStrikeHeatmapSchema = z
       .array(FlowStrikeHeatmapCellSchema)
       .max(FLOW_STRIKE_HEATMAP_MAX_CELLS),
     totals: FlowStrikeHeatmapTotalsSchema,
+  })
+  .strict();
+
+const optionBubblesMinPremiumInput = z
+  .union([
+    z.literal(100_000),
+    z.literal(250_000),
+    z.literal(500_000),
+    z.literal(1_000_000),
+    z.literal("100000").transform(() => 100_000 as const),
+    z.literal("250000").transform(() => 250_000 as const),
+    z.literal("500000").transform(() => 500_000 as const),
+    z.literal("1000000").transform(() => 1_000_000 as const),
+  ])
+  .default(250_000);
+
+const optionBubblesMinPremiumOutput = z.union([
+  z.literal(100_000),
+  z.literal(250_000),
+  z.literal(500_000),
+  z.literal(1_000_000),
+]);
+
+export const FlowOptionBubblesInputSchema = z
+  .object({
+    minPremiumUsd: optionBubblesMinPremiumInput,
+    symbol: z.enum(FLOW_OPTION_BUBBLES_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of option print bubbles (packages/api/src/flow-option-bubbles-rules.ts). */
+export const FlowOptionBubblesRulesSchema = z
+  .object({
+    version: z.literal("option-bubbles.v1"),
+    /** Minimum print premium stored by the collector (US dollars). */
+    storedMinPremiumUsd: finite.positive(),
+    /** Default user-facing premium filter floor (US dollars). */
+    defaultMinPremiumUsd: optionBubblesMinPremiumOutput,
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Maximum big prints returned per session (largest by premium). */
+    maxBubbles: z.number().int().min(1).max(FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+  })
+  .strict();
+
+/** One clipped open collector gap interval inside the newest options session. */
+export const FlowOptionBubblesGapSchema = z
+  .object({
+    start: timestamp,
+    end: timestamp,
+  })
+  .strict();
+
+/** One minute of the intraday underlying price path from stored option prints. */
+export const FlowOptionBubblesPricePointSchema = z
+  .object({
+    minute: timestamp,
+    price: finite.positive(),
+    /** True when any open flow_option_gaps range overlaps this minute. */
+    unread: z.boolean(),
+  })
+  .strict();
+
+/** One big option print rendered as a bubble on the intraday price chart. */
+export const FlowOptionBubblesItemSchema = z
+  .object({
+    id: text(64),
+    at: timestamp,
+    contract: text(40),
+    right: z.enum(["call", "put"]),
+    strike: finite.positive(),
+    expiry: isoDate,
+    dte: nonNegative.nullable(),
+    size: count,
+    price: finite.nullable(),
+    premium: nonNegative,
+    /** Underlying price reported on the print; null when not reported (not plotted on Y axis). */
+    underlyingPrice: finite.positive().nullable(),
+    side: z.enum(FLOW_OPTION_SIDES),
+    /** Directional sign from shared OPTION_SIDE_SIGN: +1 bullish, -1 bearish, 0 unsigned. */
+    directionalSign: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
+    sentiment: z.enum(FLOW_OPTION_SENTIMENTS),
+    consolidation: z.enum(FLOW_CONSOLIDATIONS),
+    moneyness: z.enum(FLOW_MONEYNESS),
+    unusual: z.boolean(),
+    goldenSweep: z.boolean(),
+    opening: z.boolean(),
+    volumeOverOi: z.boolean(),
+    iv: finite.nullable(),
+  })
+  .strict();
+
+/** Summary totals of the newest options session and the returned big option print bubbles. */
+export const FlowOptionBubblesTotalsSchema = z
+  .object({
+    sessionPrints: count,
+    sessionGrossPremium: nonNegative,
+    shownBubbles: count,
+    plottedBubbles: count,
+    unplottedBubbles: count,
+    callBubbles: count,
+    putBubbles: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    askSidePremium: nonNegative,
+    bidSidePremium: nonNegative,
+    unsignedPremium: nonNegative,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    maxBubblePremium: nonNegative,
+    latestPrice: finite.positive().nullable(),
+  })
+  .strict();
+
+export const FlowOptionBubblesSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_OPTION_BUBBLES_VERSION),
+    symbol: z.enum(FLOW_OPTION_BUBBLES_SYMBOLS),
+    ticker: z.enum(FLOW_INDEX_OPTION_TICKERS),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    /** Session open (09:30 New York) in ISO UTC; null when no print is stored. */
+    sessionStart: timestamp.nullable(),
+    /** Session close (16:15 New York) in ISO UTC; null when no print is stored. */
+    sessionEnd: timestamp.nullable(),
+    minPremiumUsd: optionBubblesMinPremiumOutput,
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+    /** Individual clipped open collector gap intervals for chart shading, oldest first. */
+    gaps: z.array(FlowOptionBubblesGapSchema).max(FLOW_OPTION_BUBBLES_MAX_GAPS),
+    rules: FlowOptionBubblesRulesSchema,
+    /** 1-minute underlying price trajectory across the session, oldest first. */
+    pricePoints: z
+      .array(FlowOptionBubblesPricePointSchema)
+      .max(FLOW_OPTION_BUBBLES_MAX_POINTS),
+    /** Largest prints meeting minPremiumUsd, ordered chronologically (at asc, id asc). */
+    bubbles: z
+      .array(FlowOptionBubblesItemSchema)
+      .max(FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+    /** True when more than rules.maxBubbles prints met minPremiumUsd in the session. */
+    truncated: z.boolean(),
+    totals: FlowOptionBubblesTotalsSchema,
   })
   .strict();
 
@@ -1415,6 +1649,107 @@ export const FlowLiquidityHeatmapSchema = z
   })
   .strict();
 
+export const FLOW_TRADE_BUBBLES_VERSION = "flow-trade-bubbles.v1" as const;
+export const FLOW_TRADE_BUBBLES_RULES_VERSION = "trade-bubbles.v1" as const;
+export const FLOW_TRADE_BUBBLES_MAX_CANDLES = 395;
+export const FLOW_TRADE_BUBBLES_MAX_BUBBLES = 500;
+export const FLOW_TRADE_BUBBLES_CAPTURE_MODES = [
+  "streamed",
+  "sampled",
+  "mixed",
+  "none",
+] as const;
+
+export type FlowTradeBubblesCaptureMode =
+  (typeof FLOW_TRADE_BUBBLES_CAPTURE_MODES)[number];
+
+export const FlowTradeBubblesInputSchema = z
+  .object({
+    minutes: snapshotMinutes,
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+  })
+  .strict();
+
+export const FlowTradeBubblesRulesSchema = z
+  .object({
+    deepTradeLimit: finite.positive(),
+    deepTradeLimitMeasuredOn: isoDate,
+    maxBubbles: z.number().int().positive(),
+    retentionDays: z.number().int().positive(),
+    version: z.literal(FLOW_TRADE_BUBBLES_RULES_VERSION),
+  })
+  .strict();
+
+export const FlowTradeBubblesPriceRangeSchema = z
+  .object({
+    max: finite.positive(),
+    min: finite.positive(),
+  })
+  .strict();
+
+export const FlowTradeBubblesCandleSchema = z
+  .object({
+    close: finite.positive(),
+    coveredSeconds: z.number().int().min(0).max(60),
+    high: finite.positive(),
+    low: finite.positive(),
+    minute: timestamp,
+    open: finite.positive(),
+    volume: nonNegative,
+    vwap: finite.positive(),
+  })
+  .strict();
+
+export const FlowTradeBubbleSchema = z
+  .object({
+    capture: z.enum(FLOW_CAPTURE_MODES),
+    limitSize: finite.positive(),
+    price: finite.positive(),
+    second: timestamp,
+    seq: count,
+    side: z.enum(FLOW_TRADE_SIDES),
+    signing: z.enum(FLOW_SIGNING_METHODS),
+    size: finite.positive(),
+    sizeMultiple: finite.positive(),
+  })
+  .strict();
+
+export const FlowTradeBubblesTotalsSchema = z
+  .object({
+    buyTrades: count,
+    buyVolume: nonNegative,
+    largestBubble: FlowTradeBubbleSchema.nullable(),
+    maxSize: finite.positive().nullable(),
+    netVolume: finite,
+    p95Size: finite.positive().nullable(),
+    sellTrades: count,
+    sellVolume: nonNegative,
+    shownTrades: count,
+    totalTrades: count,
+    truncated: z.boolean(),
+  })
+  .strict();
+
+export const FlowTradeBubblesSchema = z
+  .object({
+    bubbles: z.array(FlowTradeBubbleSchema).max(FLOW_TRADE_BUBBLES_MAX_BUBBLES),
+    candles: z
+      .array(FlowTradeBubblesCandleSchema)
+      .max(FLOW_TRADE_BUBBLES_MAX_CANDLES),
+    captureMode: z.enum(FLOW_TRADE_BUBBLES_CAPTURE_MODES),
+    minutes: z.number().int().min(15).max(390),
+    priceRange: FlowTradeBubblesPriceRangeSchema.nullable(),
+    rules: FlowTradeBubblesRulesSchema,
+    schemaVersion: z.literal(FLOW_TRADE_BUBBLES_VERSION),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    tape: FlowFreshnessSchema,
+    tickSize: finite.positive(),
+    totals: FlowTradeBubblesTotalsSchema,
+    windowEnd: timestamp,
+    windowStart: timestamp,
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -1424,7 +1759,7 @@ const collect = flow
     operationId: "flow.collect",
     path: "/flow/collect",
     summary:
-      "Scheduler: sample ticks, depth, options flow, GEX and net drift for SPY, ES, QQQ and NQ, store features and events",
+      "Scheduler: sample ticks, depth, options flow (SPY, SPX, QQQ, NDX, IWM, NVDA), GEX, net drift and market premium, store features and events",
     tags,
   })
   .input(FlowCollectInputSchema)
@@ -1544,6 +1879,75 @@ const strikeHeatmap = flow
   .input(FlowStrikeHeatmapInputSchema)
   .output(FlowStrikeHeatmapSchema);
 
+const optionBubbles = flow
+  .route({
+    method: "GET",
+    operationId: "flow.optionBubbles",
+    path: "/flow/option-bubbles",
+    summary:
+      "SPY or ES: big option prints as bubbles on the intraday underlying price chart over the newest options session (research input)",
+    tags,
+  })
+  .input(FlowOptionBubblesInputSchema)
+  .output(FlowOptionBubblesSchema);
+
+export const FlowOptionPrintsInputSchema = z
+  .object({
+    ticker: z.enum(FLOW_OPTION_TICKERS).default("SPY"),
+    windowMinutes: z.coerce
+      .number()
+      .int()
+      .min(5)
+      .max(FLOW_OPTION_PRINTS_MAX_WINDOW_MINUTES)
+      .default(FLOW_OPTION_PRINTS_DEFAULT_WINDOW_MINUTES),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(FLOW_OPTION_PRINTS_MAX_LIMIT)
+      .default(FLOW_OPTION_PRINTS_DEFAULT_LIMIT),
+  })
+  .strict();
+
+export const FlowOptionTapeSummarySchema = z
+  .object({
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    trades: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    sweeps: count,
+    blocks: count,
+    goldenSweeps: count,
+    unusualCount: count,
+  })
+  .strict();
+
+export const FlowOptionPrintsSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_OPTION_PRINTS_VERSION),
+    asOf: timestamp,
+    windowStart: timestamp,
+    windowEnd: timestamp,
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    symbol: z.enum(FLOW_OPTION_PRINT_SYMBOLS),
+    windowMinutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(FLOW_OPTION_PRINTS_MAX_WINDOW_MINUTES),
+    source: z.literal("QuantData order-flow/consolidated"),
+    delay: text(200),
+    freshness: FlowFreshnessSchema,
+    unreadRanges: count,
+    summary: FlowOptionTapeSummarySchema,
+    prints: z
+      .array(FlowOptionPrintViewSchema)
+      .max(FLOW_OPTION_PRINTS_MAX_LIMIT),
+  })
+  .strict();
+
 const liquidityHeatmap = flow
   .route({
     method: "GET",
@@ -1555,6 +1959,276 @@ const liquidityHeatmap = flow
   })
   .input(FlowLiquidityHeatmapInputSchema)
   .output(FlowLiquidityHeatmapSchema);
+
+export const FLOW_LIVE_DOM_VERSION = "flow-live-dom.v1" as const;
+export const FLOW_LIVE_DOM_RULES_VERSION = "flow-live-dom-rules.v1" as const;
+export const FLOW_LIVE_DOM_MAX_LEVELS = 80;
+export const FLOW_LIVE_DOM_ROWS_MIN = 1;
+export const FLOW_LIVE_DOM_ROWS_MAX = 10;
+export const FLOW_LIVE_DOM_ROWS_DEFAULT = 10;
+export const FLOW_LIVE_DOM_WINDOW_SECONDS = [300, 900, 1800, 3600] as const;
+export const FLOW_LIVE_DOM_WINDOW_SECONDS_DEFAULT = 900 as const;
+export const FLOW_LIVE_DOM_CADENCE_MS = [500, 1000, 2000] as const;
+export const FLOW_LIVE_DOM_CADENCE_MS_DEFAULT = 500 as const;
+export const FLOW_LIVE_DOM_STREAM_LEASE_MS = 20_000;
+export const FLOW_LIVE_DOM_MAX_POLLS_PER_LEASE = 40;
+export const FLOW_LIVE_DOM_HEARTBEAT_MS = 5000;
+export const FLOW_LIVE_DOM_SOURCES = [
+  "live_stream",
+  "recorded_fallback",
+  "empty",
+] as const;
+export const FLOW_LIVE_DOM_VOLUME_SOURCES = [
+  "streamed_tape",
+  "large_trades_only",
+  "none",
+] as const;
+export const FLOW_LIVE_DOM_BOOK_STATES = [
+  "normal",
+  "locked",
+  "crossed",
+  "one_sided",
+  "empty",
+] as const;
+export const FLOW_LIVE_DOM_FEED_STATES = [
+  "live",
+  "starting",
+  "down",
+  "off",
+  "halted",
+  "recorded",
+  "never",
+] as const;
+export const FLOW_LIVE_DOM_TRADE_SIDES = ["buy", "sell", "unsigned"] as const;
+export const FLOW_LIVE_DOM_IMBALANCE_SIDES = ["buy", "sell"] as const;
+export const FLOW_LIVE_DOM_RECONNECT_REASONS = [
+  "lease_expired",
+  "recorded_fallback",
+  "upstream_interrupted",
+] as const;
+
+export type FlowLiveDomWindowSeconds =
+  (typeof FLOW_LIVE_DOM_WINDOW_SECONDS)[number];
+export type FlowLiveDomCadenceMs = (typeof FLOW_LIVE_DOM_CADENCE_MS)[number];
+export type FlowLiveDomSource = (typeof FLOW_LIVE_DOM_SOURCES)[number];
+export type FlowLiveDomVolumeSource =
+  (typeof FLOW_LIVE_DOM_VOLUME_SOURCES)[number];
+export type FlowLiveDomBookState = (typeof FLOW_LIVE_DOM_BOOK_STATES)[number];
+export type FlowLiveDomFeedState = (typeof FLOW_LIVE_DOM_FEED_STATES)[number];
+export type FlowLiveDomTradeSide = (typeof FLOW_LIVE_DOM_TRADE_SIDES)[number];
+export type FlowLiveDomImbalanceSide =
+  (typeof FLOW_LIVE_DOM_IMBALANCE_SIDES)[number];
+export type FlowLiveDomReconnectReason =
+  (typeof FLOW_LIVE_DOM_RECONNECT_REASONS)[number];
+
+const domWindowSeconds = z.coerce
+  .number()
+  .int()
+  .refine(
+    (value): value is FlowLiveDomWindowSeconds =>
+      (FLOW_LIVE_DOM_WINDOW_SECONDS as readonly number[]).includes(value),
+    {
+      message: "windowSeconds must be one of 300, 900, 1800, 3600",
+    }
+  )
+  .default(FLOW_LIVE_DOM_WINDOW_SECONDS_DEFAULT);
+
+const domCadenceMs = z.coerce
+  .number()
+  .int()
+  .refine(
+    (value): value is FlowLiveDomCadenceMs =>
+      (FLOW_LIVE_DOM_CADENCE_MS as readonly number[]).includes(value),
+    {
+      message: "cadenceMs must be one of 500, 1000, 2000",
+    }
+  )
+  .default(FLOW_LIVE_DOM_CADENCE_MS_DEFAULT);
+
+export const FlowLiveDomInputSchema = z
+  .object({
+    rows: z.coerce
+      .number()
+      .int()
+      .min(FLOW_LIVE_DOM_ROWS_MIN)
+      .max(FLOW_LIVE_DOM_ROWS_MAX)
+      .default(FLOW_LIVE_DOM_ROWS_DEFAULT),
+    since: z.coerce.number().int().min(1).max(9_999_999_999).optional(),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    windowSeconds: domWindowSeconds,
+  })
+  .strict();
+
+export const FlowLiveDomStreamInputSchema = FlowLiveDomInputSchema.extend({
+  cadenceMs: domCadenceMs,
+}).strict();
+
+export const FlowLiveDomRowSchema = z
+  .object({
+    askSize: z.number().nonnegative(),
+    bidSize: z.number().nonnegative(),
+    cumAskSize: z.number().nonnegative(),
+    cumBidSize: z.number().nonnegative(),
+    imbalance: z.enum(FLOW_LIVE_DOM_IMBALANCE_SIDES).nullable(),
+    isBestAsk: z.boolean(),
+    isBestBid: z.boolean(),
+    isLastTrade: z.boolean(),
+    isPoc: z.boolean(),
+    price: z.number().positive(),
+    tickIndex: z.number().int(),
+    tradedBuy: z.number().nonnegative(),
+    tradedDelta: z.number().finite(),
+    tradedSell: z.number().nonnegative(),
+    tradedTotal: z.number().nonnegative(),
+    tradedUnsigned: z.number().nonnegative(),
+    trades: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const FlowLiveDomLastTradeSchema = z
+  .object({
+    price: z.number().positive(),
+    side: z.enum(FLOW_LIVE_DOM_TRADE_SIDES),
+    size: z.number().positive(),
+    t: timestamp,
+  })
+  .strict();
+
+export const FlowLiveDomTotalsSchema = z
+  .object({
+    askSize: z.number().nonnegative(),
+    bidSharePct: z.number().min(0).max(100).nullable(),
+    bidSize: z.number().nonnegative(),
+    tradedBuy: z.number().nonnegative(),
+    tradedDelta: z.number().finite(),
+    tradedSell: z.number().nonnegative(),
+    tradedTotal: z.number().nonnegative(),
+    tradedUnsigned: z.number().nonnegative(),
+    trades: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const FlowLiveDomFeedSchema = z
+  .object({
+    error: z.string().max(200).nullable(),
+    lastAt: timestamp.nullable(),
+    state: z.enum(FLOW_LIVE_DOM_FEED_STATES),
+  })
+  .strict();
+
+export const FlowLiveDomRulesSchema = z
+  .object({
+    heartbeatMs: z.number().int().positive(),
+    imbalanceMinContracts: z.number().int().positive(),
+    imbalanceRatio: z.number().positive(),
+    maxLevels: z.number().int().positive(),
+    maxPollsPerLease: z.number().int().positive(),
+    streamLeaseMs: z.number().int().positive(),
+    version: z.literal(FLOW_LIVE_DOM_RULES_VERSION),
+  })
+  .strict();
+
+export const FlowLiveDomSchema = z
+  .object({
+    bestAsk: z.number().positive().nullable(),
+    bestBid: z.number().positive().nullable(),
+    bookState: z.enum(FLOW_LIVE_DOM_BOOK_STATES),
+    capturedAt: timestamp,
+    contract: z.string().min(1).max(20).nullable(),
+    depthFeed: FlowLiveDomFeedSchema,
+    depthUpdates: z.number().int().nonnegative(),
+    lastTrade: FlowLiveDomLastTradeSchema.nullable(),
+    mid: z.number().positive().nullable(),
+    minTick: z.number().positive(),
+    pocPrice: z.number().positive().nullable(),
+    pocVolume: z.number().nonnegative(),
+    rows: z.array(FlowLiveDomRowSchema).max(FLOW_LIVE_DOM_MAX_LEVELS),
+    rules: FlowLiveDomRulesSchema,
+    schemaVersion: z.literal(FLOW_LIVE_DOM_VERSION),
+    seq: z.number().int().nonnegative(),
+    since: z.number().int().min(1).nullable(),
+    source: z.enum(FLOW_LIVE_DOM_SOURCES),
+    spread: z.number().finite().nullable(),
+    spreadTicks: z.number().int().nullable(),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    tapeFeed: FlowLiveDomFeedSchema,
+    tapeSeq: z.number().int().nonnegative(),
+    totals: FlowLiveDomTotalsSchema,
+    volumeSource: z.enum(FLOW_LIVE_DOM_VOLUME_SOURCES),
+    windowSeconds: z.number().int().positive(),
+  })
+  .strict();
+
+export const FlowLiveDomStreamEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      frame: FlowLiveDomSchema,
+      type: z.literal("frame"),
+    })
+    .strict(),
+  z
+    .object({
+      at: timestamp,
+      seq: z.number().int().nonnegative(),
+      type: z.literal("heartbeat"),
+    })
+    .strict(),
+  z
+    .object({
+      at: timestamp,
+      reason: z.enum(FLOW_LIVE_DOM_RECONNECT_REASONS),
+      retryAfterMs: z.number().int().min(0).max(30_000),
+      type: z.literal("reconnect"),
+    })
+    .strict(),
+]);
+
+const liveDom = flow
+  .route({
+    method: "GET",
+    operationId: "flow.liveDom",
+    path: "/flow/live-dom",
+    summary:
+      "ES or NQ: single live CME L2 DOM ladder frame with per-price traded volume and recorded fallback (research input)",
+    tags,
+  })
+  .input(FlowLiveDomInputSchema)
+  .output(FlowLiveDomSchema);
+
+const liveDomStream = flow
+  .route({
+    method: "GET",
+    operationId: "flow.liveDomStream",
+    path: "/flow/live-dom/stream",
+    summary:
+      "ES or NQ: streaming SSE CME L2 DOM ladder with per-price traded volume over a bounded lease (research input)",
+    tags,
+  })
+  .input(FlowLiveDomStreamInputSchema)
+  .output(eventIterator(FlowLiveDomStreamEventSchema));
+const tradeBubbles = flow
+  .route({
+    method: "GET",
+    operationId: "flow.tradeBubbles",
+    path: "/flow/trade-bubbles",
+    summary:
+      "ES or NQ: 1-minute price bars and stored deep futures trades as sized bubbles (research input)",
+    tags,
+  })
+  .input(FlowTradeBubblesInputSchema)
+  .output(FlowTradeBubblesSchema);
+
+const optionPrints = flow
+  .route({
+    method: "GET",
+    operationId: "flow.optionPrints",
+    path: "/flow/option-prints",
+    summary:
+      "Read stored live QuantData option prints, full-window summary, freshness and unread gap count for one option ticker (research input)",
+    tags,
+  })
+  .input(FlowOptionPrintsInputSchema)
+  .output(FlowOptionPrintsSchema);
 
 const offExchangeBucketMinutesOutput = z.union([
   z.literal(1),
@@ -1724,11 +2398,16 @@ export const flowContract = {
   events,
   hedgingPressure,
   liquidityHeatmap,
+  liveDom,
+  liveDomStream,
   offExchangeLevels,
+  optionBubbles,
+  optionPrints,
   putCallRatio,
   snapshot,
   strikeHeatmap,
   tapeSpeed,
+  tradeBubbles,
 };
 
 export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
@@ -1860,3 +2539,61 @@ export type FlowOffExchangeFinraWeek = z.infer<
 export type FlowOffExchangeLevelsRules = z.infer<
   typeof FlowOffExchangeLevelsRulesSchema
 >;
+export type FlowLiveDomInput = z.input<typeof FlowLiveDomInputSchema>;
+export type FlowLiveDomParsedInput = z.output<typeof FlowLiveDomInputSchema>;
+export type FlowLiveDomStreamInput = z.input<
+  typeof FlowLiveDomStreamInputSchema
+>;
+export type FlowLiveDomStreamParsedInput = z.output<
+  typeof FlowLiveDomStreamInputSchema
+>;
+export type FlowLiveDomRow = z.infer<typeof FlowLiveDomRowSchema>;
+export type FlowLiveDomLastTrade = z.infer<typeof FlowLiveDomLastTradeSchema>;
+export type FlowLiveDomTotals = z.infer<typeof FlowLiveDomTotalsSchema>;
+export type FlowLiveDomFeed = z.infer<typeof FlowLiveDomFeedSchema>;
+export type FlowLiveDomRules = z.infer<typeof FlowLiveDomRulesSchema>;
+export type FlowLiveDom = z.infer<typeof FlowLiveDomSchema>;
+export type FlowLiveDomStreamEvent = z.infer<
+  typeof FlowLiveDomStreamEventSchema
+>;
+export type FlowOptionBubblesInput = z.input<
+  typeof FlowOptionBubblesInputSchema
+>;
+export type FlowOptionBubblesParsedInput = z.output<
+  typeof FlowOptionBubblesInputSchema
+>;
+export type FlowOptionBubbles = z.infer<typeof FlowOptionBubblesSchema>;
+export type FlowOptionBubblesRules = z.infer<
+  typeof FlowOptionBubblesRulesSchema
+>;
+export type FlowOptionBubblesGap = z.infer<typeof FlowOptionBubblesGapSchema>;
+export type FlowOptionBubblesPricePoint = z.infer<
+  typeof FlowOptionBubblesPricePointSchema
+>;
+export type FlowOptionBubblesItem = z.infer<typeof FlowOptionBubblesItemSchema>;
+export type FlowOptionBubblesTotals = z.infer<
+  typeof FlowOptionBubblesTotalsSchema
+>;
+export type FlowTradeBubblesInput = z.input<typeof FlowTradeBubblesInputSchema>;
+export type FlowTradeBubblesParsedInput = z.output<
+  typeof FlowTradeBubblesInputSchema
+>;
+export type FlowTradeBubblesRules = z.infer<typeof FlowTradeBubblesRulesSchema>;
+export type FlowTradeBubblesPriceRange = z.infer<
+  typeof FlowTradeBubblesPriceRangeSchema
+>;
+export type FlowTradeBubblesCandle = z.infer<
+  typeof FlowTradeBubblesCandleSchema
+>;
+export type FlowTradeBubble = z.infer<typeof FlowTradeBubbleSchema>;
+export type FlowTradeBubblesTotals = z.infer<
+  typeof FlowTradeBubblesTotalsSchema
+>;
+export type FlowTradeBubbles = z.infer<typeof FlowTradeBubblesSchema>;
+
+export type FlowOptionPrintsInput = z.input<typeof FlowOptionPrintsInputSchema>;
+export type FlowOptionPrintsParsedInput = z.output<
+  typeof FlowOptionPrintsInputSchema
+>;
+export type FlowOptionTapeSummary = z.infer<typeof FlowOptionTapeSummarySchema>;
+export type FlowOptionPrints = z.infer<typeof FlowOptionPrintsSchema>;

@@ -1,0 +1,278 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 500"
+  width="1120"
+  height="500"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">Vertex Regime View Data Flow</title>
+  <desc id="desc">
+    Fault-isolated parallel reads from Postgres and loopback feeds into pure
+    classification rules, served through marketRegime.get to both the Markets UI
+    and read-only agent API keys.
+  </desc>
+  <defs>
+    <style>
+    .bg {
+      fill: #0b0e14;
+    }
+    .col {
+      fill: #111620;
+      stroke: #253045;
+      stroke-width: 1.4;
+      rx: 12;
+    }
+    .box {
+      fill: #182030;
+      stroke: #334155;
+      stroke-width: 1.2;
+      rx: 8;
+    }
+    .core {
+      fill: #1b2436;
+      stroke: #eab308;
+      stroke-width: 1.8;
+      rx: 10;
+    }
+    .out {
+      fill: #132620;
+      stroke: #10b981;
+      stroke-width: 1.5;
+      rx: 8;
+    }
+    .h1 {
+      font:
+        700 20px system-ui,
+        -apple-system,
+        sans-serif;
+      fill: #f8fafc;
+    }
+    .h2 {
+      font:
+        700 13px system-ui,
+        sans-serif;
+      fill: #cbd5e1;
+      letter-spacing: 0.05em;
+    }
+    .mono {
+      font:
+        600 12px ui-monospace,
+        SFMono-Regular,
+        monospace;
+      fill: #f1f5f9;
+    }
+    .dim {
+      font:
+        500 11px system-ui,
+        sans-serif;
+      fill: #94a3b8;
+    }
+    .gold {
+      font:
+        700 12px ui-monospace,
+        monospace;
+      fill: #facc15;
+    }
+    .line {
+      stroke: #64748b;
+      stroke-width: 1.8;
+      fill: none;
+    }
+    .line-gold {
+      stroke: #eab308;
+      stroke-width: 2;
+      fill: none;
+    }
+    .line-green {
+      stroke: #10b981;
+      stroke-width: 2;
+      fill: none;
+    }
+    </style>
+    <marker
+      id="a-gray"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#64748b" />
+    </marker>
+    <marker
+      id="a-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="a-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#10b981" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1120" height="500" />
+  <text x="32" y="38" class="h1">
+    Architecture &amp; Fault-Isolated Data Flow
+  </text>
+  <text x="32" y="58" class="dim">
+    Zero duplicated fetch logic · every pillar settles independently · no write
+    or order path
+  </text>
+
+  <!-- Column 1: Existing Sources -->
+  <rect x="28" y="78" width="320" height="394" class="col" />
+  <text x="46" y="102" class="h2">1. EXISTING READERS (REUSED)</text>
+
+  <g transform="translate(46, 118)">
+    <rect width="284" height="58" class="box" />
+    <text x="12" y="22" class="mono">Trend (QQQ, SPY, IWM, DIA)</text>
+    <text x="12" y="39" class="dim">Postgres marketDailySeries (primary)</text>
+    <text x="12" y="52" class="dim">fallback: fetchMarketBars (IBKR 1Y)</text>
+  </g>
+  <g transform="translate(46, 188)">
+    <rect width="284" height="58" class="box" />
+    <text x="12" y="22" class="mono">Breadth-90 (market-wide)</text>
+    <text x="12" y="39" class="dim">readBreadth90(repositories.breadth90)</text>
+    <text x="12" y="52" class="dim">IDLE / ARMED / FORMING / FIRED</text>
+  </g>
+  <g transform="translate(46, 258)">
+    <rect width="284" height="58" class="box" />
+    <text x="12" y="22" class="mono">Dealer Gamma (SPY, QQQ)</text>
+    <text x="12" y="39" class="dim">fetchMarketContext(engineStatus)</text>
+    <text x="12" y="52" class="dim">IWM &amp; DIA: explicit unavailable</text>
+  </g>
+  <g transform="translate(46, 328)">
+    <rect width="284" height="58" class="box" />
+    <text x="12" y="22" class="mono">Credit (HY_OAS / IG_OAS)</text>
+    <text x="12" y="39" class="dim">
+      openbb.macroPoints (FRED BAMLH0A0HYM2)
+    </text>
+    <text x="12" y="52" class="dim">fallback: marketContext.macro.series</text>
+  </g>
+  <g transform="translate(46, 398)">
+    <rect width="284" height="58" class="box" />
+    <text x="12" y="22" class="mono">Volatility (Level + Term)</text>
+    <text x="12" y="39" class="dim">
+      readOpenbbVolContext (VIX/VXN/RVX/VXD)
+    </text>
+    <text x="12" y="52" class="dim">+ live fetchIbkrMonitorVolatility</text>
+  </g>
+
+  <!-- Arrows col 1 -> col 2 -->
+  <path
+    d="M330 147 C364 147, 364 218, 396 225"
+    class="line"
+    marker-end="url(#a-gray)"
+  />
+  <path
+    d="M330 217 C364 217, 364 238, 396 242"
+    class="line"
+    marker-end="url(#a-gray)"
+  />
+  <path d="M330 287 L396 262" class="line" marker-end="url(#a-gray)" />
+  <path
+    d="M330 357 C364 357, 364 282, 396 278"
+    class="line"
+    marker-end="url(#a-gray)"
+  />
+  <path
+    d="M330 427 C364 427, 364 298, 396 294"
+    class="line"
+    marker-end="url(#a-gray)"
+  />
+
+  <!-- Column 2: Pure Rules + Orchestrator -->
+  <rect x="384" y="78" width="352" height="394" class="col" />
+  <text x="402" y="102" class="h2">2. SERVER + PURE RULES</text>
+
+  <g transform="translate(402, 130)">
+    <rect width="316" height="92" class="core" />
+    <text x="14" y="24" class="gold">server/market-regime.ts</text>
+    <text x="14" y="44" class="dim">
+      • Parallel settled reads (no single-source crash)
+    </text>
+    <text x="14" y="61" class="dim">
+      • requireOperator + read-key + viewer safe
+    </text>
+    <text x="14" y="78" class="dim">
+      • Stamps generatedAt + source provenance
+    </text>
+  </g>
+
+  <path d="M560 222 L560 250" class="line-gold" marker-end="url(#a-gold)" />
+
+  <g transform="translate(402, 256)">
+    <rect width="316" height="196" class="box" />
+    <text x="14" y="24" class="gold">market-regime-rules.ts (pure)</text>
+    <text x="14" y="46" class="mono">Trend (C058/C108)</text>
+    <text x="14" y="61" class="dim">
+      close vs SMA50 &amp; SMA200 · stale &gt; 96h
+    </text>
+    <text x="14" y="83" class="mono">Gamma (C006/C878)</text>
+    <text x="14" y="98" class="dim">
+      sign vs flip · push &gt; 15m or asOf &gt; 96h
+    </text>
+    <text x="14" y="120" class="mono">Credit (C146)</text>
+    <text x="14" y="135" class="dim">
+      HY OAS &lt;4 / 4-5 / ≥5% or 20d Δ · stale &gt; 5d
+    </text>
+    <text x="14" y="157" class="mono">Vol (C033/C230) &amp; Mix (C806)</text>
+    <text x="14" y="172" class="dim">
+      VIX 20/30 + VIX/VIX3M · risk_on / mixed / risk_off
+    </text>
+  </g>
+
+  <!-- Arrows col 2 -> col 3 -->
+  <path
+    d="M718 176 C754 176, 754 176, 792 176"
+    class="line-green"
+    marker-end="url(#a-green)"
+  />
+  <path
+    d="M718 190 C754 190, 754 318, 792 318"
+    class="line-green"
+    marker-end="url(#a-green)"
+  />
+
+  <!-- Column 3: Consumers -->
+  <rect x="774" y="78" width="318" height="394" class="col" />
+  <text x="792" y="102" class="h2">3. CONSUMERS</text>
+
+  <g transform="translate(792, 126)">
+    <rect width="282" height="114" class="out" />
+    <text x="14" y="24" class="mono">Agent Read Key (Consults)</text>
+    <text x="14" y="44" class="dim">GET /api/openapi/market-regime</text>
+    <text x="14" y="62" class="dim">• AGENT_API_KEY_READ_PROCEDURES</text>
+    <text x="14" y="79" class="dim">• AGENT_API_KEY_PROCEDURE_PATHS</text>
+    <text x="14" y="96" class="dim">
+      • 1 call returns all 4 ETFs × 5 pillars
+    </text>
+  </g>
+
+  <g transform="translate(792, 266)">
+    <rect width="282" height="132" class="out" />
+    <text x="14" y="24" class="mono">/markets Regime Section</text>
+    <text x="14" y="44" class="dim">MarketRegimeSection (client)</text>
+    <text x="14" y="62" class="dim">• 4-ETF matrix + pillar detail</text>
+    <text x="14" y="79" class="dim">
+      • Explicit Stale badges (never hidden)
+    </text>
+    <text x="14" y="96" class="dim">• Dark/Light/System · 375px–1440px</text>
+    <text x="14" y="113" class="dim">• Research context only disclaimer</text>
+  </g>
+</svg>

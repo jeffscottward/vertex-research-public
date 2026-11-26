@@ -19,6 +19,23 @@ export {
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export type { ApiClient, ApiClientOptions } from "./client.ts";
 export { createApiClient } from "./client.ts";
+export {
+  alertableConnectivityIssues,
+  CONNECTIVITY_ALERT_MONITOR,
+  CONNECTIVITY_FLOW_REPEAT_THRESHOLD,
+  CONNECTIVITY_IN_FLIGHT_LEASE_MS,
+  type ConnectivityAlertDiff,
+  type ConnectivityAlertPersistedState,
+  type ConnectivityFlowSampleInput,
+  type ConnectivityMessageClassification,
+  type ConnectivityOpenbbRunInput,
+  type ConnectivityRuntimeConfigSummary,
+  classifyConnectivityMessage,
+  diffConnectivityAlerts,
+  evaluateConnectivityHealth,
+  formatConnectivityAlert,
+  formatConnectivityRecovery,
+} from "./connectivity-health.ts";
 export type {
   AccountProfileOutput,
   AddressCreateInput,
@@ -107,6 +124,22 @@ export * from "./contracts/baskets.ts";
 export * from "./contracts/breadth-90.ts";
 export * from "./contracts/click-log.ts";
 export * from "./contracts/congress-trades.ts";
+export {
+  CONNECTIVITY_ALERT_ACTIONS,
+  CONNECTIVITY_ESCALATIONS,
+  CONNECTIVITY_ISSUE_CATEGORIES,
+  CONNECTIVITY_OVERALL_STATUSES,
+  CONNECTIVITY_PROVIDER_STATUSES,
+  type ConnectivityCheckAlertsOutput,
+  type ConnectivityEscalation,
+  type ConnectivityHealthOutput,
+  type ConnectivityIssue,
+  type ConnectivityIssueCategory,
+  type ConnectivityOverallStatus,
+  type ConnectivityPendingChatAlert,
+  type ConnectivityPlannedAlert,
+  type ConnectivityProviderStatus,
+} from "./contracts/connectivity.ts";
 export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/engine-comparison.ts";
 export * from "./contracts/engines.ts";
@@ -121,8 +154,10 @@ export * from "./contracts/market-context.ts";
 export * from "./contracts/market-data.ts";
 export * from "./contracts/market-news.ts";
 export * from "./contracts/market-notes.ts";
+export * from "./contracts/market-regime.ts";
 export * from "./contracts/nautilus-arm.ts";
 export * from "./contracts/openbb.ts";
+export * from "./contracts/openbb-overdue.ts";
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/options-analytics.ts";
 export * from "./contracts/options-chain.ts";
@@ -164,10 +199,16 @@ export {
   countStacks,
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
+  FLOW_OPTION_STREAMS,
   type FlowGroup,
   type FlowInstrument,
+  type FlowOptionParity,
+  type FlowOptionStream,
   findStacks,
+  flowOptionStreamForSymbol,
+  flowOptionSymbolForTicker,
   flowSymbolForTicker,
+  isFlowSymbol,
   IMBALANCE_RATIO,
   type LevelCell,
   STACK_LEVELS,
@@ -175,12 +216,16 @@ export {
 } from "./flow-features.ts";
 export * from "./flow-hedging-pressure-rules.ts";
 export * from "./flow-liquidity-heatmap-rules.ts";
+export * from "./flow-live-dom-rules.ts";
 export * from "./flow-off-exchange-levels-rules.ts";
+export * from "./flow-option-bubbles-rules.ts";
 export * from "./flow-put-call-ratio-rules.ts";
 export * from "./flow-strike-heatmap-rules.ts";
 export * from "./flow-tape-speed-rules.ts";
+export * from "./flow-trade-bubbles-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./generated/public-registry.ts";
+export * from "./gex-wall-drift-rules.ts";
 export {
   MARKET_NOTE_CONTEXT_HEADER,
   MARKET_NOTE_CONTEXT_MAX_NOTES,
@@ -204,9 +249,16 @@ export {
   type BlackScholesResult,
   blackScholes,
   daysToExpiry,
+  expiryCloseMs,
   type OptionRight,
   yearsToExpiry,
 } from "./options-chain-greeks.ts";
+export {
+  type AtmPairRow,
+  computeOptionsExpectedMove,
+  findAtmPairRow,
+  STRADDLE_TO_ONE_SIGMA,
+} from "./options-expected-move.ts";
 export * from "./pick-list-sources.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
 export * from "./signal-alerts.ts";

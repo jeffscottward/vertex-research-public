@@ -87,6 +87,11 @@ describe("OrderFlowMarksBar", () => {
         "unsupported",
         "NVDA STK",
       ],
+      [
+        { secType: "CASH", symbol: "EUR", type: "unsupported" },
+        "unsupported",
+        "Order-flow marks: none for forex (CASH). IBKR gives no ticks or depth for a forex pair.",
+      ],
       [{ type: "loading" }, "loading", "Loading stored order-flow marks"],
       [{ type: "forbidden" }, "forbidden", "Operator access required"],
       [

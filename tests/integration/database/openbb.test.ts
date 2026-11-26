@@ -16,8 +16,8 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Migration 0064 (OpenBB data sources), its guarded rollback, idempotent upserts and the reads of
-// the openbb repository, plus market daily series upsertPoints, on a real database.
+// OpenBB source and IV-provenance migrations, guarded rollbacks, idempotent upserts and repository
+// reads, plus market daily series upsertPoints, on a real database.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migrationSql = read(
@@ -25,6 +25,12 @@ const migrationSql = read(
 );
 const rollbackSql = read(
   "../../../packages/db/rollback/0064_openbb_sources.down.sql"
+);
+const sourceMigrationSql = read(
+  "../../../packages/db/migrations/0097_common_mikhail_rasputin.sql"
+);
+const sourceRollbackSql = read(
+  "../../../packages/db/rollback/0097_common_mikhail_rasputin.down.sql"
 );
 const congressMigrationSql = read(
   "../../../packages/db/migrations/0085_congress_trades.sql"
@@ -90,7 +96,7 @@ const ivRow = (asOf: string, atmIv30d: number | null) => ({
   underlyingPrice: 590.25,
 });
 
-describe("0064 openbb sources (Postgres)", () => {
+describe("OpenBB IV provenance and sources (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({
@@ -457,13 +463,43 @@ describe("0064 openbb sources (Postgres)", () => {
       "option_iv_daily",
       days.map((day, index) => ivRow(day, 0.1 + index / 1000))
     );
+    await repository.upsertRows("option_iv_daily", [
+      {
+        ...ivRow(days[7] as string, 0.15),
+        source: "yahoo_fallback" as const,
+      },
+      {
+        ...ivRow(days[8] as string, 0.16),
+        source: "yahoo_fallback" as const,
+      },
+    ]);
     const window = await repository.optionIvDaily(["SPY"], null, 252);
     expect(window).toHaveLength(252);
     expect(window[0]?.asOf).toBe(days[8]);
+    expect(window.at(-1)?.source).toBe("unknown");
+    expect(window[0]?.source).toBe("yahoo_fallback");
+    expect(window.some((row) => row.asOf === days[7])).toBe(false);
     expect(window.at(-1)?.asOf).toBe(days[259]);
     expect(
       (await repository.optionIvDaily(["SPY"], days[19] as string, 252)).length
     ).toBe(20);
+
+    const yahooRow = {
+      ...ivRow(days[259] as string, 0.31),
+      source: "yahoo_fallback" as const,
+    };
+    await repository.upsertRows("option_iv_daily", [yahooRow]);
+    expect(
+      (await repository.optionIvDaily(["SPY"], null, 252)).at(-1)?.source
+    ).toBe("yahoo_fallback");
+    const cboeRow = {
+      ...ivRow(days[259] as string, 0.32),
+      source: "cboe" as const,
+    };
+    await repository.upsertRows("option_iv_daily", [cboeRow]);
+    expect(
+      (await repository.optionIvDaily(["SPY"], null, 252)).at(-1)
+    ).toMatchObject({ atmIv30d: 0.32, source: "cboe" });
 
     const term = (asOf: string, expiration: string) => ({
       asOf,
@@ -514,6 +550,56 @@ describe("0064 openbb sources (Postgres)", () => {
       )
     ).rejects.toThrow(/_check/u);
     expect(await repository.vxCurveDates(null, 6)).toEqual(["2026-11-06"]);
+  });
+
+  it("returns the latest fully written fallback-bearing run for audit only", async () => {
+    const repository = createOpenbbRepository(db());
+    // Keep this successful fallback audit run before the blocked-streak test's 2026-11-19 runs.
+    const started = new Date("2026-11-18T15:00:00.000Z");
+    const marker =
+      "cboe chain QQQ: upstream read failed; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)";
+    const skipped =
+      "cboe chain SPY: used the Yahoo option chain earlier this session; skipped the re-fetch";
+    const record = async (
+      id: number,
+      options: Readonly<{
+        job?: string;
+        status?: "ok" | "partial" | "failed" | "blocked_upstream";
+        rowsReceived?: number;
+        rowsWritten?: number;
+        warnings?: string[];
+      }>
+    ) =>
+      repository.recordRun({
+        error: options.status === "failed" ? "fetch failed" : null,
+        finishedAt: new Date(started.getTime() + id * 60_000),
+        job: options.job ?? "cboe-option-iv",
+        openbbVersion: "1.4.0",
+        rowsReceived: options.rowsReceived ?? 4,
+        rowsWritten: options.rowsWritten ?? 4,
+        startedAt: new Date(started.getTime() + id * 60_000 - 1000),
+        status: options.status ?? "ok",
+        warnings: options.warnings ?? [marker],
+      });
+    await record(1, {});
+    await record(2, { warnings: [skipped], rowsReceived: 0, rowsWritten: 0 });
+    await record(3, { rowsReceived: 0, rowsWritten: 0 });
+    await record(4, { status: "partial", rowsReceived: 4, rowsWritten: 3 });
+    await record(5, { status: "failed" });
+    await record(6, { status: "blocked_upstream" });
+    await record(7, {
+      status: "partial",
+      warnings: [marker, marker.replace("QQQ", "SPY")],
+    });
+    await record(8, { warnings: ["Cboe chain succeeded"] });
+    await record(9, { job: "cftc-cot" });
+    await record(10, {
+      warnings: [marker.replace("rate 4%", "rate 4x")],
+    });
+
+    expect(await repository.lastYahooFallbackAt()).toEqual(
+      new Date(started.getTime() + 7 * 60_000)
+    );
   });
 
   it("upserts congress rows twice, keeps first_seen_at and reads by the ledger rule", async () => {
@@ -947,6 +1033,302 @@ describe("0064 openbb sources (Postgres)", () => {
       )
     ).rejects.toThrow(/openbb_sec_13f_filings_check/u);
   });
+  it("computes market-wide 13F quarter-over-quarter changes in Postgres", async () => {
+    const repository = createOpenbbRepository(db());
+    const q2Acc = "0002000001-26-000001";
+    const q3Acc = "0002000001-26-000002";
+    const q3LaterAcc = "0002000001-26-000099";
+    const gapQ1Acc = "0002000002-26-000001";
+    const gapQ3Acc = "0002000002-26-000002";
+
+    await repository.upsertRows("sec_13f_filings", [
+      {
+        accessionNumber: q2Acc,
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        periodEnding: "2026-06-30",
+        rows: 4,
+      },
+      {
+        accessionNumber: q3Acc,
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        periodEnding: "2026-09-30",
+        rows: 4,
+      },
+      // Later filing for the same period must be ignored in favor of earliest filedOn.
+      {
+        accessionNumber: q3LaterAcc,
+        filedOn: "2026-11-15",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        periodEnding: "2026-09-30",
+        rows: 1,
+      },
+      // Non-consecutive quarters (Q1 -> Q3, missing Q2) must be excluded.
+      {
+        accessionNumber: gapQ1Acc,
+        filedOn: "2026-05-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        periodEnding: "2026-03-31",
+        rows: 1,
+      },
+      {
+        accessionNumber: gapQ3Acc,
+        filedOn: "2026-11-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        periodEnding: "2026-09-30",
+        rows: 1,
+      },
+    ]);
+
+    await repository.upsertRows("cusip_symbols", [
+      { cusip: "67066G104", lastSeen: "2026-11-10", symbol: "NVDA" },
+    ]);
+
+    const row = (overrides: {
+      accessionNumber: string;
+      cusip: string;
+      filedOn: string;
+      filerCik: string;
+      filerName: string;
+      issuer: string;
+      optionType?: "" | "call" | "put";
+      periodEnding: string;
+      shares?: number | null;
+      symbol?: string | null;
+      value: number;
+    }) => ({
+      assetClass: null,
+      optionType: "" as const,
+      shares: null,
+      symbol: null,
+      weight: null,
+      ...overrides,
+    });
+
+    await repository.upsertRows("sec_13f_holdings", [
+      // Q2 holdings for ALPHA CAPITAL LP
+      row({
+        accessionNumber: q2Acc,
+        cusip: "67066G104",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "NVIDIA CORP",
+        periodEnding: "2026-06-30",
+        shares: 100,
+        symbol: null,
+        value: 10_000,
+      }),
+      row({
+        accessionNumber: q2Acc,
+        cusip: "594918104",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "MICROSOFT CORP",
+        periodEnding: "2026-06-30",
+        shares: 500,
+        symbol: "MSFT",
+        value: 200_000,
+      }),
+      row({
+        accessionNumber: q2Acc,
+        cusip: "023135106",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "AMAZON COM INC",
+        periodEnding: "2026-06-30",
+        shares: 300,
+        symbol: "AMZN",
+        value: 60_000,
+      }),
+      row({
+        accessionNumber: q2Acc,
+        cusip: "30303M102",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "META PLATFORMS INC",
+        periodEnding: "2026-06-30",
+        shares: 50,
+        symbol: "META",
+        value: 25_000,
+      }),
+      // Q3 holdings for ALPHA CAPITAL LP (earliest original q3Acc)
+      row({
+        accessionNumber: q3Acc,
+        cusip: "67066G104",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "NVIDIA CORP",
+        periodEnding: "2026-09-30",
+        shares: 250,
+        symbol: null,
+        value: 30_000,
+      }),
+      row({
+        accessionNumber: q3Acc,
+        cusip: "594918104",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "MICROSOFT CORP",
+        periodEnding: "2026-09-30",
+        shares: 200,
+        symbol: "MSFT",
+        value: 80_000,
+      }),
+      row({
+        accessionNumber: q3Acc,
+        cusip: "30303M102",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "META PLATFORMS INC",
+        periodEnding: "2026-09-30",
+        shares: 50,
+        symbol: "META",
+        value: 28_000,
+      }),
+      row({
+        accessionNumber: q3Acc,
+        cusip: "88160R101",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "TESLA INC",
+        periodEnding: "2026-09-30",
+        shares: 400,
+        symbol: "TSLA",
+        value: 100_000,
+      }),
+      // Non-consecutive filer holdings (must not appear)
+      row({
+        accessionNumber: gapQ1Acc,
+        cusip: "88160R101",
+        filedOn: "2026-05-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        issuer: "TESLA INC",
+        periodEnding: "2026-03-31",
+        shares: 10,
+        symbol: "TSLA",
+        value: 2000,
+      }),
+      row({
+        accessionNumber: gapQ3Acc,
+        cusip: "88160R101",
+        filedOn: "2026-11-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        issuer: "TESLA INC",
+        periodEnding: "2026-09-30",
+        shares: 90,
+        symbol: "TSLA",
+        value: 20_000,
+      }),
+    ]);
+
+    const all = await repository.changes13fMarket({
+      change: "all",
+      limit: 50,
+      ticker: null,
+    });
+    expect(
+      all.map((entry) => ({
+        accessionNumber: entry.accessionNumber,
+        change: entry.change,
+        cusip: entry.cusip,
+        filedOn: entry.filedOn,
+        period: entry.period,
+        previousPeriod: entry.previousPeriod,
+        previousShares: entry.previousShares,
+        shares: entry.shares,
+        symbol: entry.symbol,
+      }))
+    ).toEqual([
+      {
+        accessionNumber: q3Acc,
+        change: "reduced",
+        cusip: "594918104",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 500,
+        shares: 200,
+        symbol: "MSFT",
+      },
+      {
+        accessionNumber: q3Acc,
+        change: "new",
+        cusip: "88160R101",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: null,
+        shares: 400,
+        symbol: "TSLA",
+      },
+      {
+        accessionNumber: q3Acc,
+        change: "sold",
+        cusip: "023135106",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 300,
+        shares: null,
+        symbol: "AMZN",
+      },
+      {
+        accessionNumber: q3Acc,
+        change: "added",
+        cusip: "67066G104",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 100,
+        shares: 250,
+        symbol: "NVDA",
+      },
+    ]);
+
+    // Filter by CUSIP-mapped ticker (raw_symbol is null)
+    const nvda = await repository.changes13fMarket({
+      change: "all",
+      limit: 50,
+      ticker: "NVDA",
+    });
+    expect(nvda.map((entry) => [entry.symbol, entry.change])).toEqual([
+      ["NVDA", "added"],
+    ]);
+
+    // Filter by direct symbol + change kind
+    const msftReduced = await repository.changes13fMarket({
+      change: "reduced",
+      limit: 50,
+      ticker: "MSFT",
+    });
+    expect(msftReduced.map((entry) => [entry.symbol, entry.change])).toEqual([
+      ["MSFT", "reduced"],
+    ]);
+
+    // Limit caps results in descending max(value, previousValue) order
+    const topTwo = await repository.changes13fMarket({
+      change: "all",
+      limit: 2,
+      ticker: null,
+    });
+    expect(topTwo.map((entry) => entry.symbol)).toEqual(["MSFT", "TSLA"]);
+  });
 
   it("refuses the rollback while rows exist", async () => {
     await expect(postgres().query(rollbackSql)).rejects.toThrow(
@@ -956,24 +1338,47 @@ describe("0064 openbb sources (Postgres)", () => {
     expect(await countRows("openbb_vx_curve")).toBe(2);
   });
 
-  return it("rolls back when empty and the migration applies again", async () => {
+  return it("guards IV-source rollback and reapplies migrations when empty", async () => {
     const tables = async () =>
       (
         await postgres().query<{ name: string }>(
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
+    const repository = createOpenbbRepository(db());
+    await repository.upsertRows("option_iv_daily", [
+      {
+        ...ivRow("2026-11-20", 0.3),
+        source: "yahoo_fallback",
+      },
+    ]);
+    await expect(postgres().query(sourceRollbackSql)).rejects.toThrow(
+      /Refusing to drop known OpenBB IV source provenance/u
+    );
+    await postgres().query("ROLLBACK");
+    expect(await countRows("openbb_option_iv_daily")).toBeGreaterThan(0);
     // 0089, 0086 and 0085 drop their tables even with rows in them.
     await postgres().query(form4RollbackSql);
     await postgres().query(fullBooksRollbackSql);
     expect(await countRows("openbb_short_volume_daily")).toBe(0);
     await postgres().query(congressRollbackSql);
+    await postgres().query(
+      "update openbb_option_iv_daily set source = 'unknown'"
+    );
+    await postgres().query(sourceRollbackSql);
+    expect(await countRows("openbb_option_iv_daily")).toBeGreaterThan(0);
+    expect(
+      await postgres().query<{ column_name: string }>(
+        "select column_name from information_schema.columns where table_schema = 'public' and table_name = 'openbb_option_iv_daily' and column_name = 'source'"
+      )
+    ).toEqual([]);
     for (const table of await tables())
       await postgres().query(`delete from ${table}`);
     await postgres().query(rollbackSql);
     expect(await tables()).toEqual([]);
     expect(await countRows("market_daily_points")).toBe(7);
     await postgres().query(migrationSql);
+    await postgres().query(sourceMigrationSql);
     await postgres().query(congressMigrationSql);
     await postgres().query(fullBooksMigrationSql);
     await postgres().query(form4MigrationSql);

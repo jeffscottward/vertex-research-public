@@ -345,11 +345,13 @@ Units: IV columns (`atm_iv_30d`, `put_iv_25d_30d`, `call_iv_25d_30d`, `atm_iv`) 
 stored before that scaling, for periods with filings before 2023-01-03, are 1000 x too small and must
 be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 
+Daily IV rows store provenance in `openbb_option_iv_daily.source` as `cboe`, `yahoo_fallback`, or `unknown`. A new Python producer row must use one of the named provider sources. Legacy API rows without `source` are stored as `unknown`. Legacy source is not backfilled: `cboe-option-iv` is a snapshot job and cannot re-fetch a missed session, so old rows stay `unknown`; same-key upserts replace the source and IV values together. The public read contract does not expose the stored source; it returns a coarse `historyState` derived from the same newest-252-row sample used for the IV percentile. `affected` means at least one sampled row is Yahoo-derived, `clean` means a non-empty sample is entirely Cboe-derived, and `source_unverified` means no sampled row is Yahoo-derived and at least one sampled row has an `unknown` source. An underlying with no stored rows returns no `ivDaily` row.
+
 | Table | Primary key | Columns |
 | --- | --- | --- |
 | `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`/`blocked_upstream`, the last from migration 0087, which also adds the index on job, started_at), rows_received, rows_written, warnings text[], error text, openbb_version |
 | `openbb_vx_curve` | (as_of, contract_month) | as_of date, contract_month text `YYYY-MM`, price double |
-| `openbb_option_iv_daily` | (as_of, underlying) | underlying_price, atm_iv_30d, put_iv_25d_30d, call_iv_25d_30d, call_oi, put_oi, call_volume, put_volume, net_gex, gamma_flip, call_wall, put_wall, contracts |
+| `openbb_option_iv_daily` | (as_of, underlying) | source (`cboe`/`yahoo_fallback`/`unknown`), underlying_price, atm_iv_30d, put_iv_25d_30d, call_iv_25d_30d, call_oi, put_oi, call_volume, put_volume, net_gex, gamma_flip, call_wall, put_wall, contracts |
 | `openbb_option_iv_term` | (as_of, underlying, expiration) | dte, atm_strike, atm_iv, call_oi, put_oi, call_volume, put_volume |
 | `openbb_cot_positions` | (report_date, market_code, category) | market, report_type, long, short, spreading, open_interest |
 | `openbb_macro_series` | id | source, name, unit, frequency, first_date, last_date, point_count, updated_at |
@@ -381,6 +383,7 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   (`daily_series`, `vx_curve`, `option_iv_daily`, `option_iv_term`, `cot_positions`, `macro_points`,
   `event_calendar`, `finra_otc_weekly`, `short_interest`, `short_volume_daily`, `sec_filings`,
   `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `sec_13f_filings`, `cusip_symbols`, `factor_returns`) with `rows` (1..2,000).
+  `option_iv_daily` accepts legacy rows without `source` and stores them as `unknown`; new Python producer rows require `cboe` or `yahoo_fallback`.
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
   low, close, adjClose}` (`adjClose` may be absent: null) and go through the market daily series
@@ -415,15 +418,34 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
 
 Reads (operator, read-only):
 
-- `openbb.status`: per job last run and status, per table newest date and row count. The newest run
-  of a job in a blocked streak has `blocked: { since, attempts, nextRetryAt }` (start of the streak,
-  recorded runs in it, earliest next timer attempt); every other run has `blocked: null`.
+- `openbb.status`: per job last run and status, per-source overdue evaluation (`checkedAt`,
+  `overdueCount`, `sources[]` covering all 23 `OPENBB_JOBS` via `OPENBB_JOB_METADATA` plus QuantVPS
+  flow sources via `FLOW_SOURCE_METADATA`, with `market_premium` read from
+  `flow_market_premium_sessions` and the remaining 5 flow sources read from SPY `flow_samples`),
+  per table newest date and row count, and nullable `lastFallbackAt`. The newest run of a job in a blocked streak has
+  `blocked: { since, attempts, nextRetryAt }`; every other run has `blocked: null`.
+- `openbb.changes13f` `{ change?, limit?, ticker? }`: market-wide quarter-over-quarter 13F changes
+  (new, added, reduced or sold; unchanged omitted) across tracked filers' two newest consecutive
+  full 13F-HR books, ordered by max(value, previousValue) desc, with matched `symbol` from the
+  holding or newest `openbb_cusip_symbols` entry and `sec-13f` coverage (`overdue`, `overdueSince`,
+  `filersWithTwoBooks`, `totalFilers`).
+- `openbb.checkSourceOverdue` `{ dryRun? }` and `openbb.recordSourceOverdueChat`
+  `{ eventId, delivery }` (scheduler, agent write key): QuantVPS 15-minute overdue alert check
+  (`infra/openbb-overdue/quantvps/vertex-openbb-overdue.timer`, `scripts/openbb-overdue/tick.ts`)
+  monitoring the 22 non-retired OpenBB jobs + `flow:market_premium` via `price_freshness_state`
+  (`monitor = "openbb-overdue"`), sending one alert per incident via `sendPriceAlertsNtfy` (with
+  `#omp-alerts` fallback outbox) and one recovery notice when all overdue sources catch up.
 - `openbb.volContext` `{ asOf? }`: latest vol index closes (within 30 calendar days of `asOf`) with
   VIX9D/VIX, VIX/VIX3M, VIX3M/VIX6M ratios (null unless both closes are from the same session, like
   the DSL's `termRatioSeries`), VX curve (latest and 5 sessions earlier), Core 7 IV daily rows
-  (`ivDaily`, whose `ivPercentile` of `atm_iv_30d` requires a full 252-session window, else null),
-  labelled 1-year IV percentile and IV rank per Core 7 ETF (`ivOneYear`), and the term rows of the
-  latest date.
+  (`ivDaily`, whose `ivPercentile` of `atm_iv_30d` requires a full 252-session window, else null,
+  and each returned daily row also has `historyState`, derived from those same 252 stored rows,
+  including rows with null IV; raw row source is not returned), labelled 1-year IV percentile and IV
+  rank per Core 7 ETF (`ivOneYear`), and the term rows of the latest date.
+  `historyState` is `affected` when any selected row is `yahoo_fallback`, `clean` only when the
+  non-empty sample is all `cboe`, and `source_unverified` otherwise, including legacy rows without
+  proven source. An underlying with no stored daily rows has no `ivDaily` result or history state.
+  This field does not change the IV values or percentile.
   Each `ivOneYear` entry evaluates two independent 252-session bases without mixing them:
   `own` (`openbb_option_iv_daily.atm_iv_30d`, decimal) and `proxy` (the Cboe volatility index in
   `market_daily_series`: `SPY -> VIX`, `QQQ -> VXN`, `DIA -> VXD`, `IWM -> RVX`, `GLD -> GVZ`,
@@ -487,6 +509,10 @@ the same name with the caller's agent key (read keys allowed; `openbb.*` is an a
 | `openbb_shorts` | `openbb.shorts` |
 | `openbb_sec` | `openbb.sec` |
 | `openbb_factors` | `openbb.factors` |
+| `openbb_congress_trades` | `congressTrades.feed` (bounded to newest 50 trades) |
+| `openbb_smart_money_ranking` | `smartMoney.ranking` (bounded to 50 rows) |
+| `openbb_insider_clusters` | `openbb.insiderClusters` (optional `symbol`, bounded to 50 clusters) |
+| `openbb_13f_changes` | `openbb.changes13f` (bounded to 50 rows, text capped at 300 chars) |
 
 Descriptions name the sources and say the data is research input, not a trade signal. No tool
 writes, and no tool places or changes orders.
@@ -495,23 +521,41 @@ writes, and no tool places or changes orders.
 
 - `/markets`: "Vol, positioning and macro" section: vol term strip and ratios, VX curve, Core 7 IV
   table (ATM IV 30d, 1-year IV percentile / IV rank "IV pctl / rank (1y)", labelled "1y basis" with
-  own ATM IV or Cboe proxy index, session count and as-of date or unavailable reason, 25-delta skew,
-  gamma flip, call / put wall), an IV rank and percentile history chart (`IvRankHistoryPanel`)
-  with Core 7 ticker tabs (`SPY`–`USO`), `3M`/`6M`/`1Y`/`2Y` horizon selector, 80/20 high/low IV
-  reference bands, and 50 midpoint line (also mounted on `/stock/<symbol>?tab=analytics` and
-  `/charts?symbol=<symbol>` as an independent sibling of `OptionsAnalyticsPanel`), COT net
-  positioning (latest and 4-week change), macro regime table with as-of dates, events in the next 14
-  days. The three Cboe panels (vol term
-  strip: `cboe-vol-indices`, VX curve: `cboe-vx-curve`, Core 7 IV: `cboe-option-iv`) read
-  `openbb.status` and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first
-  ingest run after <time>. The rows below are from the last good run.` while their job is in a blocked
-  streak. The VX curve panel names the CFE settlement file when the newest run took its rows from it.
+  own ATM IV or Cboe proxy index, session count and as-of date or unavailable reason, per-underlying
+  IV history, 25-delta skew, gamma flip, call / put wall), an IV rank and percentile history chart
+  (`IvRankHistoryPanel`) with Core 7 ticker tabs (`SPY`–`USO`), `3M`/`6M`/`1Y`/`2Y` horizon
+  selector, 80/20 high/low IV reference bands, and 50 midpoint line (also mounted on
+  `/stock/<symbol>?tab=analytics` and `/charts?symbol=<symbol>` as an independent sibling of
+  `OptionsAnalyticsPanel`), COT net positioning (latest and 4-week change), macro regime table with
+  as-of dates, events in the next 14 days. The three Cboe panels (vol term strip:
+  `cboe-vol-indices`, VX curve: `cboe-vx-curve`, Core 7 IV: `cboe-option-iv`) read `openbb.status`
+  and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first ingest run
+  after <time>. The rows below are from the last good run.` while their job is in a blocked streak.
+  The VX curve panel names the CFE settlement file when the newest run took its rows from it.
   The Core 7 IV panel names the Yahoo option chain and its symbols when the newest run used the
-  second source (`ivSourceNotice`, marker `OPENBB_YAHOO_FALLBACK_NOTE`), and says the IV percentile
-  mixes the two methods across the boundary.
+  second source (`ivSourceNotice`, marker `OPENBB_YAHOO_FALLBACK_NOTE`), and shows each underlying's
+  `historyState` from the sampled rows (`affected` -> "Yahoo IV in sample", `clean` -> "Cboe only",
+  `source_unverified` -> "Source not verified"). A row whose 1-year percentile uses a
+  volatility-index proxy shows "Proxy index basis", because that percentile uses no option-chain
+  rows.
+- `openbb.status.lastFallbackAt`: audit timestamp (`finishedAt`) of the newest qualifying
+  `cboe-option-iv` run: status `ok` or `partial`, `rows_received > 0`,
+  `rows_written = rows_received`, and one `warnings` entry that ends with `used the Yahoo option
+  chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)`. Order by
+  `finishedAt DESC, startedAt DESC, id DESC`. This audit timestamp does not identify current
+  sample membership or clear the caveat. A carry-forward skip, zero-row run, incomplete write,
+  failed run, or blocked run does not qualify. `null` means no qualifying run record, not clean
+  history.
+- Rollout order for the daily IV `source` column: apply migration `0097_common_mikhail_rasputin`
+  first, then deploy the API that accepts payloads with and without `source`, then update the
+  producer that sends `source`. An old strict API refuses the new producer payload. To roll back,
+  roll the producer back before the API; run
+  `packages/db/rollback/0097_common_mikhail_rasputin.down.sql` last. It refuses to run while any
+  row has a known source.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
-- `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, FTD and FINRA short data.
+- `/smart-money`: per-source freshness strip (Options premium, Form 4, Congress House, Congress Senate, SEC 13F — no blended score), shared ticker filter, and four independent source panels: large options trades (QuantData), insider cluster buys (SEC Form 4, 7 days), Congress trades (House and Senate PTRs, 30 days, Purchases/All toggle), and 13F quarter-over-quarter changes (SEC Form 13F-HR).
+- `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, 13F quarter-over-quarter changes, FTD and FINRA short data, plus three isolated smart-money sections for the symbol (large options premium 5 sessions, insider cluster buys 30 days, Congress trades 90 days).
 - `/charts`: pane "OI change" under the daily candles of ES and NQ (continuous or dated contract at
   CME): one bar per trading day from `CME_ES_OI` or `CME_NQ_OI`, read with `openbb.macro` and an id
   list. The page computes the change against the trading day before; it draws no bar after a

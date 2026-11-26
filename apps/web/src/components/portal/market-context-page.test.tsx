@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import type {
-  ApiClient,
-  MarketContextOutput,
-  MarketVolatilityOutput,
+import {
+  type ApiClient,
+  type MarketContextOutput,
+  type MarketRegimeOutput,
+  type MarketVolatilityOutput,
+  REGIME_CREDIT_STALE_SECONDS,
+  REGIME_DAILY_STALE_SECONDS,
+  REGIME_ETF_VOL_INDEX_IDS,
+  REGIME_GAMMA_PUSH_STALE_SECONDS,
+  REGIME_INDEX_SYMBOLS,
+  REGIME_RESEARCH_ONLY_NOTE,
 } from "@darkfactory/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -71,6 +78,113 @@ const feeds = (
   ...overrides,
 });
 
+const regimeSnapshot = (stale = false): MarketRegimeOutput => ({
+  etfs: REGIME_INDEX_SYMBOLS.map((symbol) => ({
+    breadth90: {
+      ageSeconds: 3600,
+      armedOn: null,
+      asOf: "2026-11-20T21:15:00.000Z",
+      detail: "IDLE",
+      latestAdvPct: 55,
+      latestDate: "2026-11-20",
+      latestFinal: true,
+      latestKind: "NEUTRAL",
+      latestUpPct: 55,
+      scope: "market_wide",
+      sessionsLeft: null,
+      signalState: "IDLE",
+      source: "breadth90",
+      stale: false,
+      staleLimitSeconds: REGIME_DAILY_STALE_SECONDS,
+      state: "idle",
+      strict: false,
+    },
+    credit: {
+      ageSeconds: 3600,
+      asOf: "2026-11-20",
+      detail: "Calm",
+      hyOas: 3.1,
+      hyOasBps: 310,
+      hyOasChange20dBps: 0,
+      hyOasPct1y: 30,
+      igOas: 0.9,
+      scope: "market_wide",
+      source: "openbb_macro:HY_OAS",
+      stale: false,
+      staleLimitSeconds: REGIME_CREDIT_STALE_SECONDS,
+      state: "calm",
+    },
+    dealerGamma: {
+      ageSeconds: null,
+      asOf: null,
+      callWall: null,
+      detail: "No feed",
+      flip: null,
+      netGex: null,
+      oiSession: null,
+      putWall: null,
+      scope: "etf",
+      source: "none",
+      spot: null,
+      spotVsFlip: null,
+      stale: false,
+      staleLimitSeconds: REGIME_GAMMA_PUSH_STALE_SECONDS,
+      state: "not_covered",
+      upstreamRegime: null,
+    },
+    hasStaleInputs: stale && symbol === "IWM",
+    missingCount: 0,
+    mixedDrivers: stale && symbol === "IWM" ? ["Trend input is stale"] : [],
+    staleCount: stale && symbol === "IWM" ? 1 : 0,
+    summary: stale && symbol === "IWM" ? "mixed" : "risk_on",
+    symbol,
+    trend: {
+      ageSeconds: stale && symbol === "IWM" ? 900_000 : 3600,
+      asOf: stale && symbol === "IWM" ? "2026-11-10" : "2026-11-20",
+      close: 500,
+      detail: "Uptrend",
+      pctVsSma50: 2,
+      pctVsSma200: 8,
+      scope: "etf",
+      sessions: 252,
+      sma50: 490,
+      sma50AboveSma200: true,
+      sma200: 460,
+      source: "market_daily_series",
+      stale: stale && symbol === "IWM",
+      staleLimitSeconds: REGIME_DAILY_STALE_SECONDS,
+      state: "uptrend",
+    },
+    volatility: {
+      ageSeconds: 3600,
+      asOf: "2026-11-20",
+      atmIv30d: 0.16,
+      detail: "Calm",
+      etfVolIndex: 15,
+      etfVolIndexId: REGIME_ETF_VOL_INDEX_IDS[symbol],
+      ivPercentile: 30,
+      scope: "market_wide",
+      source: "openbb_vol_context",
+      stale: false,
+      staleLimitSeconds: REGIME_DAILY_STALE_SECONDS,
+      state: "calm",
+      termStructure: "contango",
+      vix: 15,
+      vix3mVix6m: 0.95,
+      vix9dVix: 0.9,
+      vixVix3m: 0.88,
+    },
+  })),
+  generatedAt: "2026-11-22T18:00:00.000Z",
+  overall: {
+    missingPillarCount: 0,
+    staleEtfs: stale ? ["IWM"] : [],
+    stalePillarCount: stale ? 1 : 0,
+    summary: stale ? "mixed" : "risk_on",
+  },
+  researchOnlyNote: REGIME_RESEARCH_ONLY_NOTE,
+});
+
 /** A gateway call per load; the test settles each answer later, in any order.
  * Executor form: the web tsconfig lib predates Promise.withResolvers. */
 const queued = <Value,>() => {
@@ -114,6 +228,7 @@ describe("Market context page", () => {
     const container = await mount({
       contextGateway: { volatility: () => new Promise(() => undefined) },
       feedsGateway: { context: () => new Promise(() => undefined) },
+      regimeGateway: { get: () => new Promise(() => undefined) },
     });
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     expect(container.querySelector("h1")?.textContent).toBe("Market context");
@@ -121,27 +236,33 @@ describe("Market context page", () => {
     expect(refreshButton(container)?.disabled).toBe(true);
   });
 
-  it("renders the slot directly under the header, above both workspaces", async () => {
+  it("renders the regime section under the header, followed by belowHeader and both workspaces", async () => {
     const container = await mount({
       belowHeader: <section data-slot="below-header" />,
       contextGateway: { volatility: () => new Promise(() => undefined) },
       feedsGateway: { context: () => new Promise(() => undefined) },
+      regimeGateway: { get: () => new Promise(() => undefined) },
     });
     const body = container.firstElementChild;
     expect(body?.children[0]?.querySelector("h1")?.textContent).toBe(
       "Market context"
     );
-    expect(body?.children[1]?.getAttribute("data-slot")).toBe("below-header");
-    expect(body?.children.length).toBeGreaterThan(2);
+    expect(body?.children[1]?.getAttribute("data-regime-state")).toBe(
+      "loading"
+    );
+    expect(body?.children[2]?.getAttribute("data-slot")).toBe("below-header");
+    expect(body?.children.length).toBeGreaterThan(3);
   });
 
-  it("sums both feeds into the chip and refreshes both on Refresh", async () => {
+  it("sums regime and both feeds into the chip and refreshes all on Refresh", async () => {
     let stale = false;
     const volatility = vi.fn(async () => VOLATILITY);
     const context = vi.fn(async () => feeds(stale));
+    const regime = vi.fn(async () => regimeSnapshot(false));
     const container = await mount({
       contextGateway: { volatility },
       feedsGateway: { context },
+      regimeGateway: { get: regime },
     });
     expect(chip(container)).toBe("Live");
     expect(refreshButton(container)?.disabled).toBe(false);
@@ -149,12 +270,22 @@ describe("Market context page", () => {
     await act(async () => refreshButton(container)?.click());
     expect(volatility).toHaveBeenCalledTimes(2);
     expect(context).toHaveBeenCalledTimes(2);
+    expect(regime).toHaveBeenCalledTimes(2);
     expect(chip(container)).toBe("Stale");
     // Loads that settle before the busy render must not leave Refresh disabled.
     expect(refreshButton(container)?.disabled).toBe(false);
     await act(async () => refreshButton(container)?.click());
     expect(volatility).toHaveBeenCalledTimes(3);
     expect(refreshButton(container)?.disabled).toBe(false);
+  });
+
+  it("shows Stale in the page header when regime inputs are stale even if other feeds are live", async () => {
+    const container = await mount({
+      contextGateway: { volatility: async () => VOLATILITY },
+      feedsGateway: { context: async () => feeds(false) },
+      regimeGateway: { get: async () => regimeSnapshot(true) },
+    });
+    expect(chip(container)).toBe("Stale");
   });
 
   it.each<[string, MarketVolatilityOutput, MarketContextOutput, string]>([
@@ -190,6 +321,7 @@ describe("Market context page", () => {
     const container = await mount({
       contextGateway: { volatility: async () => volatility },
       feedsGateway: { context: async () => context },
+      regimeGateway: { get: async () => regimeSnapshot(false) },
     });
     expect(chip(container)).toBe(label);
   });
@@ -201,6 +333,7 @@ describe("Market context page", () => {
     const container = await mount({
       contextGateway: { volatility: volatility.call },
       feedsGateway: { context: context.call },
+      regimeGateway: { get: async () => regimeSnapshot(false) },
     });
     expect(refreshDisabled(container)).toBe(true);
     await act(async () => volatility.answers[0]?.(VOLATILITY));
@@ -241,6 +374,7 @@ describe("Market context page", () => {
     const container = await mount({
       contextGateway: { volatility: volatility.call },
       feedsGateway: { context: context.call },
+      regimeGateway: { get: async () => regimeSnapshot(false) },
     });
     await act(async () => {
       volatility.answers[0]?.(VOLATILITY);
@@ -284,6 +418,7 @@ describe("Market context page", () => {
       },
       feedsGateway: { context: async () => feeds(false) },
       now: () => now,
+      regimeGateway: { get: async () => regimeSnapshot(false) },
     });
     expect(
       container.querySelector("[data-spx-quote-time]")?.textContent
@@ -303,6 +438,7 @@ describe("Market context page", () => {
           };
         }),
       },
+      marketRegime: { get: vi.fn(async () => regimeSnapshot(false)) },
     } as unknown as ApiClient;
     const container = await mount();
     expect(

@@ -38,11 +38,20 @@ export type VolumeBinView = Readonly<{
 
 export type TechnicalsView = Readonly<{
   revision: string;
+  dataDate: string;
+  isStale: boolean;
   barsLine: string;
   check: Readonly<{ tone: TechnicalsTone; text: string }>;
+  indicatorsLabel: string;
   indicators: readonly TechnicalsRow[];
   trendChecks: readonly TrendCheckView[];
-  weinstein: Readonly<{ stage: string; rows: readonly TechnicalsRow[] }> | null;
+  weinstein: Readonly<{
+    asOf: string;
+    isStale: boolean;
+    stage: string;
+    staleReason: string | null;
+    rows: readonly TechnicalsRow[];
+  }> | null;
   pivots: Readonly<{
     rows: readonly TechnicalsRow[];
     items: readonly PivotRowView[];
@@ -126,7 +135,27 @@ const CHECKED_FIELD_LABELS: Readonly<Record<string, string>> = {
 };
 
 const checkView = (data: ResearchReportTechnicals): TechnicalsView["check"] => {
-  const { check, recomputed } = data;
+  const { bars, check, recomputed } = data;
+  if (bars?.source === "market_bars") {
+    if (check.status === "match" && recomputed !== null)
+      return {
+        text: `Stored revision matched its ${grouped.format(recomputed.sampleCount)} stored bars; indicators below use ${grouped.format(bars.count)} daily bars through ${bars.lastDate}.`,
+        tone: "success",
+      };
+    if (check.status === "mismatch" && recomputed !== null)
+      return {
+        text: `Stored revision differs from its stored bars (${check.mismatches
+          .map((field) => CHECKED_FIELD_LABELS[field] ?? field)
+          .join(
+            ", "
+          )}); indicators below use ${grouped.format(bars.count)} daily bars through ${bars.lastDate}.`,
+        tone: "warning",
+      };
+    return {
+      text: `Computed directly from ${grouped.format(bars.count)} stored daily bars through ${bars.lastDate}; no static workspace snapshot is stored.`,
+      tone: "neutral",
+    };
+  }
   if (check.status === "unavailable" || recomputed === null)
     return {
       text: "Not checked: this revision has no stored daily bars or no stored bar count to compare.",
@@ -146,10 +175,9 @@ const checkView = (data: ResearchReportTechnicals): TechnicalsView["check"] => {
 };
 
 const indicatorRows = (
-  data: ResearchReportTechnicals,
+  stored: ResearchReportTechnicals["stored"],
   prices: Intl.NumberFormat
 ): TechnicalsRow[] => {
-  const { stored } = data;
   const close = stored.latestClose;
   const atrPct =
     stored.atr14 !== null && close !== null && close > 0
@@ -338,23 +366,34 @@ export const toTechnicalsViewModel = (
   data: ResearchReportTechnicals
 ): TechnicalsView => {
   const { bars, method, weinstein } = data;
+  const fromMarketBars = bars?.source === "market_bars";
+  const active =
+    fromMarketBars && data.current !== null ? data.current : data.stored;
   const prices = priceFormatFor(
-    data.stored.latestClose ?? data.recomputed?.latestClose ?? null,
+    active.latestClose ?? data.recomputed?.latestClose ?? null,
     data.volumeProfile?.binWidth ?? null
   );
+  const barsLine =
+    bars === null
+      ? "No stored daily bars in this revision."
+      : fromMarketBars
+        ? `${grouped.format(bars.count)} stored daily bars (market_bars), ${bars.firstDate} to ${bars.lastDate}${bars.collectedAt === null ? "" : `; updated ${bars.collectedAt}`}.`
+        : `${grouped.format(bars.count)} stored daily bars, ${bars.firstDate} to ${bars.lastDate}${bars.collectedAt === null ? "" : `; collected ${bars.collectedAt}`}.`;
   return {
-    barsLine:
-      bars === null
-        ? "No stored daily bars in this revision."
-        : `${grouped.format(bars.count)} stored daily bars, ${bars.firstDate} to ${bars.lastDate}${bars.collectedAt === null ? "" : `; collected ${bars.collectedAt}`}.`,
+    barsLine,
     check: checkView(data),
+    dataDate: data.dataDate ?? "No date recorded",
     fibonacci:
       data.fibonacci === null ? null : fibonacciView(data.fibonacci, prices),
-    indicators: indicatorRows(data, prices),
-    methodNote: `Method version ${method.version}. Pivots: 2 bars on each side, last ${method.pivotLookbackSessions} sessions. Fibonacci: high and low of the last ${method.fibonacciWindowSessions} sessions. Weinstein stage: ${method.weinstein.smaWeeks}-week SMA, ${method.weinstein.slopeWeeks}-week slope, flat within ${method.weinstein.flatBandPct}%, last ${method.weinstein.historyWeeks} complete weeks. Volume profile: ${method.volumeProfile.sessions} sessions, ${method.volumeProfile.bins} bins, ${method.volumeProfile.valueAreaPct}% value area, daily-bar approximation. The Weinstein and volume-profile rules are model-reasoned defaults without an archive source. Context only, not signals.`,
+    indicators: indicatorRows(active, prices),
+    indicatorsLabel: fromMarketBars
+      ? "Current indicators"
+      : "Stored indicators",
+    isStale: data.freshness.isStale,
+    methodNote: `Method version ${method.version}. Freshness limit: ${method.freshnessMaxSessionsBehind} NYSE sessions. Pivots: 2 bars on each side, last ${method.pivotLookbackSessions} sessions. Fibonacci: high and low of the last ${method.fibonacciWindowSessions} sessions. Weinstein stage: ${method.weinstein.smaWeeks}-week SMA, ${method.weinstein.slopeWeeks}-week slope, flat within ${method.weinstein.flatBandPct}%, last ${method.weinstein.historyWeeks} complete weeks. Volume profile: ${method.volumeProfile.sessions} sessions, ${method.volumeProfile.bins} bins, ${method.volumeProfile.valueAreaPct}% value area, daily-bar approximation. The Weinstein and volume-profile rules are model-reasoned defaults without an archive source. Context only, not signals.`,
     pivots: data.pivots === null ? null : pivotsView(data.pivots, prices),
     revision: data.dataRevision.slice(0, 12),
-    trendChecks: data.stored.trendChecks.map((check) => ({
+    trendChecks: active.trendChecks.map((check) => ({
       label: TREND_CHECK_LABELS[check.key],
       status:
         check.passed === null ? "missing" : check.passed ? "pass" : "fail",
@@ -368,6 +407,8 @@ export const toTechnicalsViewModel = (
       weinstein === null
         ? null
         : {
+            asOf: weinstein.asOf,
+            isStale: weinstein.isStale,
             rows: [
               {
                 detail: `Week ending ${weinstein.weekEnding}`,
@@ -386,6 +427,7 @@ export const toTechnicalsViewModel = (
               },
             ],
             stage: weinstein.label,
+            staleReason: weinstein.staleReason,
           },
   };
 };

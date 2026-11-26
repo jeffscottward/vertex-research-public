@@ -87,7 +87,8 @@ describe("Vertex read contracts", () => {
       NOT_FOUND: { status: 404, message: "Vertex artifact not found" },
       SERVICE_UNAVAILABLE: {
         status: 503,
-        message: "Vertex read service unavailable",
+        message:
+          "Vertex read request failed: the service is not configured, the request was cancelled, or its store did not answer; no data was changed; retry",
       },
       INVALID_SOURCE: {
         status: 502,

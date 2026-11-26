@@ -1,0 +1,49 @@
+{
+  "job": "cboe-option-iv",
+  "openbbVersion": null,
+  "schemaVersion": "openbb-batch.v1",
+  "tables": [
+    {
+      "table": "option_iv_daily",
+      "rows": [
+        {
+          "asOf": "2026-11-20",
+          "atmIv30d": 0.2,
+          "callIv25d30d": 0.18,
+          "callOi": 10,
+          "callVolume": 20,
+          "callWall": 110,
+          "contracts": 20,
+          "gammaFlip": 105,
+          "netGex": 12.5,
+          "putIv25d30d": 0.22,
+          "putOi": 15,
+          "putVolume": 25,
+          "putWall": 90,
+          "source": "cboe",
+          "underlying": "SPY",
+          "underlyingPrice": 100
+        },
+        {
+          "asOf": "2026-11-20",
+          "atmIv30d": 0.25,
+          "callIv25d30d": 0.23,
+          "callOi": 12,
+          "callVolume": 24,
+          "callWall": 210,
+          "contracts": 24,
+          "gammaFlip": 205,
+          "netGex": -5,
+          "putIv25d30d": 0.27,
+          "putOi": 18,
+          "putVolume": 28,
+          "putWall": 190,
+          "source": "yahoo_fallback",
+          "underlying": "QQQ",
+          "underlyingPrice": 200
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

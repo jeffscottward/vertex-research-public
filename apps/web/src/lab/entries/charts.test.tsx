@@ -81,6 +81,7 @@ describe("charts lab entry", () => {
     };
     await open("tape", "[data-time-sales]");
     await open("book", "[data-depth-ladder]");
+    expect(host.querySelector("[data-depth-curve-svg]")).not.toBeNull();
     expect(host.querySelector("[data-venue-notice]")?.textContent).toContain(
       "LAB-D"
     );
@@ -116,7 +117,7 @@ describe("charts lab entry", () => {
     );
   });
 
-  it("serves options analytics with the default flow window", async () => {
+  it("serves options analytics and Greek heatmap with the default flow window", async () => {
     const snapshot = await labOptionsAnalyticsGateway.snapshot({
       symbol: "NVDA",
     });
@@ -126,6 +127,15 @@ describe("charts lab entry", () => {
       symbol: "NVDA",
     });
     expect(six.flow.hours).toBe(6);
+    const heatmap = await labOptionsAnalyticsGateway.greekHeatmap({
+      symbol: "NVDA",
+    });
+    expect(heatmap.status).toBe("ok");
+    expect(heatmap.symbol).toBe("NVDA");
+    const control = await labOptionsAnalyticsGateway.flowControl?.({
+      group: "nasdaq100",
+    });
+    expect(control?.group).toBe("nasdaq100");
   });
 
   it("serves an empty JEV verdict and refuses Ask JEV", async () => {
@@ -192,6 +202,26 @@ describe("charts lab entry", () => {
     );
     expect(nvdaHost.textContent).toContain(
       "0 / 252 own ATM IV sessions stored"
+    );
+  });
+
+  it("enables expected move cone in /lab/charts aligned to lab candles", async () => {
+    window.history.replaceState(null, "", "/lab/charts");
+    const entry = CHARTS_LAB_ENTRIES.find((item) => item.id === "charts");
+    const host = await mountLab(entry?.render(new URLSearchParams()));
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-expected-move-toggle]")).not.toBeNull()
+    );
+    const toggle = host.querySelector<HTMLInputElement>(
+      "[data-expected-move-toggle]"
+    )!;
+    await act(async () => {
+      toggle.click();
+    });
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector('[data-expected-move-status="ready"]')
+      ).not.toBeNull()
     );
   });
 });

@@ -751,6 +751,46 @@ describe("createFlowRepository.readHedgingPrints", () => {
     expect(operation?.limit).toBe(200_001);
   });
 });
+describe("createFlowRepository.readLargeOptionPrints", () => {
+  it("reads big option prints of a symbol and range above minPremiumUsd, ordered by premium desc, traded_at desc, id desc", async () => {
+    const row = {
+      id: "big-1",
+      premium: 500_000,
+      right: "call",
+      strike: 685,
+      symbol: "SPY",
+      tradedAt: FROM,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readLargeOptionPrints({
+        from: FROM,
+        limit: 121,
+        minPremiumUsd: 250_000,
+        symbol: "SPY",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString(), TO.toISOString(), 250_000],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3 and "flow_option_prints"."premium" >= $4)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."premium" desc',
+      '"flow_option_prints"."traded_at" desc',
+      '"flow_option_prints"."id" desc',
+    ]);
+    expect(operation?.limit).toBe(121);
+  });
+});
 
 describe("createFlowRepository.readOptionStrikeTotals", () => {
   it("groups a symbol's prints of a range and expiry floor by strike, right and sentiment", async () => {
@@ -1745,6 +1785,185 @@ describe("createFlowRepository book snapshots", () => {
     expect(whereOf(select).sql).toContain('"captured_at" < $3');
   });
 });
+describe("createFlowRepository readMinutes", () => {
+  it("reads minute bars of ES or NQ in [from, to) ascending by minute", async () => {
+    const bar: FlowMinuteRecord = {
+      absorption: null,
+      buyVolume: 1200,
+      close: 6002.25,
+      coveredSeconds: 60,
+      delta: 200,
+      high: 6003,
+      largePrints: 2,
+      largePrintVolume: 110,
+      low: 6000.5,
+      minute: new Date("2026-11-23T14:30:00.000Z"),
+      offExchangeVolume: 0,
+      open: 6001,
+      sellVolume: 1000,
+      stackedBuy: 0,
+      stackedSell: 0,
+      symbol: "ES",
+      trades: 420,
+      volume: 2200,
+      vwap: 6001.75,
+    };
+    const double = createDouble([[bar]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    await expect(
+      repository.readMinutes({ from, symbol: "ES", to })
+    ).resolves.toEqual([bar]);
+    const [select] = double.operations;
+    expect(select?.kind).toBe("select");
+    expect(select?.table).toBe(flowMinutes);
+    expect(whereOf(select).sql).toContain('"minute" >= $2');
+    expect(whereOf(select).sql).toContain('"minute" < $3');
+  });
+});
+
+describe("createFlowRepository recentSamples", () => {
+  it("reads newest flow samples per (symbol, source) pair with a bounded per-pair limit", async () => {
+    const sample: FlowSampleRecord = {
+      at: FROM,
+      items: 0,
+      message: "QuantData orderFlow: HTTP 401.",
+      source: "options",
+      status: "unavailable",
+      symbol: "SPY",
+    };
+    // 4 symbols x 6 sources = 24 per-pair queries; high-frequency ticks never evict options/gex/market_premium.
+    const perPairResults = Array.from({ length: 24 }, (_, index) =>
+      index === 2 ? [sample] : []
+    );
+    const double = createDouble([
+      ...perPairResults,
+      ...Array.from({ length: 24 }, () => []),
+      ...Array.from({ length: 24 }, () => []),
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.recentSamples(5)).resolves.toEqual([sample]);
+    expect(double.operations).toHaveLength(24);
+    expect(double.operations[0]?.table).toBe(flowSamples);
+    expect(double.operations[0]?.limit).toBe(5);
+    expect(whereOf(double.operations[0]).sql).toContain('"symbol" = $1');
+    expect(whereOf(double.operations[0]).sql).toContain('"source" = $2');
+    await repository.recentSamples(0);
+    expect(double.operations[24]?.limit).toBe(1);
+    await repository.recentSamples(999);
+    expect(double.operations[48]?.limit).toBe(20);
+  });
+});
+
+describe("flow repository readOptionTape", () => {
+  const samplePrint: FlowOptionPrintRecord = {
+    ask: 5.2,
+    bid: 5.1,
+    consolidation: "sweep",
+    dte: 10,
+    expiry: "2026-12-04",
+    goldenSweep: true,
+    id: "p-iwm-1",
+    iv: 0.24,
+    moneyness: "otm",
+    moneynessPct: 1.5,
+    openInterest: 1200,
+    opening: true,
+    premium: 250_000,
+    price: 5.2,
+    right: "call",
+    sentiment: "bullish",
+    side: "above_ask",
+    size: 480,
+    strike: 230,
+    symbol: "IWM",
+    ticker: "IWM",
+    tradedAt: new Date("2026-11-23T15:00:00.000Z"),
+    underlyingPrice: 226.5,
+    unusual: true,
+    volume: 1500,
+    volumeOverOi: true,
+  };
+
+  it("reads full-window aggregates and bounded newest prints for added option tickers", async () => {
+    const summaryRow = {
+      bearishPremium: 80_000,
+      blocks: 2,
+      bullishPremium: 420_000,
+      callPremium: 400_000,
+      goldenSweeps: 1,
+      putPremium: 100_000,
+      sweeps: 5,
+      trades: 12,
+      unusualCount: 4,
+    };
+    const double = createDouble([[summaryRow], [samplePrint]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    const result = await repository.readOptionTape({
+      from,
+      limit: 50,
+      symbol: "IWM",
+      to,
+    });
+    expect(result).toEqual({
+      prints: [samplePrint],
+      summary: summaryRow,
+    });
+    expect(double.operations).toHaveLength(2);
+    expect(double.operations[0]?.table).toBe(flowOptionPrints);
+    expect(double.operations[1]?.table).toBe(flowOptionPrints);
+    expect(double.operations[1]?.limit).toBe(50);
+  });
+
+  it("returns zero totals when the aggregate query yields no row", async () => {
+    const double = createDouble([[], []]);
+    const repository = createFlowRepository(double.database);
+    const result = await repository.readOptionTape({
+      from: new Date("2026-11-23T14:00:00.000Z"),
+      limit: 20,
+      symbol: "NVDA",
+      to: new Date("2026-11-23T15:00:00.000Z"),
+    });
+    expect(result).toEqual({
+      prints: [],
+      summary: {
+        bearishPremium: 0,
+        blocks: 0,
+        bullishPremium: 0,
+        callPremium: 0,
+        goldenSweeps: 0,
+        putPremium: 0,
+        sweeps: 0,
+        trades: 0,
+        unusualCount: 0,
+      },
+    });
+  });
+
+  it("rejects non-positive or non-integer limits", async () => {
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionTape({
+        from: new Date("2026-11-23T14:00:00.000Z"),
+        limit: 0,
+        symbol: "IWM",
+        to: new Date("2026-11-23T15:00:00.000Z"),
+      })
+    ).rejects.toThrow("readOptionTape limit must be a positive integer.");
+    await expect(
+      repository.readOptionTape({
+        from: new Date("2026-11-23T14:00:00.000Z"),
+        limit: 1.5,
+        symbol: "IWM",
+        to: new Date("2026-11-23T15:00:00.000Z"),
+      })
+    ).rejects.toThrow("readOptionTape limit must be a positive integer.");
+  });
+});
 
 describe("createFlowRepository off-exchange minute queries", () => {
   it("reads the newest minute timestamp for a symbol or returns null when empty", async () => {
@@ -1769,8 +1988,8 @@ describe("createFlowRepository off-exchange minute queries", () => {
       coveredSeconds: 60,
       delta: 20_000,
       high: 592.6,
-      largePrintVolume: 25_000,
       largePrints: 1,
+      largePrintVolume: 25_000,
       low: 592.1,
       minute: from,
       offExchangeVolume: 35_000,

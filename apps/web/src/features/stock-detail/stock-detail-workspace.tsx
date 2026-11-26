@@ -1,14 +1,16 @@
 "use client";
 
 import {
+  computeOptionsExpectedMove,
   OPTIONS_CHAIN_SOURCE_LABELS,
   type OptionsChainOutput,
   type OptionsChainSourceStatus,
 } from "@darkfactory/api";
 import { Button, cn, Panel, StatCard } from "@darkfactory/ui";
 import type { MouseEvent } from "react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
+import type { ExpectedMoveLoadState } from "../../components/portal/expected-move-bar.tsx";
 import { IvRankHistoryPanel } from "../../components/portal/iv-rank-history-panel.tsx";
 import {
   createBrowserMarketDataGateway,
@@ -444,6 +446,8 @@ export interface StockDetailWorkspaceProps {
   readonly ivHistory?: IvHistoryGateway;
   readonly marketData?: MarketDataGateway;
   readonly openbb?: OpenbbGateway;
+  /** Operator session: shows operator-only reads (the wall x drift badge). */
+  readonly operator?: boolean;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
   readonly optionsChain?: OptionsChainGateway;
   readonly symbol: string;
@@ -456,6 +460,7 @@ export const StockDetailWorkspace = ({
   optionsAnalytics,
   openbb,
   ivHistory,
+  operator = false,
 }: StockDetailWorkspaceProps) => {
   const [marketData] = useState(
     () => suppliedMarketData ?? createBrowserMarketDataGateway()
@@ -530,6 +535,18 @@ export const StockDetailWorkspace = ({
     };
   }, [optionsChain, symbol, expiry, ready, attempt]);
 
+  const expectedMoveState = useMemo((): ExpectedMoveLoadState => {
+    if (chain.type === "loading") return { type: "loading" };
+    if (chain.type === "no-answer")
+      return {
+        message: `No options answer after ${CHAIN_REQUEST_TIMEOUT_MS / 1000} s`,
+        type: "error",
+      };
+    if (chain.type === "error")
+      return { message: chain.failure.message, type: "error" };
+    return { data: computeOptionsExpectedMove(chain.chain), type: "ready" };
+  }, [chain]);
+
   if (query === null)
     return (
       <p aria-busy="true" className="text-muted-foreground text-sm">
@@ -599,12 +616,23 @@ export const StockDetailWorkspace = ({
       ) : query.tab === "analytics" ? (
         <div className="space-y-6">
           <IvRankHistoryPanel gateway={ivHistory ?? openbb} symbol={symbol} />
-          <OptionsAnalyticsPanel gateway={optionsAnalytics} symbol={symbol} />
+          <OptionsAnalyticsPanel
+            gateway={optionsAnalytics}
+            symbol={symbol}
+            wallDrift={operator}
+          />
         </div>
       ) : (
         <>
           {query.tab === "chart" ? (
             <StockChartPanel
+              expectedMove={{
+                expiries: lastChain?.expiries ?? [],
+                onExpiry: (next) => navigate({ expiry: next }),
+                onRetry: () => setAttempt(attempt + 1),
+                selectedExpiry: query.expiry ?? lastChain?.expiry ?? null,
+                state: expectedMoveState,
+              }}
               interval={query.interval}
               marketData={marketData}
               onInterval={(interval) => navigate({ interval })}

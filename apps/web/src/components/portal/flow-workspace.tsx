@@ -16,13 +16,18 @@ import {
   type FlowControlInput,
   type FlowHedgingPressure,
   type FlowLiquidityHeatmap,
+  type FlowLiveDomStreamEvent,
   type FlowOffExchangeLevels,
   type FlowOffExchangeRange,
+  type FlowOptionBubbles,
+  type FlowOptionBubblesMinPremiumUsd,
   type FlowPutCallRatio,
   type FlowSnapshot,
   type FlowStrikeHeatmap,
   type FlowStrikeHeatmapBucketMinutes,
   type FlowTapeSpeed,
+  type FlowTradeBubbles,
+  OPTION_BUBBLES_RULES,
   STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import {
@@ -58,12 +63,18 @@ import {
   heatmapSymbolOf,
   type LiquidityHeatmapRequest,
 } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import type { LiveDomStreamRequest } from "../../features/flow/live-dom-view-model.ts";
 import {
   type FlowOffExchangeLevelsFailure,
   OFF_EXCHANGE_DEFAULT_RANGE,
   type OffExchangeLevelsRequest,
   offExchangeSymbolOf,
 } from "../../features/flow/off-exchange-levels-view-model.ts";
+import {
+  type FlowOptionBubblesFailure,
+  type OptionBubblesRequest,
+  optionBubblesSymbolOf,
+} from "../../features/flow/option-bubbles-view-model.ts";
 import {
   type PutCallRatioRequest,
   putCallRatioSymbolOf,
@@ -77,6 +88,7 @@ import {
   type TapeSpeedRequest,
   tapeSymbolOf,
 } from "../../features/flow/tape-speed-view-model.ts";
+import type { TradeBubblesRequest } from "../../features/flow/trade-bubbles-view-model.ts";
 import {
   basisNote,
   bookMetrics,
@@ -91,6 +103,7 @@ import {
   type FlowRequest,
   type FlowSymbol,
   type FlowWindowMinutes,
+  failingFreshnessSources,
   freshnessRows,
   gexLevelRows,
   gexMetrics,
@@ -106,6 +119,7 @@ import {
   voteTone,
   windowLabel,
 } from "../../features/flow/view-model.ts";
+import { flowWallDriftView } from "../../features/flow/wall-drift-view-model.ts";
 import { loadFailedLabel } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
@@ -117,7 +131,9 @@ import {
   type FlowLiquidityHeatmapFailure,
   FlowLiquidityHeatmapPanel,
 } from "./flow-liquidity-heatmap-panel.tsx";
+import { FlowLiveDomPanel } from "./flow-live-dom-panel.tsx";
 import { FlowOffExchangeLevelsPanel } from "./flow-off-exchange-levels-panel.tsx";
+import { FlowOptionBubblesPanel } from "./flow-option-bubbles-panel.tsx";
 import {
   type FlowPutCallRatioFailure,
   FlowPutCallRatioPanel,
@@ -127,7 +143,12 @@ import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
 } from "./flow-tape-speed-panel.tsx";
+import {
+  type FlowTradeBubblesFailure,
+  FlowTradeBubblesPanel,
+} from "./flow-trade-bubbles-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
+import { WallDriftBadge } from "./wall-drift-badge.tsx";
 
 export interface FlowGateway {
   readonly control: (input: FlowControlInput) => Promise<FlowControl>;
@@ -137,9 +158,16 @@ export interface FlowGateway {
   readonly liquidityHeatmap: (
     input: LiquidityHeatmapRequest
   ) => Promise<FlowLiquidityHeatmap>;
+  readonly liveDomStream: (
+    input: LiveDomStreamRequest,
+    options?: Readonly<{ signal?: AbortSignal }>
+  ) => Promise<AsyncIterable<FlowLiveDomStreamEvent>>;
   readonly offExchangeLevels: (
     input: OffExchangeLevelsRequest
   ) => Promise<FlowOffExchangeLevels>;
+  readonly optionBubbles: (
+    input: OptionBubblesRequest
+  ) => Promise<FlowOptionBubbles>;
   readonly putCallRatio: (
     input: PutCallRatioRequest
   ) => Promise<FlowPutCallRatio>;
@@ -148,7 +176,11 @@ export interface FlowGateway {
     input: StrikeHeatmapRequest
   ) => Promise<FlowStrikeHeatmap>;
   readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
+  readonly tradeBubbles: (
+    input: TradeBubblesRequest
+  ) => Promise<FlowTradeBubbles>;
 }
+
 export const createBrowserFlowGateway = (): FlowGateway => {
   let client: ApiClient | undefined;
   const api = (): ApiClient => {
@@ -161,14 +193,22 @@ export const createBrowserFlowGateway = (): FlowGateway => {
       api().flow.hedgingPressure(input),
     liquidityHeatmap: (input: LiquidityHeatmapRequest) =>
       api().flow.liquidityHeatmap(input),
+    liveDomStream: (
+      input: LiveDomStreamRequest,
+      options?: Readonly<{ signal?: AbortSignal }>
+    ) => api().flow.liveDomStream(input, options),
     offExchangeLevels: (input: OffExchangeLevelsRequest) =>
       api().flow.offExchangeLevels(input),
+    optionBubbles: (input: OptionBubblesRequest) =>
+      api().flow.optionBubbles(input),
     putCallRatio: (input: PutCallRatioRequest) =>
       api().flow.putCallRatio(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
     strikeHeatmap: (input: StrikeHeatmapRequest) =>
       api().flow.strikeHeatmap(input),
     tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
+    tradeBubbles: (input: TradeBubblesRequest) =>
+      api().flow.tradeBubbles(input),
   });
 };
 
@@ -208,10 +248,16 @@ const Empty = ({
 );
 
 const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
+  const failing = failingFreshnessSources(snapshot.freshness);
+  const authFailing = failing.filter((row) => row.authFailed);
   const allFresh = snapshot.freshness.every(
-    (row) => row.state !== "stale" && row.state !== "never"
+    (row) =>
+      row.state !== "stale" &&
+      row.state !== "never" &&
+      row.lastStatus !== "unavailable"
   );
-  const [open, setOpen] = useState(!allFresh);
+  const [manualOpen, setManualOpen] = useState(false);
+  const open = !allFresh || manualOpen;
   return (
     <Panel
       description={
@@ -231,6 +277,27 @@ const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
       }
       title="Data freshness"
     >
+      {failing.length > 0 ? (
+        <div
+          className="mb-3 space-y-1 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm"
+          data-flow-auth-alert={authFailing.length > 0 ? "" : undefined}
+          data-flow-source-alert=""
+          role="alert"
+        >
+          <p className="font-medium text-destructive">
+            {authFailing.length > 0
+              ? "Feed authentication failed — owner credential rotation required (never auto-rotated)."
+              : "One or more flow sources failed on the latest sample."}
+          </p>
+          <ul className="list-disc space-y-0.5 pl-5 text-xs">
+            {failing.map((row) => (
+              <li key={row.source}>
+                <span className="font-medium">{row.label}</span>: {row.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {neverCollected(snapshot.freshness) ? (
         <p className="mb-3 text-sm" data-flow-never="" role="note">
           Nothing has been collected for {snapshot.symbol} yet. The flow
@@ -244,7 +311,7 @@ const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
           </p>
           <Button
             aria-expanded={open}
-            onClick={() => setOpen((value) => !value)}
+            onClick={() => setManualOpen((value) => !value)}
             size="sm"
             variant="outline"
           >
@@ -654,6 +721,11 @@ export const FlowWorkspace = ({
   const [tapeSpeed, setTapeSpeed] = useState<FlowTapeSpeed | null>(null);
   const [tapeSpeedFailure, setTapeSpeedFailure] =
     useState<FlowTapeSpeedFailure | null>(null);
+  const [tradeBubbles, setTradeBubbles] = useState<FlowTradeBubbles | null>(
+    null
+  );
+  const [tradeBubblesFailure, setTradeBubblesFailure] =
+    useState<FlowTradeBubblesFailure | null>(null);
   const [liquidityHeatmap, setLiquidityHeatmap] =
     useState<FlowLiquidityHeatmap | null>(null);
   const [liquidityHeatmapFailure, setLiquidityHeatmapFailure] =
@@ -676,6 +748,16 @@ export const FlowWorkspace = ({
   const [strikeHeatmapFailure, setStrikeHeatmapFailure] =
     useState<FlowStrikeHeatmapFailure | null>(null);
   const [strikeHeatmapPending, setStrikeHeatmapPending] = useState(false);
+  const [bubblesMinPremiumUsd, setBubblesMinPremiumUsd] =
+    useState<FlowOptionBubblesMinPremiumUsd>(
+      OPTION_BUBBLES_RULES.defaultMinPremiumUsd
+    );
+  const [optionBubbles, setOptionBubbles] = useState<FlowOptionBubbles | null>(
+    null
+  );
+  const [optionBubblesFailure, setOptionBubblesFailure] =
+    useState<FlowOptionBubblesFailure | null>(null);
+  const [optionBubblesPending, setOptionBubblesPending] = useState(false);
   const [offExchangeRange, setOffExchangeRange] =
     useState<FlowOffExchangeRange>(OFF_EXCHANGE_DEFAULT_RANGE);
   const [offExchangeLevels, setOffExchangeLevels] =
@@ -693,6 +775,12 @@ export const FlowWorkspace = ({
     STRIKE_HEATMAP_RULES.defaultBucketMinutes
   );
   const heatmapLatest = useRef(0);
+  // Dedicated sequence counter and floor ref for flow.optionBubbles so floor changes and Retry
+  // refetch only the bubbles panel without resetting the 60 s refresh timer or refetching other panels.
+  const bubblesMinPremiumRef = useRef<FlowOptionBubblesMinPremiumUsd>(
+    OPTION_BUBBLES_RULES.defaultMinPremiumUsd
+  );
+  const bubblesLatest = useRef(0);
   // Dedicated sequence counter and range ref for flow.offExchangeLevels (SPY only).
   const offExchangeRangeRef = useRef<FlowOffExchangeRange>(
     OFF_EXCHANGE_DEFAULT_RANGE
@@ -701,6 +789,7 @@ export const FlowWorkspace = ({
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
+  const tradeBubblesForbidden = useRef(false);
   const heatmapForbidden = useRef(false);
   // The same hold for a forbidden hedging pressure answer, set and cleared by hedging answers only.
   const hedgingForbidden = useRef(false);
@@ -708,8 +797,11 @@ export const FlowWorkspace = ({
   const putCallForbidden = useRef(false);
   // The same hold for a forbidden strike heatmap answer, set and cleared by strike heatmap answers only.
   const strikeHeatmapForbidden = useRef(false);
+  // The same hold for a forbidden option bubbles answer, set and cleared by option bubbles answers only.
+  const optionBubblesForbidden = useRef(false);
   // The same hold for a forbidden off-exchange levels answer, set and cleared by off-exchange answers only.
   const offExchangeForbidden = useRef(false);
+
   const loadStrikeHeatmap = useCallback(
     (
       targetSymbol: FlowSymbol,
@@ -748,6 +840,54 @@ export const FlowWorkspace = ({
               setFailure({ kind: "forbidden" });
             else
               setStrikeHeatmapFailure({
+                code: described.code,
+                failedAt: Date.now(),
+                message: described.message,
+              });
+          }
+        );
+    },
+    [gateway]
+  );
+
+  const loadOptionBubbles = useCallback(
+    (
+      targetSymbol: FlowSymbol,
+      targetMinPremiumUsd: FlowOptionBubblesMinPremiumUsd
+    ) => {
+      bubblesLatest.current += 1;
+      const bubblesRequest = bubblesLatest.current;
+      const targetBubblesSymbol = optionBubblesSymbolOf(targetSymbol);
+      if (targetBubblesSymbol === null) {
+        optionBubblesForbidden.current = false;
+        setOptionBubbles(null);
+        setOptionBubblesFailure(null);
+        setOptionBubblesPending(false);
+        return;
+      }
+      setOptionBubblesPending(true);
+      void gateway
+        .optionBubbles({
+          minPremiumUsd: targetMinPremiumUsd,
+          symbol: targetBubblesSymbol,
+        })
+        .then(
+          (response) => {
+            if (bubblesRequest !== bubblesLatest.current) return;
+            optionBubblesForbidden.current = false;
+            setOptionBubbles(response);
+            setOptionBubblesFailure(null);
+            setOptionBubblesPending(false);
+          },
+          (reason: unknown) => {
+            if (bubblesRequest !== bubblesLatest.current) return;
+            setOptionBubblesPending(false);
+            const described = describePortfolioMonitorFailure(reason);
+            optionBubblesForbidden.current = described.kind === "forbidden";
+            if (described.kind === "forbidden")
+              setFailure({ kind: "forbidden" });
+            else
+              setOptionBubblesFailure({
                 code: described.code,
                 failedAt: Date.now(),
                 message: described.message,
@@ -825,6 +965,26 @@ export const FlowWorkspace = ({
         if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
         else
           setTapeSpeedFailure({
+            code: described.code,
+            failedAt: Date.now(),
+            message: described.message,
+          });
+      }
+    );
+    void gateway.tradeBubbles({ minutes, symbol: tapeSymbolOf(symbol) }).then(
+      (document) => {
+        if (request !== latest.current) return;
+        tradeBubblesForbidden.current = false;
+        setTradeBubbles(document);
+        setTradeBubblesFailure(null);
+      },
+      (reason: unknown) => {
+        if (request !== latest.current) return;
+        const described = describePortfolioMonitorFailure(reason);
+        tradeBubblesForbidden.current = described.kind === "forbidden";
+        if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+        else
+          setTradeBubblesFailure({
             code: described.code,
             failedAt: Date.now(),
             message: described.message,
@@ -910,6 +1070,8 @@ export const FlowWorkspace = ({
       );
     // Strike heatmap follows the same rules in its own call (SPY and ES only).
     loadStrikeHeatmap(symbol, heatmapBucketRef.current);
+    // Option print bubbles follow the same rules in their own call (SPY and ES only).
+    loadOptionBubbles(symbol, bubblesMinPremiumRef.current);
     // Off-exchange print levels follow the same rules in their own call (SPY only).
     loadOffExchangeLevels(symbol, offExchangeRangeRef.current);
     const [snapshotResult, controlResult] = await Promise.allSettled([
@@ -942,18 +1104,27 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed, hedging pressure, put/call ratio or strike heatmap answer stays in force.
+    // A forbidden tape speed, trade bubbles, liquidity heatmap, hedging pressure, put/call ratio, strike heatmap, option bubbles or off-exchange levels answer stays in force.
     if (
       tapeForbidden.current ||
+      tradeBubblesForbidden.current ||
       heatmapForbidden.current ||
       hedgingForbidden.current ||
       putCallForbidden.current ||
       strikeHeatmapForbidden.current ||
+      optionBubblesForbidden.current ||
       offExchangeForbidden.current
     )
       setFailure({ kind: "forbidden" });
     setPending(false);
-  }, [gateway, loadOffExchangeLevels, loadStrikeHeatmap, minutes, symbol]);
+  }, [
+    gateway,
+    loadOffExchangeLevels,
+    loadOptionBubbles,
+    loadStrikeHeatmap,
+    minutes,
+    symbol,
+  ]);
 
   useEffect(() => {
     void load();
@@ -962,9 +1133,11 @@ export const FlowWorkspace = ({
       window.clearInterval(timer);
       latest.current += 1;
       heatmapLatest.current += 1;
+      bubblesLatest.current += 1;
       offExchangeLatest.current += 1;
     };
   }, [load, refreshMs]);
+
   const handleHeatmapBucketChange = useCallback(
     (next: FlowStrikeHeatmapBucketMinutes) => {
       heatmapBucketRef.current = next;
@@ -977,6 +1150,19 @@ export const FlowWorkspace = ({
   const handleHeatmapRetry = useCallback(() => {
     loadStrikeHeatmap(symbol, heatmapBucketRef.current);
   }, [loadStrikeHeatmap, symbol]);
+
+  const handleBubblesMinPremiumChange = useCallback(
+    (next: FlowOptionBubblesMinPremiumUsd) => {
+      bubblesMinPremiumRef.current = next;
+      setBubblesMinPremiumUsd(next);
+      loadOptionBubbles(symbol, next);
+    },
+    [loadOptionBubbles, symbol]
+  );
+
+  const handleBubblesRetry = useCallback(() => {
+    loadOptionBubbles(symbol, bubblesMinPremiumRef.current);
+  }, [loadOptionBubbles, symbol]);
 
   const handleOffExchangeRangeChange = useCallback(
     (next: FlowOffExchangeRange) => {
@@ -998,6 +1184,7 @@ export const FlowWorkspace = ({
   const hedgingSymbol = hedgingSymbolOf(symbol);
   const putCallSymbol = putCallRatioSymbolOf(symbol);
   const heatmapSymbol = strikeHeatmapSymbolOf(symbol);
+  const bubblesSymbol = optionBubblesSymbolOf(symbol);
   const offExchangeSymbol = offExchangeSymbolOf(symbol);
 
   return (
@@ -1021,6 +1208,9 @@ export const FlowWorkspace = ({
                   heatmapLatest.current += 1;
                   setStrikeHeatmap(null);
                   setStrikeHeatmapFailure(null);
+                  bubblesLatest.current += 1;
+                  setOptionBubbles(null);
+                  setOptionBubblesFailure(null);
                   offExchangeLatest.current += 1;
                   setOffExchangeLevels(null);
                   setOffExchangeFailure(null);
@@ -1091,6 +1281,22 @@ export const FlowWorkspace = ({
             : `${loadFailedLabel(failure.failedAt)} · Refresh failed: ${failure.message} · showing the snapshot as of ${formatNyDateTime(snapshot.windowEnd)} · retrying every ${Math.round(refreshMs / 1000)} s`}
         </p>
       )}
+      <WallDriftBadge
+        heading="h2"
+        view={flowWallDriftView(
+          snapshot,
+          failure?.kind === "error" ? failure.message : null,
+          control === null
+            ? controlFailure === null
+              ? { kind: "loading" }
+              : {
+                  kind: "failed",
+                  message: `${controlFailure.code}: ${controlFailure.message}`,
+                }
+            : { control, kind: "ready" },
+          loadedAt
+        )}
+      />
       <FlowControlPanel
         control={control}
         failure={controlFailure}
@@ -1105,6 +1311,13 @@ export const FlowWorkspace = ({
       <FlowTapeSpeedPanel
         document={tapeSpeed}
         failure={tapeSpeedFailure}
+        refreshMs={refreshMs}
+        symbol={symbol}
+      />
+      <FlowLiveDomPanel gateway={gateway} symbol={symbol} />
+      <FlowTradeBubblesPanel
+        document={tradeBubbles}
+        failure={tradeBubblesFailure}
         refreshMs={refreshMs}
         symbol={symbol}
       />
@@ -1128,6 +1341,20 @@ export const FlowWorkspace = ({
           failure={putCallRatioFailure}
           refreshMs={refreshMs}
           symbol={putCallSymbol}
+        />
+      )}
+      {bubblesSymbol === null ? null : (
+        <FlowOptionBubblesPanel
+          document={
+            optionBubbles?.symbol === bubblesSymbol ? optionBubbles : null
+          }
+          failure={optionBubblesFailure}
+          minPremiumUsd={bubblesMinPremiumUsd}
+          onMinPremiumChange={handleBubblesMinPremiumChange}
+          onRetry={handleBubblesRetry}
+          pending={optionBubblesPending}
+          refreshMs={refreshMs}
+          symbol={bubblesSymbol}
         />
       )}
       {heatmapSymbol === null ? null : (
@@ -1162,9 +1389,10 @@ export const FlowWorkspace = ({
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
-        Read-only research view. ES and NQ depth is recorded (streamed at 5 s
-        when active, 1 min sampled fallback); SPY depth and SPY ticks are
-        sampled, so their totals cover only the seconds shown above.
+        Read-only research view. ES and NQ live DOM streams from active CME L2
+        depth and tape (recorded fallback when offline), while historical depth
+        is recorded (5 s streamed, 1 min sampled fallback); SPY depth and SPY
+        ticks are sampled, so their totals cover only the seconds shown above.
       </p>
     </div>
   );

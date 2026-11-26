@@ -16,18 +16,24 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
+  FLOW_OPTION_BUBBLES_MAX_BUBBLES,
   FLOW_PUT_CALL_RATIO_MAX_DAYS,
   type FlowControl,
   type FlowControlInput,
   type FlowHedgingPressureInput,
   type FlowLiquidityHeatmapParsedInput,
+  type FlowLiveDomParsedInput,
+  type FlowLiveDomStreamParsedInput,
   type FlowOffExchangeLevelsParsedInput,
+  type FlowOptionBubblesParsedInput,
+  type FlowOptionPrintsParsedInput,
   type FlowPutCallRatioInput,
-  type FlowStrikeHeatmapParsedInput,
   type FlowSnapshot,
   type FlowSnapshotParsedInput,
+  type FlowStrikeHeatmapParsedInput,
   type FlowSymbol,
   type FlowTapeSpeedParsedInput,
+  type FlowTradeBubblesParsedInput,
 } from "../contracts/flow.ts";
 import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
 import {
@@ -69,19 +75,28 @@ import {
   readFlowLiquidityHeatmapRows,
 } from "./flow-liquidity-heatmap.ts";
 import {
+  type FlowLiveDomDeps,
+  openFlowLiveDomStream,
+  readFlowLiveDomSnapshot,
+} from "./flow-live-dom.ts";
+import {
   buildFlowOffExchangeLevels,
   type FlowOffExchangeLevelsRows,
   offExchangeFinraFromDate,
   offExchangeWindowRange,
 } from "./flow-off-exchange-levels.ts";
 import {
+  buildFlowOptionBubbles,
+  type FlowOptionBubblesRows,
+} from "./flow-option-bubbles.ts";
+import {
+  buildFlowOptionPrints,
+  readFlowOptionPrintsRows,
+} from "./flow-option-prints.ts";
+import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
 } from "./flow-put-call-ratio.ts";
-import {
-  buildFlowStrikeHeatmap,
-  type FlowStrikeHeatmapRows,
-} from "./flow-strike-heatmap.ts";
 import {
   buildFlowSnapshot,
   eventView,
@@ -90,13 +105,22 @@ import {
   flowSessionOpen,
 } from "./flow-snapshot.ts";
 import {
+  buildFlowStrikeHeatmap,
+  type FlowStrikeHeatmapRows,
+} from "./flow-strike-heatmap.ts";
+import {
   buildFlowTapeSpeed,
   type FlowTapeSpeedRows,
   tapeSpeedAxis,
 } from "./flow-tape-speed.ts";
 import {
+  buildFlowTradeBubblesFromRows,
+  readFlowTradeBubblesRows,
+} from "./flow-trade-bubbles.ts";
+import {
   fetchMarketDepth,
   fetchMarketDepthHistory,
+  fetchMarketDom,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -540,6 +564,62 @@ const strikeHeatmap = api.flow.strikeHeatmap
     return assemble(failures, buildFlowStrikeHeatmap, rows);
   });
 
+const readFlowOptionBubblesRows = async (
+  repository: FlowRepository,
+  input: FlowOptionBubblesParsedInput,
+  now: Date
+): Promise<FlowOptionBubblesRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  if (session === null) {
+    const samples = await repository.latestSamples(input.symbol, ["options"]);
+    return {
+      ...samples,
+      gaps: [],
+      minPremiumUsd: input.minPremiumUsd,
+      minutes: [],
+      now,
+      prints: [],
+      session: null,
+      symbol: input.symbol,
+    };
+  }
+  const range = optionsSessionRange(session);
+  const [minutes, prints, gaps, samples] = await Promise.all([
+    repository.readOptionPrintMinutes({ ...range, symbol: input.symbol }),
+    repository.readLargeOptionPrints({
+      ...range,
+      limit: FLOW_OPTION_BUBBLES_MAX_BUBBLES + 1,
+      minPremiumUsd: input.minPremiumUsd,
+      symbol: input.symbol,
+    }),
+    repository.optionGaps(input.symbol),
+    repository.latestSamples(input.symbol, ["options"]),
+  ]);
+  return {
+    ...samples,
+    gaps,
+    minPremiumUsd: input.minPremiumUsd,
+    minutes,
+    now,
+    prints,
+    session,
+    symbol: input.symbol,
+  };
+};
+
+const optionBubbles = api.flow.optionBubbles
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowOptionBubblesRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowOptionBubbles, rows);
+  });
+
 /** The stored study of the options-side rule, or not_tested. */
 const readFlowStudy = async (
   researchStudies: ResearchStudyRepository | undefined
@@ -768,6 +848,74 @@ const liquidityHeatmap = api.flow.liquidityHeatmap
     return assemble(failures, buildFlowLiquidityHeatmapFromRows, rows);
   });
 
+const liveDomDepsFor = (
+  context: ApiContext,
+  failures: Failures
+): FlowLiveDomDeps => {
+  const repository = repositoryFor(context, failures);
+  const marketHistory = context.marketHistory ?? null;
+  return {
+    fetchDom:
+      marketHistory === null
+        ? null
+        : (input, options) => fetchMarketDom(marketHistory, input, options),
+    now: clock,
+    repository,
+  };
+};
+
+const liveDom = api.flow.liveDom
+  .use(requireOperator)
+  .handler(async ({ context, input, errors, signal }) => {
+    const failures = errors as unknown as Failures;
+    const deps = liveDomDepsFor(context, failures);
+    return await readRows(failures, () =>
+      readFlowLiveDomSnapshot(deps, input as FlowLiveDomParsedInput, signal)
+    );
+  });
+
+const liveDomStream = api.flow.liveDomStream
+  .use(requireOperator)
+  .handler(async ({ context, input, errors, signal }) => {
+    const failures = errors as unknown as Failures;
+    const deps = liveDomDepsFor(context, failures);
+    return await readRows(failures, () =>
+      openFlowLiveDomStream(deps, input as FlowLiveDomStreamParsedInput, signal)
+    );
+  });
+
+const optionPrints = api.flow.optionPrints
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowOptionPrintsRows(
+        repository,
+        input as FlowOptionPrintsParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowOptionPrints, rows);
+  });
+
+const tradeBubbles = api.flow.tradeBubbles
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowTradeBubblesRows(
+        repository,
+        input as FlowTradeBubblesParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowTradeBubblesFromRows, rows);
+  });
+
 const readFlowOffExchangeLevelsRows = async (
   repositories: Readonly<{
     flow: FlowRepository;
@@ -861,9 +1009,14 @@ export const flowRouter = {
   events,
   hedgingPressure,
   liquidityHeatmap,
+  liveDom,
+  liveDomStream,
   offExchangeLevels,
+  optionBubbles,
+  optionPrints,
   putCallRatio,
   snapshot,
   strikeHeatmap,
   tapeSpeed,
+  tradeBubbles,
 };

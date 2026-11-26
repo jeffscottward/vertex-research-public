@@ -212,6 +212,160 @@ export const OPENBB_DAILY_PRICES_SOURCE =
 
 export type OpenbbJob = (typeof OPENBB_JOBS)[number];
 export type OpenbbTable = (typeof OPENBB_TABLES)[number];
+export const OPENBB_JOB_SCHEDULES = [
+  "calendar",
+  "trading-day",
+  "retired",
+] as const;
+export type OpenbbJobSchedule = (typeof OPENBB_JOB_SCHEDULES)[number];
+export type OpenbbJobMetadata = Readonly<{
+  label: string;
+  /** Maximum age in hours after the newest usable (ok or partial) run; null for retired jobs. */
+  maxAgeHours: number | null;
+  schedule: OpenbbJobSchedule;
+  smartMoney: boolean;
+}>;
+/** Maximum age and schedule metadata per OpenBB job (single source of truth for overdue checks). */
+export const OPENBB_JOB_METADATA = {
+  "cboe-option-iv": {
+    label: "Cboe option IV",
+    maxAgeHours: 30,
+    schedule: "trading-day",
+    smartMoney: false,
+  },
+  "cboe-vol-indices": {
+    label: "Cboe vol indices",
+    maxAgeHours: 30,
+    schedule: "trading-day",
+    smartMoney: false,
+  },
+  "cboe-vx-curve": {
+    label: "Cboe VX curve",
+    maxAgeHours: 30,
+    schedule: "trading-day",
+    smartMoney: false,
+  },
+  "cftc-cot": {
+    label: "CFTC COT",
+    maxAgeHours: 192,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "cme-futures-oi": {
+    label: "CME futures OI",
+    maxAgeHours: 30,
+    schedule: "trading-day",
+    smartMoney: false,
+  },
+  "congress-house": {
+    label: "Congress (House)",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: true,
+  },
+  "congress-senate": {
+    label: "Congress (Senate)",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: true,
+  },
+  "daily-prices": {
+    label: "Daily prices",
+    maxAgeHours: 30,
+    schedule: "trading-day",
+    smartMoney: false,
+  },
+  famafrench: {
+    label: "Fama-French",
+    maxAgeHours: 72,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "fed-events": {
+    label: "Fed events",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "fed-rates": {
+    label: "Fed rates",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "fed-regime": {
+    label: "Fed regime",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "finra-otc": {
+    label: "FINRA OTC",
+    maxAgeHours: 48,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "finra-short-interest": {
+    label: "FINRA short interest",
+    maxAgeHours: 48,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "finra-short-volume": {
+    label: "FINRA short volume",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: true,
+  },
+  "fred-keyless": {
+    label: "FRED keyless",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "oecd-cli": {
+    label: "OECD CLI",
+    maxAgeHours: 72,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "sec-13f": {
+    label: "SEC 13F",
+    maxAgeHours: 72,
+    schedule: "calendar",
+    smartMoney: true,
+  },
+  "sec-filings": {
+    label: "SEC filings",
+    maxAgeHours: 30,
+    schedule: "trading-day",
+    smartMoney: false,
+  },
+  "sec-form4": {
+    label: "SEC Form 4",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: true,
+  },
+  "sec-ftd": {
+    label: "SEC FTD",
+    maxAgeHours: 48,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+  "sec-insider": {
+    label: "SEC insider (retired)",
+    maxAgeHours: null,
+    schedule: "retired",
+    smartMoney: false,
+  },
+  "treasury-tga": {
+    label: "Treasury TGA",
+    maxAgeHours: 30,
+    schedule: "calendar",
+    smartMoney: false,
+  },
+} as const satisfies Readonly<Record<OpenbbJob, OpenbbJobMetadata>>;
 
 /** Tables each job may write; openbb.ingest refuses any other pair. */
 export const OPENBB_JOB_TABLES: Readonly<
@@ -364,6 +518,17 @@ export const OpenbbOptionIvDailyRowSchema = z.strictObject({
   underlying: symbol,
   underlyingPrice: price,
 });
+const OpenbbOptionIvDailyProducerSourceSchema = z.enum([
+  "cboe",
+  "yahoo_fallback",
+]);
+const OpenbbOptionIvDailyIngestRowSchema = OpenbbOptionIvDailyRowSchema.extend({
+  source: OpenbbOptionIvDailyProducerSourceSchema.optional(),
+});
+const OpenbbOptionIvDailyProducerRowSchema =
+  OpenbbOptionIvDailyRowSchema.extend({
+    source: OpenbbOptionIvDailyProducerSourceSchema,
+  });
 export const OpenbbOptionIvTermRowSchema = z
   .strictObject({
     asOf: date,
@@ -702,7 +867,7 @@ export const OPENBB_ROW_SCHEMAS = {
   factor_returns: OpenbbFactorRowSchema,
   finra_otc_weekly: OpenbbFinraOtcRowSchema,
   macro_points: OpenbbMacroPointRowSchema,
-  option_iv_daily: OpenbbOptionIvDailyRowSchema,
+  option_iv_daily: OpenbbOptionIvDailyProducerRowSchema,
   option_iv_term: OpenbbOptionIvTermRowSchema,
   sec_13f_filings: OpenbbSec13fFilingRowSchema,
   sec_13f_holdings: OpenbbSec13fRowSchema,
@@ -736,7 +901,7 @@ const tableRows = (max?: number) => {
       table: z.literal("vx_curve"),
     }),
     z.strictObject({
-      rows: rows(OpenbbOptionIvDailyRowSchema),
+      rows: rows(OpenbbOptionIvDailyIngestRowSchema),
       table: z.literal("option_iv_daily"),
     }),
     z.strictObject({
@@ -845,7 +1010,7 @@ export const OpenbbBatchDocumentSchema = z
     job: z.enum(OPENBB_JOBS),
     openbbVersion: label(40).nullable(),
     schemaVersion: z.literal(OPENBB_BATCH_SCHEMA_VERSION),
-    tables: z.array(tableRows()),
+    tables: z.array(tableRows(undefined)),
     warnings: z.array(utf16Text(2000)).max(500),
   })
   .refine(
@@ -912,8 +1077,28 @@ export const OpenbbRunSchema = z.object({
   warnings: z.array(z.string()),
 });
 
+export const OPENBB_SOURCE_KINDS = ["openbb", "flow"] as const;
+export const OpenbbSourceStatusSchema = z.object({
+  kind: z.enum(OPENBB_SOURCE_KINDS),
+  label: z.string(),
+  lastOkAt: z.date().nullable(),
+  lastRunAt: z.date().nullable(),
+  lastStatus: z.string().nullable(),
+  maxAgeSeconds: count.nullable(),
+  overdue: z.boolean(),
+  overdueSince: z.date().nullable(),
+  reason: z.string().nullable(),
+  retired: z.boolean(),
+  smartMoney: z.boolean(),
+  source: z.string(),
+});
+
 export const OpenbbStatusOutputSchema = z.object({
+  checkedAt: z.date(),
+  lastFallbackAt: z.date().nullable(),
+  overdueCount: count,
   runs: z.array(OpenbbRunSchema),
+  sources: z.array(OpenbbSourceStatusSchema),
   tables: z.array(
     z.object({
       newestDate: date.nullable(),
@@ -970,6 +1155,7 @@ export const OpenbbVolContextOutputSchema = z.object({
   ),
   ivDaily: z.array(
     OpenbbOptionIvDailyRowSchema.extend({
+      historyState: z.enum(["affected", "clean", "source_unverified"]),
       ivPercentile: finite.min(0).max(100).nullable(),
       sessions: count,
     })
@@ -1208,11 +1394,17 @@ export const OPENBB_INSIDER_CLUSTER_DAYS = [7, 14, 30] as const;
 export const OPENBB_INSIDER_CLUSTER_MIN_PERSONS = 3;
 export const OPENBB_INSIDER_CLUSTER_SPAN_DAYS = 10;
 export const OPENBB_INSIDER_CLUSTER_MAX = 200;
+const optionalSymbol = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim().toUpperCase();
+  return trimmed === "" ? undefined : trimmed;
+}, symbol.optional());
 export const OpenbbInsiderClustersInputSchema = z.object({
   days: z.coerce
     .number()
     .pipe(z.union(OPENBB_INSIDER_CLUSTER_DAYS.map((d) => z.literal(d))))
     .default(7),
+  symbol: optionalSymbol,
 });
 const timestamp = z.iso.datetime({ offset: true });
 export const OpenbbInsiderClusterFilingSchema = z.object({
@@ -1251,6 +1443,44 @@ export const OpenbbInsiderClustersOutputSchema = z.object({
   clusters: z.array(OpenbbInsiderClusterSchema),
   coverage: OpenbbForm4CoverageSchema,
   days: z.union(OPENBB_INSIDER_CLUSTER_DAYS.map((d) => z.literal(d))),
+  delay: z.string(),
+  receivedAt: timestamp,
+  source: z.string(),
+});
+export const OPENBB_13F_CHANGE_FILTERS = [
+  "all",
+  "new",
+  "added",
+  "reduced",
+  "sold",
+] as const;
+export const OPENBB_13F_CHANGES_DEFAULT_LIMIT = 50;
+export const OPENBB_13F_CHANGES_MAX_LIMIT = 100;
+export const OpenbbChanges13fInputSchema = z.object({
+  change: z.enum(OPENBB_13F_CHANGE_FILTERS).default("all"),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(OPENBB_13F_CHANGES_MAX_LIMIT)
+    .default(OPENBB_13F_CHANGES_DEFAULT_LIMIT),
+  ticker: optionalSymbol,
+});
+export const OpenbbMarket13fChangeSchema = Openbb13fChangeSchema.extend({
+  symbol: symbol.nullable(),
+});
+export const Openbb13fCoverageSchema = z.object({
+  filersWithTwoBooks: count,
+  lastOkAt: timestamp.nullable(),
+  lastRunAt: timestamp.nullable(),
+  lastStatus: z.enum(OPENBB_RUN_STATUSES).nullable(),
+  overdue: z.boolean(),
+  overdueSince: timestamp.nullable(),
+  totalFilers: count,
+});
+export const OpenbbChanges13fOutputSchema = z.object({
+  changes: z.array(OpenbbMarket13fChangeSchema),
+  coverage: Openbb13fCoverageSchema,
   delay: z.string(),
   receivedAt: timestamp,
   source: z.string(),
@@ -1294,6 +1524,14 @@ const route = (
   });
 
 export const openbbContract = {
+  changes13f: route(
+    "GET",
+    "changes13f",
+    "changes-13f",
+    "Market-wide 13F quarter-over-quarter changes across tracked filers"
+  )
+    .input(OpenbbChanges13fInputSchema)
+    .output(OpenbbChanges13fOutputSchema),
   cot: route(
     "GET",
     "cot",
@@ -1397,7 +1635,7 @@ export const openbbContract = {
     "GET",
     "status",
     "status",
-    "Last run per job and newest date per table"
+    "Last run per job, per-source overdue state and newest date per table"
   )
     .input(z.object({}))
     .output(OpenbbStatusOutputSchema),
@@ -1445,3 +1683,10 @@ export type OpenbbInsiderClustersOutput = z.infer<
   typeof OpenbbInsiderClustersOutputSchema
 >;
 export type OpenbbInsiderCluster = z.infer<typeof OpenbbInsiderClusterSchema>;
+export type OpenbbSourceStatus = z.infer<typeof OpenbbSourceStatusSchema>;
+export type Openbb13fChangeFilter = (typeof OPENBB_13F_CHANGE_FILTERS)[number];
+export type OpenbbMarket13fChange = z.infer<typeof OpenbbMarket13fChangeSchema>;
+export type OpenbbChanges13fInput = z.input<typeof OpenbbChanges13fInputSchema>;
+export type OpenbbChanges13fOutput = z.infer<
+  typeof OpenbbChanges13fOutputSchema
+>;

@@ -52,6 +52,7 @@ import { assistantRouter } from "./assistant.ts";
 import { portfolioMonitorRouter } from "./portfolio-monitor.ts";
 import { enginesRouter } from "./engines.ts";
 import { marketContextRouter } from "./market-context.ts";
+import { marketRegimeRouter } from "./market-regime.ts";
 import { ibkrMonitorRouter } from "./ibkr-monitor.ts";
 import { ibkrRecoveryRouter } from "./ibkr-recovery.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
@@ -86,6 +87,7 @@ import { researchReportsRouter } from "./research-reports.ts";
 import { researchScreenRouter } from "./research-screen.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
 import { flowRouter } from "./flow.ts";
+import { connectivityRouter } from "./connectivity.ts";
 import { semanticTermsRouter } from "./semantic-terms.ts";
 import { smartMoneyRouter } from "./smart-money.ts";
 import { masterRulesRouter } from "./master-rules.ts";
@@ -145,6 +147,7 @@ import { todosRouter } from "./todos.ts";
 import { watchlistRouter } from "./watchlist.ts";
 import { priceAlertsRouter } from "./price-alerts.ts";
 import { openbbRouter } from "./openbb.ts";
+import { openbbOverdueRouter } from "./openbb-overdue.ts";
 import { openbbPriceFreshnessRouter } from "./price-freshness.ts";
 import { sectorRotationRouter } from "./sector-rotation.ts";
 import { breadth90Router } from "./breadth-90.ts";
@@ -1753,7 +1756,11 @@ export const appRouter = api.router({
   dashboard: { summary: dashboardSummary },
   watchlist: watchlistRouter,
   priceAlerts: priceAlertsRouter,
-  openbb: { ...openbbRouter, ...openbbPriceFreshnessRouter },
+  openbb: {
+    ...openbbRouter,
+    ...openbbOverdueRouter,
+    ...openbbPriceFreshnessRouter,
+  },
   sectorRotation: sectorRotationRouter,
   breadth90: breadth90Router,
   goLiveDrafts: goLiveDraftsRouter,
@@ -1768,6 +1775,7 @@ export const appRouter = api.router({
   researchScreen: researchScreenRouter,
   researchStudies: researchStudiesRouter,
   flow: flowRouter,
+  connectivity: connectivityRouter,
   semanticTerms: semanticTermsRouter,
   masterRules: masterRulesRouter,
   clickLog: clickLogRouter,
@@ -1800,6 +1808,7 @@ export const appRouter = api.router({
   ibkrMonitor: ibkrMonitorRouter,
   engines: enginesRouter,
   marketContext: marketContextRouter,
+  marketRegime: marketRegimeRouter,
   ibkrRecovery: ibkrRecoveryRouter,
   nautilusArm: nautilusArmRouter,
   vertexOrders: vertexOrdersRouter,

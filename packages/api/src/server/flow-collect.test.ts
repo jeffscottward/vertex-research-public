@@ -6,7 +6,11 @@ import type {
 } from "@darkfactory/db/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FlowSource, FlowSymbol } from "../contracts/flow.ts";
+import type {
+  FlowOptionPrintSymbol,
+  FlowSource,
+  FlowSymbol,
+} from "../contracts/flow.ts";
 import type {
   MarketDepthOutput,
   MarketTicksOutput,
@@ -334,10 +338,20 @@ const fakeRepository = (
         trades: trades.length,
       })
     ),
-    latestSamples: vi.fn(async (symbol: FlowSymbol) => ({
-      latest: latest.filter((row) => row.symbol === symbol),
-      latestOk: latestOk.filter((row) => row.symbol === symbol),
-    })),
+    latestSamples: vi.fn<FlowRepository["latestSamples"]>(
+      async (symbol, sources) => ({
+        latest: latest.filter(
+          (row) =>
+            row.symbol === symbol &&
+            (sources === undefined || sources.includes(row.source))
+        ),
+        latestOk: latestOk.filter(
+          (row) =>
+            row.symbol === symbol &&
+            (sources === undefined || sources.includes(row.source))
+        ),
+      })
+    ),
     marketPremiumLedger: vi.fn<FlowRepository["marketPremiumLedger"]>(
       async () => []
     ),
@@ -353,17 +367,33 @@ const fakeRepository = (
     readBookSnapshots: vi.fn(async () => []),
     readEvents: vi.fn(async () => []),
     readHedgingPrints: vi.fn(async () => []),
+    readLargeOptionPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
-    readMinutes: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
+    readMinutes: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
     readOptionPrintMinutes: vi.fn(async () => []),
     readOptionPrintSlotPrices: vi.fn(async () => []),
     readOptionPrintStrikeBuckets: vi.fn(async () => []),
     readOptionStrikeTotals: vi.fn(async () => []),
+    readOptionTape: vi.fn<FlowRepository["readOptionTape"]>(async () => ({
+      prints: [],
+      summary: {
+        bearishPremium: 0,
+        blocks: 0,
+        bullishPremium: 0,
+        callPremium: 0,
+        goldenSweeps: 0,
+        putPremium: 0,
+        sweeps: 0,
+        trades: 0,
+        unusualCount: 0,
+      },
+    })),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(),
+    recentSamples: vi.fn<FlowRepository["recentSamples"]>(async () => []),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     storeMarketPremium: vi.fn<FlowRepository["storeMarketPremium"]>(
       async ({ rows }) => rows.length
@@ -451,7 +481,11 @@ const depsWith = (overrides: Partial<Deps> = {}): Deps => ({
 
 const collect = async (
   deps: Deps,
-  input: { dryRun?: boolean; seed?: boolean; symbols?: FlowSymbol[] } = {}
+  input: {
+    dryRun?: boolean;
+    seed?: boolean;
+    symbols?: FlowOptionPrintSymbol[];
+  } = {}
 ) => {
   const output = await runFlowCollect(
     {
@@ -461,7 +495,7 @@ const collect = async (
     },
     deps
   );
-  const run = (symbol: FlowSymbol, source: FlowSource) => {
+  const run = (symbol: FlowOptionPrintSymbol, source: FlowSource) => {
     const found = output.runs.find(
       (row) => row.symbol === symbol && row.source === source
     );
@@ -1933,7 +1967,7 @@ describe("runFlowCollect storage", () => {
   it("stores one sample per recorded attempt", async () => {
     const deps = depsWith();
     const { output } = await collect(deps);
-    expect(output.runs).toHaveLength(18);
+    expect(output.runs).toHaveLength(22);
     expect(recorded(deps)).toEqual([
       "SPY:net_drift:empty",
       "ES:net_drift:empty",
@@ -1946,6 +1980,7 @@ describe("runFlowCollect storage", () => {
       "NQ:ticks:ok",
       "SPY:options:ok",
       "ES:options:empty",
+      "IWM:options:empty",
       "SPY:gex:ok",
       "SPY:market_premium:ok",
     ]);
@@ -2172,6 +2207,8 @@ describe("runFlowCollect net drift", () => {
       "QQQ:depth",
       "NQ:depth",
       "NQ:ticks",
+      "QQQ:options",
+      "NQ:options",
       "QQQ:gex",
       "NQ:gex",
     ]);
@@ -2181,7 +2218,7 @@ describe("runFlowCollect net drift", () => {
       expect.objectContaining({ symbol: "NQ" }),
       expect.any(Number)
     );
-    expect(deps.quantData?.pages).not.toHaveBeenCalled();
+    expect(deps.quantData?.pages).toHaveBeenCalledTimes(2);
   });
 
   it("sends the total and the zero_dte request per symbol and stores both parts", async () => {
@@ -2387,8 +2424,8 @@ describe("runFlowCollect net drift", () => {
   });
 
   it("keeps the worst case of one run inside the client window minus the caller reserve", () => {
-    expect(flowQuantDataRunWorstCase(FLOW_INSTRUMENTS, FLOW_GROUPS)).toBe(24);
-    expect(24).toBeLessThanOrEqual(
+    expect(flowQuantDataRunWorstCase(FLOW_INSTRUMENTS, FLOW_GROUPS)).toBe(32);
+    expect(32).toBeLessThanOrEqual(
       DEFAULT_MAX_PER_MINUTE - FLOW_QUANTDATA_CALLER_RESERVE
     );
   });
@@ -3861,5 +3898,118 @@ describe("runFlowCollect dual-mode L2 book snapshots", () => {
       "ok"
     );
     expect(depsZeroLevel.repository.upsertBookSnapshots).not.toHaveBeenCalled();
+  });
+});
+
+describe("runFlowCollect option parity and option-only tickers (PR 4)", () => {
+  it("runs SPY, SPX and IWM on even minutes and QQQ, NDX and NVDA on odd minutes with zero IBKR calls for IWM/NVDA", async () => {
+    const evenDeps = depsWith({ now: OPEN });
+    const evenOut = await collect(evenDeps, {
+      symbols: ["SPY", "ES", "QQQ", "NQ", "IWM", "NVDA"],
+    });
+    expect(evenOut.run("SPY", "options").status).toBe("ok");
+    expect(evenOut.run("ES", "options").status).toBe("empty");
+    expect(evenOut.run("IWM", "options").status).toBe("empty");
+    expect(evenOut.run("QQQ", "options")).toMatchObject({
+      message: "staggered: QQQ options runs on odd minutes",
+      status: "skipped",
+    });
+    expect(evenOut.run("NQ", "options")).toMatchObject({
+      message: "staggered: NDX options runs on odd minutes",
+      status: "skipped",
+    });
+    expect(evenOut.run("NVDA", "options")).toMatchObject({
+      message: "staggered: NVDA options runs on odd minutes",
+      status: "skipped",
+    });
+
+    const oddDeps = depsWith({ now: new Date(OPEN.getTime() + 60_000) });
+    const oddOut = await collect(oddDeps, {
+      symbols: ["IWM", "NVDA"],
+    });
+    expect(oddOut.output.runs.map((r) => `${r.symbol}:${r.source}`)).toEqual([
+      "IWM:options",
+      "NVDA:options",
+    ]);
+    expect(oddOut.run("IWM", "options")).toMatchObject({
+      message: "staggered: IWM options runs on even minutes",
+      status: "skipped",
+    });
+    expect(oddOut.run("NVDA", "options").status).toBe("ok");
+    expect(oddDeps.ticks).not.toHaveBeenCalled();
+    expect(oddDeps.tape).not.toHaveBeenCalled();
+    expect(oddDeps.depth).not.toHaveBeenCalled();
+    expect(oddDeps.analytics).not.toHaveBeenCalled();
+  });
+
+  it("bypasses parity on seed runs and closes NVDA at 16:00 ET while IWM stays open until 16:15 ET", async () => {
+    // Monday 2026-11-09 16:05 ET = 21:05Z (odd minute: 21*60+5 = 1265, odd!)
+    const et1605 = new Date("2026-11-09T21:05:00.000Z");
+    const deps = depsWith({ now: et1605 });
+    const { run } = await collect(deps, { symbols: ["NVDA"] });
+    expect(run("NVDA", "options")).toMatchObject({
+      message: "market closed",
+      status: "skipped",
+    });
+
+    const seedDeps = depsWith({ now: OPEN });
+    const seedOut = await collect(seedDeps, {
+      seed: true,
+      symbols: ["NVDA"],
+    });
+    expect(seedOut.run("NVDA", "options").status).toBe("ok");
+
+    // Recent attempt within FLOW_DUE_SECONDS.options (50 s) skips even on matching parity minute
+    const recentDeps = depsWith({ now: OPEN });
+    recentDeps.repository.latestSamples.mockResolvedValue({
+      latest: [
+        {
+          at: new Date(OPEN.getTime() - 20_000),
+          items: 1,
+          message: "ok",
+          source: "options",
+          status: "ok",
+          symbol: "IWM",
+        },
+      ],
+      latestOk: [],
+    });
+    const recentOut = await collect(recentDeps, { symbols: ["IWM"] });
+    expect(recentOut.run("IWM", "options")).toMatchObject({
+      message: "not due (last attempt 20 s ago)",
+      status: "skipped",
+    });
+  });
+
+  it("enforces parity during post-close gap draining so NVDA cannot stack onto even-minute live streams", async () => {
+    // Monday 2026-11-09 16:04 ET = 21:04Z (even minute: NVDA closed at 16:00 ET, parity is odd)
+    const et1604 = new Date("2026-11-09T21:04:00.000Z");
+    const gap: FlowOptionGapRecord = {
+      createdAt: new Date("2026-11-09T20:55:00.000Z"),
+      endTime: new Date("2026-11-09T20:55:00.000Z"),
+      startTime: new Date("2026-11-09T20:50:00.000Z"),
+      symbol: "NVDA",
+    };
+    const evenGaps = gapStore([gap]);
+    const evenDeps = depsWith({
+      now: et1604,
+      repository: fakeRepository([], undefined, evenGaps),
+    });
+    const evenOut = await collect(evenDeps, { symbols: ["NVDA"] });
+    expect(evenOut.run("NVDA", "options")).toMatchObject({
+      message: "staggered: NVDA options runs on odd minutes",
+      status: "skipped",
+    });
+    expect(evenDeps.quantData?.pages).not.toHaveBeenCalled();
+
+    // Next minute 16:05 ET = 21:05Z (odd minute): NVDA drains its stored gap.
+    const et1605 = new Date("2026-11-09T21:05:00.000Z");
+    const oddDeps = depsWith({
+      now: et1605,
+      repository: fakeRepository([], undefined, evenGaps),
+    });
+    const oddOut = await collect(oddDeps, { symbols: ["NVDA"] });
+    expect(oddOut.run("NVDA", "options").status).toBe("ok");
+    expect(oddDeps.quantData?.pages).toHaveBeenCalled();
   });
 });

@@ -31,6 +31,7 @@ import {
   OPENBB_TABLES,
   OpenbbBatchDocumentSchema,
   OpenbbEventsInputSchema,
+  OpenbbIngestBatchSchema,
   OpenbbIngestInputSchema,
   OpenbbRecordRunInputSchema,
   openbbBlockedError,
@@ -95,6 +96,7 @@ const fakes = (): Fakes => ({
   },
   openbb: {
     blockedStreaks: vi.fn(async () => []),
+    changes13fMarket: vi.fn(async () => []),
     congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
     cot: vi.fn(async () => []),
     cusipsForSymbol: vi.fn(async () => []),
@@ -113,6 +115,7 @@ const fakes = (): Fakes => ({
     insiderPurchases: vi.fn(async () => ({ owners: [], purchases: [] })),
     insiderTrades: vi.fn(async () => []),
     lastRunsFor: vi.fn(async () => []),
+    lastYahooFallbackAt: vi.fn(async () => null),
     latestRuns: vi.fn(async () => []),
     macroPoints: vi.fn(async () => []),
     macroSeries: vi.fn(async () => []),
@@ -148,6 +151,7 @@ const fakes = (): Fakes => ({
 const clientFor = (
   options: Readonly<{
     fakes?: Fakes;
+    flow?: unknown;
     apiKey?: string;
     keyAccess?: "read" | "write";
     email?: string;
@@ -168,6 +172,9 @@ const clientFor = (
             .series as unknown as MarketDailySeriesRepository,
           openbb: options.fakes.openbb as unknown as OpenbbRepository,
         }),
+    ...(options.flow === undefined
+      ? {}
+      : { flow: options.flow as NonNullable<Repositories["flow"]> }),
   };
   const agentApiKeys = {
     authenticate: vi.fn(async (headers: Headers) => {
@@ -225,7 +232,12 @@ const vxRows = [
   { asOf: "2026-10-30", contractMonth: "2026-11", price: 17 },
 ];
 
-const ivRow = (underlying: string, asOf: string, atmIv30d: number | null) => ({
+const ivRow = (
+  underlying: string,
+  asOf: string,
+  atmIv30d: number | null,
+  source: "cboe" | "yahoo_fallback" | "unknown" = "unknown"
+) => ({
   asOf,
   atmIv30d,
   callIv25d30d: null,
@@ -239,6 +251,7 @@ const ivRow = (underlying: string, asOf: string, atmIv30d: number | null) => ({
   putOi: 1,
   putVolume: 1,
   putWall: null,
+  source,
   underlying,
   underlyingPrice: 100,
 });
@@ -280,6 +293,27 @@ const rowCases = (name: string) =>
     JSON.parse(readFileSync(new URL(name, PYTHON_FIXTURES), "utf8"))
   );
 
+const optionIvDailyFixtures = {
+  v1: JSON.parse(
+    readFileSync(
+      new URL(
+        "./contracts/fixtures/openbb-option-iv-daily-v1.json",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  ) as unknown,
+  v2: JSON.parse(
+    readFileSync(
+      new URL(
+        "./contracts/fixtures/openbb-option-iv-daily-v2.json",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  ) as unknown,
+};
+
 describe("openbb contract fixtures", () => {
   it("accepts every fetcher fixture document (one per job) and covers every table", () => {
     const seen = new Set<string>();
@@ -298,13 +332,41 @@ describe("openbb contract fixtures", () => {
         if (dir === PYTHON_FIXTURES) jobs.add(document.job);
         for (const { table, rows } of document.tables) {
           if (rows.length > 0) seen.add(table);
-          for (const row of rows.slice(0, 2000))
+          for (const row of rows.slice(0, 2000)) {
             expect(OPENBB_ROW_SCHEMAS[table].safeParse(row).success).toBe(true);
+          }
         }
       }
     }
     expect([...jobs].sort()).toEqual([...OPENBB_JOBS].sort());
     expect([...seen].sort()).toEqual([...OPENBB_TABLES].sort());
+  });
+
+  it("accepts legacy daily IV rows and preserves only known source tags", () => {
+    const legacy = OpenbbBatchDocumentSchema.parse(optionIvDailyFixtures.v1);
+    const legacyDaily = legacy.tables.find(
+      (table) => table.table === "option_iv_daily"
+    );
+    expect(legacyDaily?.rows.map((row) => Reflect.get(row, "source"))).toEqual([
+      undefined,
+      undefined,
+    ]);
+
+    const tagged = OpenbbBatchDocumentSchema.parse(optionIvDailyFixtures.v2);
+    const taggedDaily = tagged.tables.find(
+      (table) => table.table === "option_iv_daily"
+    );
+    expect(taggedDaily?.rows.map((row) => Reflect.get(row, "source"))).toEqual([
+      "cboe",
+      "yahoo_fallback",
+    ]);
+    const taggedRow = taggedDaily?.rows[0];
+    expect(
+      OPENBB_ROW_SCHEMAS.option_iv_daily.safeParse({
+        ...(taggedRow ?? {}),
+        source: "unknown",
+      }).success
+    ).toBe(false);
   });
 
   it("refuses every row the Python validator refuses", () => {
@@ -313,6 +375,21 @@ describe("openbb contract fixtures", () => {
       (entry) => OPENBB_ROW_SCHEMAS[entry.table].safeParse(entry.row).success
     );
     expect(accepted.map((entry) => `${entry.table}: ${entry.why}`)).toEqual([]);
+  });
+
+  it("refuses every invalid daily IV row through the ingest batch schema", () => {
+    const entries = rowCases(INVALID_ROWS).filter(
+      (entry) => entry.table === "option_iv_daily"
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    const accepted = entries.filter(
+      (entry) =>
+        OpenbbIngestBatchSchema.safeParse({
+          rows: [entry.row],
+          table: entry.table,
+        }).success
+    );
+    expect(accepted.map((entry) => entry.why)).toEqual([]);
   });
 
   it("accepts every edge row the Python validator accepts", () => {
@@ -646,6 +723,35 @@ describe("openbb writes", () => {
     expect(repos.openbb.upsertRows).toHaveBeenCalledWith("vx_curve", vxRows);
   });
 
+  it("leaves an untagged daily IV source to the database default", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    const row = {
+      asOf: "2026-11-20",
+      atmIv30d: 0.2,
+      callIv25d30d: 0.18,
+      callOi: 10,
+      callVolume: 20,
+      callWall: 110,
+      contracts: 20,
+      gammaFlip: 105,
+      netGex: 12.5,
+      putIv25d30d: 0.22,
+      putOi: 15,
+      putVolume: 25,
+      putWall: 90,
+      underlying: "SPY",
+      underlyingPrice: 100,
+    };
+    await client.openbb.ingest({
+      batch: { rows: [row], table: "option_iv_daily" },
+      job: "cboe-option-iv",
+    });
+    expect(repos.openbb.upsertRows).toHaveBeenCalledWith("option_iv_daily", [
+      row,
+    ]);
+  });
+
   it("stores a 13F ledger row only when its whole book is stored, and serves the skip list", async () => {
     const repos = fakes();
     const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
@@ -929,10 +1035,12 @@ describe("openbb reads", () => {
     repos.openbb.tableStats.mockResolvedValue([
       { newestDate: "2026-11-03", rows: 2, table: "openbb_cot_positions" },
     ]);
+    repos.openbb.lastYahooFallbackAt.mockResolvedValue(NOW);
     const status = await clientFor({ fakes: repos }).openbb.status({});
     expect(status.runs[0]?.startedAt).toEqual(NOW);
     expect(status.runs[0]?.blocked).toBeNull();
     expect(status.tables).toHaveLength(1);
+    expect(status.lastFallbackAt).toEqual(NOW);
   });
 
   it("reports a blocked streak with its start and the next retry time", async () => {
@@ -1063,11 +1171,17 @@ describe("openbb reads", () => {
     repos.openbb.vxCurve.mockResolvedValue(vxRows);
     repos.openbb.optionIvDaily.mockResolvedValue([
       ...proxyDays.map((day, index) =>
-        ivRow("SPY", day, index === 251 ? 0.5 : 0.1 + index * 0.001)
+        ivRow(
+          "SPY",
+          day,
+          index === 251 ? 0.5 : 0.1 + index * 0.001,
+          index === 0 ? "yahoo_fallback" : "cboe"
+        )
       ),
       ...proxyDays
         .slice(-9)
         .map((day, index) => ivRow("QQQ", day, 0.24 + index * 0.01)),
+      ...proxyDays.slice(-5).map((day) => ivRow("DIA", day, 0.2, "cboe")),
     ]);
     repos.openbb.optionIvTermLatest.mockResolvedValue([
       {
@@ -1121,11 +1235,14 @@ describe("openbb reads", () => {
         row.underlying,
         row.ivPercentile,
         row.sessions,
+        row.historyState,
       ])
     ).toEqual([
-      ["SPY", 100, 252],
-      ["QQQ", null, 9],
+      ["SPY", 100, 252, "affected"],
+      ["QQQ", null, 9, "source_unverified"],
+      ["DIA", null, 5, "clean"],
     ]);
+    expect(context.ivDaily[0]).not.toHaveProperty("source");
     const byUnderlying = new Map(
       context.ivOneYear.map((row) => [row.underlying, row])
     );
@@ -1867,5 +1984,174 @@ describe("openbb.ivHistory", () => {
       clientFor({}).openbb.ivHistory({ symbol: "SPY" }),
       "STORAGE_ERROR"
     );
+  });
+});
+
+describe("openbb.changes13f and openbb.status overdue", () => {
+  it("returns market-wide 13F changes with delayDays and coverage (fresh and overdue)", async () => {
+    const repos = fakes();
+    setOpenbbClockForTesting(() => new Date("2026-11-23T16:00:00.000Z"));
+    repos.openbb.changes13fMarket.mockResolvedValueOnce([
+      {
+        accessionNumber: "0001193125-26-000001",
+        change: "new",
+        cusip: "037833100",
+        filedOn: "2026-11-11",
+        filerCik: "1067983",
+        filerName: "Berkshire Hathaway",
+        issuer: "Apple Inc.",
+        optionType: "",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: null,
+        previousValue: null,
+        shares: 1000,
+        symbol: "AAPL",
+        value: 225_000,
+      },
+    ]);
+    repos.openbb.sec13fFilings.mockResolvedValueOnce([
+      {
+        accessionNumber: "0001193125-26-000001",
+        filedOn: "2026-11-11",
+        filerCik: "1067983",
+        filerName: "Berkshire Hathaway",
+        periodEnding: "2026-09-30",
+        rows: 89,
+      },
+      {
+        accessionNumber: "0001193125-26-000000",
+        filedOn: "2026-08-14",
+        filerCik: "1067983",
+        filerName: "Berkshire Hathaway",
+        periodEnding: "2026-06-30",
+        rows: 85,
+      },
+      {
+        accessionNumber: "0001193125-26-000002",
+        filedOn: "2026-11-10",
+        filerCik: "1350694",
+        filerName: "Bridgewater",
+        periodEnding: "2026-09-30",
+        rows: 500,
+      },
+    ]);
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([
+      {
+        job: "sec-13f",
+        latest: {
+          error: null,
+          finishedAt: new Date("2026-11-23T12:00:00.000Z"),
+          id: "r1",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-23T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+        latestUsable: {
+          error: null,
+          finishedAt: new Date("2026-11-23T12:00:00.000Z"),
+          id: "r1",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-23T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+      },
+    ]);
+    const client = clientFor({ fakes: repos });
+    const res = await client.openbb.changes13f({ ticker: " aapl " });
+    expect(repos.openbb.changes13fMarket).toHaveBeenCalledWith({
+      change: "all",
+      limit: 50,
+      ticker: "AAPL",
+    });
+    expect(res.changes[0]?.delayDays).toBe(42);
+    expect(res.coverage.filersWithTwoBooks).toBe(1);
+    expect(res.coverage.totalFilers).toBe(2);
+    expect(res.coverage.overdue).toBe(false);
+
+    // Blank ticker coerces to undefined; stale run sets overdueSince
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([
+      {
+        job: "sec-13f",
+        latest: {
+          error: null,
+          finishedAt: new Date("2026-11-18T12:00:00.000Z"),
+          id: "r2",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-18T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+        latestUsable: {
+          error: null,
+          finishedAt: new Date("2026-11-18T12:00:00.000Z"),
+          id: "r2",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-18T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+      },
+    ]);
+    const stale = await client.openbb.changes13f({ ticker: "   " });
+    expect(repos.openbb.changes13fMarket).toHaveBeenLastCalledWith({
+      change: "all",
+      limit: 50,
+      ticker: null,
+    });
+    expect(stale.coverage.overdue).toBe(true);
+    expect(stale.coverage.overdueSince).toBe("2026-11-21T12:00:00.000Z");
+
+    // No sec-13f run yet -> lastOkAt/lastRunAt/lastStatus null, overdue true
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([]);
+    const noRun = await client.openbb.changes13f({});
+    expect(noRun.coverage.lastOkAt).toBeNull();
+    expect(noRun.coverage.lastRunAt).toBeNull();
+    expect(noRun.coverage.lastStatus).toBeNull();
+    expect(noRun.coverage.overdue).toBe(true);
+
+    // Non-empty symbol in insiderClusters passes trimmed uppercase symbol
+    const bySym = await client.openbb.insiderClusters({ symbol: " nvda " });
+    expect(bySym.clusters).toEqual([]);
+
+    // Empty symbol in insiderClusters coerces cleanly to undefined
+    const clusters = await client.openbb.insiderClusters({ symbol: "  " });
+    expect(clusters.clusters).toEqual([]);
+  });
+
+  it("includes per-source overdue fields in openbb.status", async () => {
+    const repos = fakes();
+    setOpenbbClockForTesting(() => new Date("2026-11-23T16:00:00.000Z"));
+    const status = await clientFor({ fakes: repos }).openbb.status({});
+    expect(status.checkedAt.toISOString()).toBe("2026-11-23T16:00:00.000Z");
+    expect(status.sources.length).toBeGreaterThanOrEqual(23);
+    expect(status.overdueCount).toBe(
+      status.sources.filter((s) => s.overdue).length
+    );
+
+    // With flow repository attached, openbb.status also evaluates market_premium + SPY flow samples
+    const withFlow = clientFor({
+      fakes: repos,
+      flow: {
+        latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
+        marketPremiumLedger: vi.fn(async () => []),
+      },
+    });
+    const flowStatus = await withFlow.openbb.status({});
+    expect(flowStatus.sources.some((s) => s.kind === "flow")).toBe(true);
   });
 });

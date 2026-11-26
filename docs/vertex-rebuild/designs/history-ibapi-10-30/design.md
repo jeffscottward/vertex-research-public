@@ -3,7 +3,7 @@
 * **Author:** Jeff Scott Ward
 * **Date:** 2026-11-20 UTC (all times in this document are UTC unless marked ET; 2026-11-20 00:00-05:00 UTC is the evening of 2026-11-19 ET)
 * **Card:** vertex-history-api-163
-* **Status:** design after egm-review (consolidated report, resolution applied); one owner question open (Open Question Q1)
+* **Status:** implemented; Open Question Q1 resolved on 2026-11-24 UTC (card `vertex-history-stock-depth-verify`, `STOCK_DEPTH_VERIFIED = True`, probe recorded in [evidence.md](evidence.md))
 * **Records:** brainstorm [concepts_brief.md](concepts_brief.md), probe [evidence.md](evidence.md), knowledge-base adviser answers [kb-records.md](kb-records.md)
 
 ![Before vs after](before-after.png)
@@ -42,9 +42,7 @@ The history service `vertex-history` on QuantVPS serves read-only IBKR bars, tic
 
 ## Open Questions
 
-* **Q1 (owner question, posted 2026-11-20).** May the job make one read-only SPY depth request on a spare client id before the switch? The task allowed historical requests only. 10.30.1 has no `mdSizeMultiplier`, so the service reports `sizeMultiplier` 1, and whether 10.30.1 depth sizes are shares is not measured.
-  * **Yes:** one SPY depth read with each client, side by side, before the PR. Pass: the 10.30.1 sizes are about 40 x the 9.81.1 sizes of the same levels. Depth then needs no new format: `sizeMultiplier` 1 already means "sizes in shares" to every reader.
-  * **No:** with 10.30.1 the service refuses stock depth (HTTP 503 `depth_unit_unverified`); futures depth is unchanged (`mdSizeMultiplier` was 1 for ES with 9.81.1). The order-flow panel shows its existing error state for SPY depth, and the flow collector stores no SPY book rows. A follow-up card verifies stock depth later.
+* **Q1 (resolved 2026-11-24 UTC, card `vertex-history-stock-depth-verify`).** The initial 10.30.1 rollout shipped the "No" branch (`STOCK_DEPTH_VERIFIED = False`, HTTP 503 `depth_unit_unverified`). On 2026-11-24 UTC a paired read-only SPY SMART depth probe on QuantVPS (client id 164, [evidence.md](evidence.md)) verified that `ibapi` 10.30.1 (server version 187) delivers `updateMktDepthL2` sizes directly in shares as `Decimal` values with no `mdSizeMultiplier` and no warning 2176, while 9.81.1 (server version 157) sent integer lots of 40 with warning 2176 (`Trimmed value 1002 to 25` and `Trimmed value 100 to 2`). `vertex_history.py` 1.7.1 sets `STOCK_DEPTH_VERIFIED = True` and serves stock depth with `sizeMultiplier` 1 (shares).
 * **Q2 (risk with a deadline).** IB Gateway 1048.1 loses IBKR support on 2026-12-15 (notice 2172 in both probes). The gateway upgrade is an owner decision outside this card; a follow-up card re-runs the Forex and volume checks after it.
 
 ## Critical User Journeys (CUJs)
@@ -107,7 +105,7 @@ The owner decided B himself and delegated the other technical choices to a knowl
 3. **Bars v2.** `SCHEMA = "vertex-history-bars-v2"` with `volume_unit` as in the data flow. The unit names reuse the repository's `shares` and `unqualified` (`services/host/vertex_host/ibkr_history.py`) and add `contracts`.
 4. **Cache.** The bars cache key includes the schema, so a v1 entry on disk is never served as v2, and the old code never finds a v2 entry. No cache wipe. Bars have no stale copy for a few hours after the switch.
 5. **Errors and health.** A bar that cannot be converted returns HTTP 502 `decode_error` with a journal line `ib_decode_error`. Health adds `ibapi` (client version), `startedAt`, the counter `unsetSizes` and `warnings: ["unset_sizes"]` when it is above 0. `VERSION` becomes 1.6.0 (1.5.0 is the tape release of PR #328).
-6. **Depth.** Until Q1 is settled, the code ships the "No" branch: `STOCK_DEPTH_VERIFIED = False` in `vertex_history.py` refuses stock depth with HTTP 503 `depth_unit_unverified` before any IB request; futures depth is served as today. A test checks that the shipped value is `False`. If the owner answers "Yes" and the depth probe passes, one commit sets it to `True` and records the probe in `evidence.md`.
+6. **Depth.** Initial 1.6.0–1.7.0 releases shipped `STOCK_DEPTH_VERIFIED = False` (HTTP 503 `depth_unit_unverified`). After the 2026-11-24 UTC SPY depth probe passed ([evidence.md](evidence.md)), version 1.7.1 sets `STOCK_DEPTH_VERIFIED = True` in `vertex_history.py` so stock depth is served with `sizeMultiplier` 1 (shares), while keeping the flag and its 503 guard covered by tests.
 
 ### Installer (`infra/quant-vps/history/install-history.sh`)
 
@@ -223,7 +221,7 @@ Each is a card in the vertex stack; the owner accepts each card's result.
 * **Gateway re-check:** re-run the Forex and volume checks with 10.30.1 after the IB Gateway upgrade; deadline 2026-12-15.
 * **Health alerts:** send the health `warnings` to the existing vertex-status alerts within 7 days of the switch.
 * **v1 removal:** remove v1 parsing from the Charts reader and delete `venv-legacy-9.81.1` 30 days after the switch without a rollback.
-* **Stock depth (only if Q1 is "No"):** verify the stock depth unit and lift the refusal.
+* **Stock depth (completed 2026-11-24 UTC, card `vertex-history-stock-depth-verify`):** SPY SMART depth verified as shares with `ibapi` 10.30.1 ([evidence.md](evidence.md)); `STOCK_DEPTH_VERIFIED = True` in `vertex_history.py` 1.7.1.
 
 ## Detailed Implementation Plan
 

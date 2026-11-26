@@ -1,17 +1,17 @@
 import {
-  AUTHORIZATION_ERROR_CODES,
   AgentApiKeyRateLimitedError,
-  AuthAuthorizationError,
   type AgentApiKeyRecord,
   type AgentApiKeyService,
+  AUTHORIZATION_ERROR_CODES,
+  AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
+import type { AgentTask, ResearchPaper } from "@darkfactory/db/schema";
 import type {
   AgentOpsRepository,
   Repositories,
   ResearchPapersRepository,
 } from "@darkfactory/db/server";
-import type { AgentTask, ResearchPaper } from "@darkfactory/db/schema";
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,70 +30,70 @@ const at = new Date("2026-01-02T03:04:05.000Z");
 const PLAINTEXT = `vrk_${"A".repeat(64)}`;
 
 const task = (overrides: Partial<AgentTask> = {}): AgentTask => ({
+  agent: "omp",
+  createdAt: at,
+  finishedAt: null,
   id: "task-1",
   kind: "backtest",
-  agent: "omp",
-  title: "Backtest",
-  summary: null,
-  status: "queued",
-  metrics: {},
   links: [],
+  metrics: {},
   paperId: null,
-  createdAt: at,
-  updatedAt: at,
   startedAt: null,
-  finishedAt: null,
+  status: "queued",
+  summary: null,
+  title: "Backtest",
+  updatedAt: at,
   ...overrides,
 });
 
 const paper = (): ResearchPaper => ({
-  id: "paper-1",
-  title: "Paper",
   authors: null,
-  year: null,
-  sourceUrl: null,
+  blockers: null,
+  createdAt: at,
+  id: "paper-1",
   identifier: null,
   kind: "paper",
-  stage: "queued",
-  verdict: "pending",
-  blockers: null,
   notes: null,
   reportedMetrics: {},
   reproducedMetrics: {},
-  createdAt: at,
+  sourceUrl: null,
+  stage: "queued",
+  title: "Paper",
   updatedAt: at,
+  verdict: "pending",
+  year: null,
 });
 
 const agentOpsRepository = (): AgentOpsRepository => {
   return {
-    summary: vi.fn(),
-    listTasks: vi.fn(async () => [task()]),
-    getTask: vi.fn(async () => null),
+    appendEvent: vi.fn(async (input) => ({
+      at,
+      id: "event-1",
+      level: input.level ?? "info",
+      message: input.message,
+      taskId: input.taskId,
+    })),
     createTask: vi.fn(async (input) =>
       task({
-        id: "task-9",
-        title: input.title,
         agent: input.agent,
+        id: "task-9",
         kind: input.kind,
+        title: input.title,
       })
     ),
+    getTask: vi.fn(async () => null),
+    listTasks: vi.fn(async () => [task()]),
+    summary: vi.fn(),
     updateTask: vi.fn(async (input) =>
       task({ id: input.id, status: input.status ?? "queued" })
     ),
-    appendEvent: vi.fn(async (input) => ({
-      id: "event-1",
-      taskId: input.taskId,
-      at,
-      level: input.level ?? "info",
-      message: input.message,
-    })),
   } as unknown as AgentOpsRepository;
 };
 
 const papersRepository = (): ResearchPapersRepository => {
   return {
-    list: vi.fn(async () => [paper()]),
     add: vi.fn(),
+    list: vi.fn(async () => [paper()]),
     update: vi.fn(),
   } as unknown as ResearchPapersRepository;
 };
@@ -102,42 +102,42 @@ const session = (
   userId = "user-a",
   overrides: Partial<SafeAuthSession["user"]> = {}
 ): SafeAuthSession => ({
+  principal: { role: "member", status: "active", userId },
+  session: {
+    createdAt: at,
+    expiresAt: new Date("2026-01-03T03:04:05.000Z"),
+    id: `session-${userId}`,
+    ipAddress: null,
+    updatedAt: at,
+    userAgent: null,
+    userId,
+  },
   user: {
-    id: userId,
-    name: userId,
+    createdAt: at,
     email: `${userId}@domain.test`,
     emailVerified: true,
+    id: userId,
     image: null,
-    createdAt: at,
-    updatedAt: at,
+    name: userId,
     role: "member",
     status: "active",
+    updatedAt: at,
     ...overrides,
   },
-  session: {
-    id: `session-${userId}`,
-    userId,
-    expiresAt: new Date("2026-01-03T03:04:05.000Z"),
-    createdAt: at,
-    updatedAt: at,
-    ipAddress: null,
-    userAgent: null,
-  },
-  principal: { userId, role: "member", status: "active" },
 });
 
 const record = (
   overrides: Partial<AgentApiKeyRecord> = {}
 ): AgentApiKeyRecord => ({
+  access: "read",
+  createdAt: at,
+  enabled: true,
+  expiresAt: null,
   id: "key-1",
+  lastUsedAt: null,
   name: "omp-rig",
   prefix: "vrk_",
   start: "vrk_AA",
-  enabled: true,
-  createdAt: at,
-  lastUsedAt: null,
-  expiresAt: null,
-  access: "read",
   ...overrides,
 });
 
@@ -154,9 +154,9 @@ type Harness = Readonly<{
 
 // Key owner facts returned by the fake key verifier (the real one reads the user row).
 interface KeyOwner {
+  access?: "read" | "write";
   email: string;
   emailVerified: boolean;
-  access?: "read" | "write";
 }
 
 const harness = (
@@ -170,19 +170,19 @@ const harness = (
     authenticate: vi.fn(async (headers: Headers) => {
       if (headers.get("x-api-key") !== PLAINTEXT) throw denied();
       return {
-        userId: "user-a",
+        access: "write" as const,
+        apiKeyId: "key-1",
         role: "member" as const,
         status: "active" as const,
-        apiKeyId: "key-1",
-        access: "write" as const,
+        userId: "user-a",
         ...keyOwner,
       };
     }),
-    list: vi.fn(async () => [record()]),
     create: vi.fn(async (_headers: Headers, input: { name: string }) => ({
-      record: record({ name: input.name }),
       key: PLAINTEXT,
+      record: record({ name: input.name }),
     })),
+    list: vi.fn(async () => [record()]),
     revoke: vi.fn(async (_headers: Headers, id: string) => id === "key-1"),
   };
   const requireSession = vi.fn(async () => {
@@ -191,17 +191,17 @@ const harness = (
   });
   const agentOps = agentOpsRepository();
   const repositories: Repositories = {
-    profiles: {} as Repositories["profiles"],
     addresses: {} as Repositories["addresses"],
-    userPreferences: {} as Repositories["userPreferences"],
-    featureItems: {} as Repositories["featureItems"],
     adminUsers: {} as Repositories["adminUsers"],
+    agentOps,
     dashboard: {} as Repositories["dashboard"],
+    featureItems: {} as Repositories["featureItems"],
+    profiles: {} as Repositories["profiles"],
+    researchPapers: papersRepository(),
+    userPreferences: {} as Repositories["userPreferences"],
     watchlist: {
       list: vi.fn(async () => []),
     } as unknown as NonNullable<Repositories["watchlist"]>,
-    agentOps,
-    researchPapers: papersRepository(),
   };
   const client = (
     options: Readonly<{ apiKey?: string; wireKeys?: boolean }> = {}
@@ -212,19 +212,19 @@ const harness = (
         if (options.apiKey !== undefined)
           request.headers.set("x-api-key", options.apiKey);
         const context = createApiContext(request, {
-          repositories,
-          requestId: "request-1",
           capabilities: {
             ai: false,
-            emailDelivery: false,
             analytics: false,
+            emailDelivery: false,
             telemetryExport: false,
           },
-          requireSession,
+          operatorEmails: [...operators],
+          repositories,
+          requestId: "request-1",
           requireRole: async () => {
             throw denied();
           },
-          operatorEmails: [...operators],
+          requireSession,
           ...(options.wireKeys === false
             ? {}
             : { agentApiKeys: service as unknown as AgentApiKeyService }),
@@ -233,7 +233,7 @@ const harness = (
       },
     });
   };
-  return { service, requireSession, agentOps, operators, client };
+  return { agentOps, client, operators, requireSession, service };
 };
 
 const expectCode = async (
@@ -277,6 +277,10 @@ describe("agent API key scope", () => {
       "flow.snapshot",
       "flow.control",
       "flow.events",
+      "flow.optionPrints",
+      "connectivity.health",
+      "connectivity.checkAlerts",
+      "connectivity.recordAlertChat",
       "breadth90.collect",
       "breadth90.get",
       "goLiveDrafts.collect",
@@ -291,6 +295,7 @@ describe("agent API key scope", () => {
       "researchScreen.tick",
       "congressTrades.feed",
       "smartMoney.ranking",
+      "marketRegime.get",
       "optionsChain.expiries",
       "optionsChain.chain",
       "optionsChain.ingestSnapshot",
@@ -299,6 +304,7 @@ describe("agent API key scope", () => {
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["flow", "control"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["flow", "events"])).toBe(true);
+    expect(isAgentApiKeyProcedurePath(["flow", "optionPrints"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(
       true
     );
@@ -341,8 +347,8 @@ describe("agent API key scope", () => {
     const { client, service, requireSession, agentOps } = harness();
     const keyed = client({ apiKey: PLAINTEXT });
     const created = await keyed.agentOps.tasks.create({
-      kind: "backtest",
       agent: "omp",
+      kind: "backtest",
       title: "Backtest jump model",
     });
     expect(created).toMatchObject({
@@ -351,10 +357,10 @@ describe("agent API key scope", () => {
     });
     await keyed.agentOps.tasks.update({ id: created.id, status: "running" });
     const event = await keyed.agentOps.tasks.appendEvent({
-      taskId: created.id,
       message: "fold 1/5",
+      taskId: created.id,
     });
-    expect(event).toMatchObject({ taskId: "task-9", message: "fold 1/5" });
+    expect(event).toMatchObject({ message: "fold 1/5", taskId: "task-9" });
     expect((await keyed.papers.list({})).papers).toHaveLength(1);
     expect(service["authenticate"]).toHaveBeenCalledTimes(4);
     expect(requireSession).not.toHaveBeenCalled();
@@ -363,15 +369,15 @@ describe("agent API key scope", () => {
 
   it("lets a read key list and get but refuses every ledger write with 403", async () => {
     const { client, agentOps } = harness(session(), ["user-a@domain.test"], {
+      access: "read",
       email: "user-a@domain.test",
       emailVerified: true,
-      access: "read",
     });
     const reader = client({ apiKey: PLAINTEXT });
     expect((await reader.papers.list({})).papers).toHaveLength(1);
     await reader.agentOps.tasks.list({});
     await expectCode(
-      reader.agentOps.tasks.create({ kind: "ops", agent: "a", title: "t" }),
+      reader.agentOps.tasks.create({ agent: "a", kind: "ops", title: "t" }),
       "FORBIDDEN",
       403
     );
@@ -409,8 +415,8 @@ describe("agent API key scope", () => {
     );
     await expectCode(
       client({ apiKey: "" }).agentOps.tasks.create({
-        kind: "ops",
         agent: "a",
+        kind: "ops",
         title: "t",
       }),
       "UNAUTHORIZED",
@@ -472,13 +478,13 @@ describe("agentApiKeys session-only management", () => {
     expect(created.key).toBe(PLAINTEXT);
     expect(created.apiKey).toMatchObject({
       id: "key-1",
+      lastUsedAt: null,
       name: "omp-rig",
       start: "vrk_AA",
-      lastUsedAt: null,
     });
     expect(service["create"].mock.calls[0]?.[1]).toEqual({
-      name: "omp-rig",
       access: "read",
+      name: "omp-rig",
     });
     const listed = await browser.agentApiKeys.list({});
     expect(listed.keys).toHaveLength(1);
@@ -591,7 +597,7 @@ describe("operator allow-list (requireOperator)", () => {
     await expectCode(
       closed
         .client({ apiKey: PLAINTEXT })
-        .agentOps.tasks.create({ kind: "ops", agent: "a", title: "t" }),
+        .agentOps.tasks.create({ agent: "a", kind: "ops", title: "t" }),
       "FORBIDDEN",
       403
     );

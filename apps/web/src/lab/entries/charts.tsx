@@ -24,12 +24,14 @@ import {
   createFakeOptionsChainGateway,
 } from "../../features/stock-detail/fake-gateways.ts";
 import { StockDetailWorkspace } from "../../features/stock-detail/stock-detail-workspace.tsx";
-import { labReadOnly } from "../fixtures/core.ts";
+import { LAB_NOW, labBasePrice, labReadOnly } from "../fixtures/core.ts";
+import { labFlowControl } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import {
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labGreekHeatmap,
   labIvHistory,
   labJevVerdict,
   labMacroOutput,
@@ -44,6 +46,8 @@ const labMarketDataGateway: MarketDataGateway = {
 };
 
 export const labOptionsAnalyticsGateway: OptionsAnalyticsGateway = {
+  flowControl: ({ group }) => Promise.resolve(labFlowControl(group)),
+  greekHeatmap: (input) => Promise.resolve(labGreekHeatmap(input.symbol)),
   snapshot: (input) =>
     Promise.resolve(
       labOptionsAnalytics(input.symbol, Number(input.flowHours ?? 24))
@@ -93,6 +97,21 @@ const labChartsOpenbb: Pick<OpenbbGateway, "macro"> = {
 // The stock page's own dummy gateways (deterministic bars and a Black-Scholes chain).
 const labStockMarketData = createFakeMarketDataGateway();
 const labStockOptionsChain = createFakeOptionsChainGateway();
+// Aligned to LAB_NOW and labBarsOutput close prices so /lab/charts cones sit on-canvas.
+const labChartsOptionsChain = createFakeOptionsChainGateway({
+  now: LAB_NOW,
+  spotFor: (symbol) =>
+    labBarsOutput({
+      barSize: "1 day",
+      currency: "USD",
+      duration: "6 M",
+      exchange: "SMART",
+      secType: "STK",
+      symbol,
+      useRTH: true,
+      whatToShow: "TRADES",
+    }).bars.reduce((_, bar) => bar.c, labBasePrice(symbol)),
+});
 
 export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
   {
@@ -104,11 +123,12 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
         <ChartsWorkspace
           backtests={labChartsBacktests}
           flowEvents={labFlowEventsGateway}
+          ivHistory={labOpenbbIvHistoryGateway}
           jevVerdict={labJevVerdictGateway}
           marketData={labMarketDataGateway}
-          ivHistory={labOpenbbIvHistoryGateway}
           openbb={labChartsOpenbb}
           optionsAnalytics={labOptionsAnalyticsGateway}
+          optionsChain={labChartsOptionsChain}
           orderFlow={
             readLabChoice(params, "depth", ["ok", "entitlement"], "ok") ===
             "entitlement"
@@ -132,6 +152,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
           <StockDetailWorkspace
             ivHistory={labOpenbbIvHistoryGateway}
             marketData={labStockMarketData}
+            operator
             optionsAnalytics={labOptionsAnalyticsGateway}
             optionsChain={labStockOptionsChain}
             symbol={symbol}

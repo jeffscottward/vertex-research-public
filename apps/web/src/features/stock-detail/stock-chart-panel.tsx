@@ -1,9 +1,13 @@
 "use client";
 
-import type { MarketBarsOutput } from "@darkfactory/api";
+import type { MarketBarsOutput, OptionsChainExpiry } from "@darkfactory/api";
 import { Panel } from "@darkfactory/ui";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
+import {
+  ExpectedMoveBar,
+  type ExpectedMoveLoadState,
+} from "../../components/portal/expected-move-bar.tsx";
 import {
   describeMarketDataFailure,
   type MarketDataFailure,
@@ -20,6 +24,11 @@ import {
   INTERVAL_BARS,
 } from "../charts/chart-intervals.ts";
 import { ChartToolbar } from "../charts/chart-toolbar.tsx";
+import {
+  barSpacing,
+  expectedMoveTargetIndex,
+  toExpectedMoveCone,
+} from "../charts/expected-move-overlay.ts";
 import { barsToDisplayCandles } from "../charts/market-bars.ts";
 import { ChartRendererBoundary } from "../charts/renderer-host.tsx";
 import type { ChartMarker } from "../charts/types.ts";
@@ -39,11 +48,20 @@ type BarsState =
   | Readonly<{ type: "ready"; data: MarketBarsOutput }>
   | Readonly<{ type: "error"; failure: MarketDataFailure }>;
 
+export type StockExpectedMoveProps = Readonly<{
+  state: ExpectedMoveLoadState;
+  expiries: readonly OptionsChainExpiry[];
+  selectedExpiry: string | null;
+  onExpiry: (expiry: string) => void;
+  onRetry: () => void;
+}>;
+
 export type StockChartPanelProps = Readonly<{
   symbol: string;
   interval: ChartInterval;
   onInterval: (interval: ChartInterval) => void;
   marketData: MarketDataGateway;
+  expectedMove: StockExpectedMoveProps;
 }>;
 
 export const StockChartPanel = ({
@@ -51,12 +69,14 @@ export const StockChartPanel = ({
   interval,
   onInterval,
   marketData,
+  expectedMove,
 }: StockChartPanelProps) => {
   const [bars, setBars] = useState<BarsState>({ type: "loading" });
   const [indicators, setIndicators] = useState<readonly ChartIndicatorKey[]>(
     DEFAULT_CHART_INDICATORS
   );
   const [volume, setVolume] = useState(true);
+  const [showExpectedMove, setShowExpectedMove] = useState(true);
   const request = INTERVAL_BARS[interval];
 
   useEffect(() => {
@@ -102,6 +122,24 @@ export const StockChartPanel = ({
     () => studiesFor(volume, indicators),
     [volume, indicators]
   );
+  const expectedMoveCone = useMemo(
+    () =>
+      showExpectedMove && expectedMove.state.type === "ready"
+        ? toExpectedMoveCone(expectedMove.state.data)
+        : null,
+    [showExpectedMove, expectedMove.state]
+  );
+  const horizonScale = useMemo(() => {
+    if (expectedMoveCone === null) return null;
+    const timestamps = candles.map((bar) => bar.timestamp);
+    return (
+      expectedMoveTargetIndex(
+        timestamps,
+        expectedMoveCone.expiryCloseMs,
+        barSpacing(timestamps)
+      )?.horizonScale ?? null
+    );
+  }, [expectedMoveCone, candles]);
 
   return (
     <Panel
@@ -121,6 +159,28 @@ export const StockChartPanel = ({
           onInterval={onInterval}
           onVolume={setVolume}
           volume={volume}
+        >
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+            <input
+              checked={showExpectedMove}
+              className="size-4"
+              data-expected-move-toggle=""
+              onChange={(event) => setShowExpectedMove(event.target.checked)}
+              type="checkbox"
+            />
+            Expected move
+          </label>
+        </ChartToolbar>
+        <ExpectedMoveBar
+          enabled={showExpectedMove}
+          errorRole="status"
+          expiries={expectedMove.expiries}
+          horizonScale={horizonScale}
+          onExpiry={expectedMove.onExpiry}
+          onRetry={expectedMove.onRetry}
+          priceDigits={2}
+          selectedExpiry={expectedMove.selectedExpiry}
+          state={expectedMove.state}
         />
         {bars.type === "loading" ? (
           <p
@@ -151,6 +211,7 @@ export const StockChartPanel = ({
             >
               <LazyMarketBarsChart
                 candles={candles}
+                expectedMove={expectedMoveCone}
                 label={`${symbol} ${interval} price chart`}
                 markers={NO_MARKERS}
                 pricePrecision={2}

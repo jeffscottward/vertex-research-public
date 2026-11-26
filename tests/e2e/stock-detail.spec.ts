@@ -63,8 +63,12 @@ const mockMarketData = async (page: Page) => {
       })
     );
   });
-  // The analytics tab is not opened here; any snapshot request stays pending.
+  // The analytics tab is not opened here; any snapshot/heatmap request stays pending.
   await page.route("**/api/orpc/optionsAnalytics/snapshot**", () => undefined);
+  await page.route(
+    "**/api/orpc/optionsAnalytics/greekHeatmap**",
+    () => undefined
+  );
 };
 
 test.beforeAll(() => resetDatabase());
@@ -94,10 +98,13 @@ test("stock detail opens with chart and options chain, all Greeks, no input", as
   for (const button of ["Overlay", "Study"])
     await expect(page.locator(`[data-chart-menu="${button}"]`)).toBeVisible();
 
-  const expiry = page.getByRole("combobox", { name: "Expiry" });
+  const expiry = page.getByRole("combobox", { exact: true, name: "Expiry" });
   await expiry.selectOption("2026-12-18");
   await expect(page).toHaveURL(/\?expiry=2026-12-18$/u);
   await expect(page.locator('[data-options-chain="2026-12-18"]')).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { exact: true, name: "Expected move expiry" })
+  ).toHaveValue("2026-12-18");
 
   await page.getByRole("button", { name: "1W" }).click();
   await expect(page).toHaveURL(/interval=1W/u);

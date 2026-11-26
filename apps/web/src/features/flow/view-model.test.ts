@@ -20,13 +20,13 @@ import {
   neverCollected,
   notCollectedLine,
   optionPrintRows,
-  VOTE_LABELS,
-  VOTE_TONE,
-  voteTone,
   optionsMetrics,
   orderFlowMetrics,
   pressureText,
   shortTermBadge,
+  VOTE_LABELS,
+  VOTE_TONE,
+  voteTone,
   windowLabel,
 } from "./view-model.ts";
 
@@ -208,9 +208,20 @@ describe("flow view model", () => {
       zeroDtePremiumShare: null,
     });
     expect(metricValue(empty, "Put/call premium")).toBe("no call premium");
-    for (const label of ["OTM share", "0DTE share", "Opening share"]) {
+    for (const label of ["OTM share", "0DTE share"]) {
       expect(metricValue(empty, label)).toBe("no option premium");
     }
+    // Premium but no known Opening flag: every print reported open interest 0.
+    expect(metricValue(empty, "Opening share")).toBe(
+      "no Opening flag: every print reports open interest 0"
+    );
+    const noPremium = optionsMetrics({
+      ...spy.optionsFlow,
+      callPremium: 0,
+      openingPremiumShare: null,
+      putPremium: 0,
+    });
+    expect(metricValue(noPremium, "Opening share")).toBe("no option premium");
   });
 
   it("formats top option prints with their flags", () => {
@@ -537,14 +548,12 @@ describe("four symbols and the short-term badge", () => {
     );
   });
 
-  it("names what is not collected for QQQ and NQ and nothing for SPY and ES", () => {
+  it("names what is not collected for QQQ and nothing for SPY, ES and NQ", () => {
     expect(notCollectedLine("SPY")).toBeNull();
     expect(notCollectedLine("ES")).toBeNull();
+    expect(notCollectedLine("NQ")).toBeNull();
     expect(notCollectedLine("QQQ")).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
-    );
-    expect(notCollectedLine("NQ")).toBe(
-      "Not collected for NQ: option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+      "Not collected for QQQ: trades. The IBKR budget goes to ES, NQ and SPY."
     );
   });
 });

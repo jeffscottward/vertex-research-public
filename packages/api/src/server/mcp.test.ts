@@ -71,6 +71,7 @@ describe("MCP tool registry", () => {
       "master_rules_search",
       "flow_snapshot",
       "flow_control",
+      "flow_option_prints",
       "openbb_status",
       "openbb_vol_context",
       "openbb_iv_history",
@@ -83,6 +84,7 @@ describe("MCP tool registry", () => {
       "openbb_congress_trades",
       "openbb_smart_money_ranking",
       "openbb_insider_clusters",
+      "openbb_13f_changes",
       "market_notes_list",
       "strategies_list",
       "strategies_get",
@@ -696,7 +698,14 @@ describe("callMcpTool", () => {
   });
 
   it("returns the GEX headline and its context from options_gex_context", async () => {
-    const context = { factors: [], regime: "positive" };
+    const context = {
+      factors: [],
+      profile: [
+        { gex: -250_000, spot: 90 },
+        { gex: 400_000, spot: 110 },
+      ],
+      regime: "positive",
+    };
     const value = {
       context,
       exposure: {
@@ -727,8 +736,9 @@ describe("callMcpTool", () => {
       flowHours: 6,
       symbol: "AAPL",
     });
-    expect(result["structuredContent"]).toEqual({
-      context,
+    const structured = result["structuredContent"] as Record<string, unknown>;
+    expect(structured).toEqual({
+      context: { factors: [], regime: "positive" },
       exposure: {
         displayedStrikeCount: 2,
         gexExpiry: "2026-11-09",
@@ -746,6 +756,9 @@ describe("callMcpTool", () => {
       spot: 101,
       symbol: "AAPL",
     });
+    expect(
+      "profile" in (structured["context"] as Record<string, unknown>)
+    ).toBe(false);
     const rejected = await callMcpTool(
       "options_gex_context",
       { flowHours: 2, symbol: "AAPL" },
@@ -754,7 +767,25 @@ describe("callMcpTool", () => {
     expect(rejected["isError"]).toBe(true);
     expect(presentGexContext(null)).toBeNull();
     expect(presentGexContext({ symbol: "X" })).toEqual({ symbol: "X" });
-    const noFlow = { exposure: value.exposure, flow: null };
+    const noContext = {
+      context: null,
+      exposure: value.exposure,
+      flow: value.flow,
+    };
+    expect(presentGexContext(noContext)).toBe(noContext);
+    const arrayContext = {
+      context: [],
+      exposure: value.exposure,
+      flow: value.flow,
+    };
+    expect(presentGexContext(arrayContext)).toBe(arrayContext);
+    const noExposure = { context, exposure: null, flow: value.flow };
+    expect(presentGexContext(noExposure)).toBe(noExposure);
+    expect(presentGexContext({ context, symbol: "X" })).toEqual({
+      context,
+      symbol: "X",
+    });
+    const noFlow = { context, exposure: value.exposure, flow: null };
     return expect(presentGexContext(noFlow)).toBe(noFlow);
   });
 
@@ -1047,3 +1078,56 @@ describe("procedureResultFromResponse", () =>
       await procedureResultFromResponse(new Response("x", { status: 502 }))
     ).toEqual({ code: "ERROR", message: "HTTP 502", ok: false, status: 502 });
   }));
+
+describe("openbb_13f_changes MCP presenter", () => {
+  it("caps presented rows at 50, truncates long strings, and rejects invalid shapes", () => {
+    const tool = MCP_TOOLS.find((entry) => entry.name === "openbb_13f_changes");
+    expect(tool?.readOnly).toBe(true);
+    const present = tool?.present;
+    expect(present).toBeTypeOf("function");
+    expect(present?.({ bad: true }, {})).toEqual({
+      changes: [],
+      context:
+        "13F changes omitted: the response did not match the 13F changes schema.",
+    });
+    const longName = "A".repeat(200);
+    const rows = Array.from({ length: 55 }, (_, idx) => ({
+      accessionNumber: `0001193125-26-${String(idx).padStart(6, "0")}`,
+      change: "added" as const,
+      cusip: "037833100",
+      delayDays: 42,
+      filedOn: "2026-11-11",
+      filerCik: "1067983",
+      filerName: longName,
+      issuer: "Apple Inc.",
+      optionType: "" as const,
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: 100,
+      previousValue: 10_000,
+      shares: 200,
+      symbol: "AAPL",
+      value: 20_000,
+    }));
+    const presented = present?.(
+      {
+        changes: rows,
+        coverage: {
+          filersWithTwoBooks: 10,
+          lastOkAt: "2026-11-23T12:00:00.000Z",
+          lastRunAt: "2026-11-23T12:00:00.000Z",
+          lastStatus: "ok",
+          overdue: false,
+          overdueSince: null,
+          totalFilers: 23,
+        },
+        delay: "45 days",
+        receivedAt: "2026-11-23T12:00:00.000Z",
+        source: "SEC 13F-HR",
+      },
+      {}
+    ) as { changes: unknown[]; changesOmitted: number };
+    expect(presented.changes).toHaveLength(50);
+    expect(presented.changesOmitted).toBe(5);
+  });
+});

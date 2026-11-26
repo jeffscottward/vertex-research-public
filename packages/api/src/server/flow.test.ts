@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   FlowHedgingPressureSchema,
+  FlowOptionBubblesSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
@@ -122,17 +123,33 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readBookSnapshots: vi.fn(async () => []),
     readEvents: vi.fn(async () => []),
     readHedgingPrints: vi.fn(async () => []),
+    readLargeOptionPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
-    readMinutes: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
+    readMinutes: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
     readOptionPrintMinutes: vi.fn(async () => []),
     readOptionPrintSlotPrices: vi.fn(async () => []),
     readOptionPrintStrikeBuckets: vi.fn(async () => []),
     readOptionStrikeTotals: vi.fn(async () => []),
+    readOptionTape: vi.fn<FlowRepository["readOptionTape"]>(async () => ({
+      prints: [],
+      summary: {
+        bearishPremium: 0,
+        blocks: 0,
+        bullishPremium: 0,
+        callPremium: 0,
+        goldenSweeps: 0,
+        putPremium: 0,
+        sweeps: 0,
+        trades: 0,
+        unusualCount: 0,
+      },
+    })),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
+    recentSamples: vi.fn(async () => []),
     recordSample: vi.fn(async () => undefined),
     storeMarketPremium: vi.fn(async () => 0),
     upsertBookSnapshots: vi.fn(async (rows: readonly unknown[]) => rows.length),
@@ -380,7 +397,7 @@ describe("flow.collect", () => {
     expect(output.budget).toEqual({
       ibkrLimit: 6,
       ibkrRecent: null,
-      quantDataFree: 24 - quantDataFetch.mock.calls.length,
+      quantDataFree: 48 - quantDataFetch.mock.calls.length,
       quantDataReserve: 6,
       runSeconds: 0,
     });
@@ -1868,6 +1885,145 @@ describe("flow.strikeHeatmap", () => {
   });
 });
 
+describe("flow.optionBubbles", () => {
+  const FRIDAY = new Date("2026-11-20T16:00:00.000Z");
+  const SESSION_FROM = new Date("2026-11-20T14:30:00.000Z");
+  const SESSION_TO = new Date("2026-11-20T21:15:00.000Z");
+
+  it("reads option print minutes, large prints, gaps and options sample for the newest session", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      readLargeOptionPrints: vi.fn<FlowRepository["readLargeOptionPrints"]>(
+        async () => [
+          {
+            ask: 3.4,
+            bid: 3.3,
+            consolidation: "sweep",
+            dte: 4,
+            expiry: "2026-11-24",
+            goldenSweep: true,
+            id: "bub-1",
+            iv: 17.5,
+            moneyness: "otm",
+            moneynessPct: 0.4,
+            openInterest: 1000,
+            opening: true,
+            premium: 850_000,
+            price: 3.4,
+            right: "call",
+            sentiment: "bullish",
+            side: "above_ask",
+            size: 2500,
+            strike: 686,
+            symbol: "SPY",
+            ticker: "SPY",
+            tradedAt: new Date("2026-11-20T15:10:15.000Z"),
+            underlyingPrice: 683.8,
+            unusual: true,
+            volume: 3200,
+            volumeOverOi: true,
+          },
+        ]
+      ),
+      readOptionPrintMinutes: vi.fn(async () => [
+        {
+          callPremium: 900_000,
+          callPrints: 3,
+          callVolume: 2800,
+          lastPrice: 683.8,
+          lastTradedAt: new Date("2026-11-20T15:10:45.000Z"),
+          minute: new Date("2026-11-20T15:10:00.000Z"),
+          putPremium: 120_000,
+          putPrints: 1,
+          putVolume: 400,
+        },
+      ]),
+    });
+    const response = await clientFor(repository).optionBubbles({
+      minPremiumUsd: 500_000,
+      symbol: "SPY",
+    });
+    expect(repository.newestOptionPrintAt).toHaveBeenCalledWith("SPY");
+    expect(repository.readOptionPrintMinutes).toHaveBeenCalledWith({
+      from: SESSION_FROM,
+      symbol: "SPY",
+      to: SESSION_TO,
+    });
+    expect(repository.readLargeOptionPrints).toHaveBeenCalledWith({
+      from: SESSION_FROM,
+      limit: 121,
+      minPremiumUsd: 500_000,
+      symbol: "SPY",
+      to: SESSION_TO,
+    });
+    expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      minPremiumUsd: 500_000,
+      schemaVersion: "flow-option-bubbles.v1",
+      session: "2026-11-20",
+      symbol: "SPY",
+      ticker: "SPY",
+    });
+    expect(response.bubbles).toHaveLength(1);
+    expect(response.pricePoints).toHaveLength(1);
+  });
+
+  it("returns an empty response without print reads when no option print is stored", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => null),
+    });
+    const response = await clientFor(repository).optionBubbles({
+      symbol: "ES",
+    });
+    expect(repository.readOptionPrintMinutes).not.toHaveBeenCalled();
+    expect(repository.readLargeOptionPrints).not.toHaveBeenCalled();
+    expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      bubbles: [],
+      minPremiumUsd: 250_000,
+      pricePoints: [],
+      session: null,
+      symbol: "ES",
+      ticker: "SPX",
+    });
+  });
+
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "optionBubbles"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.optionBubbles")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "optionBubbles"])).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.optionBubbles({ symbol: "SPY" }), "FORBIDDEN");
+    expect(repository.newestOptionPrintAt).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository and on a failed read", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    await expectStorageError(
+      clientFor(undefined).optionBubbles({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      readLargeOptionPrints: vi.fn(async () => {
+        throw new Error("db timeout");
+      }),
+    });
+    await expectStorageError(
+      clientFor(repository).optionBubbles({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
+  });
+});
+
 describe("flow.liquidityHeatmap handler", () => {
   it("reads stored book snapshots and large trades for operators and maps repository failures to STORAGE_ERROR", async () => {
     const repository = fakeRepository();
@@ -1890,6 +2046,135 @@ describe("flow.liquidityHeatmap handler", () => {
       clientFor(broken).liquidityHeatmap({ minutes: 60, symbol: "NQ" }),
       DATABASE_FAILED
     );
+  });
+});
+
+describe("flow.liveDom and flow.liveDomStream handlers", () => {
+  it("serves recorded fallback when marketHistory is null, maps DB failures, and enforces session-only auth", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository);
+
+    const frame = await client.liveDom({ symbol: "ES" });
+    expect(frame.symbol).toBe("ES");
+    expect(frame.source).toBe("empty");
+    expect(repository.readBookSnapshots).toHaveBeenCalledTimes(1);
+
+    const stream = await client.liveDomStream({ symbol: "ES" });
+    const events: string[] = [];
+    for await (const event of stream) events.push(event.type);
+    expect(events).toEqual(["frame", "reconnect"]);
+
+    // Configured marketHistory calls fetchMarketDom and gracefully falls back on network failure
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+    try {
+      const withHistory = clientFor(repository, {
+        marketHistory: {
+          token: "t".repeat(40),
+          url: "https://history.example.test/vertex-history/v1",
+        },
+      });
+      const out = await withHistory.liveDom({ symbol: "NQ" });
+      expect(out.symbol).toBe("NQ");
+      expect(out.source).toBe("empty");
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    expect(isAgentApiKeyProcedurePath(["flow", "liveDom"])).toBe(false);
+    expect(isAgentApiKeyProcedurePath(["flow", "liveDomStream"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.liveDom")).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.liveDomStream")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "liveDom"])).toBe(true);
+    expect(isAgentViewerReadProcedure(["flow", "liveDomStream"])).toBe(true);
+
+    const broken = fakeRepository({
+      readBookSnapshots: vi.fn(async () => {
+        throw new Error("db timeout");
+      }),
+    });
+    await expectStorageError(
+      clientFor(broken).liveDom({ symbol: "ES" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(broken).liveDomStream({ symbol: "ES" }),
+      DATABASE_FAILED
+    );
+  });
+});
+
+describe("flow.tradeBubbles handler", () => {
+  it("reads stored minute bars and deep trades for operators, allows agent viewers, refuses API keys, and maps failures to STORAGE_ERROR", async () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "tradeBubbles"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.tradeBubbles")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "tradeBubbles"])).toBe(true);
+
+    const repository = fakeRepository();
+    const client = clientFor(repository);
+    const out = await client.tradeBubbles({
+      minutes: 60,
+      symbol: "ES",
+    });
+    expect(out.symbol).toBe("ES");
+    expect(out.captureMode).toBe("none");
+    expect(repository.readMinutes).toHaveBeenCalledTimes(1);
+    expect(repository.readLargeTrades).toHaveBeenCalledTimes(1);
+
+    const broken = fakeRepository({
+      readLargeTrades: vi.fn(async () => {
+        throw new Error("db unavailable");
+      }),
+    });
+    await expectStorageError(
+      clientFor(broken).tradeBubbles({ minutes: 60, symbol: "NQ" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(undefined).tradeBubbles({ minutes: 60, symbol: "ES" }),
+      NOT_CONFIGURED
+    );
+  });
+});
+
+describe("flow.optionPrints", () => {
+  it("returns flow-option-prints.v1 with source, delay, summary and freshness for all 6 tickers", async () => {
+    const repo = fakeRepository({
+      readOptionTape: vi.fn(async () => ({
+        prints: [],
+        summary: {
+          bearishPremium: 10_000,
+          blocks: 1,
+          bullishPremium: 90_000,
+          callPremium: 80_000,
+          goldenSweeps: 0,
+          putPremium: 20_000,
+          sweeps: 2,
+          trades: 5,
+          unusualCount: 1,
+        },
+      })),
+    });
+    const out = await clientFor(repo).optionPrints({
+      limit: 25,
+      ticker: "NVDA",
+      windowMinutes: 60,
+    });
+    expect(out.schemaVersion).toBe("flow-option-prints.v1");
+    expect(out.ticker).toBe("NVDA");
+    expect(out.symbol).toBe("NVDA");
+    expect(out.source).toBe("QuantData order-flow/consolidated");
+    expect(out.delay).toContain("09:30-16:00 ET");
+    expect(out.summary.trades).toBe(5);
+    expect(out.unreadRanges).toBe(0);
+  });
+
+  it("is open to read API keys (for MCP flow_option_prints) and the viewer account", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "optionPrints"])).toBe(true);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.optionPrints")).toBe(true);
+    expect(isAgentViewerReadProcedure(["flow", "optionPrints"])).toBe(true);
   });
 });
 
@@ -1943,8 +2228,8 @@ describe("flow.offExchangeLevels", () => {
           coveredSeconds: 60,
           delta: 20_000,
           high: 592.6,
-          largePrintVolume: 25_000,
           largePrints: 1,
+          largePrintVolume: 25_000,
           low: 592.2,
           minute: new Date("2026-11-13T14:35:00.000Z"),
           offExchangeVolume: 40_000,

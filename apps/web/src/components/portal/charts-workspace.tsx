@@ -91,6 +91,10 @@ import {
   flowEventsToChartMarkers,
   ORDER_FLOW_MARKER_KINDS,
 } from "../../features/order-flow/order-flow-markers.ts";
+import {
+  createBrowserOptionsChainGateway,
+  type OptionsChainGateway,
+} from "../../features/stock-detail/options-chain-client.ts";
 import { statusTime, TIME_NOT_REPORTED } from "../status-time.ts";
 import {
   type BacktestsGateway,
@@ -104,11 +108,13 @@ import {
   ReturnStatsTable,
   SessionTable,
 } from "./charts-analysis-panels.tsx";
+import { ExpectedMoveBar } from "./expected-move-bar.tsx";
 import {
   createBrowserFlowEventsGateway,
   type FlowEventsGateway,
   isFlowInstrument,
 } from "./flow-events-client.ts";
+import { FuturesOiPanel } from "./futures-oi-panel.tsx";
 import { IvRankHistoryPanel } from "./iv-rank-history-panel.tsx";
 import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
@@ -118,7 +124,6 @@ import {
   type MarketDataFailure,
   type MarketDataGateway,
 } from "./market-data-client.ts";
-import { FuturesOiPanel } from "./futures-oi-panel.tsx";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "./options-analytics-panel.tsx";
 import {
@@ -126,6 +131,7 @@ import {
   OrderFlowMarksBar,
 } from "./order-flow-marks-bar.tsx";
 import { OrderFlowPanel } from "./order-flow-panel.tsx";
+import { useExpectedMoveView } from "./use-expected-move.ts";
 import { useFuturesOi } from "./use-futures-oi.ts";
 
 // Fetch time for a title. A text that is not an ISO time with a zone is shown as sent,
@@ -165,6 +171,24 @@ const DEFAULT_CHARTS_FORM: ChartsForm = Object.freeze({
   whatToShow: "TRADES",
 });
 
+// IBKR has no TRADES data for forex, so a CASH chart is MIDPOINT only. The value is derived here and
+// not written into the form, so the operator's own Data choice is back after a forex chart.
+const whatToShowFor = ({
+  secType,
+  whatToShow,
+}: Pick<ChartsForm, "secType" | "whatToShow">): ChartsForm["whatToShow"] =>
+  secType === "CASH" ? "MIDPOINT" : whatToShow;
+
+// A forex pair is the base symbol plus the quote currency (EUR.USD); other markets show the symbol.
+const marketLabel = ({
+  symbol,
+  secType,
+  currency,
+}: Pick<ChartsForm, "symbol" | "secType" | "currency">): string => {
+  const base = symbol.trim().toUpperCase();
+  return secType === "CASH" ? `${base}.${currency.trim().toUpperCase()}` : base;
+};
+
 const buildBarsInput = (form: ChartsForm): MarketBarsInput => {
   const exchange = form.exchange.trim().toUpperCase();
   const contractMonth = form.contractMonth.trim();
@@ -176,7 +200,7 @@ const buildBarsInput = (form: ChartsForm): MarketBarsInput => {
     currency: form.currency.trim().toUpperCase(),
     duration: form.duration,
     useRTH: form.useRTH,
-    whatToShow: form.whatToShow,
+    whatToShow: whatToShowFor(form),
     ...(form.secType === "FUT" && contractMonth !== ""
       ? { contractMonth }
       : {}),
@@ -280,12 +304,13 @@ const LinkError = ({ message }: { readonly message: string | null }) =>
     </p>
   );
 
-// SMART routing applies to stocks; futures need a venue (CME by default).
-const DEFAULT_EXCHANGES = ["SMART", "CME"];
+// SMART routing applies to stocks, IDEALPRO to forex; futures need a venue (CME by default).
+const DEFAULT_EXCHANGES = ["SMART", "CME", "IDEALPRO"];
 const exchangeFor = (secType: MarketSecType, current: string): string => {
   const value = current.trim().toUpperCase();
   const preset = value === "" || DEFAULT_EXCHANGES.includes(value);
   if (secType === "STK") return preset ? "SMART" : current;
+  if (secType === "CASH") return preset ? "IDEALPRO" : current;
   return preset ? "CME" : current;
 };
 
@@ -298,13 +323,18 @@ const future = (symbol: string) =>
   ({ currency: "USD", exchange: "CME", secType: "CONTFUT", symbol }) as const;
 const stock = (symbol: string) =>
   ({ currency: "USD", exchange: "SMART", secType: "STK", symbol }) as const;
+const forex = (symbol: string, currency: string) =>
+  ({ currency, exchange: "IDEALPRO", secType: "CASH", symbol }) as const;
 
-// Common markets for the charts picker.
+// Common markets for the charts picker; a forex pair is base symbol + quote currency.
 const QUICK_PICKS: readonly QuickPick[] = [
   { label: "ES (E-mini S&P)", market: future("ES") },
   { label: "NQ (E-mini Nasdaq)", market: future("NQ") },
   { label: "SPY", market: stock("SPY") },
   { label: "QQQ", market: stock("QQQ") },
+  { label: "EUR.USD", market: forex("EUR", "USD") },
+  { label: "USD.JPY", market: forex("USD", "JPY") },
+  { label: "GBP.USD", market: forex("GBP", "USD") },
 ];
 
 type BarsState =
@@ -331,6 +361,7 @@ const OPEN_INTEREST_DAILY_HINT =
   "Open interest is a daily figure. Choose the 1D interval to see it.";
 
 const SEC_TYPE_LABELS: Readonly<Record<MarketSecType, string>> = {
+  CASH: "Forex (CASH)",
   CONTFUT: "Continuous future (CONTFUT)",
   FUT: "Future (FUT)",
   STK: "Stock (STK)",
@@ -556,9 +587,12 @@ const BarsForm = ({
                   whatToShow: event.target.value as ChartsForm["whatToShow"],
                 })
               }
-              value={form.whatToShow}
+              value={whatToShowFor(form)}
             >
-              {MARKET_WHAT_TO_SHOW.map((value) => (
+              {(form.secType === "CASH"
+                ? (["MIDPOINT"] as const)
+                : MARKET_WHAT_TO_SHOW
+              ).map((value) => (
                 <option key={value} value={value}>
                   {value}
                 </option>
@@ -751,12 +785,14 @@ export interface ChartsWorkspaceProps {
   // Reads the stored CME open-interest series of ES and NQ (daily futures charts only).
   readonly openbb?: Pick<OpenbbGateway, "macro">;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
+  readonly optionsChain?: Pick<OptionsChainGateway, "expectedMove">;
   readonly orderFlow?: OrderFlowGateway;
 }
 
 export const ChartsWorkspace = ({
   marketData: suppliedMarketData,
   optionsAnalytics,
+  optionsChain: suppliedOptionsChain,
   jevVerdict,
   ivHistory,
   orderFlow,
@@ -777,6 +813,9 @@ export const ChartsWorkspace = ({
   );
   const [flowEvents] = useState(
     () => suppliedFlowEvents ?? createBrowserFlowEventsGateway()
+  );
+  const [optionsChain] = useState(
+    () => suppliedOptionsChain ?? createBrowserOptionsChainGateway()
   );
   const [form, setForm] = useState<ChartsForm>(DEFAULT_CHARTS_FORM);
   // Null when the settings request a bar size and duration no interval button matches.
@@ -1027,8 +1066,16 @@ export const ChartsWorkspace = ({
     aggregate !== null,
     replayCandles
   );
+  const expectedMove = useExpectedMoveView({
+    candles: replayCandles,
+    currency: data?.request.currency ?? null,
+    gateway: optionsChain,
+    replayActive: replay.active,
+    secType: data?.request.secType ?? null,
+    symbol: data?.request.symbol ?? null,
+  });
 
-  const shown = data?.request.symbol ?? form.symbol.trim().toUpperCase();
+  const shown = marketLabel(data?.request ?? form);
   const stockLink =
     data !== null && data.request.secType === "STK"
       ? data.request.symbol
@@ -1117,6 +1164,20 @@ export const ChartsWorkspace = ({
               />
               Order-flow marks
             </label>
+            {expectedMove.eligible ? (
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+                <input
+                  checked={expectedMove.enabled}
+                  className="size-4"
+                  data-expected-move-toggle=""
+                  onChange={(event) =>
+                    expectedMove.setEnabled(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                Expected move
+              </label>
+            ) : null}
           </ChartToolbar>
           <OrderFlowMarksBar
             enabled={showFlowMarks}
@@ -1124,6 +1185,19 @@ export const ChartsWorkspace = ({
             state={flowEventsState}
             summary={flowMarkerOverlay}
           />
+          {expectedMove.eligible ? (
+            <ExpectedMoveBar
+              enabled={expectedMove.enabled}
+              expiries={expectedMove.expiries}
+              horizonScale={expectedMove.horizonScale}
+              onExpiry={expectedMove.onExpiry}
+              onRetry={expectedMove.onRetry}
+              priceDigits={data === null ? 2 : pricePrecisionFor(data)}
+              replayActive={replay.active}
+              selectedExpiry={expectedMove.selectedExpiry}
+              state={expectedMove.state}
+            />
+          ) : null}
           {trades.type === "loading" ? (
             <p aria-busy="true" className="text-muted-foreground text-xs">
               Loading trades…
@@ -1184,6 +1258,7 @@ export const ChartsWorkspace = ({
                   >
                     <LazyMarketBarsChart
                       candles={replayCandles}
+                      expectedMove={expectedMove.cone}
                       label={`${data.contract.localSymbol} ${interval ?? data.request.barSize} bars`}
                       markers={markers}
                       pricePrecision={pricePrecisionFor(data)}
@@ -1216,8 +1291,8 @@ export const ChartsWorkspace = ({
           <Analysis data={data} />
         </Panel>
       )}
-      {/* Lazy: fetches nothing until the operator presses Load order flow. */}
-      {data === null ? null : (
+      {/* Lazy: fetches nothing until the operator presses Load order flow. Forex has no ticks or depth. */}
+      {data === null || data.request.secType === "CASH" ? null : (
         <OrderFlowPanel
           gateway={orderFlow}
           instrument={{

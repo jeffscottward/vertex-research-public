@@ -432,13 +432,25 @@ describe("Vertex rendered research states", () => {
     );
     for (const text of [
       module.moduleId,
-      "unavailable",
+      "not reachable in catalog",
       "not-connected",
       "candles",
       "point-in-time required",
       digest,
     ])
       expect(html).toContain(text);
+    expect(html).not.toContain(">unavailable<");
+    const unknownStateHtml = renderToStaticMarkup(
+      <ModuleResults
+        retry={() => undefined}
+        state={{
+          type: "ready",
+          value: [{ ...module, lifecycleState: "unknown" }],
+        }}
+      />
+    );
+    expect(unknownStateHtml).toContain("not reported by catalog");
+    expect(unknownStateHtml).not.toContain(">unknown<");
     expect(html).not.toContain("Activate");
     const empty = {
       ...module,

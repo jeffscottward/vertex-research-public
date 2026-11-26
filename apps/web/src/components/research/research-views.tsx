@@ -4,6 +4,7 @@ import type { ModuleManifest } from "@darkfactory/api/vertex";
 import { ArrowUpRight, RotateCcw } from "lucide-react";
 import type { VertexFailure } from "./vertex-client.ts";
 import type { ReadState } from "./read-resource.ts";
+import { moduleLifecycleStateLabel } from "../../features/experience/status-labels.ts";
 
 export const ResearchHeading = ({
   title,
@@ -134,7 +135,9 @@ export const ModuleResults = ({
               <p className="vx-eyebrow">Module manifest / {module.version}</p>
               <h2 id={`module-${module.moduleId}`}>{module.moduleId}</h2>
             </div>
-            <span className="vx-status">{module.lifecycleState}</span>
+            <span className="vx-status">
+              {moduleLifecycleStateLabel(module.lifecycleState)}
+            </span>
           </div>
           <p className="my-4 text-muted-foreground text-sm leading-relaxed">
             This status describes the catalog entry. A manifest does not prove

@@ -1,0 +1,750 @@
+<svg
+  aria-label="Before and after comparison of Vertex Research parity with thetrading.tools"
+  font-family="Public Sans, Manrope, DejaVu Sans, system-ui, sans-serif"
+  height="548"
+  role="img"
+  viewBox="0 0 1100 548"
+  width="1100"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bgGrad" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0d12" />
+      <stop offset="100%" stop-color="#131722" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#b88a28" />
+      <stop offset="100%" stop-color="#e5be5b" />
+    </linearGradient>
+    <marker
+      id="arrowGold"
+      markerHeight="8"
+      markerWidth="8"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#e5be5b" />
+    </marker>
+  </defs>
+
+  <rect fill="url(#bgGrad)" height="548" rx="14" width="1100" />
+
+  <!-- Top Header Bar -->
+  <rect fill="#151923" height="58" rx="14" width="1100" x="0" y="0" />
+  <rect fill="#151923" height="14" width="1100" x="0" y="44" />
+  <line stroke="#262c3a" stroke-width="1" x1="0" x2="1100" y1="58" y2="58" />
+  <circle cx="28" cy="29" fill="#d4a843" r="9" />
+  <path d="M24,29 L28,23 L32,29 L28,35 Z" fill="#0b0d12" />
+  <text fill="#f1f5f9" font-size="16" font-weight="700" x="48" y="34">
+    VERTEX RESEARCH × THETRADING.TOOLS PARITY
+  </text>
+  <rect
+    fill="#1e2433"
+    height="26"
+    rx="13"
+    stroke="#d4a843"
+    stroke-width="1"
+    width="222"
+    x="854"
+    y="16"
+  />
+  <text
+    fill="#fde68a"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="965"
+    y="33"
+  >
+    RESEARCH ONLY · OPTIONS ONLY
+  </text>
+
+  <!-- LEFT PANEL: BEFORE -->
+  <rect
+    fill="#141821"
+    height="448"
+    rx="12"
+    stroke="#283040"
+    stroke-width="1.5"
+    width="468"
+    x="24"
+    y="76"
+  />
+  <rect
+    fill="#2a1c21"
+    height="22"
+    rx="11"
+    stroke="#ef4444"
+    stroke-width="1"
+    width="90"
+    x="38"
+    y="90"
+  />
+  <text
+    fill="#fca5a5"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="83"
+    y="105"
+  >
+    BEFORE
+  </text>
+  <text fill="#e2e8f0" font-size="14" font-weight="700" x="140" y="106">
+    Fragmented Silos · 41.8% Touch
+  </text>
+
+  <!-- Donut Chart (Before: 19 Parity, 42 Partial, 85 Missing out of 146) -->
+  <g transform="translate(120, 206)">
+    <circle fill="none" r="54" stroke="#1f2633" stroke-width="16" />
+    <circle
+      fill="none"
+      r="54"
+      stroke="#334155"
+      stroke-dasharray="197.5 339.3"
+      stroke-width="16"
+      transform="rotate(-90)"
+    />
+    <circle
+      fill="none"
+      r="54"
+      stroke="#3b82f6"
+      stroke-dasharray="97.6 339.3"
+      stroke-dashoffset="-197.5"
+      stroke-width="16"
+      transform="rotate(-90)"
+    />
+    <circle
+      fill="none"
+      r="54"
+      stroke="#22c55e"
+      stroke-dasharray="44.2 339.3"
+      stroke-dashoffset="-295.1"
+      stroke-width="16"
+      transform="rotate(-90)"
+    />
+    <text
+      fill="#f8fafc"
+      font-size="22"
+      font-weight="700"
+      text-anchor="middle"
+      y="-4"
+    >
+      19
+    </text>
+    <text fill="#cbd5e1" font-size="10" text-anchor="middle" y="14">
+      FULL PARITY
+    </text>
+    <text fill="#94a3b8" font-size="10" text-anchor="middle" y="28">
+      of 146 tools
+    </text>
+  </g>
+
+  <!-- Legend next to Before Donut -->
+  <g transform="translate(202, 158)">
+    <circle cx="8" cy="8" fill="#22c55e" r="5" />
+    <text fill="#e2e8f0" font-size="12" x="20" y="12">
+      19 Full Parity (13.0%)
+    </text>
+    <circle cx="8" cy="34" fill="#3b82f6" r="5" />
+    <text fill="#e2e8f0" font-size="12" x="20" y="38">
+      42 Partial Overlap (28.8%)
+    </text>
+    <circle cx="8" cy="60" fill="#475569" r="5" />
+    <text fill="#cbd5e1" font-size="12" x="20" y="64">85 Missing (58.2%)</text>
+    <line stroke="#252d3d" stroke-width="1" x1="0" x2="262" y1="80" y2="80" />
+    <text fill="#cbd5e1" font-size="11" x="0" y="100">
+      Econ Series Exact: 12 / 154 (7.8%)
+    </text>
+  </g>
+
+  <!-- Disconnected Silos Visual Diagram -->
+  <text fill="#cbd5e1" font-size="11" font-weight="700" x="42" y="296">
+    EXISTING VERTEX SILOS (NO UNIFIED CLOCK)
+  </text>
+  <g font-size="10" font-weight="600">
+    <rect
+      fill="#1b2230"
+      height="32"
+      rx="6"
+      stroke="#22c55e"
+      stroke-width="1"
+      width="128"
+      x="42"
+      y="308"
+    />
+    <text fill="#dcfce7" text-anchor="middle" x="106" y="328">
+      /markets (VIX/COT)
+    </text>
+
+    <rect
+      fill="#1b2230"
+      height="32"
+      rx="6"
+      stroke="#22c55e"
+      stroke-width="1"
+      width="128"
+      x="184"
+      y="308"
+    />
+    <text fill="#dcfce7" text-anchor="middle" x="248" y="328">
+      /flow (IBKR/QD)
+    </text>
+
+    <rect
+      fill="#1b2230"
+      height="32"
+      rx="6"
+      stroke="#22c55e"
+      stroke-width="1"
+      width="146"
+      x="326"
+      y="308"
+    />
+    <text fill="#dcfce7" text-anchor="middle" x="399" y="328">
+      /sector-rotation
+    </text>
+
+    <rect
+      fill="#1b2230"
+      height="32"
+      rx="6"
+      stroke="#3b82f6"
+      stroke-width="1"
+      width="128"
+      x="42"
+      y="350"
+    />
+    <text fill="#dbeafe" text-anchor="middle" x="106" y="370">
+      /smart-money
+    </text>
+
+    <rect
+      fill="#1b2230"
+      height="32"
+      rx="6"
+      stroke="#3b82f6"
+      stroke-width="1"
+      width="128"
+      x="184"
+      y="350"
+    />
+    <text fill="#dbeafe" text-anchor="middle" x="248" y="370">
+      /stock/[symbol]
+    </text>
+
+    <rect
+      fill="#1b2230"
+      height="32"
+      rx="6"
+      stroke="#3b82f6"
+      stroke-width="1"
+      width="146"
+      x="326"
+      y="350"
+    />
+    <text fill="#dbeafe" text-anchor="middle" x="399" y="370">
+      breadth90 (NYSE)
+    </text>
+  </g>
+
+  <!-- Gap Pills -->
+  <text fill="#fca5a5" font-size="11" font-weight="700" x="42" y="410">
+    KEY BLIND SPOTS
+  </text>
+  <g font-size="10">
+    <rect
+      fill="#23161b"
+      height="24"
+      rx="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 2"
+      width="134"
+      x="42"
+      y="420"
+    />
+    <text fill="#fecdd3" text-anchor="middle" x="109" y="436">
+      4-Clock Decision Desk
+    </text>
+
+    <rect
+      fill="#23161b"
+      height="24"
+      rx="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 2"
+      width="142"
+      x="184"
+      y="420"
+    />
+    <text fill="#fecdd3" text-anchor="middle" x="255" y="436">
+      McClellan / Hindenburg
+    </text>
+
+    <rect
+      fill="#23161b"
+      height="24"
+      rx="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 2"
+      width="138"
+      x="334"
+      y="420"
+    />
+    <text fill="#fecdd3" text-anchor="middle" x="403" y="436">
+      SPY Base-Rate Engine
+    </text>
+
+    <rect
+      fill="#23161b"
+      height="24"
+      rx="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 2"
+      width="134"
+      x="42"
+      y="452"
+    />
+    <text fill="#fecdd3" text-anchor="middle" x="109" y="468">
+      OCC Cleared Vol
+    </text>
+
+    <rect
+      fill="#23161b"
+      height="24"
+      rx="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 2"
+      width="142"
+      x="184"
+      y="452"
+    />
+    <text fill="#fecdd3" text-anchor="middle" x="255" y="468">
+      Dual-Mode State Atlas
+    </text>
+
+    <rect
+      fill="#23161b"
+      height="24"
+      rx="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 2"
+      width="138"
+      x="334"
+      y="452"
+    />
+    <text fill="#fecdd3" text-anchor="middle" x="403" y="468">
+      142 Missing Econ Series
+    </text>
+  </g>
+  <text fill="#94a3b8" font-size="10" x="42" y="506">
+    Baseline: vertex-research-public (5e7d5305) vs thetrading.tools (2026-11-24)
+  </text>
+
+  <!-- CENTER TRANSITION ARROW -->
+  <g transform="translate(500, 252)">
+    <line
+      marker-end="url(#arrowGold)"
+      stroke="url(#goldGrad)"
+      stroke-width="5"
+      x1="0"
+      x2="72"
+      y1="36"
+      y2="36"
+    />
+    <rect
+      fill="#1e2433"
+      height="42"
+      rx="8"
+      stroke="#d4a843"
+      stroke-width="1"
+      width="88"
+      x="-4"
+      y="-18"
+    />
+    <text
+      fill="#fde68a"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="40"
+      y="-1"
+    >
+      4+1 WAVES
+    </text>
+    <text fill="#e2e8f0" font-size="9" text-anchor="middle" x="40" y="13">
+      16 Vertical PRs
+    </text>
+    <text fill="#cbd5e1" font-size="9.5" text-anchor="middle" x="40" y="60">
+      $0 Core
+    </text>
+    <text fill="#cbd5e1" font-size="9.5" text-anchor="middle" x="40" y="74">
+      Drizzle + oRPC
+    </text>
+  </g>
+
+  <!-- RIGHT PANEL: AFTER (MOCK) -->
+  <rect
+    fill="#141821"
+    height="448"
+    rx="12"
+    stroke="#d4a843"
+    stroke-width="1.5"
+    width="484"
+    x="592"
+    y="76"
+  />
+  <rect
+    fill="#14291f"
+    height="22"
+    rx="11"
+    stroke="#22c55e"
+    stroke-width="1"
+    width="84"
+    x="606"
+    y="90"
+  />
+  <text
+    fill="#86efac"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="648"
+    y="105"
+  >
+    AFTER
+  </text>
+  <text fill="#f8fafc" font-size="14" font-weight="700" x="702" y="106">
+    Sovereign Monitor · 100% Mapped
+  </text>
+  <rect
+    fill="#3b2c10"
+    height="22"
+    rx="4"
+    stroke="#f59e0b"
+    stroke-width="1"
+    width="70"
+    x="992"
+    y="90"
+  />
+  <text
+    fill="#fcd34d"
+    font-size="10"
+    font-weight="700"
+    text-anchor="middle"
+    x="1027"
+    y="105"
+  >
+    MOCK
+  </text>
+
+  <!-- 4-Clock Decision Desk Mockup Gauges -->
+  <text fill="#fde68a" font-size="11" font-weight="700" x="610" y="136">
+    DECISION DESK — 4 SEPARATE CLOCKS (ILLUSTRATIVE MOCK)
+  </text>
+
+  <g transform="translate(665, 198)">
+    <path
+      d="M-38,14 A40,40 0 1,1 38,14"
+      fill="none"
+      stroke="#1f2633"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <path
+      d="M-38,14 A40,40 0 0,1 -16,-37"
+      fill="none"
+      stroke="#ef4444"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <text
+      fill="#f8fafc"
+      font-size="17"
+      font-weight="700"
+      text-anchor="middle"
+      y="2"
+    >
+      34
+    </text>
+    <text
+      fill="#fca5a5"
+      font-size="9"
+      font-weight="700"
+      text-anchor="middle"
+      y="18"
+    >
+      TAPE-EOD
+    </text>
+    <text fill="#cbd5e1" font-size="8.5" text-anchor="middle" y="31">
+      Today–5d
+    </text>
+  </g>
+
+  <g transform="translate(778, 198)">
+    <path
+      d="M-38,14 A40,40 0 1,1 38,14"
+      fill="none"
+      stroke="#1f2633"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <path
+      d="M-38,14 A40,40 0 0,1 6,-39"
+      fill="none"
+      stroke="#f59e0b"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <text
+      fill="#f8fafc"
+      font-size="17"
+      font-weight="700"
+      text-anchor="middle"
+      y="2"
+    >
+      48
+    </text>
+    <text
+      fill="#fcd34d"
+      font-size="9"
+      font-weight="700"
+      text-anchor="middle"
+      y="18"
+    >
+      SWING
+    </text>
+    <text fill="#cbd5e1" font-size="8.5" text-anchor="middle" y="31">
+      1w–3m
+    </text>
+  </g>
+
+  <g transform="translate(891, 198)">
+    <path
+      d="M-38,14 A40,40 0 1,1 38,14"
+      fill="none"
+      stroke="#1f2633"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <path
+      d="M-38,14 A40,40 0 0,1 28,-28"
+      fill="none"
+      stroke="#22c55e"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <text
+      fill="#f8fafc"
+      font-size="17"
+      font-weight="700"
+      text-anchor="middle"
+      y="2"
+    >
+      66
+    </text>
+    <text
+      fill="#86efac"
+      font-size="9"
+      font-weight="700"
+      text-anchor="middle"
+      y="18"
+    >
+      CYCLE
+    </text>
+    <text fill="#cbd5e1" font-size="8.5" text-anchor="middle" y="31">
+      3–12m
+    </text>
+  </g>
+
+  <g transform="translate(1004, 198)">
+    <path
+      d="M-38,14 A40,40 0 1,1 38,14"
+      fill="none"
+      stroke="#1f2633"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <path
+      d="M-38,14 A40,40 0 0,1 -31,-25"
+      fill="none"
+      stroke="#ef4444"
+      stroke-linecap="round"
+      stroke-width="9"
+    />
+    <text
+      fill="#f8fafc"
+      font-size="17"
+      font-weight="700"
+      text-anchor="middle"
+      y="2"
+    >
+      14
+    </text>
+    <text
+      fill="#fca5a5"
+      font-size="9"
+      font-weight="700"
+      text-anchor="middle"
+      y="18"
+    >
+      VALUE
+    </text>
+    <text fill="#cbd5e1" font-size="8.5" text-anchor="middle" y="31">
+      3–10y
+    </text>
+  </g>
+
+  <!-- Stacked Coverage Progress Bars (After) -->
+  <text fill="#cbd5e1" font-size="11" font-weight="700" x="610" y="264">
+    COVERAGE AT $0 INCREMENTAL COST (146 TOOLS + 154 ECON)
+  </text>
+
+  <!-- Bar 1: 146 Analytical Tools -->
+  <text fill="#e2e8f0" font-size="10.5" x="610" y="286">
+    146 Analytical Tools
+  </text>
+  <text
+    fill="#86efac"
+    font-size="10.5"
+    font-weight="700"
+    text-anchor="end"
+    x="1058"
+    y="286"
+  >
+    120 Exact + 26 Proxy
+  </text>
+  <rect fill="#1f2633" height="20" rx="5" width="448" x="610" y="294" />
+  <rect fill="#22c55e" height="20" rx="5" width="368" x="610" y="294" />
+  <rect fill="#f59e0b" height="20" rx="5" width="80" x="978" y="294" />
+  <text
+    fill="#052e16"
+    font-size="10"
+    font-weight="700"
+    text-anchor="middle"
+    x="794"
+    y="308"
+  >
+    82.2% Exact ($0)
+  </text>
+  <text
+    fill="#451a03"
+    font-size="9"
+    font-weight="700"
+    text-anchor="middle"
+    x="1018"
+    y="308"
+  >
+    17.8% Proxy
+  </text>
+
+  <!-- Bar 2: 154 Economic Data Series -->
+  <text fill="#e2e8f0" font-size="10.5" x="610" y="336">
+    154 Economic Series
+  </text>
+  <text
+    fill="#93c5fd"
+    font-size="10.5"
+    font-weight="700"
+    text-anchor="end"
+    x="1058"
+    y="336"
+  >
+    151 Exact + 3 Proxy
+  </text>
+  <rect fill="#1f2633" height="20" rx="5" width="448" x="610" y="344" />
+  <rect fill="#1d4ed8" height="20" rx="5" width="438" x="610" y="344" />
+  <rect fill="#f59e0b" height="20" rx="3" width="10" x="1048" y="344" />
+  <text
+    fill="#eff6ff"
+    font-size="10"
+    font-weight="700"
+    text-anchor="middle"
+    x="829"
+    y="358"
+  >
+    98.1% Official APIs (FRED · EIA · Treasury · OECD · SEC)
+  </text>
+
+  <!-- Consolidated Portal Surfaces (2 New + 9 Upgraded Existing) -->
+  <text fill="#cbd5e1" font-size="11" font-weight="700" x="610" y="392">
+    2 NEW PORTAL ROUTES + 9 UPGRADED EXISTING SURFACES
+  </text>
+  <g font-size="10" font-weight="700">
+    <rect
+      fill="#242014"
+      height="38"
+      rx="6"
+      stroke="#d4a843"
+      width="218"
+      x="610"
+      y="404"
+    />
+    <text fill="#fde68a" text-anchor="middle" x="719" y="420">
+      /monitor (NEW)
+    </text>
+    <text
+      fill="#e2e8f0"
+      font-size="9"
+      font-weight="400"
+      text-anchor="middle"
+      x="719"
+      y="435"
+    >
+      4 Clocks · Breadth · Signals · Atlas
+    </text>
+
+    <rect
+      fill="#242014"
+      height="38"
+      rx="6"
+      stroke="#d4a843"
+      width="218"
+      x="840"
+      y="404"
+    />
+    <text fill="#fde68a" text-anchor="middle" x="949" y="420">
+      /macro (NEW)
+    </text>
+    <text
+      fill="#e2e8f0"
+      font-size="9"
+      font-weight="400"
+      text-anchor="middle"
+      x="949"
+      y="435"
+    >
+      Panel · 154 Series · Global · CDS
+    </text>
+  </g>
+
+  <!-- Safety Shield Footer Bar -->
+  <rect
+    fill="#101c18"
+    height="50"
+    rx="8"
+    stroke="#166534"
+    width="448"
+    x="610"
+    y="456"
+  />
+  <path
+    d="M626,470 L636,467 L646,470 L646,480 C646,487 636,492 636,492 C636,492 626,487 626,480 Z"
+    fill="#22c55e"
+  />
+  <path
+    d="M632,479 L635,482 L641,475"
+    fill="none"
+    stroke="#052e16"
+    stroke-linecap="round"
+    stroke-width="2"
+  />
+  <text fill="#86efac" font-size="10.5" font-weight="700" x="658" y="476">
+    Zero Orders · Zero JSON Data Files · Freshness Gated
+  </text>
+  <text fill="#cbd5e1" font-size="9" x="658" y="494">
+    Drizzle tables act as seam; paid feeds stay owner-gated
+  </text>
+</svg>

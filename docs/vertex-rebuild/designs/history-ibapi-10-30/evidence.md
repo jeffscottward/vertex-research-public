@@ -159,3 +159,136 @@ def main():
 
 main()
 ```
+
+## SPY stock depth probe (2026-11-24 UTC)
+
+Run 2026-11-24 between 01:55:29 and 01:55:38 UTC on QuantVPS against the live IB Gateway (port 4003), sequentially with a separate client id (164) so at most one temporary L2 subscription opened beside the live `vertex-history` ES and NQ streams (total 3 of IBKR's 3 simultaneous L2 slots). Both runs used host Python 3.10.12 (`/opt/vertex-history/venv-legacy-9.81.1/bin/python` for 9.81.1, `/opt/vertex-history/venv/bin/python` for 10.30.1), requested `SPY` (`conId` 756733) `STK` `SMART` `USD` contract details and `reqMktDepth(..., numRows=10, isSmartDepth=True)` for 2.5 s, cancelled the subscription before disconnecting, and exited cleanly. Live `vertex-history` (client id 77) remained healthy (`connected: true`, `unsetSizes: 0`, ES and NQ `DepthStream` live). The raw JSON stays in the job report folder on the rig (the repository holds no data files).
+
+| Field | `ibapi` 9.81.1-1 | `ibapi` 10.30.1 |
+| --- | --- | --- |
+| Timestamp (UTC) | 2026-11-24T01:55:29Z | 2026-11-24T01:55:34Z |
+| Server version | 157 | 187 |
+| `mdSizeMultiplier` | 40 | None |
+| `minSize` / `sizeIncrement` | None / None | `0.0001` / `0.0001` |
+| `updateMktDepthL2` updates | 43 | 20 |
+| Size Python type | `int` | `Decimal` |
+| IBKR warning `2176` | Yes: `"Trimmed value 1002 to 25"` (and `"Trimmed value 100 to 2"` in the 01:53:49 UTC check) | None |
+| Final bid snapshot | `723.87 x 8 (OVERNIGHT)`, `723.86 x 6 (IBEOS)` | `723.86 x 617 (OVERNIGHT)`, `723.66 x 100 (IBEOS)` |
+| Final ask snapshot | `723.97 x 12 (OVERNIGHT)`, `723.99 x 6 (IBEOS)` | `723.97 x 580 (OVERNIGHT)`, `724.27 x 7 (IBEOS)` |
+
+Conclusions:
+
+- With `ibapi` 9.81.1 (API 157), IBKR divides share counts by `mdSizeMultiplier` (40 for SPY) and truncates down to whole integers, logging warning 2176 (`floor(1002 / 40) = 25`; `floor(100 / 40) = 2`).
+- With `ibapi` 10.30.1 (API 187), IBKR sends `updateMktDepthL2` sizes directly in shares as `Decimal` values (including exact non-lot share counts `617`, `580`, `100`, and `7`) with no warning 2176 and no `mdSizeMultiplier`.
+- `vertex_history.py` therefore sets `STOCK_DEPTH_VERIFIED = True` (version 1.7.1) and reports `sizeMultiplier: 1`, which gives every reader exact share counts with no format change.
+
+### Depth probe script
+
+```python
+"""Read-only SPY SMART depth probe: compares ibapi 9.81.1 and 10.30.1 sequentially on a spare client id.
+Usage: python3 depth_probe.py <host> <port> <client_id>. No orders, no account or position calls."""
+import json, sys, threading, time
+from datetime import datetime, timezone
+from decimal import Decimal
+import ibapi
+from ibapi.client import EClient
+from ibapi.contract import Contract
+from ibapi.wrapper import EWrapper
+
+host, port, cid = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+
+
+def plain(v):
+    return str(v) if isinstance(v, Decimal) else v
+
+
+class Book:
+    def __init__(self):
+        self.sides = {0: {}, 1: {}}  # 0=ask, 1=bid
+
+    def apply(self, pos, op, side, price, size, mm):
+        if side not in (0, 1):
+            return
+        if op == 2:
+            self.sides[side].pop(pos, None)
+        else:
+            self.sides[side][pos] = {
+                "pos": pos, "price": plain(price), "size": plain(size),
+                "sizeType": type(size).__name__, "venue": mm,
+            }
+
+    def snap(self):
+        return {
+            "bids": sorted(self.sides[1].values(), key=lambda x: x["pos"]),
+            "asks": sorted(self.sides[0].values(), key=lambda x: x["pos"]),
+        }
+
+
+class App(EWrapper, EClient):
+    def __init__(self):
+        EWrapper.__init__(self)
+        EClient.__init__(self, self)
+        self.ready = threading.Event()
+        self.details_done = threading.Event()
+        self.details, self.updates, self.errors = [], [], []
+        self.book = Book()
+
+    def nextValidId(self, orderId):
+        self.ready.set()
+
+    def error(self, reqId, errorCode, errorString, *rest):
+        self.errors.append([reqId, errorCode, str(errorString)[:240]])
+
+    def contractDetails(self, reqId, d):
+        self.details.append({
+            "conId": d.contract.conId, "localSymbol": d.contract.localSymbol,
+            "mdSizeMultiplier": plain(getattr(d, "mdSizeMultiplier", None)),
+            "minSize": plain(getattr(d, "minSize", None)),
+            "sizeIncrement": plain(getattr(d, "sizeIncrement", None)),
+        })
+
+    def contractDetailsEnd(self, reqId):
+        self.details_done.set()
+
+    def updateMktDepth(self, reqId, position, operation, side, price, size):
+        self.book.apply(position, operation, side, price, size, None)
+        self.updates.append({"cb": "L1", "pos": position, "op": operation, "side": side,
+                             "price": plain(price), "size": plain(size), "sizeType": type(size).__name__})
+
+    def updateMktDepthL2(self, reqId, position, marketMaker, operation, side, price, size, isSmartDepth):
+        self.book.apply(position, operation, side, price, size, marketMaker)
+        self.updates.append({"cb": "L2", "pos": position, "op": operation, "side": side,
+                             "price": plain(price), "size": plain(size), "sizeType": type(size).__name__,
+                             "mm": marketMaker, "smart": isSmartDepth})
+
+
+app = App()
+started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+app.connect(host, port, cid)
+t = threading.Thread(target=app.run, daemon=True)
+t.start()
+if not app.ready.wait(10):
+    app.disconnect()
+    sys.exit(2)
+sv = app.serverVersion()
+c = Contract()
+c.symbol, c.secType, c.exchange, c.currency = "SPY", "STK", "SMART", "USD"
+app.reqContractDetails(1001, c)
+app.details_done.wait(10)
+if app.details:
+    c.conId = app.details[0]["conId"]
+app.reqMktDepth(1002, c, 10, True, [])
+try:
+    time.sleep(2.5)
+finally:
+    try:
+        app.cancelMktDepth(1002, True)
+    except Exception:
+        pass
+    time.sleep(0.5)
+    app.disconnect()
+    t.join(3)
+print(json.dumps({"timestampUtc": started, "ibapi": getattr(ibapi, "__version__", None) or ibapi.get_version_string(),
+                  "serverVersion": sv, "details": app.details[:1], "updateCount": len(app.updates),
+                  "snapshot": app.book.snap(), "errors": app.errors}))
+```

@@ -13,6 +13,7 @@ dependencies = ["pydantic==2.13.4", "tzdata==2026.2"]
 test = ["pytest==9.0.3"]
 numeric = ["numpy==2.4.6", "scipy==1.18.1"]
 gsquant = ["gs-quant==2.2.4"]
+prediction = ["duckdb==2.0.1", "pycryptodome==4.6.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -45,6 +46,19 @@ extra = "gsquant"
 requirements-lock = "requirements-gsquant-linux-py312.lock"
 runtime-qualified = false
 reason = "Offline gs_quant.timeseries and the PredefinedAssetEngine only; no GsSession or Marquee credential. Used by python -m analytics report on the rig; no deployed runtime uses it."
+
+# DuckDB (MIT) reads and writes the local Parquet files of the prediction-market calibration
+# (providers/prediction_market_parquet.py, providers/polymarket_chain_sample.py); pycryptodome
+# (BSD-2-Clause AND Unlicense AND MIT) gives Keccak-256 for the Polymarket token ids
+# (providers/polymarket_chain.py). CI (scripts/ci/research-python.sh, prediction run) installs this
+# lock with hash checks in a temporary venv and runs tests/ci-suites-prediction.txt with
+# VERTEX_REQUIRE_PREDICTION=1. Design: docs/vertex-rebuild/prediction-market-onchain-sample.md.
+[tool.vertex.optional-backends.prediction-market-parquet]
+state = "pinned-ci-tested-runtime-unqualified"
+extra = "prediction"
+requirements-lock = "requirements-prediction-linux-py312.lock"
+runtime-qualified = false
+reason = "Local research runs on the rig only (python -m providers.polymarket_chain_sample and providers.prediction_market_parquet); no deployed runtime uses it. The data files stay outside the repository."
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

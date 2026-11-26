@@ -1,0 +1,489 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 560"
+  role="img"
+  aria-label="Before and after mock: Vertex Options Analytics gains a strike-by-expiry Greek exposure heatmap with GEX, VEX, Charm, DEX, and Vol-GEX tabs plus King, Wall, Spot, and Flip marks"
+>
+  <defs>
+    <style>
+    .bg {
+      fill: #09090b;
+    }
+    .card {
+      fill: #111114;
+      stroke: #27272a;
+      stroke-width: 1.5;
+      rx: 10;
+    }
+    .sub {
+      fill: #18181b;
+      stroke: #27272a;
+      stroke-width: 1;
+      rx: 6;
+    }
+    .title {
+      fill: #fafafa;
+      font:
+        700 18px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .heading {
+      fill: #f4f4f5;
+      font:
+        600 14px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .muted {
+      fill: #a1a1aa;
+      font:
+        500 11px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .mono {
+      fill: #e4e4e7;
+      font:
+        500 11px ui-monospace,
+        SFMono-Regular,
+        monospace;
+    }
+    .mono-sm {
+      fill: #d4d4d8;
+      font:
+        500 10px ui-monospace,
+        SFMono-Regular,
+        monospace;
+    }
+    .badge-mock {
+      fill: #422006;
+      stroke: #f59e0b;
+      stroke-width: 1.2;
+    }
+    .badge-mock-txt {
+      fill: #fcd34d;
+      font:
+        700 11px ui-monospace,
+        monospace;
+      letter-spacing: 0.08em;
+    }
+    .tab-active {
+      fill: #27272a;
+      stroke: #52525b;
+      stroke-width: 1;
+    }
+    .tab-txt {
+      fill: #a1a1aa;
+      font:
+        600 11px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .tab-txt-on {
+      fill: #fafafa;
+      font:
+        700 11px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .pos-hi {
+      fill: #14532d;
+    }
+    .pos-md {
+      fill: #166534;
+      opacity: 0.65;
+    }
+    .pos-lo {
+      fill: #166534;
+      opacity: 0.3;
+    }
+    .neg-hi {
+      fill: #7f1d1d;
+    }
+    .neg-md {
+      fill: #991b1b;
+      opacity: 0.65;
+    }
+    .neg-lo {
+      fill: #991b1b;
+      opacity: 0.3;
+    }
+    .cell-zero {
+      fill: #18181b;
+    }
+    .king-ring {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 1.5;
+    }
+    .king-pill {
+      fill: #451a03;
+      stroke: #f59e0b;
+      stroke-width: 1;
+    }
+    .king-txt {
+      fill: #fde68a;
+      font:
+        700 9px ui-sans-serif,
+        sans-serif;
+    }
+    .wall-pill {
+      fill: #27272a;
+      stroke: #52525b;
+      stroke-width: 1;
+    }
+    .wall-txt {
+      fill: #e4e4e7;
+      font:
+        600 9px ui-sans-serif,
+        sans-serif;
+    }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1120" height="560" />
+
+  <!-- Top header -->
+  <text class="title" x="32" y="38">
+    Vertex Portal · Options Analytics: Greek Exposure Heatmap (Strike × Expiry)
+  </text>
+  <rect class="badge-mock" x="1018" y="18" width="70" height="24" rx="5" />
+  <text class="badge-mock-txt" x="1035" y="34">MOCK</text>
+  <text class="muted" x="32" y="58">
+    Research view on /charts and /stock/&lt;symbol&gt;?tab=analytics · Dark +
+    Light · 375–1440 px · No orders or arming
+  </text>
+
+  <!-- BEFORE PANEL -->
+  <rect class="card" x="32" y="78" width="340" height="450" />
+  <text class="heading" x="52" y="106">BEFORE</text>
+  <text class="muted" x="118" y="106">
+    Single aggregate OI table (front expiry IV only)
+  </text>
+
+  <!-- Flat bar table mock -->
+  <rect class="sub" x="52" y="124" width="300" height="270" />
+  <text class="muted" x="64" y="146">Strike</text>
+  <text class="muted" x="130" y="146">Call OI</text>
+  <text class="muted" x="195" y="146">Put OI</text>
+  <text class="muted" x="265" y="146">Est. GEX</text>
+  <line x1="56" y1="154" x2="348" y2="154" stroke="#27272a" />
+
+  <!-- Rows -->
+  <text class="mono" x="64" y="176">615</text>
+  <text class="mono" x="130" y="176">18,400</text>
+  <text class="mono" x="195" y="176">1,200</text>
+  <rect
+    x="265"
+    y="166"
+    width="54"
+    height="10"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.6"
+  />
+
+  <text class="mono" x="64" y="204">610</text>
+  <text class="mono" x="130" y="204">34,900</text>
+  <text class="mono" x="195" y="204">4,100</text>
+  <rect
+    x="265"
+    y="194"
+    width="76"
+    height="10"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.8"
+  />
+
+  <text class="mono" x="64" y="232">605</text>
+  <text class="mono" x="130" y="232">22,100</text>
+  <text class="mono" x="195" y="232">18,900</text>
+  <rect
+    x="265"
+    y="222"
+    width="22"
+    height="10"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.5"
+  />
+
+  <rect x="54" y="244" width="296" height="24" fill="#27272a" opacity="0.55" />
+  <text class="mono" x="64" y="260">600</text>
+  <text class="mono" x="130" y="260">19,500</text>
+  <text class="mono" x="195" y="260">21,300</text>
+  <rect
+    x="265"
+    y="250"
+    width="16"
+    height="10"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.55"
+  />
+
+  <text class="mono" x="64" y="288">595</text>
+  <text class="mono" x="130" y="288">6,200</text>
+  <text class="mono" x="195" y="288">31,400</text>
+  <rect
+    x="265"
+    y="278"
+    width="68"
+    height="10"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.75"
+  />
+
+  <text class="mono" x="64" y="316">590</text>
+  <text class="mono" x="130" y="316">2,100</text>
+  <text class="mono" x="195" y="316">24,800</text>
+  <rect
+    x="265"
+    y="306"
+    width="46"
+    height="10"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.6"
+  />
+
+  <!-- Missing indicators -->
+  <text class="muted" x="64" y="352">
+    ✕ No expiry axis (all expiries lumped)
+  </text>
+  <text class="muted" x="64" y="370">
+    ✕ No VEX / Charm / DEX / Vol-GEX tabs
+  </text>
+  <text class="muted" x="64" y="388">
+    ✕ No King node or ladder flip divider
+  </text>
+
+  <text class="muted" x="52" y="424">
+    Only aggregate OI priced with front-expiry T.
+  </text>
+  <text class="muted" x="52" y="442">
+    0 DTE vs monthly exposure cannot be separated.
+  </text>
+  <text class="muted" x="52" y="460">
+    Vanna and charm existed only as scalar totals.
+  </text>
+
+  <!-- Arrow BEFORE -> AFTER -->
+  <line
+    x1="382"
+    y1="303"
+    x2="416"
+    y2="303"
+    stroke="#eab308"
+    stroke-width="2.5"
+  />
+  <polygon points="416,296 429,303 416,310" fill="#eab308" />
+
+  <!-- AFTER PANEL -->
+  <rect class="card" x="438" y="78" width="650" height="450" />
+  <text class="heading" x="458" y="106">AFTER</text>
+  <text class="muted" x="514" y="106">
+    Strike × Expiry Greek Exposure Heatmap · Spot $604.20 · 5 expiries
+  </text>
+
+  <!-- 5 Tabs -->
+  <rect class="sub" x="760" y="88" width="308" height="30" rx="6" />
+  <rect class="tab-active" x="764" y="92" width="54" height="22" rx="4" />
+  <text class="tab-txt-on" x="779" y="107">GEX</text>
+  <text class="tab-txt" x="832" y="107">VEX</text>
+  <text class="tab-txt" x="880" y="107">Charm</text>
+  <text class="tab-txt" x="942" y="107">DEX</text>
+  <text class="tab-txt" x="992" y="107">Vol-GEX</text>
+
+  <!-- 4 Marks KPI strip -->
+  <rect class="sub" x="458" y="128" width="146" height="46" />
+  <text class="muted" x="468" y="145">★ King node</text>
+  <text class="mono" x="468" y="164">$610.00 +$24.8M</text>
+
+  <rect class="sub" x="612" y="128" width="146" height="46" />
+  <text class="muted" x="622" y="145">↑ Call wall</text>
+  <text class="mono" x="622" y="164">$610.00 +$24.8M</text>
+
+  <rect class="sub" x="766" y="128" width="146" height="46" />
+  <text class="muted" x="776" y="145">↓ Put wall</text>
+  <text class="mono" x="776" y="164">$595.00 −$19.2M</text>
+
+  <rect class="sub" x="920" y="128" width="148" height="46" />
+  <text class="muted" x="930" y="145">⇄ Gamma flip</text>
+  <text class="mono" x="930" y="164">$602.50 −0.3%</text>
+
+  <!-- Heatmap Grid -->
+  <rect class="sub" x="458" y="186" width="610" height="296" />
+
+  <!-- Column headers -->
+  <text class="muted" x="472" y="206">Strike</text>
+  <text class="muted" x="606" y="204">Nov 24</text>
+  <text class="mono-sm" x="614" y="216">0d</text>
+  <text class="muted" x="684" y="204">Nov 27</text>
+  <text class="mono-sm" x="692" y="216">3d</text>
+  <text class="muted" x="762" y="204">Dec 04</text>
+  <text class="mono-sm" x="770" y="216">10d</text>
+  <text class="muted" x="840" y="204">Dec 18</text>
+  <text class="mono-sm" x="848" y="216">24d</text>
+  <text class="muted" x="918" y="204">Jan 15</text>
+  <text class="mono-sm" x="926" y="216">52d</text>
+  <text class="muted" x="1008" y="206">Net</text>
+  <line x1="460" y1="224" x2="1066" y2="224" stroke="#27272a" />
+
+  <!-- Row 615 -->
+  <text class="mono" x="472" y="246">615</text>
+  <rect class="pos-lo" x="590" y="228" width="74" height="26" />
+  <text class="mono-sm" x="608" y="245">+$1.2M</text>
+  <rect class="pos-md" x="668" y="228" width="74" height="26" />
+  <text class="mono-sm" x="686" y="245">+$4.1M</text>
+  <rect class="pos-lo" x="746" y="228" width="74" height="26" />
+  <text class="mono-sm" x="764" y="245">+$2.0M</text>
+  <rect class="pos-md" x="824" y="228" width="74" height="26" />
+  <text class="mono-sm" x="842" y="245">+$3.8M</text>
+  <rect class="cell-zero" x="902" y="228" width="74" height="26" />
+  <text class="muted" x="936" y="245">·</text>
+  <text class="mono-sm" x="992" y="245">+$11.1M</text>
+
+  <!-- Row 610 (KING + CALL WALL) -->
+  <rect class="king-ring" x="460" y="256" width="606" height="30" rx="3" />
+  <text class="mono" x="472" y="275">610</text>
+  <rect class="king-pill" x="500" y="263" width="34" height="16" rx="3" />
+  <text class="king-txt" x="507" y="274">King</text>
+  <rect class="wall-pill" x="538" y="263" width="44" height="16" rx="3" />
+  <text class="wall-txt" x="542" y="274">Call wall</text>
+  <rect class="pos-hi" x="590" y="258" width="74" height="26" />
+  <text class="mono-sm" x="608" y="275">+$8.4M</text>
+  <rect class="pos-hi" x="668" y="258" width="74" height="26" />
+  <text class="mono-sm" x="686" y="275">+$7.2M</text>
+  <rect class="pos-md" x="746" y="258" width="74" height="26" />
+  <text class="mono-sm" x="764" y="275">+$4.5M</text>
+  <rect class="pos-md" x="824" y="258" width="74" height="26" />
+  <text class="mono-sm" x="842" y="275">+$3.1M</text>
+  <rect class="pos-lo" x="902" y="258" width="74" height="26" />
+  <text class="mono-sm" x="920" y="275">+$1.6M</text>
+  <text class="mono-sm" x="992" y="275">+$24.8M</text>
+
+  <!-- Row 605 -->
+  <text class="mono" x="472" y="306">605</text>
+  <rect class="pos-md" x="590" y="288" width="74" height="26" />
+  <text class="mono-sm" x="608" y="305">+$5.1M</text>
+  <rect class="pos-lo" x="668" y="288" width="74" height="26" />
+  <text class="mono-sm" x="686" y="305">+$1.9M</text>
+  <rect class="neg-lo" x="746" y="288" width="74" height="26" />
+  <text class="mono-sm" x="762" y="305">−$0.8M</text>
+  <rect class="pos-lo" x="824" y="288" width="74" height="26" />
+  <text class="mono-sm" x="842" y="305">+$1.4M</text>
+  <rect class="pos-lo" x="902" y="288" width="74" height="26" />
+  <text class="mono-sm" x="920" y="305">+$0.6M</text>
+  <text class="mono-sm" x="996" y="305">+$8.2M</text>
+
+  <!-- SPOT DIVIDER -->
+  <rect x="460" y="317" width="606" height="20" fill="#27272a" />
+  <line
+    x1="460"
+    y1="317"
+    x2="1066"
+    y2="317"
+    stroke="#e4e4e7"
+    stroke-width="1"
+  />
+  <text class="mono-sm" x="472" y="331">⊕ Spot $604.20</text>
+
+  <!-- FLIP DIVIDER -->
+  <rect x="460" y="340" width="606" height="20" fill="#451a03" opacity="0.7" />
+  <line
+    x1="460"
+    y1="340"
+    x2="1066"
+    y2="340"
+    stroke="#f59e0b"
+    stroke-width="1.2"
+    stroke-dasharray="5 3"
+  />
+  <line
+    x1="460"
+    y1="360"
+    x2="1066"
+    y2="360"
+    stroke="#f59e0b"
+    stroke-width="1.2"
+    stroke-dasharray="5 3"
+  />
+  <text
+    class="king-txt"
+    x="472"
+    y="354"
+    style="font-size:10px;font-family:ui-monospace,monospace;"
+  >
+    ⇄ Gamma flip $602.50 (per-expiry spot sweep)
+  </text>
+
+  <!-- Row 600 -->
+  <text class="mono" x="472" y="381">600</text>
+  <rect class="neg-md" x="590" y="364" width="74" height="26" />
+  <text class="mono-sm" x="606" y="381">−$4.4M</text>
+  <rect class="neg-lo" x="668" y="364" width="74" height="26" />
+  <text class="mono-sm" x="684" y="381">−$2.1M</text>
+  <rect class="neg-lo" x="746" y="364" width="74" height="26" />
+  <text class="mono-sm" x="762" y="381">−$1.3M</text>
+  <rect class="neg-md" x="824" y="364" width="74" height="26" />
+  <text class="mono-sm" x="840" y="381">−$3.2M</text>
+  <rect class="neg-lo" x="902" y="364" width="74" height="26" />
+  <text class="mono-sm" x="918" y="381">−$0.9M</text>
+  <text class="mono-sm" x="990" y="381">−$11.9M</text>
+
+  <!-- Row 595 (PUT WALL) -->
+  <text class="mono" x="472" y="411">595</text>
+  <rect class="wall-pill" x="500" y="399" width="44" height="16" rx="3" />
+  <text class="wall-txt" x="505" y="410">Put wall</text>
+  <rect class="neg-hi" x="590" y="394" width="74" height="26" />
+  <text class="mono-sm" x="606" y="411">−$6.8M</text>
+  <rect class="neg-hi" x="668" y="394" width="74" height="26" />
+  <text class="mono-sm" x="684" y="411">−$5.5M</text>
+  <rect class="neg-md" x="746" y="394" width="74" height="26" />
+  <text class="mono-sm" x="762" y="411">−$3.7M</text>
+  <rect class="neg-md" x="824" y="394" width="74" height="26" />
+  <text class="mono-sm" x="840" y="411">−$2.4M</text>
+  <rect class="neg-lo" x="902" y="394" width="74" height="26" />
+  <text class="mono-sm" x="918" y="411">−$0.8M</text>
+  <text class="mono-sm" x="990" y="411">−$19.2M</text>
+
+  <!-- Footer -->
+  <line
+    x1="460"
+    y1="428"
+    x2="1066"
+    y2="428"
+    stroke="#3f3f46"
+    stroke-width="1.5"
+  />
+  <text class="muted" x="472" y="448">Expiry net</text>
+  <text class="mono-sm" x="608" y="448">+$3.5M</text>
+  <text class="mono-sm" x="686" y="448">+$5.6M</text>
+  <text class="mono-sm" x="764" y="448">+$0.7M</text>
+  <text class="mono-sm" x="842" y="448">+$2.7M</text>
+  <text class="mono-sm" x="920" y="448">+$0.5M</text>
+  <text class="mono" x="992" y="448">+$13.0M</text>
+
+  <!-- Legend -->
+  <rect class="neg-hi" x="458" y="496" width="12" height="12" rx="2" />
+  <text class="muted" x="476" y="506">Negative (−)</text>
+  <rect
+    class="cell-zero"
+    x="556"
+    y="496"
+    width="12"
+    height="12"
+    rx="2"
+    stroke="#3f3f46"
+  />
+  <text class="muted" x="574" y="506">Zero / none</text>
+  <rect class="pos-hi" x="646" y="496" width="12" height="12" rx="2" />
+  <text class="muted" x="664" y="506">Positive (+)</text>
+  <text class="muted" x="760" y="506">
+    Theme tokens adapt to dark, light &amp; all 10 palettes
+  </text>
+</svg>

@@ -216,7 +216,12 @@ check of the tape against IBKR history is a future improvement.
 - **Book pressure:** (bid size − ask size) ÷ (bid size + ask size) over the top 10 rows.
 - **Options:** premium by right, sentiment, aggressor side (QuantData `tradeSideCode`), sweep/block,
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or
-  $1M (SPX), and every golden sweep.
+  $1M (SPX), and every golden sweep. A print that reports open interest 0 has QuantData's Opening
+  and Vol > OI flags set on every print (card `vertex-flow-print-flags-oi-zero`), so readers treat
+  them as not known (`oiFlags` in `packages/api/src/flow-options.ts`): the print views, bubbles
+  and options summary never show or count those flags, and the opening premium share leaves their
+  premium out. The stored print row keeps the values as sent. Option event text is written at
+  collect time, so only events stored after this change leave out ", vol > OI" for such prints.
 - **GEX:** estimate (dealers assumed long calls, short puts). ES uses SPX levels shifted by the
   ES − SPX basis (ES book mid or last price minus the SPX spot at the snapshot).
 
@@ -397,6 +402,36 @@ Panel "Tape speed" on `/flow` (below the control panel):
 - **Fixtures.** `/lab/flow` shows the ES case (busy start, three bursts, a gap, partly covered
   bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
   390-minute window: nothing stored).
+
+## Live DOM ladder (ES, NQ)
+
+Design: [vertex-viz-live-dom/design.md](designs/vertex-viz-live-dom/design.md).
+Research only: resting depth, pulling/stacking queue deltas, and traded-volume counts describe
+the CME book and tape, never a trade signal.
+
+- **Uncached live endpoint (`vertex-history` 1.8.0).** `GET /vertex-history/v1/dom?symbol=ES|NQ&rows=10&windowSeconds=900[&since=<epoch>]`
+  reads directly from the already-running in-memory `DepthStream` and `TapeStream` with zero extra
+  IBKR subscriptions and zero disk cache. `DepthFeed.live_dom_book` filters positive finite levels
+  and aggregates duplicate prices before slicing `rows`; `TapeFeed.attach` clears `self.prints` on
+  contract rollover (`conId` change); `TapeFeed.live_volume` copies the bounded print slice
+  (`<= 50,000` prints plus `TAPE_SEED_SCAN` zero-tick seeds) under `self.lock`, signs outside the
+  lock (quote rule first, tick rule fallback, else `"unsigned"`), caps returned levels to 200
+  (preserving POC), and caches by `(tapeSeq, effectiveCutoff)`.
+- **oRPC streaming and recorded fallback (`packages/api`).** `flow.liveDom` (`GET /flow/live-dom`,
+  `flow-live-dom.v1`) returns a single contiguous 1-tick ladder frame; `flow.liveDomStream`
+  (`GET /flow/live-dom/stream`, oRPC `eventIterator` SSE) streams live updates at `500 ms` / `1 s`
+  or `2 s` over a bounded `20 s` lease (`<= 40` polls per lease, `5 s` quiet heartbeats). Auth and
+  any PostgreSQL fallback read (`flow_book_snapshots` 72 h lookback `limit: 1` + `flow_large_trades`
+  and `latestSamples(["depth", "ticks"])`) run before returning the async generator, so zero DB
+  connections are held while streaming. Both procedures are session-only (`requireOperator`,
+  read-only agent viewer permitted via GET; excluded from `AGENT_API_KEY_PROCEDURE_PATHS` and
+  `AGENT_API_KEY_READ_PROCEDURES`).
+- **Portal UI (`FlowLiveDomPanel`).** Rendered on `/flow` below Tape speed (paired by index group:
+  `SPY`/`ES` -> `ES`, `QQQ`/`NQ` -> `NQ`) with desktop 8-column Jigsaw layout (`Bid Δ`, `Bid`,
+  `Bid T`, `Price` with `ASK`/`BID`/`LTP`/`POC` badges, `Ask T`, `Ask`, `Ask Δ`, `Volume · Net Δ`)
+  and compact 375 px layout (`Bid`, `Price`, `Ask`, `Volume`), `3x` aggressive imbalance markers
+  (`>= 15` contracts), server-side Reset vol (`since`), Lock axis + Re-center, Pause/Resume,
+  hidden-tab auto-pause, exponential backoff, and keyboard row inspection.
 
 ## Liquidity heatmap (ES, NQ)
 
@@ -623,6 +658,47 @@ Panel "Options flow heatmap" on `/flow` (below the Put/call ratio panel, SPY and
   gap, unsigned flat cell, spot between strikes) and ES (12 SPX strikes, exact-strike spot, no gap)
   responses across 5m, 15m, and 30m buckets.
 
+## Option print bubbles (SPY, ES)
+
+The option print bubbles panel overlays big stored option prints (`flow_option_prints`, premium
+>= `$10,000`, retained 14 days) onto the intraday underlying price path of the newest options
+session (`09:30` to `16:15` New York, end-exclusive) for `SPY` (SPY options) and `ES` (SPX
+options). `QQQ` and `NQ` have no stored option prints and do not render this panel. Research only:
+bubbles describe stored trades, never a trade signal. Design:
+[docs/vertex-rebuild/designs/vertex-viz-option-bubbles/design.md](designs/vertex-viz-option-bubbles/design.md).
+
+- **Underlying price path.** `readOptionPrintMinutes` supplies 1-minute `lastPrice` points and
+  full-session print counts/gross premium across all stored prints. Any minute overlapping an open
+  `flow_option_gaps` range is marked `unread: true`, and clipped gap ranges are returned in `gaps`
+  and `unread` so the chart breaks the price line and shades unread intervals explicitly.
+- **Big prints and cap.** `readLargeOptionPrints` selects prints with `premium >= minPremiumUsd`
+  (`$100K`, `$250K` default, `$500K`, or `$1M`) ordered by `(premium DESC, traded_at DESC, id DESC)`
+  up to `120 + 1` rows. `foldOptionBubbles` caps to the top 120 prints (setting `truncated: true`
+  when more matched), maps stored `side` and `moneyness` to contract values, computes directional
+  sign via `OPTION_SIDE_SIGN`, sorts returned bubbles chronologically (`at ASC, id ASC`), and
+  counts prints without a positive finite `underlying_price` in `totals.unplottedBubbles` without
+  fabricating coordinates.
+
+Procedure `flow.optionBubbles` (`GET /flow/option-bubbles`, input `symbol` SPY or ES and optional
+`minPremiumUsd` `100000 | 250000 | 500000 | 1000000`, default `250000`; operator session; no API
+key; read-only viewer account can call it as a GET procedure) returns `flow-option-bubbles.v1`.
+
+Panel "Option print bubbles" on `/flow` (between Put/call ratio and Options flow heatmap, SPY and
+ES only):
+
+- **Own call.** Runs in its own `loadOptionBubbles` sequence. Switching the minimum premium floor
+  or clicking **Retry** refetches only `flow.optionBubbles` without refetching sibling panels or
+  resetting the 60 s refresh timer.
+- **Visual encoding (never color alone).** Bubble radius scales with square root of premium
+  (with a 3-circle size legend); calls use `--color-success` with centered `C` glyph (`r >= 10`),
+  puts use `--color-destructive` with `P` glyph; ask/above-ask fills are solid (`above_ask` and
+  golden sweeps add an outer ring), bid/below-bid fills are hollow thick rings, and mid/unclassified
+  fills are dashed rings. Includes client-side Right (`All`/`Calls`/`Puts`) and Side
+  (`All sides`/`Ask-side`/`Bid-side`) filters, keyboard navigation (`ArrowLeft`/`ArrowRight`/
+  `Home`/`End`/`Escape`), a pinned inspector strip, and a synced accessible top-prints table.
+- **Fixtures.** `/lab/flow` renders deterministic SPY (mixed sides, golden sweeps, open collector
+  gap, one unplotted print) and ES (SPX options, no gap) responses across all four premium floors.
+
 ## Off-exchange print levels (SPY)
 
 Design: [vertex-viz-offexchange-levels/design.md](designs/vertex-viz-offexchange-levels/design.md).
@@ -689,6 +765,18 @@ rate limit names its end time in ET). A failed `zero_dte` part is named in the m
 request refused for the caller reserve is `skipped` and stores no sample. Net drift is stale after
 300 s (09:30 to 16:20 New York). The worst case of one run is 24 QuantData requests (4 net drift, 16
 option pages, 3 GEX, 1 market premium) against 30 minus the caller reserve of 6.
+
+## Wall x drift read
+
+Design: [gex-wall-drift-confluence/design.md](designs/gex-wall-drift-confluence/design.md). The browser grades
+the current GEX wall touch with the pure rule `gradeGexWallDrift` (`packages/api/src/gex-wall-drift-rules.ts`,
+`gex-wall-drift-rules.v1`): the `flow.snapshot` GEX levels of the options ticker of the view (never the shifted
+`symbolLevels`) and the `flow.control` net drift series of the same ticker, price from the newest settled drift
+minute. Reads: `hold-A`, `break-risk`, `no-read` or `no-data`, each non-graded read with a typed code (for example
+`drift_stale`, `window_gap`, `not_at_wall`). The badge sits above the control panel on `/flow` and in the options
+analytics panel of `/stock` for operators on SPY, SPX, QQQ and NDX. No API field, table or collector changes. The
+read is unvalidated research context until the pre-registered study
+([gex-wall-drift-confluence.md](../specs/strategies/gex-wall-drift-confluence.md)) has a verdict.
 
 ## Market premium
 
@@ -1232,13 +1320,85 @@ locks no existing table.
    1 s without restart; optional DB rollback uses
    `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
 
+### Live DOM ladder (service 1.8.0)
+
+No PostgreSQL migration is required. Deploy off-hours (after 16:00 ET or before 08:30 ET, owner
+rule 2026-11-16):
+
+1. Deploy `vertex-web` via `infra/quantvps/restart-when-idle.sh`. Until `vertex-history` upgrades
+   to `1.8.0`, `/flow` Live DOM gracefully shows the latest recorded `flow_book_snapshots` +
+   `flow_large_trades` fallback and retries every 5 s.
+2. Upgrade `vertex-history` to `1.8.0` under `/opt/vertex-history` (backup first, run
+   `test_vertex_history.py`, copy `vertex_history.py`, restart `vertex-history` off-hours,
+   verify `/vertex-history/v1/dom?symbol=ES` returns `vertex-history-dom-v1`).
+3. Rollback: no schema change to revert; restoring `vertex_history.py` `1.7.0` drops `/dom` back
+   to `404` and `FlowLiveDomPanel` returns cleanly to recorded fallback.
+
+### Big futures trade bubbles (ES, NQ)
+
+Card `vertex-viz-trade-bubbles` (chart F10; design in
+[`docs/vertex-rebuild/designs/vertex-viz-trade-bubbles/design.md`](designs/vertex-viz-trade-bubbles/design.md))
+adds `flow.tradeBubbles` (`GET /flow/trade-bubbles`, `flow-trade-bubbles.v1`) and
+`FlowTradeBubblesPanel` on `/flow` (below `FlowTapeSpeedPanel`). No migration or collector change is
+required: the endpoint reads existing 730-day `flow_large_trades` (`readLargeTrades`), 1-minute
+`flow_minutes` OHLC/VWAP bars (`readMinutes`), and `flow_samples` (`ticks` freshness).
+
+- Window anchoring: when `newestDataAt(symbol)` precedes `now`, `windowEnd` is set to
+  `min(now, newestDataAt + 60 s)` so deep trades recorded inside the newest minute row remain
+  visible after the close or on weekends.
+- Rules (`trade-bubbles.v1`, `packages/api/src/flow-trade-bubbles-rules.ts`): computes full-window
+  buy/sell trade and contract totals, nearest-rank `p95Size`, `captureMode`, and `largestBubble`;
+  caps returned bubbles at 500 by keeping the largest prints (re-sorted chronologically) and marking
+  `totals.truncated = true` when exceeded.
+- Portal panel (`FlowTradeBubblesPanel`): plots 1-minute candlesticks, a dashed 1-minute VWAP line,
+  and area-scaled buy (solid ring) / sell (dashed ring) bubbles with instant side and size-multiple
+  (`All deep`, `>= 2x`, `>= 3x`) filters, keyboard arrow inspection, and a top-15 prints table.
+  Research view only; no order, arming, or risk-setting path.
+
+### Live option-print tickers (migration 0095)
+
+Smart money PR 4 ([plan-pr4.md](designs/smart-money/plan-pr4.md)) activates live option-print
+collection for `QQQ` and `NDX` and widens `FLOW_OPTION_TICKERS` by N=2 to 6 tickers (`SPY`, `SPX`,
+`QQQ`, `NDX`, `IWM`, `NVDA`). Option-only tickers (`IWM`, `NVDA`) are separate from `FLOW_SYMBOLS`,
+so they add zero IBKR requests, zero GEX fetches, and zero net-drift fetches.
+
+- **QuantData budget:** `DEFAULT_MAX_PER_MINUTE` rises from 30 to 54 req/60 s with
+  `DEFAULT_QUOTA_RESERVE = 60` and `FLOW_QUANTDATA_CALLER_RESERVE = 6` (48 collector starts/min).
+  Minute-parity staggering splits the 6 option streams into two groups of 3 (even minutes:
+  `SPY, SPX, IWM`; odd minutes: `QQQ, NDX, NVDA`; `FLOW_DUE_SECONDS.options = 50`). Each stream
+  caps at 8 order-flow pages per run (`FLOW_OPTION_RUN_PAGES_MAX`), so a collector run uses at most
+  32 QuantData requests (24 option pages + 3 GEX + 4 net drift + 1 market premium <= 48).
+  Single-stock equity options (`NVDA`) close at 16:00 ET; index and broad-ETF options (`SPY`,
+  `SPX`, `QQQ`, `NDX`, `IWM`) close at 16:15 ET.
+- **Read path:** `flow.optionPrints` (`flow-option-prints.v1`) returns full-window aggregates,
+  newest prints, freshness, unread gap count, source, and per-ticker delay for all 6 tickers. The
+  `/flow` page mounts `<FlowOptionTapePanel />`, and MCP exposes read-only `flow_option_prints`
+  (deferred from the in-app assistant until semantic-layer evals are re-recorded).
+- **Deploy (after 16:00 ET or before 08:30 ET, owner rule 2026-11-16):**
+  1. Pause the flow timer on QuantVPS: `sudo systemctl stop vertex-flow.timer`.
+  2. Apply `packages/db/migrations/0095_flow_option_tickers.sql` alone with
+     `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+     `db:migrate`).
+  3. Run a rolled-back write probe as `vertex_research` inserting an `IWM` row into
+     `flow_option_prints` and `flow_samples` (`source = 'options'`).
+  4. Deploy `vertex-web` at the exact merged commit SHA via `infra/quantvps/restart-when-idle.sh`.
+  5. Run one QuantVPS dry-run tick, resume `vertex-flow.timer`, and run the live Postgres, `/flow`
+     dark-mode screenshot, and MCP checks.
+- **Rollback:** Pause `vertex-flow.timer`, deploy the previous `vertex-web` SHA, and resume the
+  timer (the previous app runs cleanly against the widened CHECK constraints). Only if reverting
+  the DB constraints is required: pause `vertex-flow.timer`, explicitly delete `IWM`/`NVDA` rows
+  from `flow_option_prints`, `flow_option_gaps`, `flow_samples`, and `flow_events`, apply
+  `packages/db/rollback/0095_flow_option_tickers.down.sql` (which refuses while any `IWM`/`NVDA`
+  row exists), and resume `vertex-flow.timer`.
+
 ## Agent semantic layer
 
 Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
-the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-control.v1` of one
-group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
-with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
-`flow_control_state`. Each points to the tool `flow_control`.
+the same `flow-snapshot.v1` document as the page), `flow_control` (`flow-control.v1` of one
+group), and `flow_option_prints` (`flow-option-prints.v1` of one of the 6 option tickers). The
+catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms with source
+`none` (migration 0081): `options_net_drift`, `futures_deep_trades` and `flow_control_state`. Each
+points to the tool `flow_control`.
 
 Migration `0084_semantic_terms_flow_streamed_tape` (card `vertex-flow-terms-streamed-tape`) replaces
 the 0081 texts of `futures_deep_trades` and `flow_control_state`, which said that the tape is sampled

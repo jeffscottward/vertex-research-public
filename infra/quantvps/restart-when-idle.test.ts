@@ -124,6 +124,57 @@ describe("idle decision", () => {
     });
     expect(result.status).toBe(2);
   });
+  it("enforces the exact 30 s quiet boundary for both log age and TCP keep-alive traffic", () => {
+    const dir = mkdtempSync(join(tmpdir(), "idle-boundary-"));
+    try {
+      const busyPath = join(dir, "busy-29s.txt");
+      writeFileSync(
+        busyPath,
+        [
+          "@@NOW 1030",
+          "@@ACTIVE active",
+          "@@LAST 1001",
+          "0      0      127.0.0.1:3450 127.0.0.1:42318",
+          "\t cubic rto:204 mss:32768 bytes_sent:512 bytes_received:256 lastsnd:29999 lastrcv:29999 lastack:29999",
+          "@@END",
+          "",
+        ].join("\n")
+      );
+      const busy = spawnSync("bash", [script, "--decide", busyPath, "30"], {
+        encoding: "utf8",
+      });
+      expect(busy.status).toBe(0);
+      expect(busy.stdout.trim().split("\n")).toEqual([
+        "busy",
+        "connection 127.0.0.1:42318: data 29999 ms ago",
+        "last log line 29 s ago (quiet window 30 s)",
+      ]);
+
+      const idlePath = join(dir, "idle-30s.txt");
+      writeFileSync(
+        idlePath,
+        [
+          "@@NOW 1031",
+          "@@ACTIVE active",
+          "@@LAST 1001",
+          "0      0      127.0.0.1:3450 127.0.0.1:42318",
+          "\t cubic rto:204 mss:32768 bytes_sent:512 bytes_received:256 lastsnd:30000 lastrcv:30000 lastack:30000",
+          "@@END",
+          "",
+        ].join("\n")
+      );
+      const idle = spawnSync("bash", [script, "--decide", idlePath, "30"], {
+        encoding: "utf8",
+      });
+      expect(idle.status).toBe(0);
+      expect(idle.stdout.trim().split("\n")).toEqual([
+        "idle",
+        "no open request on :3450 (1 keep-alive connection(s), quiet >= 30 s); last log line 30 s ago",
+      ]);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
 });
 
 // Fake remote runner: names each call by its ": <name>;" marker, logs it, and answers from
@@ -147,6 +198,7 @@ fi
 bash -n -c "$cmd" 2>>"$FAKE_DIR/syntax" || { echo "$name" >>"$FAKE_DIR/syntax"; exit 97; }
 n=$(grep -cx "$name" "$FAKE_DIR/calls")
 case "$name" in restart|rollback) printf '%s\\n' "\${cmd//$'\\n'/ }" >>"$FAKE_DIR/commands" ;; esac
+if [ "$name" = migrations ]; then printf '%s' "$cmd" >"$FAKE_DIR/migrations-cmd"; fi
 [ -f "$FAKE_DIR/$name.stderr" ] && cat "$FAKE_DIR/$name.stderr" >&2
 if [ -f "$FAKE_DIR/real" ]; then
   # restart.skip: the command never runs (ssh exit 255). restart.closed: it runs, but the reader of
@@ -163,6 +215,9 @@ if [ "$name" = stage ] && [ ! -f "$FAKE_DIR/stage" ] && [ ! -f "$FAKE_DIR/stage.
 fi
 if [ "$name" = runtime ] && [ ! -f "$FAKE_DIR/runtime" ] && [ ! -f "$FAKE_DIR/runtime.$n" ] && [ ! -f "$FAKE_DIR/runtime.fail" ]; then
   sed -n 's/^new /live /p' "$FAKE_DIR/shas"; echo "staged none"; echo "incomplete none"; exit 0
+fi
+if [ "$name" = migrations ] && [ ! -f "$FAKE_DIR/migrations" ] && [ ! -f "$FAKE_DIR/migrations.$n" ] && [ ! -f "$FAKE_DIR/migrations.fail" ]; then
+  printf '@@START\t\t\t\n@@END\t\t\t\n'; exit 0
 fi
 f="$FAKE_DIR/$name.$n"; [ -f "$f" ] || f="$FAKE_DIR/$name"
 [ -f "$f" ] && cat "$f"
@@ -200,6 +255,18 @@ const setup = (files: Record<string, string>) => {
     `#!/usr/bin/env bash\nprintf '%s\\n' "$1" >>"${join(dir, "alerts")}"\n`
   );
   chmodSync(join(dir, "alert.sh"), 0o755);
+  writeFileSync(
+    join(dir, "migrations-check.sh"),
+    `#!/usr/bin/env bash
+if [ "\${1:-}" = "--print-sql" ]; then echo "SELECT 1;"; exit 0; fi
+# Read the snapshot like the real checker. Without this, a slow writer meets a closed pipe,
+# SIGPIPE fails the pipeline under pipefail and the guard exits 15 instead of passing.
+cat >/dev/null
+echo "all 0 build migrations applied (test hook)"
+exit 0
+`
+  );
+  chmodSync(join(dir, "migrations-check.sh"), 0o755);
   const defaults: Record<string, string> = {
     candidate: "20261101T125501Z\n",
     gate: "build-output-ok\n",
@@ -222,6 +289,8 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
       PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
       // A Saturday: the market hours guard never depends on the time of the test run.
       VERTEX_DEPLOY_NY_TIME: "6 1200 EST",
+      // Legacy tests use fake/empty commits without migration files; migration guard tests clear this.
+      VERTEX_MIGRATIONS_CHECKER: join(dir, "migrations-check.sh"),
       VERTEX_RESTART_ALERT: join(dir, "alert.sh"),
       // CI runners have bash 5.2, which the bash version guard refuses; see "bash version guard".
       VERTEX_RESTART_BASH_VERSION: "5.3",
@@ -242,12 +311,15 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
     }
   };
   return {
-    pauseLeft: existsSync(join(dir, "state", "worker.pause")),
-    pauseSeen: read("pause-seen"),
-    signal: result.signal,
     alerts: read("alerts"),
     calls: read("calls"),
     commands: read("commands"),
+    migrationsCmd: existsSync(join(dir, "migrations-cmd"))
+      ? readFileSync(join(dir, "migrations-cmd"), "utf8")
+      : "",
+    pauseLeft: existsSync(join(dir, "state", "worker.pause")),
+    pauseSeen: read("pause-seen"),
+    signal: result.signal,
     status: result.status,
     stdout: result.stdout,
     syntax: read("syntax"),
@@ -290,6 +362,60 @@ describe("restart flow", () => {
       "protected containers: start times unchanged"
     );
     expect(result.alerts).toEqual([]);
+  });
+  it("restarts in the quiet window left by aligned :00 pollers", () => {
+    const keepAliveProbe = (now: number, last: number): string => {
+      const ageMs = (now - last) * 1000;
+      return [
+        `@@NOW ${now}`,
+        "@@ACTIVE active",
+        `@@LAST ${last}`,
+        "0 0 127.0.0.1:3450 127.0.0.1:42318",
+        `\t cubic bytes_sent:1024 bytes_received:512 lastsnd:${ageMs} lastrcv:${ageMs}`,
+        "@@END",
+      ].join("\n");
+    };
+    // Both flow/collect and autopilot/campaigns/tick complete at :01 (1001).
+    // Polls every 5 s: busy at :26 (25 s), then idle at :31 (30 s) and :36 (35 s).
+    setup({
+      "probe.1": keepAliveProbe(1026, 1001),
+      "probe.2": keepAliveProbe(1031, 1001),
+      "probe.3": keepAliveProbe(1036, 1001),
+    });
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.calls.filter((call) => call === "probe")).toHaveLength(3);
+    expect(result.commands).toEqual([
+      ": restart; systemctl restart vertex-web",
+    ]);
+    expect(result.alerts).toEqual([]);
+  });
+
+  it("never restarts when split-minute pollers prevent two consecutive idle polls", () => {
+    // Pollers at :00 (1000) and :28 (1028) leave a 32 s second half (<35 s two-poll window):
+    // :58 scores one 30 s idle poll, then the :00 tick resets the streak before poll 2 at :03.
+    const probeAt = (now: number, last: number): string => {
+      const ageMs = (now - last) * 1000;
+      return [
+        `@@NOW ${now}`,
+        "@@ACTIVE active",
+        `@@LAST ${last}`,
+        "0 0 127.0.0.1:3450 127.0.0.1:42318",
+        `\t cubic bytes_sent:1024 bytes_received:512 lastsnd:${ageMs} lastrcv:${ageMs}`,
+        "@@END",
+      ].join("\n");
+    };
+    setup({
+      "probe.1": probeAt(1058, 1028),
+      probe: probeAt(1063, 1060),
+    });
+    const result = run([], { VERTEX_RESTART_GIVE_UP_AFTER: "0" });
+    expect(result.status).toBe(4);
+    expect(result.calls.filter((call) => call === "probe")).toHaveLength(2);
+    expect(result.calls).not.toContain("restart");
+    expect(result.stdout).toContain(
+      "last log line 3 s ago (quiet window 30 s)"
+    );
   });
 
   it("pauses the worker during the idle wait and removes the pause file on exit", () => {
@@ -1804,8 +1930,8 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
   it("reports a failed swap back, and a failed health check without a rollback source", () => {
     const swappedLine = `build: swapped in ${BUILD} (previous build: dist.bak-20261122T210501Z with .wrangler.bak-20261122T210501Z)\n`;
     setup({
-      stage: `staged ${BUILD}\n`,
       restart: swappedLine,
+      stage: `staged ${BUILD}\n`,
       "starts.2": STARTS,
       unswap: "build: the undo did not finish; check dist\n",
       "unswap.fail": "",
@@ -1817,10 +1943,10 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
     expect(stuck.alerts[0]).toContain("build swap back failed");
     // An undo that did not finish, and the unit did not restart: one more undo, and a notice.
     setup({
-      stage: `staged ${BUILD}\n`,
       restart:
         "build: the swap failed; putting the live build back\nbuild: the undo did not finish; check dist\n",
       "restart.fail": "",
+      stage: `staged ${BUILD}\n`,
       "starts.2": STARTS,
       unswap: "build: undone\n",
     });
@@ -1962,9 +2088,9 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
   it("rolls both swaps back when the new build fails its health check", () => {
     setup({
       ...REAL,
-      "real-runtime": "",
       health: "root=502 dashboard=000  active=active\n",
       "health.2": HEALTHY,
+      "real-runtime": "",
     });
     const c = stagedCheckout();
     const root = (path: string) => join(c.root, path);
@@ -2210,6 +2336,394 @@ if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 2 ]; then echo "1 0829 EST"; 
     expect(skipped.alerts).toEqual([]);
     expect(run(["--dry-run"], at("6 1200 EST")).stdout).toContain(
       "market hours: outside Monday to Friday"
+    );
+  });
+});
+
+// Migration guard (card vertex-deploy-migration-guard): refuses to restart vertex-web when any
+// migration of the build commit is not applied on QuantVPS Postgres (vertex-postgres).
+// Every test here clears VERTEX_MIGRATIONS_CHECKER so the real scripts/db-migrations-check.ts runs.
+describe("migration guard", { timeout: 30_000 }, () => {
+  const migrationGitRepo = () => {
+    const repo = join(dir, "mig-git");
+    mkdirSync(repo, { recursive: true });
+    const git = (...args: string[]) =>
+      spawnSync("git", ["-C", repo, ...args], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          ...HERMETIC_GIT,
+          GIT_AUTHOR_EMAIL: "t@example.test",
+          GIT_AUTHOR_NAME: "t",
+          GIT_COMMITTER_EMAIL: "t@example.test",
+          GIT_COMMITTER_NAME: "t",
+        },
+      }).stdout.trim();
+    const writeFile = (rel: string, content: string) => {
+      mkdirSync(join(repo, rel, ".."), { recursive: true });
+      writeFileSync(join(repo, rel), content);
+    };
+    const commitMigrations = (
+      msg: string,
+      entries: readonly { sql: string; tag: string }[]
+    ) => {
+      writeFile(
+        "packages/db/migrations/meta/_journal.json",
+        JSON.stringify({
+          dialect: "postgresql",
+          entries: entries.map((e, idx) => ({
+            breakpoints: true,
+            idx,
+            tag: e.tag,
+            version: "7",
+            when: 1_700_000_000_000 + idx * 1000,
+          })),
+          version: "7",
+        })
+      );
+      for (const e of entries) {
+        writeFile(`packages/db/migrations/${e.tag}.sql`, e.sql);
+      }
+      git("add", ".");
+      git("commit", "-q", "-m", msg);
+      return git("rev-parse", "HEAD");
+    };
+
+    git("init", "-q", "-b", "main");
+    const m0 = {
+      sql: `
+        CREATE TABLE "research_screen_rows" (
+          "report_id" text PRIMARY KEY NOT NULL,
+          "status" text NOT NULL,
+          CONSTRAINT "research_screen_rows_check" CHECK ("status" in ('ok', 'failed'))
+        );
+        CREATE INDEX "research_screen_rows_status_idx" ON "research_screen_rows" ("status");
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN
+            GRANT SELECT, INSERT, UPDATE ON TABLE "research_screen_rows" TO "vertex_research";
+          END IF;
+        END
+        $$;
+      `,
+      tag: "0076_research_screen",
+    };
+    const m1 = {
+      sql: `
+        ALTER TABLE "research_screen_rows" DROP CONSTRAINT "research_screen_rows_check";
+        ALTER TABLE "research_screen_rows" ADD CONSTRAINT "research_screen_rows_check" CHECK ("status" in ('ok', 'failed', 'stale'));
+        CREATE TABLE "price_freshness_state" (
+          "monitor" text PRIMARY KEY NOT NULL
+        );
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "price_freshness_state" TO "vertex_research";
+          END IF;
+        END
+        $$;
+      `,
+      tag: "0092_price_freshness_state",
+    };
+    const v1 = commitMigrations("add 0076", [m0]);
+    const v2 = commitMigrations("add 0092", [m0, m1]);
+    return { repo, v1, v2 };
+  };
+
+  const APPLIED_V1_SNAPSHOT = [
+    "@@START\t\t\t",
+    "T\tresearch_screen_rows\t\t",
+    "C\tresearch_screen_rows\treport_id\tNO",
+    "C\tresearch_screen_rows\tstatus\tNO",
+    "I\tresearch_screen_rows_status_idx\t\t",
+    "K\tresearch_screen_rows\tresearch_screen_rows_check\tCHECK ((status = ANY (ARRAY['ok'::text, 'failed'::text])))",
+    "R\tvertex_research\t\t",
+    "G\tresearch_screen_rows\tSELECT\t",
+    "G\tresearch_screen_rows\tINSERT\t",
+    "G\tresearch_screen_rows\tUPDATE\t",
+    "@@END\t\t\t",
+    "",
+  ].join("\n");
+
+  const APPLIED_V2_SNAPSHOT = [
+    "@@START\t\t\t",
+    "T\tresearch_screen_rows\t\t",
+    "T\tprice_freshness_state\t\t",
+    "C\tresearch_screen_rows\treport_id\tNO",
+    "C\tresearch_screen_rows\tstatus\tNO",
+    "C\tprice_freshness_state\tmonitor\tNO",
+    "I\tresearch_screen_rows_status_idx\t\t",
+    "K\tresearch_screen_rows\tresearch_screen_rows_check\tCHECK ((status = ANY (ARRAY['ok'::text, 'failed'::text, 'stale'::text])))",
+    "R\tvertex_research\t\t",
+    "G\tresearch_screen_rows\tSELECT\t",
+    "G\tresearch_screen_rows\tINSERT\t",
+    "G\tresearch_screen_rows\tUPDATE\t",
+    "G\tprice_freshness_state\tSELECT\t",
+    "G\tprice_freshness_state\tINSERT\t",
+    "G\tprice_freshness_state\tUPDATE\t",
+    "G\tprice_freshness_state\tDELETE\t",
+    "@@END\t\t\t",
+    "",
+  ].join("\n");
+
+  const runReal = (
+    repo: string,
+    args: string[] = [],
+    extraEnv: Record<string, string> = {}
+  ) =>
+    run(args, {
+      VERTEX_DEPLOY_GIT_DIR: repo,
+      VERTEX_MIGRATIONS_CHECKER: "",
+      ...extraEnv,
+    });
+
+  it("refuses restart (exit 15) when an unapplied migration exists and names the missing migration", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.v1}\ndeployed ${g.v1}\n`);
+    writeFileSync(join(dir, "migrations"), "@@START\t\t\t\n@@END\t\t\t\n");
+
+    const result = runReal(g.repo);
+    expect(result.status).toBe(15);
+    expect(result.syntax).toEqual([]);
+    expect(result.stdout).toContain("NOT RESTARTED: migration guard:");
+    expect(result.stdout).toContain("0076_research_screen");
+    expect(result.stdout).toContain("missing table research_screen_rows");
+    expect(result.calls).toContain("migrations");
+    expect(result.calls).not.toContain("probe");
+    expect(result.calls).not.toContain("restart");
+    expect(result.pauseLeft).toBe(false);
+    expect(result.pauseSeen).toEqual([]);
+    expect(result.migrationsCmd).toContain(
+      "docker exec -i vertex-postgres psql"
+    );
+    expect(result.migrationsCmd).toContain("vertex_research_development");
+    expect(result.migrationsCmd).not.toContain(
+      "ibkr-nautilus-exec-node-postgres-1"
+    );
+  });
+
+  it("refuses restart when a widened CHECK literal or app-role grant is missing", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.v2}\ndeployed ${g.v1}\n`);
+    // v1 is applied on prod, but v2 (0092) is not applied yet.
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+
+    const result = runReal(g.repo);
+    expect(result.status).toBe(15);
+    expect(result.stdout).toContain("NOT RESTARTED: migration guard:");
+    expect(result.stdout).toContain("0092_price_freshness_state");
+    expect(result.stdout).toContain("missing table price_freshness_state");
+    expect(result.stdout).toContain("missing 'stale'");
+    expect(result.calls).not.toContain("restart");
+
+    // Table and widened CHECK literal are present, but DELETE grant for vertex_research is missing.
+    writeFileSync(
+      join(dir, "migrations"),
+      APPLIED_V2_SNAPSHOT.replace("G\tprice_freshness_state\tDELETE\t\n", "")
+    );
+    const missingGrant = runReal(g.repo);
+    expect(missingGrant.status).toBe(15);
+    expect(missingGrant.stdout).toContain("0092_price_freshness_state");
+    expect(missingGrant.stdout).toContain(
+      "missing vertex_research privilege DELETE on price_freshness_state"
+    );
+    expect(missingGrant.calls).not.toContain("restart");
+  });
+
+  it("proceeds to restart when all build migrations are applied (even without Drizzle ledger rows)", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.v2}\ndeployed ${g.v1}\n`);
+    writeFileSync(join(dir, "migrations"), APPLIED_V2_SNAPSHOT);
+
+    const result = runReal(g.repo);
+    expect(result.status).toBe(0);
+    expect(result.syntax).toEqual([]);
+    expect(result.stdout).toContain(
+      "migrations: all 2 build migrations applied (2 structurally verified, 0 in drizzle ledger)"
+    );
+    expect(result.calls).toContain("migrations");
+    expect(result.calls).toContain("restart");
+    expect(result.calls.indexOf("migrations")).toBeGreaterThan(
+      result.calls.indexOf("runtime")
+    );
+    expect(result.calls.indexOf("migrations")).toBeLessThan(
+      result.calls.indexOf("probe")
+    );
+  });
+
+  it("checks the staged build commit with --deploy and refuses when its new migration is missing", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "stage"), `staged ${g.v2}\n`);
+    writeFileSync(join(dir, "shas"), `new ${g.v2}\ndeployed ${g.v1}\n`);
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+    writeFileSync(
+      join(dir, "restart"),
+      `build: swapped in ${g.v2} (previous build: dist.bak-1 with .wrangler.bak-1)\n`
+    );
+
+    const blocked = runReal(g.repo, ["--deploy", g.v2]);
+    expect(blocked.status).toBe(15);
+    expect(blocked.stdout).toContain("0092_price_freshness_state");
+    expect(blocked.calls).not.toContain("restart");
+
+    writeFileSync(join(dir, "migrations"), APPLIED_V2_SNAPSHOT);
+    const passed = runReal(g.repo, ["--deploy", g.v2]);
+    expect(passed.status).toBe(0);
+    expect(passed.stdout).toContain(
+      "migrations: all 2 build migrations applied"
+    );
+    expect(passed.calls).toContain("restart");
+  });
+
+  it("fails closed (exit 15) when Postgres cannot be read, snapshot is truncated, SHA is unknown, or commit is missing", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.v1}\ndeployed ${g.v1}\n`);
+
+    // 1. docker exec / ssh fails
+    writeFileSync(join(dir, "migrations.fail"), "");
+    const dbFail = runReal(g.repo);
+    expect(dbFail.status).toBe(15);
+    expect(dbFail.stdout).toContain(
+      "cannot read database migration state from vertex-postgres"
+    );
+    expect(dbFail.calls).not.toContain("restart");
+    rmSync(join(dir, "migrations.fail"));
+
+    // 2. Truncated snapshot (no @@END)
+    writeFileSync(
+      join(dir, "migrations"),
+      "@@START\t\t\t\nT\tresearch_screen_rows\t\t\n"
+    );
+    const truncated = runReal(g.repo);
+    expect(truncated.status).toBe(15);
+    expect(truncated.stdout).toContain(
+      "incomplete Postgres migration snapshot"
+    );
+    expect(truncated.calls).not.toContain("restart");
+
+    // 3. Unknown new SHA (even with --allow-older)
+    writeFileSync(join(dir, "shas"), `new none\ndeployed ${g.v1}\n`);
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+    const unknownSha = runReal(g.repo, [
+      "--allow-older",
+      "test unknown sha",
+      "--allow-stale-runtime",
+      "test unknown sha",
+    ]);
+    expect(unknownSha.status).toBe(15);
+    expect(unknownSha.stdout).toContain("the new build SHA is unknown");
+    expect(unknownSha.calls).not.toContain("restart");
+
+    // 4. Commit missing from checkout (equal SHAs pass version_guard without git lookup)
+    writeFileSync(join(dir, "shas"), "new deadbeef\ndeployed deadbeef\n");
+    const missingCommit = runReal(g.repo);
+    expect(missingCommit.status).toBe(15);
+    expect(missingCommit.stdout).toContain("cannot verify database migrations");
+    expect(missingCommit.calls).not.toContain("restart");
+  });
+
+  it("allows unapplied migrations only with --allow-unapplied-migrations (with alert), and never skips failed reads", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.v2}\ndeployed ${g.v1}\n`);
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+
+    const skipped = runReal(g.repo, [
+      "--allow-unapplied-migrations",
+      "emergency hotfix rollback",
+    ]);
+    expect(skipped.status).toBe(0);
+    expect(skipped.stdout).toContain("migrations: WARNING guard skipped");
+    expect(skipped.stdout).toContain("emergency hotfix rollback");
+    expect(skipped.stdout).toContain("0092_price_freshness_state");
+    expect(skipped.alerts).toHaveLength(1);
+    expect(skipped.alerts[0]).toContain("migration guard skipped");
+    expect(skipped.alerts[0]).toContain("emergency hotfix rollback");
+    expect(skipped.calls).toContain("restart");
+
+    // Failed Postgres read is NEVER skipped by --allow-unapplied-migrations.
+    setup({});
+    const g2 = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g2.v2}\ndeployed ${g2.v1}\n`);
+    writeFileSync(join(dir, "migrations.fail"), "");
+    const stillRefused = runReal(g2.repo, [
+      "--allow-unapplied-migrations",
+      "emergency hotfix",
+    ]);
+    expect(stillRefused.status).toBe(15);
+    expect(stillRefused.alerts).toEqual([]);
+    expect(stillRefused.calls).not.toContain("restart");
+
+    // Truncated snapshot (checker exit 2) is NEVER skipped either.
+    rmSync(join(dir, "migrations.fail"));
+    writeFileSync(join(dir, "migrations"), "@@START\t\t\t\n");
+    const stillRefusedTrunc = runReal(g2.repo, [
+      "--allow-unapplied-migrations",
+      "emergency hotfix",
+    ]);
+    expect(stillRefusedTrunc.status).toBe(15);
+    expect(stillRefusedTrunc.alerts).toEqual([]);
+    expect(stillRefusedTrunc.calls).not.toContain("restart");
+
+    // Uncaught checker crash exiting 1 is NEVER treated as unapplied migrations (never skipped).
+    writeFileSync(
+      join(dir, "crash-checker.sh"),
+      `#!/usr/bin/env bash
+if [ "\${1:-}" = "--print-sql" ]; then echo "SELECT 1;"; exit 0; fi
+cat >/dev/null
+echo "ReferenceError: simulated runtime crash" >&2
+exit 1
+`
+    );
+    chmodSync(join(dir, "crash-checker.sh"), 0o755);
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+    const crashed = run(["--allow-unapplied-migrations", "emergency hotfix"], {
+      VERTEX_DEPLOY_GIT_DIR: g2.repo,
+      VERTEX_MIGRATIONS_CHECKER: join(dir, "crash-checker.sh"),
+    });
+    expect(crashed.status).toBe(15);
+    expect(crashed.stdout).toContain("cannot verify database migrations");
+    expect(crashed.stdout).toContain("simulated runtime crash");
+    expect(crashed.alerts).toEqual([]);
+    expect(crashed.calls).not.toContain("restart");
+
+    // Rejects --allow-unapplied-migrations without a reason.
+    const badArg = run(["--allow-unapplied-migrations"]);
+    expect(badArg.status).toBe(2);
+  });
+
+  it("dry run prints migration guard decisions without refusing or alerting", () => {
+    setup({});
+    const g = migrationGitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.v2}\ndeployed ${g.v1}\n`);
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+
+    const refused = runReal(g.repo, ["--dry-run"]);
+    expect(refused.status).toBe(0);
+    expect(refused.stdout).toContain("migration guard would refuse:");
+    expect(refused.stdout).toContain("0092_price_freshness_state");
+    expect(refused.alerts).toEqual([]);
+    expect(refused.calls).not.toContain("restart");
+
+    const skipped = runReal(g.repo, [
+      "--dry-run",
+      "--allow-unapplied-migrations",
+      "dry run check",
+    ]);
+    expect(skipped.status).toBe(0);
+    expect(skipped.stdout).toContain("migrations: WARNING guard skipped");
+    expect(skipped.alerts).toEqual([]);
+
+    writeFileSync(join(dir, "migrations"), APPLIED_V2_SNAPSHOT);
+    const applied = runReal(g.repo, ["--dry-run"]);
+    expect(applied.status).toBe(0);
+    expect(applied.stdout).toContain(
+      "migrations: all 2 build migrations applied"
     );
   });
 });

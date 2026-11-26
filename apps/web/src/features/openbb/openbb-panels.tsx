@@ -31,6 +31,7 @@ import {
   OPENBB_REQUEST_TIMEOUT_MS,
   type OpenbbGateway,
 } from "./gateway.ts";
+import { StockSmartMoneySections } from "./smart-money-filings-sections.tsx";
 import {
   blockedNotice,
   COT_CHANGE_WEEKS,
@@ -43,6 +44,7 @@ import {
   formatPercent,
   formatSignedCompact,
   ivBasisText,
+  ivHistoryText,
   ivPanelDate,
   ivSourceNotice,
   ivStandingText,
@@ -375,6 +377,7 @@ const MarketsBlocks = ({
               (row) =>
                 row.asOf === null ? NOT_COLLECTED : formatNumber(row.gammaFlip),
             ],
+            ["IV history", (row) => ivHistoryText(row)],
             [
               "Call / put wall",
               (row) =>
@@ -740,6 +743,7 @@ export const OpenbbFilingsTab = ({
       ) : (
         <Status state={state} what={`${symbol} filings`} />
       )}
+      <StockSmartMoneySections gateway={gateway} symbol={symbol} />
       <p className="text-muted-foreground text-xs">
         SEC EDGAR and FINRA public data. Research input, not a trade signal.
       </p>

@@ -23,6 +23,7 @@ import { alias, type PgColumn, type PgTable } from "drizzle-orm/pg-core";
 import {
   type OpenbbCongressChamber,
   type OpenbbFactorFrequency,
+  type OpenbbOptionType,
   openbbCongressFilings,
   openbbCongressTrades,
   openbbCotPositions,
@@ -54,6 +55,9 @@ import type { DatabaseExecutor } from "./client.ts";
 // its primary key, so a repeated batch writes the same rows again and never duplicates them.
 // macro_points also upserts its series row and recomputes first/last date and point count.
 // Reads serve the operator procedures openbb.*. Research only: nothing here places orders.
+
+const YAHOO_FALLBACK_ROW_WARNING_SUFFIX =
+  "used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)";
 
 type Insert<T extends PgTable> = T["$inferInsert"];
 type Select<T extends PgTable> = T["$inferSelect"];
@@ -97,15 +101,15 @@ const UPSERT_TABLES = {
     keys: ["asOf", "underlying", "expiration"],
     table: openbbOptionIvTerm,
   },
+  sec_13f_filings: {
+    keys: ["accessionNumber"],
+    table: openbbSec13fFilings,
+  },
   sec_13f_holdings: {
     // A later batch without the CUSIP's ticker never erases one already stored.
     keepWhenNull: ["symbol"],
     keys: ["filerCik", "periodEnding", "cusip", "optionType"],
     table: openbbSec13fHoldings,
-  },
-  sec_13f_filings: {
-    keys: ["accessionNumber"],
-    table: openbbSec13fFilings,
   },
   sec_filings: { keys: ["accessionNumber", "symbol"], table: openbbSecFilings },
   sec_form4_filings: {
@@ -227,6 +231,30 @@ export type OpenbbForm4IndexDay = Select<typeof openbbSecForm4IndexDays>;
 export type OpenbbFtdRow = Select<typeof openbbSecFtd>;
 export type Openbb13fRow = Select<typeof openbbSec13fHoldings>;
 export type Openbb13fFilingRow = Select<typeof openbbSec13fFilings>;
+export type Openbb13fMarketChangeKind = "new" | "added" | "reduced" | "sold";
+export type Openbb13fMarketChangeFilter = "all" | Openbb13fMarketChangeKind;
+export type Openbb13fMarketChangeQuery = Readonly<{
+  change: Openbb13fMarketChangeFilter;
+  limit: number;
+  ticker: string | null;
+}>;
+export type Openbb13fMarketChangeRow = Readonly<{
+  accessionNumber: string;
+  change: Openbb13fMarketChangeKind;
+  cusip: string;
+  filedOn: string;
+  filerCik: string;
+  filerName: string;
+  issuer: string;
+  optionType: OpenbbOptionType;
+  period: string;
+  previousPeriod: string;
+  previousShares: number | null;
+  previousValue: number | null;
+  shares: number | null;
+  symbol: string | null;
+  value: number | null;
+}>;
 export type OpenbbFactorRow = Select<typeof openbbFactorReturns>;
 export type OpenbbCongressFilingRow = Select<typeof openbbCongressFilings>;
 /** A trade row with its filing's link and amendment flag. */
@@ -289,6 +317,8 @@ export type OpenbbRepository = Readonly<{
   latestRuns: () => Promise<OpenbbRun[]>;
   /** Newest run and newest ok-or-partial run of each job, in `jobs` order. */
   lastRunsFor: (jobs: readonly string[]) => Promise<OpenbbJobRuns[]>;
+  /** Latest fully written non-empty Yahoo-fallback `cboe-option-iv` run. */
+  lastYahooFallbackAt: () => Promise<Date | null>;
   /**
    * Congress trades and filings filed on or after `from`, newest first, at most 5,000 each.
    * Trades come only from parsed filings and only up to the filing's row_count.
@@ -380,6 +410,13 @@ export type OpenbbRepository = Readonly<{
     symbol: string,
     cusips: readonly string[]
   ) => Promise<Openbb13fRow[]>;
+  /**
+   * Market-wide quarter-over-quarter 13F changes across every tracked filer's two newest
+   * consecutive full books (earliest-filed original per period), ordered by max(value, prev_value).
+   */
+  changes13fMarket: (
+    query: Openbb13fMarketChangeQuery
+  ) => Promise<Openbb13fMarketChangeRow[]>;
   factors: (
     frequency: OpenbbFactorFrequency,
     from: string | null
@@ -546,6 +583,148 @@ export const createOpenbbRepository = (
       since === null ? [] : [{ attempts, job, since }]
     );
   },
+  changes13fMarket: async ({ change, limit, ticker }) => {
+    const changePredicate =
+      change === "all" ? sql`change <> 'unchanged'` : sql`change = ${change}`;
+    const tickerPredicate =
+      ticker === null
+        ? sql``
+        : sql`and (raw_symbol = ${ticker} or exists (select 1 from ${openbbCusipSymbols} cs where cs.cusip = joined.cusip and cs.symbol = ${ticker}))`;
+    const symbolExpr =
+      ticker === null
+        ? sql`coalesce(f.raw_symbol, (select cs.symbol from ${openbbCusipSymbols} cs where cs.cusip = f.cusip order by cs.last_seen desc, cs.symbol asc limit 1))`
+        : sql`${ticker}::text`;
+    const result = await database.execute(sql`
+      with originals as (
+        select distinct on (filer_cik, period_ending)
+          filer_cik, filer_name, period_ending, filed_on, accession_number
+        from ${openbbSec13fFilings}
+        order by filer_cik, period_ending desc, filed_on asc, accession_number asc
+      ),
+      ranked as (
+        select *, row_number() over (partition by filer_cik order by period_ending desc) as rn
+        from originals
+      ),
+      pairs as (
+        select
+          c.filer_cik,
+          c.filer_name,
+          c.period_ending as curr_period,
+          c.filed_on as curr_filed_on,
+          c.accession_number as curr_accession,
+          p.period_ending as prev_period,
+          p.accession_number as prev_accession
+        from ranked c
+        join ranked p on p.filer_cik = c.filer_cik and p.rn = 2
+        where c.rn = 1
+          and c.period_ending = (date_trunc('quarter', c.period_ending) + interval '3 months' - interval '1 day')::date
+          and p.period_ending = (date_trunc('quarter', c.period_ending) - interval '1 day')::date
+      ),
+      curr_rows as (
+        select p.filer_cik, p.filer_name, p.curr_period, p.curr_filed_on, p.curr_accession, p.prev_period,
+          h.cusip, h.option_type, h.issuer, h.symbol, h.shares, h.value
+        from pairs p
+        join ${openbbSec13fHoldings} h
+          on h.filer_cik = p.filer_cik
+         and h.period_ending = p.curr_period
+         and h.accession_number = p.curr_accession
+      ),
+      prev_rows as (
+        select p.filer_cik, p.filer_name, p.curr_period, p.curr_filed_on, p.curr_accession, p.prev_period,
+          h.cusip, h.option_type, h.issuer, h.symbol, h.shares, h.value
+        from pairs p
+        join ${openbbSec13fHoldings} h
+          on h.filer_cik = p.filer_cik
+         and h.period_ending = p.prev_period
+         and h.accession_number = p.prev_accession
+      ),
+      joined as (
+        select
+          coalesce(c.filer_cik, p.filer_cik) as filer_cik,
+          coalesce(c.filer_name, p.filer_name) as filer_name,
+          coalesce(c.curr_period, p.curr_period) as period,
+          coalesce(c.prev_period, p.prev_period) as previous_period,
+          coalesce(c.curr_filed_on, p.curr_filed_on) as filed_on,
+          coalesce(c.curr_accession, p.curr_accession) as accession_number,
+          coalesce(c.cusip, p.cusip) as cusip,
+          coalesce(c.option_type, p.option_type) as option_type,
+          coalesce(c.issuer, p.issuer) as issuer,
+          coalesce(c.symbol, p.symbol) as raw_symbol,
+          c.shares as shares,
+          p.shares as previous_shares,
+          c.value as value,
+          p.value as previous_value,
+          case
+            when p.cusip is null then 'new'
+            when c.cusip is null then 'sold'
+            when c.shares is not null and p.shares is not null then
+              case
+                when c.shares > p.shares then 'added'
+                when c.shares < p.shares then 'reduced'
+                else 'unchanged'
+              end
+            when c.value > p.value then 'added'
+            when c.value < p.value then 'reduced'
+            else 'unchanged'
+          end as change
+        from curr_rows c
+        full outer join prev_rows p
+          on c.filer_cik = p.filer_cik
+         and c.cusip = p.cusip
+         and c.option_type = p.option_type
+      ),
+      filtered as (
+        select *
+        from joined
+        where ${changePredicate}
+          ${tickerPredicate}
+        order by greatest(coalesce(value, 0), coalesce(previous_value, 0)) desc,
+          filer_cik asc, cusip asc, option_type asc
+        limit ${limit}
+      )
+      select
+        f.accession_number as "accessionNumber",
+        f.change as "change",
+        f.cusip as "cusip",
+        to_char(f.filed_on, 'YYYY-MM-DD') as "filedOn",
+        f.filer_cik as "filerCik",
+        f.filer_name as "filerName",
+        f.issuer as "issuer",
+        f.option_type as "optionType",
+        to_char(f.period, 'YYYY-MM-DD') as "period",
+        to_char(f.previous_period, 'YYYY-MM-DD') as "previousPeriod",
+        f.previous_shares as "previousShares",
+        f.previous_value as "previousValue",
+        f.shares as "shares",
+        ${symbolExpr} as "symbol",
+        f.value as "value"
+      from filtered f
+      order by greatest(coalesce(f.value, 0), coalesce(f.previous_value, 0)) desc,
+        f.filer_cik asc, f.cusip asc, f.option_type asc
+    `);
+    const rows = (
+      result as Readonly<{ rows: readonly Record<string, unknown>[] }>
+    ).rows;
+    return rows.map((row) => ({
+      accessionNumber: String(row["accessionNumber"]),
+      change: row["change"] as Openbb13fMarketChangeKind,
+      cusip: String(row["cusip"]),
+      filedOn: String(row["filedOn"]),
+      filerCik: String(row["filerCik"]),
+      filerName: String(row["filerName"]),
+      issuer: String(row["issuer"]),
+      optionType: row["optionType"] as OpenbbOptionType,
+      period: String(row["period"]),
+      previousPeriod: String(row["previousPeriod"]),
+      previousShares:
+        row["previousShares"] === null ? null : Number(row["previousShares"]),
+      previousValue:
+        row["previousValue"] === null ? null : Number(row["previousValue"]),
+      shares: row["shares"] === null ? null : Number(row["shares"]),
+      symbol: row["symbol"] === null ? null : String(row["symbol"]),
+      value: row["value"] === null ? null : Number(row["value"]),
+    }));
+  },
   congressFeed: async ({ chamber, from, member, ticker }) => {
     const trades = openbbCongressTrades;
     const filings = openbbCongressFilings;
@@ -616,6 +795,14 @@ export const createOpenbbRepository = (
         asc(openbbCotPositions.reportDate),
         asc(openbbCotPositions.category)
       ),
+  cusipsForSymbol: async (symbol) =>
+    (
+      await database
+        .selectDistinct({ cusip: openbbCusipSymbols.cusip })
+        .from(openbbCusipSymbols)
+        .where(eq(openbbCusipSymbols.symbol, symbol))
+        .orderBy(asc(openbbCusipSymbols.cusip))
+    ).map((row) => row.cusip),
   events: async (from, to, kinds) =>
     await database
       .select()
@@ -751,14 +938,18 @@ export const createOpenbbRepository = (
       .orderBy(desc(openbbSec13fHoldings.value));
     return rows.map((row) => row.holding);
   },
-  cusipsForSymbol: async (symbol) =>
-    (
-      await database
-        .selectDistinct({ cusip: openbbCusipSymbols.cusip })
-        .from(openbbCusipSymbols)
-        .where(eq(openbbCusipSymbols.symbol, symbol))
-        .orderBy(asc(openbbCusipSymbols.cusip))
-    ).map((row) => row.cusip),
+  holdings13fCounts: async (accessions) => {
+    if (accessions.length === 0) return new Map();
+    const rows = await database
+      .select({
+        accessionNumber: openbbSec13fHoldings.accessionNumber,
+        rows: sql<number>`count(*)::int`,
+      })
+      .from(openbbSec13fHoldings)
+      .where(inArray(openbbSec13fHoldings.accessionNumber, [...accessions]))
+      .groupBy(openbbSec13fHoldings.accessionNumber);
+    return new Map(rows.map((row) => [String(row.accessionNumber), row.rows]));
+  },
   holdings13fOfFilings: async (accessions, symbol, cusips) => {
     if (accessions.length === 0) return [];
     return await database
@@ -777,38 +968,6 @@ export const createOpenbbRepository = (
       )
       .orderBy(desc(openbbSec13fHoldings.value));
   },
-  holdings13fCounts: async (accessions) => {
-    if (accessions.length === 0) return new Map();
-    const rows = await database
-      .select({
-        accessionNumber: openbbSec13fHoldings.accessionNumber,
-        rows: sql<number>`count(*)::int`,
-      })
-      .from(openbbSec13fHoldings)
-      .where(inArray(openbbSec13fHoldings.accessionNumber, [...accessions]))
-      .groupBy(openbbSec13fHoldings.accessionNumber);
-    return new Map(rows.map((row) => [String(row.accessionNumber), row.rows]));
-  },
-  sec13fAccessions: async (limit) =>
-    (
-      await database
-        .select({ accessionNumber: openbbSec13fFilings.accessionNumber })
-        .from(openbbSec13fFilings)
-        .orderBy(
-          desc(openbbSec13fFilings.filedOn),
-          asc(openbbSec13fFilings.accessionNumber)
-        )
-        .limit(limit)
-    ).map((row) => row.accessionNumber),
-  sec13fFilings: async () =>
-    await database
-      .select()
-      .from(openbbSec13fFilings)
-      .orderBy(
-        asc(openbbSec13fFilings.filerCik),
-        desc(openbbSec13fFilings.periodEnding),
-        asc(openbbSec13fFilings.filedOn)
-      ),
   insiderPurchases: async (from) => {
     const filings = openbbSecForm4Filings;
     const rows = openbbSecForm4Transactions;
@@ -980,6 +1139,33 @@ export const createOpenbbRepository = (
       latestUsable: usable.find((run) => run.job === job) ?? null,
     }));
   },
+  lastYahooFallbackAt: async () => {
+    const [run] = await database
+      .select({ finishedAt: openbbIngestRuns.finishedAt })
+      .from(openbbIngestRuns)
+      .where(
+        and(
+          eq(openbbIngestRuns.job, "cboe-option-iv"),
+          inArray(openbbIngestRuns.status, ["ok", "partial"]),
+          gt(openbbIngestRuns.rowsReceived, 0),
+          eq(openbbIngestRuns.rowsWritten, openbbIngestRuns.rowsReceived),
+          sql`exists (
+            select 1 from unnest(${openbbIngestRuns.warnings}) as warning(value)
+            where right(
+              warning.value,
+              char_length(${YAHOO_FALLBACK_ROW_WARNING_SUFFIX})
+            ) = ${YAHOO_FALLBACK_ROW_WARNING_SUFFIX}
+          )`
+        )
+      )
+      .orderBy(
+        desc(openbbIngestRuns.finishedAt),
+        desc(openbbIngestRuns.startedAt),
+        desc(openbbIngestRuns.id)
+      )
+      .limit(1);
+    return run?.finishedAt ?? null;
+  },
   latestRuns: async () =>
     await database
       .selectDistinctOn([openbbIngestRuns.job])
@@ -1066,6 +1252,26 @@ export const createOpenbbRepository = (
       .returning();
     return row as OpenbbRun;
   },
+  sec13fAccessions: async (limit) =>
+    (
+      await database
+        .select({ accessionNumber: openbbSec13fFilings.accessionNumber })
+        .from(openbbSec13fFilings)
+        .orderBy(
+          desc(openbbSec13fFilings.filedOn),
+          asc(openbbSec13fFilings.accessionNumber)
+        )
+        .limit(limit)
+    ).map((row) => row.accessionNumber),
+  sec13fFilings: async () =>
+    await database
+      .select()
+      .from(openbbSec13fFilings)
+      .orderBy(
+        asc(openbbSec13fFilings.filerCik),
+        desc(openbbSec13fFilings.periodEnding),
+        asc(openbbSec13fFilings.filedOn)
+      ),
   secFilings: async (symbol, limit) =>
     await database
       .select()

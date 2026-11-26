@@ -14,7 +14,8 @@ import {
   it,
   vi,
 } from "vitest";
-
+import { labFlowControl } from "../../lab/fixtures/flow.ts";
+import { labGreekHeatmap } from "../../lab/fixtures/market.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
@@ -47,15 +48,33 @@ afterEach(() => {
 });
 
 const render = async (
-  gateway: OptionsAnalyticsGateway | undefined,
-  symbol = "NVDA"
+  gateway:
+    | Partial<OptionsAnalyticsGateway>
+    | OptionsAnalyticsGateway
+    | undefined,
+  symbol = "NVDA",
+  wallDrift = false
 ): Promise<HTMLElement> => {
+  const resolved: OptionsAnalyticsGateway | undefined =
+    gateway === undefined
+      ? undefined
+      : {
+          greekHeatmap: vi.fn(() => new Promise<never>(() => undefined)),
+          ...gateway,
+          snapshot: gateway.snapshot ?? vi.fn(),
+        };
   host = document.createElement("div");
   document.body.append(host);
   const mounted = createRoot(host);
   root = mounted;
   await act(async () => {
-    mounted.render(<OptionsAnalyticsPanel gateway={gateway} symbol={symbol} />);
+    mounted.render(
+      <OptionsAnalyticsPanel
+        gateway={resolved}
+        symbol={symbol}
+        wallDrift={wallDrift}
+      />
+    );
   });
   return host;
 };
@@ -109,6 +128,14 @@ const context: OptionsAnalyticsOutput["context"] = {
     putWall: 90,
     putWallMoves: -3.3,
   },
+  profile: [
+    { gex: -2_400_000, spot: 70.7 },
+    { gex: -950_000, spot: 88.0 },
+    { gex: -120_000, spot: 98.0 },
+    { gex: 420_000, spot: 101.0 },
+    { gex: 1_900_000, spot: 115.0 },
+    { gex: 3_100_000, spot: 131.3 },
+  ],
   regime: "positive",
   session: "morning",
 };
@@ -258,6 +285,8 @@ describe("OptionsAnalyticsPanel", () => {
     expect(snapshot).toHaveBeenCalledWith({ flowHours: 24, symbol: "NVDA" });
     expect(view.textContent).toContain("Options analytics · NVDA");
     expect(view.textContent).toContain("spot 101");
+    // No wall x drift badge without wallDrift (operators) and a net drift ticker.
+    expect(view.querySelector("[data-wall-drift]")).toBeNull();
     expect(
       view.querySelectorAll("[data-term-structure] tbody tr")
     ).toHaveLength(2);
@@ -375,7 +404,16 @@ describe("OptionsAnalyticsPanel", () => {
       view.querySelector(`[data-gex-level="${label}"]`)?.textContent;
     expect(level("Gamma flip (est.)")).toBe("98.68");
     expect(level("Call wall (largest +GEX)")).toBe("no positive GEX");
-    return expect(level("Put wall (largest -GEX)")).toBe("90.00");
+    expect(level("Put wall (largest -GEX)")).toBe("90.00");
+    const curve = view.querySelector("[data-gex-spot-curve]");
+    expect(curve?.getAttribute("data-gex-spot-curve-state")).toBe("ready");
+    expect(curve?.textContent).toContain("GEX vs hypothetical spot");
+    expect(curve?.querySelector("[data-gex-zero-line]")).not.toBeNull();
+    expect(curve?.querySelector("[data-gex-spot-marker]")).not.toBeNull();
+    expect(curve?.querySelector("[data-gex-flip-marker]")).not.toBeNull();
+    return expect(
+      curve?.querySelectorAll("[data-gex-spot-curve-table] tbody tr")
+    ).toHaveLength(6);
   });
 
   it("puts each skew point under the target column it was chosen for", async () => {
@@ -453,6 +491,58 @@ describe("OptionsAnalyticsPanel", () => {
     expect(level(view, "Gamma flip (est.)")).toBe("not computed");
     expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
     expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
+    act(() => root?.unmount());
+    // Empty profile names why for missing strikes and missing front ATM IV.
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: { ...noLevels, profile: [] },
+          exposure: { ...base.exposure, strikes: [] },
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("no strike open interest");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: {
+            ...noLevels,
+            levels: { ...noLevels.levels, dailyMove: null },
+            profile: [],
+          },
+          exposure: { ...base.exposure, gexExpiry: null },
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("no option chain rows");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: {
+            ...noLevels,
+            levels: { ...noLevels.levels, dailyMove: null },
+            profile: [],
+          },
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("no front ATM IV");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: { ...noLevels, profile: [] },
+          spot: 0,
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("spot price was not received");
   });
 
   it("changes the flow window, refreshes and drops stale responses", async () => {
@@ -494,15 +584,83 @@ describe("OptionsAnalyticsPanel", () => {
     return expect(view.querySelector("[data-spot-row]")).toBeNull();
   });
 
+  it("reads the heatmap once per snapshot load and keeps the selected heatmap tab", async () => {
+    const greekHeatmap = vi.fn(async () => labGreekHeatmap("NVDA"));
+    const snapshot = vi.fn(async () => fixture());
+    const view = await render({ greekHeatmap, snapshot });
+    const tab = (id: string) =>
+      view.querySelector<HTMLButtonElement>(`[data-heatmap-tab="${id}"]`);
+    expect(greekHeatmap).toHaveBeenCalledTimes(1);
+    expect(tab("gex")?.getAttribute("aria-selected")).toBe("true");
+    await act(async () => {
+      tab("vex")?.click();
+    });
+    expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
+
+    const refresh = [...view.querySelectorAll("button")].find(
+      (button) => button.textContent === "Refresh"
+    );
+    await act(async () => {
+      refresh?.click();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    expect(greekHeatmap).toHaveBeenCalledTimes(2);
+    return expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("asks for the heatmap of a new symbol only after the snapshot of that symbol answered", async () => {
+    let release: (value: OptionsAnalyticsOutput) => void = () => undefined;
+    const greekHeatmap = vi.fn(async (input: { symbol: string }) =>
+      labGreekHeatmap(input.symbol)
+    );
+    const snapshot = vi
+      .fn<(input: OptionsAnalyticsInput) => Promise<OptionsAnalyticsOutput>>()
+      .mockResolvedValueOnce(fixture())
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          })
+      );
+    const view = await render({ greekHeatmap, snapshot });
+    expect(greekHeatmap.mock.calls).toEqual([[{ symbol: "NVDA" }]]);
+
+    // The symbol changes while the NVDA snapshot is on screen and the AAPL snapshot is pending.
+    await act(async () => {
+      root?.render(
+        <OptionsAnalyticsPanel
+          gateway={{ greekHeatmap, snapshot }}
+          symbol="AAPL"
+        />
+      );
+    });
+    expect(snapshot).toHaveBeenLastCalledWith({
+      flowHours: 24,
+      symbol: "AAPL",
+    });
+    expect(greekHeatmap.mock.calls).toEqual([[{ symbol: "NVDA" }]]);
+
+    await act(async () => {
+      release(fixture({ symbol: "AAPL" }));
+    });
+    expect(greekHeatmap.mock.calls).toEqual([
+      [{ symbol: "NVDA" }],
+      [{ symbol: "AAPL" }],
+    ]);
+    return expect(
+      view.querySelector("[data-greek-heatmap]")?.getAttribute("data-symbol")
+    ).toBe("AAPL");
+  });
+
   it("shows section messages, rate limits and errors", async () => {
     const empty = fixture({
-      rateLimited: true,
       exposure: {
         ...fixture().exposure,
         gexExpiry: null,
         maxPain: null,
         totalGex: null,
       },
+      rateLimited: true,
       retryAfterSeconds: null,
       volatility: {
         ...fixture().volatility,
@@ -556,7 +714,7 @@ describe("OptionsAnalyticsPanel", () => {
               fail = reject;
             })
           : Promise.resolve(
-              fixture({ retryAfterSeconds: 9, rateLimited: true })
+              fixture({ rateLimited: true, retryAfterSeconds: 9 })
             );
       },
     });
@@ -572,6 +730,50 @@ describe("OptionsAnalyticsPanel", () => {
     return expect(view.textContent).toContain("retry in about 9 s");
   });
 
+  it("renders unavailable QuantData HTTP 401/403 sections as role=alert with owner credential rotation notice", async () => {
+    const view = await render({
+      snapshot: async () =>
+        fixture({
+          flow: {
+            ...fixture().flow,
+            message:
+              "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+            status: "unavailable",
+          },
+          volatility: {
+            ...fixture().volatility,
+            message: "QuantData termStructure: HTTP 503.",
+            status: "unavailable",
+          },
+        }),
+    });
+    const authAlert = view.querySelector("[data-auth-error]");
+    expect(authAlert?.getAttribute("role")).toBe("alert");
+    expect(authAlert?.textContent).toContain("HTTP 401");
+    expect(authAlert?.textContent).toContain(
+      "Owner action required: rotate the upstream provider credential"
+    );
+    const alerts = [...view.querySelectorAll('[role="alert"]')];
+    expect(alerts.some((el) => el.textContent?.includes("HTTP 503"))).toBe(
+      true
+    );
+  });
+
+  it("shows the wall x drift read for an operator on a net drift ticker", async () => {
+    const flowControl = vi.fn(async () => labFlowControl("sp500"));
+    const view = await render(
+      { flowControl, snapshot: async () => ({ ...fixture(), symbol: "SPY" }) },
+      "SPY",
+      true
+    );
+    expect(flowControl).toHaveBeenCalledWith({ group: "sp500" });
+    expect(
+      view
+        .querySelector("[data-wall-drift]")
+        ?.getAttribute("data-wall-drift-ticker")
+    ).toBe("SPY");
+  });
+
   it("uses the browser gateway by default", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -583,8 +785,15 @@ describe("OptionsAnalyticsPanel", () => {
     expect(fetchSpy).toHaveBeenCalled();
     const gateway = createBrowserOptionsAnalyticsGateway();
     await gateway.snapshot({ symbol: "SPY" }).catch(() => undefined);
-    await gateway.snapshot({ symbol: "SPY" }).catch(() => undefined);
+    await gateway.flowControl?.({ group: "sp500" }).catch(() => undefined);
     expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(
+      fetchSpy.mock.calls.some(([request]) =>
+        String(request instanceof Request ? request.url : request).endsWith(
+          "/flow/control"
+        )
+      )
+    ).toBe(true);
     return expect(view.textContent).toContain("Options analytics");
   });
 });

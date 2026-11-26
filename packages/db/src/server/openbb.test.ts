@@ -350,6 +350,40 @@ describe("openbb repository writes", () => {
     );
   });
 
+  it("updates daily IV source atomically with every other non-key value", async () => {
+    const { calls, database } = createDouble();
+    const row = {
+      asOf: "2026-11-20",
+      atmIv30d: 0.2,
+      callIv25d30d: 0.18,
+      callOi: 10,
+      callVolume: 20,
+      callWall: 110,
+      contracts: 20,
+      gammaFlip: 105,
+      netGex: 12.5,
+      putIv25d30d: 0.22,
+      putOi: 15,
+      putVolume: 25,
+      putWall: 90,
+      source: "yahoo_fallback",
+      underlying: "SPY",
+      underlyingPrice: 100,
+    };
+    await createOpenbbRepository(database).upsertRows("option_iv_daily", [row]);
+    const conflict = argOf(calls, "onConflictDoUpdate") as {
+      set: Record<string, SQL>;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      schema.openbbOptionIvDaily.asOf,
+      schema.openbbOptionIvDaily.underlying,
+    ]);
+    expect(conflict.set).toHaveProperty("source");
+    expect(render(conflict.set["source"]).sql).toBe('excluded."source"');
+    expect(render(conflict.set["atmIv30d"]).sql).toBe('excluded."atm_iv_30d"');
+  });
+
   it("never updates first_seen_at of congress rows on conflict", async () => {
     const { calls, database } = createDouble();
     await createOpenbbRepository(database).upsertRows("congress_filings", [
@@ -523,6 +557,45 @@ describe("openbb repository reads", () => {
     expect(usable).toContain('"openbb_ingest_runs"."status" in');
     expect(render(argOf(calls, "where", 0)).sql).not.toContain("status");
     expect(await repository.lastRunsFor([])).toEqual([]);
+  });
+
+  it("selects the latest fully written Yahoo IV fallback run as an audit timestamp", async () => {
+    const { calls, database } = createDouble([[{ finishedAt: NOW }]]);
+    const repository = createOpenbbRepository(database);
+    expect(await repository.lastYahooFallbackAt()).toEqual(NOW);
+    expect(methods(calls)).toEqual([
+      "select",
+      "from",
+      "where",
+      "orderBy",
+      "limit",
+    ]);
+    const where = render(argOf(calls, "where"));
+    expect(where.sql).toContain('"openbb_ingest_runs"."job" =');
+    expect(where.sql).toContain('"openbb_ingest_runs"."status" in');
+    expect(where.sql).toContain('"openbb_ingest_runs"."rows_received" >');
+    expect(where.sql).toContain(
+      '"openbb_ingest_runs"."rows_written" = "openbb_ingest_runs"."rows_received"'
+    );
+    expect(where.sql).toContain("unnest");
+    expect(where.sql).toContain("right(");
+    expect(where.sql).not.toContain(" like ");
+    expect(where.params).toContain("cboe-option-iv");
+    expect(where.params).toContain(
+      "used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)"
+    );
+    const ordering = calls.find((call) => call.method === "orderBy")?.args as
+      | SQL[]
+      | undefined;
+    const orderingSql =
+      ordering?.map((term) => render(term).sql).join(" ") ?? "";
+    expect(ordering).toHaveLength(3);
+    expect(orderingSql).toMatch(/finished_at.*started_at.*id/iu);
+    expect(
+      await createOpenbbRepository(
+        createDouble().database
+      ).lastYahooFallbackAt()
+    ).toBeNull();
   });
 
   it("reads the congress feed: parsed filings only, up to row_count, filters optional", async () => {
@@ -856,6 +929,64 @@ describe("openbb repository reads", () => {
     ).toEqual(new Map([["0001193125-26-000001", 3]]));
     expect(methods(calls)).toContain("selectDistinct");
     expect(methods(calls)).toContain("groupBy");
+  });
+
+  it("runs changes13fMarket SQL for both unfiltered and ticker/change-filtered queries", async () => {
+    const rawRow = {
+      accessionNumber: "0001193125-26-000001",
+      change: "added",
+      cusip: "037833100",
+      filedOn: "2026-11-11",
+      filerCik: "1067983",
+      filerName: "Berkshire Hathaway",
+      issuer: "Apple Inc.",
+      optionType: "",
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: "100",
+      previousValue: "10000",
+      shares: "200",
+      symbol: "AAPL",
+      value: "20000",
+    };
+    const nullRow = {
+      ...rawRow,
+      change: "new",
+      previousShares: null,
+      previousValue: null,
+      shares: null,
+      symbol: null,
+      value: null,
+    };
+    const { calls, database } = createDouble([
+      { rows: [rawRow, nullRow] } as unknown as unknown[],
+      { rows: [rawRow] } as unknown as unknown[],
+    ]);
+    const repository = createOpenbbRepository(database);
+    const all = await repository.changes13fMarket({
+      change: "all",
+      limit: 50,
+      ticker: null,
+    });
+    expect(all).toHaveLength(2);
+    expect(all[0]?.shares).toBe(200);
+    expect(all[1]?.shares).toBeNull();
+    expect(all[1]?.symbol).toBeNull();
+    const sqlAll = render(argOf(calls, "execute", 0)).sql;
+    expect(sqlAll).toContain("change <> 'unchanged'");
+    expect(sqlAll).toContain(
+      "order by cs.last_seen desc, cs.symbol asc limit 1"
+    );
+
+    const filtered = await repository.changes13fMarket({
+      change: "added",
+      limit: 10,
+      ticker: "AAPL",
+    });
+    expect(filtered).toHaveLength(1);
+    const sqlFiltered = render(argOf(calls, "execute", 1));
+    expect(sqlFiltered.sql).toContain("change = $");
+    expect(sqlFiltered.params).toContain("AAPL");
   });
 
   it("is wired into createRepositories", () => {

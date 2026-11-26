@@ -31,6 +31,10 @@ if [ "$(stat -c %a "$KEY_FILE")" != "600" ]; then
   echo "vertex-nautilus-worker-run: $KEY_FILE must have mode 0600" >&2
   exit 64
 fi
+if [ ! -f "$VERTEX_NAUTILUS_PYTHON" ] || [ ! -x "$VERTEX_NAUTILUS_PYTHON" ]; then
+  echo "vertex-nautilus-worker-run: missing or non-executable VERTEX_NAUTILUS_PYTHON ($VERTEX_NAUTILUS_PYTHON); run $CHECKOUT/infra/research-worker/setup-nautilus-venv.sh" >&2
+  exit 64
+fi
 
 VERTEX_AGENT_API_KEY="$(<"$KEY_FILE")"
 export VERTEX_AGENT_API_KEY

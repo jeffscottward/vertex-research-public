@@ -19,12 +19,15 @@ import type {
 import {
   FLOW_EXPIRY_PARTS,
   FLOW_FILTER_PROFILE,
+  FLOW_OPTION_PRINT_SYMBOLS,
   FLOW_STORAGE_FAILURE_PREFIX,
   FLOW_SYMBOLS,
   type FlowCollectOutput,
   type FlowCollectParsedInput,
   type FlowExpiryPart,
   type FlowGroupId,
+  type FlowIndexOptionTicker,
+  type FlowOptionPrintSymbol,
   type FlowOptionTicker,
   type FlowSampleStatus,
   type FlowSource,
@@ -40,9 +43,12 @@ import {
   buildBook,
   buildMinuteFeatures,
   FLOW_INSTRUMENTS,
+  FLOW_OPTION_STREAMS,
   type FlowEventRow,
   type FlowGroup,
   type FlowInstrument,
+  type FlowOptionStream,
+  isFlowSymbol,
 } from "../flow-features.ts";
 import {
   bookSnapshotsFailureNote,
@@ -94,7 +100,11 @@ export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   market_premium: 0,
   /** Due on every run; netDriftTurn alone sets the cadence, each group on alternate minutes. */
   net_drift: 0,
-  options: 110,
+  /**
+   * optionTurn parity sets the 2-minute live cadence (even: SPY, SPX, IWM; odd: QQQ, NDX, NVDA).
+   * 50 s blocks duplicate ticks in the same minute without causing 4-minute skips on timer jitter.
+   */
+  options: 50,
   /**
    * Sampled ticks (one tick turn: SPY; ES and NQ read the streamed tape, FLOW_TAPE_DUE_SECONDS).
    * With the 60 s timer, 350 s gives one sample about every 360 s and stays below the starved
@@ -153,9 +163,10 @@ export const FLOW_DEPTH_ROWS = 10;
 /** QuantData pages for the new options window of one symbol per run. */
 export const FLOW_OPTION_PAGES_MAX = 6;
 /**
- * QuantData pages per symbol and run in total: the new window first, stored gaps get the rest (at
- * least 2). Both symbols: at most 16 requests per ~2 minutes, inside the vertex-web QuantData budget
- * (30 per minute, shared with /charts) and the account limit (240 per 60 s).
+ * QuantData pages per option ticker and run in total: the new window first, stored gaps get the
+ * rest (at least 2). Parity-staggered (3 tickers on even minutes, 3 on odd): at most 24 option
+ * requests per minute, inside the vertex-web QuantData budget (54 per minute, 6 reserved for
+ * /charts) and the account limit (240 per 60 s).
  */
 export const FLOW_OPTION_RUN_PAGES_MAX = 8;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
@@ -180,8 +191,12 @@ export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
   flow_samples: 14,
 };
 /**
- * Collector calls leave 6 of the shared client's 30 starts per 60 s free, so two /charts option reads
- * of 3 requests each always fit; the client holds the window (withCallerReserve).
+ * Collector calls leave 6 of the shared client's 54 starts per 60 s free; the client holds the
+ * window (withCallerReserve). One uncached /charts or /stock symbol costs 5 starts (snapshot:
+ * term-structure, open interest, order flow; Greek heatmap: two heat-map calls on the cached
+ * term-structure), so one such load per 60 s always fits. A second uncached symbol in the same
+ * window fits only when the collector left starts unused; requests beyond the free starts are
+ * not sent, and those sections report the rate limit with a retry time.
  */
 export const FLOW_QUANTDATA_CALLER_RESERVE = 6;
 /** One GEX estimate sends three QuantData requests; one estimate runs per run. */
@@ -218,7 +233,7 @@ export type FlowCollectDeps = Readonly<{
   pruneDue: boolean;
   quantData: QuantDataClient | null;
   analytics:
-    | ((ticker: FlowOptionTicker) => Promise<OptionsAnalyticsOutput>)
+    | ((ticker: FlowIndexOptionTicker) => Promise<OptionsAnalyticsOutput>)
     | null;
   /** Milliseconds since the run started (the budget line). */
   elapsedMs: () => number;
@@ -251,7 +266,7 @@ interface RunState {
   readonly seed: boolean;
 }
 
-const sampleKey = (symbol: FlowSymbol, source: FlowSource) =>
+const sampleKey = (symbol: FlowOptionPrintSymbol, source: FlowSource) =>
   `${symbol}:${source}`;
 
 const notDue = (message: string): Attempt => ({
@@ -972,21 +987,21 @@ type OptionFetch = Readonly<{
 /** Fetches and parses one range; writes nothing. */
 const fetchOptions = async (
   client: QuantDataClient,
-  instrument: FlowInstrument,
+  stream: FlowOptionStream,
   start: Date,
   end: Date,
   maxRequests: number
 ): Promise<OptionFetch | string> => {
   const fetched = await fetchOptionPages(
     client,
-    instrument.optionsTicker,
+    stream.optionsTicker,
     start,
     end,
     maxRequests
   );
   if (typeof fetched === "string") return fetched;
   const parsed = fetched.pages.map((page) =>
-    parseOptionPrints(page.data, instrument.symbol, instrument.optionsTicker)
+    parseOptionPrints(page.data, stream.symbol, stream.optionsTicker)
   );
   const times = fetched.pages
     .map((page) => oldestRowTime(page.data, start, end))
@@ -1006,12 +1021,12 @@ const fetchOptions = async (
 /** Stores prints and their events (insert-once by print id and event key). */
 const storeOptions = async (
   state: RunState,
-  instrument: FlowInstrument,
+  stream: FlowOptionStream,
   prints: readonly FlowOptionPrintRow[]
 ): Promise<Readonly<{ items: number; events: number }>> => ({
   events: await storeEvents(
     state,
-    optionEvents(prints, instrument.optionEventPremium)
+    optionEvents(prints, stream.optionEventPremium)
   ),
   items: await store(state, prints, (rows) =>
     state.deps.repository.insertOptionPrints(rows)
@@ -1050,7 +1065,7 @@ type GapResume = Readonly<{
 const resumeOptionGaps = async (
   state: RunState,
   client: QuantDataClient,
-  instrument: FlowInstrument,
+  stream: FlowOptionStream,
   gaps: readonly FlowOptionGapRecord[],
   budget: number
 ): Promise<GapResume> => {
@@ -1068,7 +1083,7 @@ const resumeOptionGaps = async (
     if (requests >= budget) break;
     const fetched = await fetchOptions(
       client,
-      instrument,
+      stream,
       gap.startTime,
       gap.endTime,
       budget - requests
@@ -1077,7 +1092,7 @@ const resumeOptionGaps = async (
       error = fetched;
       break;
     }
-    const stored = await storeOptions(state, instrument, fetched.prints);
+    const stored = await storeOptions(state, stream, fetched.prints);
     requests += fetched.requests;
     total.pages += fetched.pages;
     total.prints += fetched.prints.length;
@@ -1133,7 +1148,7 @@ type OptionWindow = Readonly<{
 const readOptionWindow = async (
   state: RunState,
   client: QuantDataClient,
-  instrument: FlowInstrument,
+  stream: FlowOptionStream,
   newest: Date | null
 ): Promise<OptionWindow | string> => {
   const { now, repository } = state.deps;
@@ -1144,7 +1159,7 @@ const readOptionWindow = async (
   const since = newest !== null && newest > floor ? newest : floor;
   const fetched = await fetchOptions(
     client,
-    instrument,
+    stream,
     since,
     now,
     FLOW_OPTION_PAGES_MAX
@@ -1159,7 +1174,7 @@ const readOptionWindow = async (
       createdAt: now,
       endTime,
       startTime,
-      symbol: instrument.symbol,
+      symbol: stream.symbol,
     });
   if (fetched.capped) {
     // No trade time on the capped pages: the whole window stays unread.
@@ -1185,7 +1200,7 @@ const readOptionWindow = async (
   if (fetched.skipped > 0)
     notes.push(`${fetched.skipped} rows failed the schema`);
   if (!state.dryRun) for (const row of gaps) await repository.addOptionGap(row);
-  const stored = await storeOptions(state, instrument, fetched.prints);
+  const stored = await storeOptions(state, stream, fetched.prints);
   return {
     ...stored,
     failed: fetched.failed,
@@ -1235,7 +1250,7 @@ const mergeGaps = (
 const readGaps = async (
   state: RunState,
   client: QuantDataClient,
-  instrument: FlowInstrument,
+  stream: FlowOptionStream,
   window: OptionWindow,
   stored: readonly FlowOptionGapRecord[]
 ): Promise<Readonly<{ notes: string[]; resumed: GapResume | null }>> => {
@@ -1249,7 +1264,7 @@ const readGaps = async (
   const resumed = await resumeOptionGaps(
     state,
     client,
-    instrument,
+    stream,
     gaps,
     FLOW_OPTION_RUN_PAGES_MAX - window.requests
   );
@@ -1274,9 +1289,14 @@ const optionsAttempt = (
  * FLOW_OPTION_RUN_PAGES_MAX. After the close the run reads gaps only, until none are left; without
  * gaps it answers "market closed" with no request.
  */
+/** Even minutes run SPY, SPX and IWM; odd minutes run QQQ, NDX and NVDA. */
+const optionTurn = (stream: FlowOptionStream, now: Date): boolean =>
+  (Math.floor(now.getTime() / 60_000) % 2 === 0 ? "even" : "odd") ===
+  stream.parity;
+
 const collectOptions = async (
   state: RunState,
-  instrument: FlowInstrument,
+  stream: FlowOptionStream,
   open: boolean
 ): Promise<Attempt> => {
   const client = state.deps.quantData;
@@ -1285,8 +1305,8 @@ const collectOptions = async (
   let stored: FlowOptionGapRecord[];
   let newest: Date | null = null;
   try {
-    stored = await repository.optionGaps(instrument.symbol);
-    if (open) newest = await repository.newestOptionPrintAt(instrument.symbol);
+    stored = await repository.optionGaps(stream.symbol);
+    if (open) newest = await repository.newestOptionPrintAt(stream.symbol);
   } catch (error) {
     // Closed: nothing to collect without the gap list, so report it without a sample. Every
     // repository rejection arrives as a FlowStorageError (storageTagged).
@@ -1297,14 +1317,18 @@ const collectOptions = async (
     return failed(error);
   }
   if (!open && stored.length === 0) return notDue("market closed");
+  if (!(open || optionTurn(stream, state.deps.now)))
+    return notDue(
+      `staggered: ${stream.optionsTicker} options runs on ${stream.parity} minutes`
+    );
   const window = open
-    ? await readOptionWindow(state, client, instrument, newest)
+    ? await readOptionWindow(state, client, stream, newest)
     : NO_WINDOW;
   if (typeof window === "string") return failed(new Error(window));
   const { notes, resumed } = await readGaps(
     state,
     client,
-    instrument,
+    stream,
     window,
     stored
   );
@@ -1427,7 +1451,7 @@ type NetDriftPart =
 const netDriftPart = async (
   state: RunState,
   client: QuantDataClient,
-  ticker: FlowOptionTicker,
+  ticker: FlowIndexOptionTicker,
   part: FlowExpiryPart,
   sessionDate: string
 ): Promise<NetDriftPart> => {
@@ -1458,7 +1482,7 @@ const netDriftPart = async (
 
 const storeNetDrift = (
   state: RunState,
-  ticker: FlowOptionTicker,
+  ticker: FlowIndexOptionTicker,
   part: FlowExpiryPart,
   buckets: readonly FlowNetDriftBucket[]
 ): Promise<number> =>
@@ -1537,12 +1561,15 @@ const collectNetDrift = async (
 };
 
 /**
- * QuantData worst case of one run: the larger net drift group, every options symbol, one GEX
- * estimate and one market premium request.
+ * QuantData worst case of one run: the larger net drift group, the larger option-print parity turn
+ * (even vs odd), one GEX estimate and one market premium request.
  */
 export const flowQuantDataRunWorstCase = (
   instruments: Readonly<Record<FlowSymbol, FlowInstrument>>,
-  groups: Readonly<Record<FlowGroupId, FlowGroup>>
+  groups: Readonly<Record<FlowGroupId, FlowGroup>>,
+  optionStreams: Readonly<
+    Record<FlowOptionPrintSymbol, FlowOptionStream>
+  > = FLOW_OPTION_STREAMS
 ): number => {
   const list = Object.values(instruments);
   const netDriftPerGroup = Object.keys(groups).map(
@@ -1552,12 +1579,14 @@ export const flowQuantDataRunWorstCase = (
           instrument.group === group && instrument.sources.includes("net_drift")
       ).length
   );
-  const optionSymbols = list.filter((instrument) =>
-    instrument.sources.includes("options")
+  const streams = Object.values(optionStreams);
+  const evenStreams = streams.filter(
+    (stream) => stream.parity === "even"
   ).length;
+  const oddStreams = streams.filter((stream) => stream.parity === "odd").length;
   return (
     Math.max(0, ...netDriftPerGroup) * FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL +
-    optionSymbols * FLOW_OPTION_RUN_PAGES_MAX +
+    Math.max(evenStreams, oddStreams) * FLOW_OPTION_RUN_PAGES_MAX +
     FLOW_GEX_REQUESTS_PER_RUN +
     1
   );
@@ -1574,9 +1603,11 @@ const SOURCE_ORDER: readonly FlowSource[] = [
   "market_premium",
 ];
 
+type NonOptionFlowSource = Exclude<FlowSource, "options">;
+
 const COLLECTORS: Readonly<
   Record<
-    FlowSource,
+    NonOptionFlowSource,
     (state: RunState, instrument: FlowInstrument) => Promise<Attempt>
   >
 > = {
@@ -1594,7 +1625,6 @@ const COLLECTORS: Readonly<
     events: 0,
   }),
   net_drift: collectNetDrift,
-  options: (state, instrument) => collectOptions(state, instrument, true),
   ticks: (state, instrument) =>
     instrument.ticks === "stream"
       ? collectTape(state, instrument)
@@ -1624,14 +1654,12 @@ const runGate = (state: RunState, source: FlowSource): Attempt | null => {
 const attempt = async (
   state: RunState,
   instrument: FlowInstrument,
-  source: FlowSource
+  source: NonOptionFlowSource
 ): Promise<Attempt> => {
   const open =
     state.seed || flowSessionOpen(source, instrument.symbol, state.deps.now);
   if (!state.seed) {
-    // Options keep reading their unfetched gaps after the close; without gaps collectOptions answers
-    // "market closed" before any QuantData request.
-    if (!open && source !== "options") return notDue("market closed");
+    if (!open) return notDue("market closed");
     const age = secondsSince(
       state,
       state.last.get(sampleKey(instrument.symbol, source))
@@ -1642,22 +1670,48 @@ const attempt = async (
   const held = runGate(state, source);
   if (held !== null) return held;
   if (source === "gex") state.gexDone = true;
-  return open
-    ? await COLLECTORS[source](state, instrument)
-    : await collectOptions(state, instrument, false);
+  return await COLLECTORS[source](state, instrument);
+};
+
+const attemptOptions = async (
+  state: RunState,
+  stream: FlowOptionStream
+): Promise<Attempt> => {
+  const open =
+    state.seed || flowSessionOpen("options", stream.symbol, state.deps.now);
+  if (!state.seed) {
+    // Live options runs follow even/odd parity; post-close gap draining (!open) checks stored
+    // gaps first so empty symbols still report "market closed", then enforces parity in
+    // collectOptions so at most 3 option streams ever run in one tick.
+    if (open && !optionTurn(stream, state.deps.now))
+      return notDue(
+        `staggered: ${stream.optionsTicker} options runs on ${stream.parity} minutes`
+      );
+    const age = secondsSince(
+      state,
+      state.last.get(sampleKey(stream.symbol, "options"))
+    );
+    if (age < FLOW_DUE_SECONDS.options)
+      return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
+  }
+  const held = runGate(state, "options");
+  if (held !== null) return held;
+  return await collectOptions(state, stream, open);
 };
 
 /** Per symbol and source: the newest stored sample (last) and the newest ok sample (lastOk). */
 const lastAttempts = async (
   repository: FlowRepository,
-  symbols: readonly FlowSymbol[]
+  symbols: readonly FlowOptionPrintSymbol[]
 ): Promise<
   Readonly<{ last: Map<string, Date>; lastOk: Map<string, Date> }>
 > => {
   const last = new Map<string, Date>();
   const lastOk = new Map<string, Date>();
   for (const symbol of symbols) {
-    const { latest, latestOk } = await repository.latestSamples(symbol);
+    const { latest, latestOk } = isFlowSymbol(symbol)
+      ? await repository.latestSamples(symbol)
+      : await repository.latestSamples(symbol, ["options"]);
     for (const sample of latest)
       last.set(sampleKey(symbol, sample.source), sample.at);
     for (const sample of latestOk)
@@ -1668,7 +1722,7 @@ const lastAttempts = async (
 
 const recordSample = async (
   state: RunState,
-  symbol: FlowSymbol,
+  symbol: FlowOptionPrintSymbol,
   source: FlowSource,
   result: Attempt
 ): Promise<void> => {
@@ -1721,13 +1775,9 @@ const storageTagged = (repository: FlowRepository): FlowRepository =>
   ) as FlowRepository;
 
 /** An error of one source becomes its sample; the run goes on with the next source. */
-const isolated = async (
-  state: RunState,
-  instrument: FlowInstrument,
-  source: FlowSource
-): Promise<Attempt> => {
+const isolated = async (run: () => Promise<Attempt>): Promise<Attempt> => {
   try {
-    return await attempt(state, instrument, source);
+    return await run();
   } catch (error) {
     return {
       events: 0,
@@ -1765,8 +1815,12 @@ export const runFlowCollect = async (
   input: FlowCollectParsedInput,
   deps: FlowCollectDeps
 ): Promise<FlowCollectOutput> => {
-  const symbols = input.symbols ?? [...FLOW_SYMBOLS];
-  const { last, lastOk } = await lastAttempts(deps.repository, FLOW_SYMBOLS);
+  const requested = input.symbols ?? [...FLOW_OPTION_PRINT_SYMBOLS];
+  const flowSymbols = requested.filter(isFlowSymbol);
+  const { last, lastOk } = await lastAttempts(
+    deps.repository,
+    FLOW_OPTION_PRINT_SYMBOLS
+  );
   const state: RunState = {
     deps: { ...deps, repository: storageTagged(deps.repository) },
     dryRun: input.dryRun,
@@ -1778,10 +1832,29 @@ export const runFlowCollect = async (
     seed: input.seed,
   };
   const runs: Run[] = [];
-  for (const source of SOURCE_ORDER)
-    for (const symbol of symbols) {
+  for (const source of SOURCE_ORDER) {
+    if (source === "options") {
+      for (const symbol of requested) {
+        const result = await isolated(() =>
+          attemptOptions(state, FLOW_OPTION_STREAMS[symbol])
+        );
+        await recordSample(state, symbol, "options", result);
+        runs.push({
+          events: result.events,
+          items: result.items,
+          message: result.message,
+          source: "options",
+          status: result.status,
+          symbol,
+        });
+      }
+      continue;
+    }
+    for (const symbol of flowSymbols) {
       if (!FLOW_INSTRUMENTS[symbol].sources.includes(source)) continue;
-      const result = await isolated(state, FLOW_INSTRUMENTS[symbol], source);
+      const result = await isolated(() =>
+        attempt(state, FLOW_INSTRUMENTS[symbol], source)
+      );
       await recordSample(state, symbol, source, result);
       runs.push({
         events: result.events,
@@ -1792,6 +1865,7 @@ export const runFlowCollect = async (
         symbol,
       });
     }
+  }
   const pruned = await pruneIfDue(state);
   return {
     at: deps.now.toISOString(),

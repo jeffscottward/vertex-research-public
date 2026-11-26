@@ -54,11 +54,14 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
+  labFlowLiveDomStream,
   labFlowOffExchangeLevels,
+  labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
+  labFlowTradeBubbles,
 } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
 import { labBarsOutput } from "../fixtures/market.ts";
@@ -192,8 +195,19 @@ const labFlowGateway: FlowGateway = {
     Promise.resolve(labFlowHedgingPressure(symbol)),
   liquidityHeatmap: ({ minutes, symbol }) =>
     Promise.resolve(labFlowLiquidityHeatmap(symbol, minutes)),
+  liveDomStream: ({ since, symbol, windowSeconds }, options) =>
+    Promise.resolve(
+      labFlowLiveDomStream(
+        symbol,
+        windowSeconds,
+        since ?? null,
+        options?.signal
+      )
+    ),
   offExchangeLevels: ({ range }) =>
     Promise.resolve(labFlowOffExchangeLevels(range)),
+  optionBubbles: ({ minPremiumUsd, symbol }) =>
+    Promise.resolve(labFlowOptionBubbles(symbol, minPremiumUsd)),
   putCallRatio: ({ symbol }) => Promise.resolve(labFlowPutCallRatio(symbol)),
   snapshot: ({ minutes, symbol }) =>
     Promise.resolve(labFlowSnapshot(symbol, minutes)),
@@ -201,6 +215,8 @@ const labFlowGateway: FlowGateway = {
     Promise.resolve(labFlowStrikeHeatmap(symbol, bucketMinutes)),
   tapeSpeed: ({ minutes, symbol }) =>
     Promise.resolve(labFlowTapeSpeed(symbol, minutes)),
+  tradeBubbles: ({ minutes, symbol }) =>
+    Promise.resolve(labFlowTradeBubbles(symbol, minutes)),
 };
 
 const labPlaysGateway: PlaysGateway = {

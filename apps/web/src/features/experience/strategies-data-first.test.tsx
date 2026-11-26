@@ -394,7 +394,13 @@ describe("Strategies data-first immutable records", () => {
             transactionCosts: artifact.value.costModel,
             slippageModel: "fixed-bps",
             resultsRef: null,
-            leakageChecks: [],
+            leakageChecks: [
+              {
+                evidenceId: null,
+                kind: "look-ahead",
+                status: "unknown",
+              },
+            ],
             reviewStatus: "unreviewed",
             validationMode: "historical",
             forwardSampleCount: 0,
@@ -419,6 +425,7 @@ describe("Strategies data-first immutable records", () => {
       "No vintage id recorded in this manifest",
       "Publication time not supplied by source",
       "No results reference recorded for this backtest",
+      "look-ahead: not reported by backtest runner",
       "Review service not configured",
       "Reviews cannot be recorded in this deployment.",
     ]) {

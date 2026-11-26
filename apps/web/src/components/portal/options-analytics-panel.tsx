@@ -1,6 +1,16 @@
 "use client";
 
 import {
+  type ExposureSection,
+  type FlowSection,
+  type GexContext,
+  type GreekHeatmapMetric,
+  IV_SKEW_TARGET_DELTAS,
+  OPTIONS_FLOW_HOURS,
+  type OptionsAnalyticsOutput,
+  type VolatilitySection,
+} from "@darkfactory/api";
+import {
   Table,
   TableBody,
   TableCell,
@@ -8,16 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@darkfactory/ui";
-
-import {
-  IV_SKEW_TARGET_DELTAS,
-  OPTIONS_FLOW_HOURS,
-  type ExposureSection,
-  type FlowSection,
-  type GexContext,
-  type OptionsAnalyticsOutput,
-  type VolatilitySection,
-} from "@darkfactory/api";
 import {
   type ReactNode,
   useCallback,
@@ -29,12 +29,16 @@ import {
 
 import { centerMarkedRow } from "./center-marked-row.ts";
 import { GexContextStrip } from "./gex-context-strip.tsx";
+import { GexSpotCurve } from "./gex-spot-curve.tsx";
+import { GreekHeatmapPanel } from "./greek-heatmap-panel.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
+import { ProviderFailureAlert } from "./provider-failure-alert.tsx";
 import { StrikeProfilesPanel } from "./strike-profiles-panel.tsx";
+import { StockWallDrift } from "./wall-drift-badge.tsx";
 
 // Per-symbol options research panel on /charts and the stock page: IV term structure, skew
 // and surface, estimated GEX with OI walls and its context strip, strike profiles (OI, flow
@@ -56,7 +60,8 @@ const MAX_FLOW_ROWS = 25;
 
 type State =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput }>
+  // `symbol` is the symbol that was asked for; the prop can already name the next one.
+  | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput; symbol: string }>
   | Readonly<{ type: "error"; code: string; message: string }>;
 
 const pct = (value: number | null): string =>
@@ -82,6 +87,23 @@ const levelText = (
   return totalGex === null || dailyMove === null ? NOT_COMPUTED : missing;
 };
 
+const spotCurveNoDataReason = (
+  spot: number | null,
+  strikeCount: number,
+  gexExpiry: string | null,
+  dailyMove: number | null
+): string => {
+  if (spot === null || spot <= 0)
+    return "Not computed: spot price was not received from QuantData.";
+  if (strikeCount === 0)
+    return "Not computed: no strike open interest was received from QuantData.";
+  if (gexExpiry === null)
+    return "Not computed: no option chain rows received from QuantData.";
+  if (dailyMove === null)
+    return "Not computed: no front ATM IV in the QuantData option chain.";
+  return "Not computed: GEX spot sweep could not be estimated from this snapshot.";
+};
+
 const money = (value: number | null): string => {
   if (value === null) return NOT_COMPUTED;
   const abs = Math.abs(value);
@@ -105,23 +127,28 @@ const SectionShell = ({
   readonly status: string;
   readonly message: string | null;
   readonly children?: ReactNode;
-}) => (
-  <section
-    aria-labelledby={id}
-    className="space-y-2 rounded-md border border-border p-4"
-    data-section-status={status}
-  >
-    <h3 className="font-medium text-sm" id={id}>
-      {title}
-    </h3>
-    {message === null ? null : (
-      <p className="text-muted-foreground text-xs" role="status">
-        {message}
-      </p>
-    )}
-    {status === "ok" ? children : null}
-  </section>
-);
+}) => {
+  const unavailable = status === "unavailable" && message !== null;
+  return (
+    <section
+      aria-labelledby={id}
+      className="space-y-2 rounded-md border border-border p-4"
+      data-section-status={status}
+    >
+      <h3 className="font-medium text-sm" id={id}>
+        {title}
+      </h3>
+      {message === null ? null : unavailable ? (
+        <ProviderFailureAlert message={message} />
+      ) : (
+        <p className="text-muted-foreground text-xs" role="status">
+          {message}
+        </p>
+      )}
+      {status === "ok" ? children : null}
+    </section>
+  );
+};
 
 const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
   const id = useId();
@@ -397,6 +424,17 @@ const Exposure = ({
           </div>
         ))}
       </dl>
+      <GexSpotCurve
+        flip={context.levels.flip}
+        noDataReason={spotCurveNoDataReason(
+          spot,
+          section.strikes.length,
+          section.gexExpiry,
+          context.levels.dailyMove
+        )}
+        profile={context.profile}
+        spot={spot}
+      />
       <div className="max-h-96 overflow-auto" ref={scroller}>
         <Table
           className="w-full whitespace-nowrap text-xs"
@@ -557,13 +595,16 @@ const Flow = ({ section }: { readonly section: FlowSection }) => {
 };
 
 export interface OptionsAnalyticsPanelProps {
-  readonly symbol: string;
   readonly gateway?: OptionsAnalyticsGateway | undefined;
+  readonly symbol: string;
+  /** Show the wall x drift read (operators only; net drift is operator-only data). */
+  readonly wallDrift?: boolean;
 }
 
 export const OptionsAnalyticsPanel = ({
   symbol,
   gateway: supplied,
+  wallDrift = false,
 }: OptionsAnalyticsPanelProps) => {
   const headingId = useId();
   const selectId = useId();
@@ -571,6 +612,8 @@ export const OptionsAnalyticsPanel = ({
     () => supplied ?? createBrowserOptionsAnalyticsGateway()
   );
   const [hours, setHours] = useState<number>(24);
+  // Kept here because the heatmap is mounted again after each reload of the snapshot.
+  const [heatmapTab, setHeatmapTab] = useState<GreekHeatmapMetric>("gex");
   const [state, setState] = useState<State>({ type: "loading" });
   const generation = useRef(0);
 
@@ -579,7 +622,8 @@ export const OptionsAnalyticsPanel = ({
     setState({ type: "loading" });
     try {
       const data = await gateway.snapshot({ flowHours: hours, symbol });
-      if (mine === generation.current) setState({ data, type: "ready" });
+      if (mine === generation.current)
+        setState({ data, symbol, type: "ready" });
     } catch (error) {
       if (mine === generation.current)
         setState({ type: "error", ...describeMarketDataFailure(error) });
@@ -640,6 +684,26 @@ export const OptionsAnalyticsPanel = ({
           </button>
         </div>
       </div>
+      <StockWallDrift
+        analytics={
+          state.type === "loading"
+            ? { detail: "options analytics is loading", kind: "missing" }
+            : state.type === "error"
+              ? {
+                  detail: `options analytics failed: ${state.code}`,
+                  kind: "missing",
+                }
+              : state.data.rateLimited
+                ? {
+                    detail: `QuantData rate limit; retry in about ${state.data.retryAfterSeconds ?? 60} s`,
+                    kind: "missing",
+                  }
+                : { analytics: state.data, kind: "ready" }
+        }
+        enabled={wallDrift}
+        loadControl={gateway.flowControl}
+        symbol={symbol}
+      />
       {state.type === "loading" ? (
         <p aria-busy="true" className="text-muted-foreground text-sm">
           Loading options analytics…
@@ -667,6 +731,17 @@ export const OptionsAnalyticsPanel = ({
             section={state.data.exposure}
             spot={state.data.spot}
           />
+          {/* Mounted only after the snapshot of this symbol answered, so its term-structure
+              request is a cache hit. On a symbol change the old snapshot is still on screen
+              for one render; the heatmap must not ask for the new symbol then. */}
+          {state.symbol === symbol ? (
+            <GreekHeatmapPanel
+              gateway={gateway}
+              initialTab={heatmapTab}
+              onTabChange={setHeatmapTab}
+              symbol={symbol}
+            />
+          ) : null}
           <StrikeProfilesPanel snapshot={state.data} />
           <Flow section={state.data.flow} />
           <details className="text-muted-foreground text-xs">
