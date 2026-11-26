@@ -177,6 +177,25 @@ Running the sampler every few weeks would build history past 35 days and keep fi
   * `outside_repository` is a small local copy: importing it from `strategies/flow_control/download.py` would make `providers` depend on `strategies`. The shared `adapters.http.HttpsTransport` needs endpoint policies, a secret resolver and a host admission gate, which a keyless one-off pull does not have.
   * The point report comes from the unchanged upstream path (the parity requirement); the bootstrap only adds intervals. The run commands in Phase 6 pass the same H to the sampler and the reader.
 
+## Implementation Notes (drift report of 2026-11-26)
+
+The EGM drift report compared this design with the merged code (commit `459d6446`). The code is the reference; these notes record where it differs from the text above.
+
+* **Window start**: `--fills-back` counts from the latest block, not from the latest block minus 256. Windows A and B therefore start 256 blocks later than the Method section says. The 256-block confirmation margin applies to the end of the resolution range: the sampler stops with an error when the last fill block plus H is later than the latest block minus 256.
+* **History margin**: the 150,000-block margin comes from the chosen `--fills-back` values; the code does not check it.
+* **Short answers**: the sampler prints only totals per window. The comparison with the probe rates (25-90 fills per block) was done by hand for the first run.
+* **Exchange version 3**: the sampler requests logs only from the four known exchange addresses and topics, so a new exchange would be missed, not counted as skipped.
+* **Client rules**: besides the rules under Commands, rate-limit messages and replies that are not JSON are retried, the JSON body of an HTTP 403 reply is read as a JSON-RPC error, messages that name "timeout" or "results" halve the step, and the step doubles again after ten good chunks.
+* **Row accounting**: the report computes "not joined" by subtraction, so the identity under Row accounting always holds. It checks the other counts, not lost rows. Duplicate fill logs (same transaction and log index), repeated resolution logs and logs marked `removed` are dropped without a count. "Resolution logs read" in Results counts distinct decodable conditions.
+* **`block_time`**: it is NULL when the endpoint omits `blockTimestamp`.
+* **Wait-time numbers**: the medians and 90th percentiles under "Reading the results" were computed with a one-off DuckDB query on the local files, not by the committed commands.
+* **Defaults**: the reader applies no horizon unless `--horizon-blocks` is given and prints the condition count only with `--bootstrap`; the Phase 6 commands pass both.
+* **File writing**: each Parquet file is written through a temporary CSV file in the output folder; if the second file fails, rerun into a new folder.
+* **Endpoint and folder**: `--rpc` and `--out` accept any URL and any folder outside the repository; the rights basis covers only the PublicNode endpoint and the data-handling folder above.
+* **Tests**: duplicate fills are not tested separately; `ci-suites-prediction.txt` also lists the existing `tests/test_prediction_markets.py`.
+* **Kalshi code**: the Kalshi functions of `prediction_markets.py` stay, tested on synthetic rows, for a run after written Kalshi consent.
+* **Curve step**: as in the Gnosis loop, x is increased by one before the first square-root test, so the hash value itself is never tested.
+
 ## Results
 
 First run on 2026-11-26 (UTC) on the rig, with the commands of Phase 6 (`--horizon-blocks 403200 --bootstrap 200`). Only exchange version 2 fills appeared in both windows. No log was skipped as undecodable, and no condition had more or fewer than two outcomes or a zero payout.
