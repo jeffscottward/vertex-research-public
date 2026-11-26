@@ -229,6 +229,34 @@ const OptionsGexContextToolInputSchema = z
   })
   .strict();
 
+// Certified terms first, each group in its catalog order: the assistant cuts a tool result at
+// 16,000 characters, and the full catalog is longer, so the long uncertified indicator terms
+// (no certified answer) go last and the cut drops them, never a certified term.
+export const presentTermsList = (value: unknown): unknown => {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("terms" in value) ||
+    !Array.isArray(value.terms)
+  )
+    return value;
+  const terms: readonly unknown[] = value.terms;
+  const isCertified = terms.map(
+    (term) =>
+      typeof term === "object" &&
+      term !== null &&
+      "certified" in term &&
+      term.certified === true
+  );
+  return {
+    ...value,
+    terms: [
+      ...terms.filter((_, index) => isCertified[index]),
+      ...terms.filter((_, index) => !isCertified[index]),
+    ],
+  };
+};
+
 // The IV surface, skew, per-strike rows (displayedStrikeCount says how many are shown; the
 // totals cover every strike within 50-150% of spot), flow events and the 121-point spot
 // GEX profile curve (size) are dropped; the GEX headline, its context (levels, dealer
@@ -673,6 +701,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     procedure: "semanticTerms/list",
     input: SemanticTermsListInputSchema,
     readOnly: true,
+    present: (value) => presentTermsList(value),
   },
   {
     name: "terms_query",

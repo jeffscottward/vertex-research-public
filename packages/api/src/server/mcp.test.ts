@@ -1131,3 +1131,31 @@ describe("openbb_13f_changes MCP presenter", () => {
     expect(presented.changesOmitted).toBe(5);
   });
 });
+
+describe("terms_list MCP presenter", () => {
+  it("lists certified terms first, keeps catalog order in each group, and passes other shapes through", () => {
+    const tool = MCP_TOOLS.find((entry) => entry.name === "terms_list");
+    const present = tool?.present;
+    expect(present).toBeTypeOf("function");
+    const catalog = {
+      terms: [
+        { certified: false, id: "alphatrend" },
+        { certified: true, id: "backtest_sharpe" },
+        { certified: false, id: "supertrend" },
+        { certified: true, id: "strategy_gate_pass" },
+        "not-a-term",
+      ],
+    };
+    expect(present?.(catalog, {})).toEqual({
+      terms: [
+        { certified: true, id: "backtest_sharpe" },
+        { certified: true, id: "strategy_gate_pass" },
+        { certified: false, id: "alphatrend" },
+        { certified: false, id: "supertrend" },
+        "not-a-term",
+      ],
+    });
+    expect(present?.(null, {})).toBeNull();
+    expect(present?.({ terms: "x" }, {})).toEqual({ terms: "x" });
+  });
+});
