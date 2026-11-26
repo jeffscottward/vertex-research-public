@@ -554,7 +554,7 @@ const reportLensFailure = (
     entityType: "research-lens",
     errorCategory:
       code === "UNAVAILABLE"
-        ? "unavailable"
+        ? "source-down"
         : code === "UPSTREAM_ERROR"
           ? "upstream"
           : "unexpected",

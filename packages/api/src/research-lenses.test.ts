@@ -880,7 +880,7 @@ describe("researchLenses procedures", () => {
     );
     expect(events[1]).toMatchObject({
       correlation: { procedure: "researchLenses.rotationMatrix" },
-      errorCategory: "unavailable",
+      errorCategory: "source-down",
     });
     setResearchLensOptionsForTesting({
       fetch: async () => new Response("", { status: 404 }),
