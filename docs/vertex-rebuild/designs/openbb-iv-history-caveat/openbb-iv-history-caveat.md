@@ -168,7 +168,7 @@ The current design stores source with future daily rows and derives `historyStat
 
 ## Remaining Verification Gates
 
-On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed before the exact-suffix correction. The final SQL matcher now uses a literal terminal suffix; focused DB unit (22 tests) and Postgres integration (15 tests) pass, including the `rate 4x` near miss. Earlier responsive E2E at 375, 768, 1024, and 1440 px, six-suite Python CI, Graphify, Drizzle, DB/OpenAPI, and diff checks passed. A fresh-context EGM drift rerun at `4edd340515348808512d9fbf7fe0720b970a047d` found no drift. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is pending. PR #408 merged first with migration `0092_price_freshness_state`; this branch was updated from the remote base and its migration renumbered to `0096_common_mikhail_rasputin` with `bun run db:renumber`. `bun run db:generate` reports no schema changes.
+On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed before the exact-suffix correction. The final SQL matcher now uses a literal terminal suffix; focused DB unit (22 tests) and Postgres integration (15 tests) pass, including the `rate 4x` near miss. Earlier responsive E2E at 375, 768, 1024, and 1440 px, six-suite Python CI, Graphify, Drizzle, DB/OpenAPI, and diff checks passed. A fresh-context EGM drift rerun at `4edd340515348808512d9fbf7fe0720b970a047d` found no drift. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is recorded on PR #411. PR #408 merged first with migration `0092_price_freshness_state`; this branch was updated from the remote base and its migration renumbered to `0096_common_mikhail_rasputin` with `bun run db:renumber`. `bun run db:generate` reports no schema changes.
 
 ## Critical User Journeys
 
@@ -203,7 +203,7 @@ These are domain names. The code expresses the source set as the database CHECK 
 #### Phase 0: Record route, source, and method evidence
 
 * The owner approved the current OMP default and only the QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading is excluded. The claimed consultation ran on 2026-11-25 (card `kbchat-vertex-claim-ship-and-iv-consult`) and confirmed the method.
-* Two earlier KB threads ran before that claim. They do not count as the required consultation.
+* Two earlier KB threads ran before the server-issued claim (card `kbchat-default-omp-vertex`). They do not count as the required consultation.
 * Live health identified the current route and both thread provenance records showed only the approved origin. The private report records those details and both KB answers.
 * Neither KB returned relevant evidence for Vertex, OpenBB, Yahoo fallback, or IV-history provenance. Their suggestions are not treated as source-backed rules.
 * Code shows that the exact successful Yahoo-row warning is emitted after row construction; only a non-empty run with `rowsReceived = rowsWritten` can support the audit event. The daily row source, not the run ledger, establishes current sample membership.

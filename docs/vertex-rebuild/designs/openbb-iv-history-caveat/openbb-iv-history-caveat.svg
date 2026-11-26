@@ -134,8 +134,8 @@
     fill="#1b2b3b"
     stroke="#37516a"
   />
-  <circle cx="1141" cy="71" r="5" fill="#f2c14e" />
-  <text x="1155" y="76" class="label">METHOD PROVISIONAL</text>
+  <circle cx="1141" cy="71" r="5" fill="#6fcf97" />
+  <text x="1155" y="76" class="label">METHOD CONFIRMED</text>
 
   <rect x="60" y="190" width="620" height="540" rx="22" class="panel" />
   <rect x="720" y="190" width="620" height="540" rx="22" class="panel" />
