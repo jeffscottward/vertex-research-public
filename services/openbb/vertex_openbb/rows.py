@@ -157,6 +157,7 @@ TABLES: dict[str, dict[str, Field]] = {
         "asOf": D, "atmIv30d": IV, "callIv25d30d": IV, "callOi": C, "callVolume": C,
         "callWall": F_NULL, "contracts": C, "gammaFlip": F_NULL, "netGex": F_NULL,
         "putIv25d30d": IV, "putOi": C, "putVolume": C, "putWall": F_NULL,
+        "source": Field("enum", values=("cboe", "yahoo_fallback")),
         "underlying": SYM, "underlyingPrice": PRICE,
     },
     "option_iv_term": {

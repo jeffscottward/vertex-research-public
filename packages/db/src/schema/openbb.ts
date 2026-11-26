@@ -180,6 +180,7 @@ export const openbbOptionIvDaily = pgTable(
     putOi: count("put_oi").notNull(),
     putVolume: count("put_volume").notNull(),
     putWall: doublePrecision("put_wall"),
+    source: text("source").notNull().default("unknown"),
     underlying: text("underlying").notNull(),
     underlyingPrice: doublePrecision("underlying_price").notNull(),
   },
@@ -189,6 +190,7 @@ export const openbbOptionIvDaily = pgTable(
       "openbb_option_iv_daily_check",
       all([
         symbol(table.underlying),
+        sql`${table.source} in ('cboe', 'yahoo_fallback', 'unknown')`,
         finite(table.underlyingPrice),
         finite(table.atmIv30d),
         finite(table.putIv25d30d),
