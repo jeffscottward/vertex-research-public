@@ -12,7 +12,7 @@ This report covers the revision of 2026-11-25: the tile value reads `No ratio` i
 - Acceptance check 4 said that component tests verify the `StatCard` slots for every state. The tests check the rendered slots for the loading and no-answer states, and the `chainKpis` values for every state. Fixed: the plan says this.
 - Phase 2 said that 14 call cells and 11 put cells read `no OI`. The test counts 25 cells by their title and reads the text of the first cell. Fixed: the plan says this.
 - Implementation step 3 listed two rules (no OI reported on both sides; some contracts without OI) where the code has one branch with the same text. Fixed: the plan has one rule.
-- Phase 3 named one commit subject. Fixed: the plan lists the commits of the branch.
+- Phase 3 named one commit subject. Fixed: the plan points to `git log` of the branch.
 
 ## First run: before-after.svg
 

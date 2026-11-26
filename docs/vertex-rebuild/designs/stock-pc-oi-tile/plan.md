@@ -31,8 +31,8 @@ Quant Data derives OI from order-flow prints, reads only the first provider page
 
 | Chain state | Large value | Muted detail |
 | --- | --- | --- |
-| All listed call and put contracts report OI; call OI is positive and put OI is positive | Formatted put/call OI ratio | OI reported for all N calls and M puts in the returned chain |
-| All listed call and put contracts report OI; call OI is positive and put OI total is zero | `0.00` | OI reported for all N calls and M puts in the returned chain |
+| All listed call and put contracts report OI; call OI is positive and put OI is positive | Formatted put/call OI ratio | OI reported for N of N calls and M of M puts in the returned chain |
+| All listed call and put contracts report OI; call OI is positive and put OI total is zero | `0.00` | OI reported for N of N calls and M of M puts in the returned chain |
 | No call or put contracts are listed | `No ratio` | No contracts in the returned chain |
 | Contracts on both sides, no OI values reported | `No ratio` | OI reported for 0 of N calls and 0 of M puts in the returned chain |
 | Some OI values are reported, but one or more listed contracts lack OI | `No ratio` | OI reported for C of N calls and P of M puts in the returned chain |
@@ -81,8 +81,8 @@ Quant Data derives OI from order-flow prints, reads only the first provider page
 
 1. Extend `ChainKpis` with separate `putCallOiValue` and `putCallOiDetail` fields. Render them in the Put/call OI `StatCard` value and muted-description slots. Keep the price, expiry, strike, and IV fields unchanged.
 2. For every non-ready chain, set the value to `No ratio` and set the detail to the existing `chainNotReadyText(state)`. This keeps the existing loading, configured-timeout, and request-failure messages.
-3. For a ready chain, apply these rules in order:
-   - If `summary.putCallOi !== null`, show `summary.putCallOi.toFixed(2)` and `OI reported for all N calls and M puts in the returned chain`. This includes complete calls with positive OI and a reported put total of zero; the value is `0.00`.
+3. For a ready chain, apply these rules (each state matches one rule, so the order does not change the result):
+   - If `summary.putCallOi !== null`, show `summary.putCallOi.toFixed(2)` and `OI reported for N of N calls and M of M puts in the returned chain`. This includes complete calls with positive OI and a reported put total of zero; the value is `0.00`.
    - If both `calls.contracts` and `puts.contracts` are zero, show `No ratio` and `No contracts in the returned chain`.
    - If `calls.contracts` is zero, show `No ratio` and `No call contracts; OI reported for P of M puts in the returned chain`, where P=`puts.reported` and M=`puts.contracts`. If `puts.contracts` is zero, show `No ratio` and `No put contracts; OI reported for C of N calls in the returned chain`, where C=`calls.reported` and N=`calls.contracts`.
    - If both sides have contracts and one or both sides have a contract with no reported OI (this includes 0 reported on both sides), show `No ratio` and `OI reported for C of N calls and P of M puts in the returned chain`, using each side's `reported/contracts` counts. One code branch covers these states.
@@ -98,12 +98,12 @@ The temporary reproduction test was removed after its regression moved to the pe
 
 1. Extend `mockMarketData(page)` with an opt-in partial-OI fixture. The fake gateway returns 41 strikes with one call and one put per strike. For row indexes 0 through 40, set call `openInterest` to `null` when `index % 3 === 0` and put `openInterest` to `null` when `index % 4 === 0`; leave other contracts unchanged. This gives 27/41 reported calls and 30/41 reported puts. Keep the default fixture unchanged for all existing tests.
 2. Add the Playwright test named `stock detail keeps partial put/call OI details within the tile at target widths` for `/stock/NVDA?tab=options`. Assert the value is `No ratio`, the muted detail is exactly `OI reported for 27 of 41 calls and 30 of 41 puts in the returned chain`, and, with `All strikes` selected, exactly 25 cells of the split table (14 + 11, the count of call and put contracts the fixture sets to null) carry the title `Open interest not sent by the source`, and the first of them reads `no OI`. This ties the table to the tile counts: the table shows `no OI` only where the chain response has a null.
-3. Use the card locator `page.locator("[data-stock-kpis] dl").filter({ has: page.getByText("Put/call OI", { exact: true }) })` and its second `dd` as the detail. At each width 375, 768, 1024, and 1440 px, set viewport height to 1100 px; compare the detail's `getBoundingClientRect().left/right` with the containing `dl` rectangle and require it to stay within those bounds. At 375 px, require the detail rectangle height to exceed 1.5 times its computed CSS line height, proving that the detail wraps to multiple lines. At every width, require the value rectangle height to stay under 1.5 times its line height: the value is one line.
+3. Use the card locator `page.locator("[data-stock-kpis] dl").filter({ has: page.getByText("Put/call OI", { exact: true }) })` and its second `dd` as the detail. At each width 375, 768, 1024, and 1440 px, set viewport height to 1100 px; compare the detail's `getBoundingClientRect().left/right` with the containing `dl` rectangle and require it to stay within those bounds. Also require `scrollWidth <= clientWidth` on the detail, because a block keeps its box when its text overflows. At 375 px, require the detail rectangle height to exceed 1.5 times its computed CSS line height, proving that the detail wraps to multiple lines. At every width, require the value rectangle height to stay under 1.5 times its line height: the value is one line.
 4. Remove the temporary reproduction file after its assertions are in the permanent test. Run `bun run build`, then `bun run test:e2e --grep "stock detail keeps partial put/call OI details within the tile at target widths"`. The build must pass before the E2E run because the test server reads `.wrangler/deploy/config.json`. Both passing commands are the Phase 2 checkpoint.
 
 ### Phase 3 — Review, commit, and open the PR
 
-1. Run `bun run verify:prepush`. Commit with the `commit` namespace. The branch holds the commits of the first version (`fix: keep stock put-call OI KPI value compact`, `fix(stock): split put-call OI value from coverage detail`, `docs: finalize stock put-call OI tile evidence`), the revision `fix(stock): show No ratio with a short reason in the put-call OI tile`, and one docs commit for this plan revision.
+1. Run `bun run verify:prepush`. Commit with the `commit` namespace; `git log` of the branch lists the commits.
 2. Before the first push, run `git fetch origin` and `git rebase origin/vertex/rebuild-darkfactory-20260921` in this worktree. After a conflict or rebase, rerun the Phase 1 and Phase 2 focused checks and `bun run verify:prepush`. If the branch has already been pushed, merge `origin/vertex/rebuild-darkfactory-20260921` into it instead of rebasing pushed commits.
 3. At the post-rebase commit, record the full SHA with `git rev-parse HEAD` and have a fresh-context reviewer inspect the complete diff at that SHA. Resolve every finding before the PR is opened; if resolution changes code, repeat the focused checks and review the new full SHA. The PR body must include `Agent review: <40-character reviewed SHA>` and `Owner decision: not needed (this UI-only change does not alter risk, orders, arming, or permissions)`.
 4. Push under the repository pre-push lock with `flock /tmp/vertex-research-public-prepush.lock git -C <worktree> push -u origin ws/put-call-oi-tile-shows-a-2`. Run `gh pr view ws/put-call-oi-tile-shows-a-2`; if it has no open PR, run `gh pr create --draft --fill --base vertex/rebuild-darkfactory-20260921 --head ws/put-call-oi-tile-shows-a-2`, otherwise keep using its open PR.
@@ -141,8 +141,18 @@ The card also reported that chain OI cells showed a dash near the money while th
 The reviewer read the full diff of the branch before these fixes. Verdict: 2 major and 2 minor findings, all fixed in the next commit.
 
 - Major: the first version of the test rewrite had removed the tests of the other three tiles (price, strike and IV of a full chain; a chain without price and strikes; a strike without IV), and the not-ready tests checked only the Put/call OI fields. Fixed: the tests are back and assert every field.
-- Minor: `OI for the selected expiry` and `No contracts for the selected expiry` spoke for the whole expiry. Fixed: `OI reported for all N calls and M puts in the returned chain` and `No contracts in the returned chain`.
+- Minor: `OI for the selected expiry` and `No contracts for the selected expiry` spoke for the whole expiry. Fixed: `OI reported for N of N calls and M of M puts in the returned chain` and `No contracts in the returned chain`.
 - Minor: no test had one side without contracts and the other side partly reported. Fixed: two cases added.
+
+### Code review, round 2 (fresh-context reviewer, 2026-11-25, after the rebase)
+
+Verdict: pass, with 3 minor findings and 2 notes. All fixed in the next commit.
+
+- Minor: the rendered KPI row had lost the base assertion that it holds no bare dash while loading. Fixed: the assertion is back.
+- Minor: the browser test compared boxes, which a block keeps even when its text overflows. Fixed: it also requires `scrollWidth <= clientWidth` on the detail.
+- Minor: this plan listed the commits of the branch and missed later ones. Fixed: the plan points to `git log`.
+- Note: the rules of step 3 were "in order" in another order than the code. Fixed: the plan says that the order does not change the result.
+- Note: "all 1 calls and 1 puts" for a one-contract chain. Changed: with a ratio the detail uses the same sentence as for a side that lacks OI (`OI reported for N of N calls and M of M puts in the returned chain`).
 - Not changed (design notes): the value reads `No ratio` while the chain loads, with `Loading…` as the detail; the one-line check of the value in the browser test stays as a layout guard.
 
 ## Files and evidence
