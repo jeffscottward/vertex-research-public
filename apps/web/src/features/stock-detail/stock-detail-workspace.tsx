@@ -62,6 +62,8 @@ export type ChainState =
   | Readonly<{ type: "error"; failure: MarketDataFailure }>;
 
 const NO_ATM_STRIKE = "No ATM strike for this expiry";
+/** The Put/call OI value when there is no ratio; the muted detail under it gives the reason. */
+const NO_RATIO = "No ratio";
 
 /** Why the stat cards have no chain values yet: still loading, no answer, or the failure message. */
 const chainNotReadyText = (
@@ -90,15 +92,15 @@ export const chainKpis = (state: ChainState): ChainKpis => {
       atmIv: text,
       expiry: text,
       price: text,
-      putCallOiValue: "—",
       putCallOiDetail: text,
+      putCallOiValue: NO_RATIO,
       strike: text,
     };
   }
   const { chain } = state;
   const summary = chainSummary(chain);
   const noStrike = summary.atmStrike === null;
-  const [putCallOiValue, putCallOiDetail] = putCallOiText(summary);
+  const ratio = summary.putCallOi;
   return {
     atmIv: noStrike
       ? NO_ATM_STRIKE
@@ -110,8 +112,10 @@ export const chainKpis = (state: ChainState): ChainKpis => {
       chain.spot === null
         ? "No price in this chain snapshot"
         : `$${chain.spot.toFixed(2)}`,
-    putCallOiValue,
-    putCallOiDetail,
+    // A short value; the muted detail under it carries the reason and the counts.
+    putCallOiDetail:
+      ratio === null ? noRatioReason(summary) : "OI for the selected expiry",
+    putCallOiValue: ratio === null ? NO_RATIO : ratio.toFixed(2),
     strike:
       summary.atmStrike === null
         ? NO_ATM_STRIKE
@@ -135,40 +139,23 @@ const complete = (side: OiSide): boolean =>
   side.contracts > 0 && side.reported === side.contracts;
 
 /**
- * The put/call ratio, or why there is none. No contracts, open interest the source did not report,
- * and a reported 0 stay distinct: a missing value is never summed as 0.
+ * Why there is no put/call ratio. No contracts, open interest the source did not report, and a
+ * reported 0 stay distinct: a missing value is never summed as 0. The counts cover the contracts
+ * of the returned chain only, which can be fewer than the expiry lists.
  */
-const putCallOiText = (
-  summary: ChainSummary
-): readonly [value: string, detail: string] => {
-  if (summary.putCallOi !== null)
-    return [summary.putCallOi.toFixed(2), "OI for the selected expiry"];
-  const { calls, puts } = summary;
+const noRatioReason = ({ calls, puts }: ChainSummary): string => {
+  const reported = (side: OiSide, name: "calls" | "puts"): string =>
+    `${side.reported} of ${side.contracts} ${name}`;
   if (calls.contracts === 0 && puts.contracts === 0)
-    return ["—", "No contracts for the selected expiry"];
+    return "No contracts for the selected expiry";
   if (calls.contracts === 0)
-    return [
-      "—",
-      `No call contracts; put OI reported for ${puts.reported} of ${puts.contracts} contracts in this returned chain`,
-    ];
+    return `No call contracts; OI reported for ${reported(puts, "puts")} in the returned chain`;
   if (puts.contracts === 0)
-    return [
-      "—",
-      `No put contracts; call OI reported for ${calls.reported} of ${calls.contracts} contracts in this returned chain`,
-    ];
-  if (calls.reported === 0 && puts.reported === 0)
-    return [
-      "—",
-      `Calls OI reported for 0 of ${calls.contracts} contracts; puts OI reported for 0 of ${puts.contracts} contracts in this returned chain`,
-    ];
-  if (calls.reported < calls.contracts || puts.reported < puts.contracts)
-    return [
-      "—",
-      `Calls OI reported for ${calls.reported} of ${calls.contracts} contracts; puts OI reported for ${puts.reported} of ${puts.contracts} contracts in this returned chain`,
-    ];
-  if (calls.total === 0 && puts.total === 0)
-    return ["—", "Reported call and put OI totals are zero"];
-  return ["—", "Call OI is zero; the ratio is unavailable"];
+    return `No put contracts; OI reported for ${reported(calls, "calls")} in the returned chain`;
+  if (!(complete(calls) && complete(puts)))
+    return `OI reported for ${reported(calls, "calls")} and ${reported(puts, "puts")} in the returned chain`;
+  if (puts.total === 0) return "Reported call and put OI totals are 0";
+  return "Call OI is 0; a ratio needs call OI above 0";
 };
 
 const addLeg = (side: OiSide, openInterest: number | null): OiSide =>

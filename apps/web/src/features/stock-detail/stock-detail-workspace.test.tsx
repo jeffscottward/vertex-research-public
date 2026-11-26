@@ -675,7 +675,7 @@ describe("chainFlow", () => {
 describe("chainKpis", () => {
   it("keeps value and detail separate for every chain state", async () => {
     const loading = chainKpis({ type: "loading" });
-    expect(loading.putCallOiValue).toBe("—");
+    expect(loading.putCallOiValue).toBe("No ratio");
     expect(loading.putCallOiDetail).toBe("Loading…");
     const failed = chainKpis({
       failure: {
@@ -684,12 +684,12 @@ describe("chainKpis", () => {
       },
       type: "error",
     });
-    expect(failed.putCallOiValue).toBe("—");
+    expect(failed.putCallOiValue).toBe("No ratio");
     expect(failed.putCallOiDetail).toBe(
       "Not loaded: The options feed did not answer."
     );
     const silent = chainKpis({ startedAt: 0, type: "no-answer" });
-    expect(silent.putCallOiValue).toBe("—");
+    expect(silent.putCallOiValue).toBe("No ratio");
     expect(silent.putCallOiDetail).toBe("Not loaded: no answer after 30 s");
 
     const chain = await createFakeOptionsChainGateway().chain({
@@ -731,37 +731,41 @@ describe("chainKpis", () => {
       expect(kpis.putCallOiValue).toBe(value);
       expect(kpis.putCallOiDetail).toBe(detail);
     };
-    expectOi([], "—", "No contracts for the selected expiry");
+    expectOi([], "No ratio", "No contracts for the selected expiry");
     expectOi(
       [["absent", 1200]],
-      "—",
-      "No call contracts; put OI reported for 1 of 1 contracts in this returned chain"
+      "No ratio",
+      "No call contracts; OI reported for 1 of 1 puts in the returned chain"
     );
     expectOi(
       [[400, "absent"]],
-      "—",
-      "No put contracts; call OI reported for 1 of 1 contracts in this returned chain"
+      "No ratio",
+      "No put contracts; OI reported for 1 of 1 calls in the returned chain"
     );
     expectOi(
       [[null, null]],
-      "—",
-      "Calls OI reported for 0 of 1 contracts; puts OI reported for 0 of 1 contracts in this returned chain"
+      "No ratio",
+      "OI reported for 0 of 1 calls and 0 of 1 puts in the returned chain"
     );
     expectOi(
       [[400, null]],
-      "—",
-      "Calls OI reported for 1 of 1 contracts; puts OI reported for 0 of 1 contracts in this returned chain"
+      "No ratio",
+      "OI reported for 1 of 1 calls and 0 of 1 puts in the returned chain"
     );
-    expectOi([[0, 0]], "—", "Reported call and put OI totals are zero");
-    expectOi([[0, 1200]], "—", "Call OI is zero; the ratio is unavailable");
+    expectOi([[0, 0]], "No ratio", "Reported call and put OI totals are 0");
+    expectOi(
+      [[0, 1200]],
+      "No ratio",
+      "Call OI is 0; a ratio needs call OI above 0"
+    );
     expectOi([[400, 0]], "0.00", "OI for the selected expiry");
     expectOi(
       [
         [400, 600],
         [null, 300],
       ],
-      "—",
-      "Calls OI reported for 1 of 2 contracts; puts OI reported for 2 of 2 contracts in this returned chain"
+      "No ratio",
+      "OI reported for 1 of 2 calls and 2 of 2 puts in the returned chain"
     );
   });
 });
@@ -786,7 +790,7 @@ describe("chain request deadline", () => {
       const oiDetails = () =>
         kpis()?.querySelector("dl:last-child")?.querySelectorAll("dd");
       expect(kpis()?.textContent).toContain("Loading…");
-      expect(oiDetails()?.[0]?.textContent).toBe("—");
+      expect(oiDetails()?.[0]?.textContent).toBe("No ratio");
       expect(oiDetails()?.[1]?.textContent).toBe("Loading…");
       await run(() => vi.advanceTimersByTime(CHAIN_REQUEST_TIMEOUT_MS));
       expect(
@@ -795,7 +799,7 @@ describe("chain request deadline", () => {
         /^NVDA options requested at \d{2}:\d{2}.* · no answer after 30 s$/u
       );
       expect(kpis()?.textContent).toContain("Not loaded: no answer after 30 s");
-      expect(oiDetails()?.[0]?.textContent).toBe("—");
+      expect(oiDetails()?.[0]?.textContent).toBe("No ratio");
       expect(oiDetails()?.[1]?.textContent).toBe(
         "Not loaded: no answer after 30 s"
       );

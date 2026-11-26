@@ -156,14 +156,20 @@ test("stock detail keeps partial put/call OI details within the tile at target w
     has: page.getByText("Put/call OI", { exact: true }),
   });
   await expect(card).toBeVisible();
-  await expect(card.locator("dd").first()).toHaveText("—");
+  const value = card.locator("dd").first();
+  await expect(value).toHaveText("No ratio");
   const detail = card.locator("dd").nth(1);
   await expect(detail).toHaveText(
-    "Calls OI reported for 27 of 41 contracts; puts OI reported for 30 of 41 contracts in this returned chain"
+    "OI reported for 27 of 41 calls and 30 of 41 puts in the returned chain"
   );
-  await expect(
-    page.locator('td[title="Open interest not sent by the source"]').first()
-  ).toHaveText("no OI");
+  // The table shows "no OI" for the contracts the tile counts as not reported, and for no others:
+  // 14 calls (27 of 41 reported) and 11 puts (30 of 41 reported).
+  await page.getByLabel("Strikes").selectOption("all");
+  const noOi = page
+    .locator('table[data-chain-layout="split"]')
+    .locator('td[title="Open interest not sent by the source"]');
+  await expect(noOi).toHaveCount(14 + 11);
+  await expect(noOi.first()).toHaveText("no OI");
 
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ height: 1100, width });
@@ -184,6 +190,13 @@ test("stock detail keeps partial put/call OI details within the tile at target w
     expect(bounds.detailRight).toBeLessThanOrEqual(bounds.tileRight);
     if (width === 375)
       expect(bounds.detailHeight).toBeGreaterThan(1.5 * bounds.lineHeight);
+    // The big value stays on one line: the sentence is in the detail, not in the value.
+    const valueLines = await value.evaluate(
+      (element) =>
+        element.getBoundingClientRect().height /
+        Number.parseFloat(getComputedStyle(element).lineHeight)
+    );
+    expect(valueLines).toBeLessThan(1.5);
   }
 });
 
