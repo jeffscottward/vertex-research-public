@@ -13,6 +13,11 @@ import { ResearchTableHeading } from "../../components/research/research-table-h
 import type { ExperienceScope } from "./ports.ts";
 import { serverClock } from "./research-chat-status.ts";
 import {
+  continuityStateLabel,
+  freshnessStatusLabel,
+  reservationStateLabel,
+} from "./status-labels.ts";
+import {
   EmptyCollection,
   ExperienceFrame,
   ResourcePanel,
@@ -47,13 +52,6 @@ const continuityMessages: Record<
     "The projection owner epoch does not match. The native owner must reconcile it. This view cannot repair it.",
 };
 
-// The projection store sets "unavailable" only when the latest snapshot is a source-unavailable
-// report: the source answered that it has no portfolio data. The time and sequence are those of
-// that report.
-export const continuityStateLabel = (
-  state: ProjectionContinuity["state"]
-): string => (state === "unavailable" ? "source reported no data" : state);
-
 export const continuityMessage = (continuity: ProjectionContinuity): string => {
   if (continuity.state !== "unavailable")
     return continuityMessages[continuity.state];
@@ -86,7 +84,7 @@ export const PortfolioContinuity = ({
     >
       {continuityStateLabel(continuity.state)}
       {" · freshness: "}
-      {continuity.freshness.status}
+      {freshnessStatusLabel(continuity.freshness.status)}
     </p>
     <p>{continuityMessage(continuity)}</p>
     <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
@@ -340,7 +338,7 @@ const reservationColumns: readonly Column<
   { label: "Cash amount", value: (row) => row.cashAmount },
   { label: "Share quantity", value: (row) => row.shareQuantity },
   { label: "Currency", value: (row) => row.currency },
-  { label: "State", value: (row) => row.state },
+  { label: "State", value: (row) => reservationStateLabel(row.state) },
   { label: "Source event", value: (row) => row.sourceEventId },
 ];
 const sleeveColumns: readonly Column<

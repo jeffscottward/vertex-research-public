@@ -15,8 +15,9 @@ does not hide the other views.
   exchange time zone, price, size, venue and side. Side comes from the quote rule (at or above the
   ask is a buy, at or below the bid is a sell, using the last quote at or before the print) and
   falls back to the tick rule. Each row says which rule signed it; the header counts both.
-- **Order book.** A one-shot depth snapshot as a price ladder with bid and ask sizes and the
-  cumulative size. Futures read the exchange book (CME depth works on the account). Stocks read
+- **Order book.** A one-shot depth snapshot rendered as a cumulative bid/ask depth curve (chart
+  F3: step-area curves, mid/spread marker and bid/ask share bar) above a price ladder with bid and
+  ask sizes and cumulative size. Futures read the exchange book (CME depth works on the account). Stocks read
   IBKR SMART depth: today that is IEX full depth plus the top of book from other venues. The panel
   lists the venues with depth, the venues with top of book only and the venues that need a market
   data subscription, as IBKR reports them (notice 2152). With `ibapi` 10.30.1 (vertex-history 1.7.1,

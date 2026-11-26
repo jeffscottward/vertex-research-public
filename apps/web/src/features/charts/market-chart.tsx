@@ -6,6 +6,7 @@ import type {
   ChartMarker,
   ChartStudies,
   DisplayCandle,
+  ExpectedMoveCone,
   SeriesPane,
 } from "./types.ts";
 
@@ -18,14 +19,15 @@ export type MarketBarsChartProps = Readonly<{
   pricePrecision: number;
   studies: ChartStudies;
   markers: readonly ChartMarker[];
+  expectedMove?: ExpectedMoveCone | null;
   seriesPane?: SeriesPane | null;
 }>;
 
 export const MARKET_CHART_CAPTIONS = Object.freeze({
-  ready: "Display values are approximate.",
-  loading: "Loading chart renderer.",
   // Only the next step: the host writes "Chart renderer failed to <stage>: <error> · <time>".
   error: "reload the page to retry",
+  loading: "Loading chart renderer.",
+  ready: "Display values are approximate.",
 });
 
 export const MarketBarsChart = ({
@@ -35,6 +37,7 @@ export const MarketBarsChart = ({
   pricePrecision,
   studies,
   markers,
+  expectedMove,
   seriesPane,
 }: MarketBarsChartProps) => {
   if (typeof window === "undefined")
@@ -47,6 +50,7 @@ export const MarketBarsChart = ({
     <ChartWorkstation
       candles={candles}
       captions={MARKET_CHART_CAPTIONS}
+      expectedMove={expectedMove ?? null}
       factory={createKLineRenderer}
       label={label}
       markers={markers}

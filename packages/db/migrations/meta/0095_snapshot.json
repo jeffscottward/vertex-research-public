@@ -1,5 +1,5 @@
 {
-  "id": "c1317411-6940-4e3a-9ae9-d41fe8721d6d",
+  "id": "8418d9b9-d5fa-48c4-abc1-8f2664a6a5f9",
   "prevId": "99d7820f-97f1-4cde-8fad-a74d84120493",
   "version": "7",
   "dialect": "postgresql",
@@ -4133,6 +4133,95 @@
       },
       "isRLSEnabled": false
     },
+    "public.flow_book_snapshots": {
+      "name": "flow_book_snapshots",
+      "schema": "",
+      "columns": {
+        "ask_prices": {
+          "name": "ask_prices",
+          "type": "double precision[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ask_sizes": {
+          "name": "ask_sizes",
+          "type": "double precision[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "best_ask": {
+          "name": "best_ask",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "best_bid": {
+          "name": "best_bid",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bid_prices": {
+          "name": "bid_prices",
+          "type": "double precision[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bid_sizes": {
+          "name": "bid_sizes",
+          "type": "double precision[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capture": {
+          "name": "capture",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract": {
+          "name": "contract",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "min_tick": {
+          "name": "min_tick",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "flow_book_snapshots_symbol_captured_at_pk": {
+          "name": "flow_book_snapshots_symbol_captured_at_pk",
+          "columns": ["symbol", "captured_at"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "flow_book_snapshots_check": {
+          "name": "flow_book_snapshots_check",
+          "value": "\"flow_book_snapshots\".\"symbol\" in ('ES', 'NQ') and \"flow_book_snapshots\".\"capture\" in ('sampled', 'streamed') and \"flow_book_snapshots\".\"min_tick\" > 0 and \"flow_book_snapshots\".\"min_tick\" < 'Infinity'::double precision and length(\"flow_book_snapshots\".\"contract\") between 1 and 20 and coalesce(array_ndims(\"flow_book_snapshots\".\"bid_prices\"), 0) <= 1 and coalesce(array_ndims(\"flow_book_snapshots\".\"bid_sizes\"), 0) <= 1 and coalesce(array_ndims(\"flow_book_snapshots\".\"ask_prices\"), 0) <= 1 and coalesce(array_ndims(\"flow_book_snapshots\".\"ask_sizes\"), 0) <= 1 and cardinality(\"flow_book_snapshots\".\"bid_prices\") = cardinality(\"flow_book_snapshots\".\"bid_sizes\") and cardinality(\"flow_book_snapshots\".\"bid_prices\") <= 20 and cardinality(\"flow_book_snapshots\".\"ask_prices\") = cardinality(\"flow_book_snapshots\".\"ask_sizes\") and cardinality(\"flow_book_snapshots\".\"ask_prices\") <= 20 and cardinality(\"flow_book_snapshots\".\"bid_prices\") + cardinality(\"flow_book_snapshots\".\"ask_prices\") > 0 and array_position(\"flow_book_snapshots\".\"bid_prices\", NULL) is null and array_position(\"flow_book_snapshots\".\"bid_sizes\", NULL) is null and array_position(\"flow_book_snapshots\".\"ask_prices\", NULL) is null and array_position(\"flow_book_snapshots\".\"ask_sizes\", NULL) is null and 0 < all(\"flow_book_snapshots\".\"bid_prices\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"bid_prices\") and 0 < all(\"flow_book_snapshots\".\"bid_sizes\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"bid_sizes\") and 0 < all(\"flow_book_snapshots\".\"ask_prices\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"ask_prices\") and 0 < all(\"flow_book_snapshots\".\"ask_sizes\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"ask_sizes\") and (\"flow_book_snapshots\".\"best_bid\" is null) = (cardinality(\"flow_book_snapshots\".\"bid_prices\") = 0) and (\"flow_book_snapshots\".\"best_bid\" is null or (\"flow_book_snapshots\".\"best_bid\" > 0 and \"flow_book_snapshots\".\"best_bid\" < 'Infinity'::double precision)) and (\"flow_book_snapshots\".\"best_ask\" is null) = (cardinality(\"flow_book_snapshots\".\"ask_prices\") = 0) and (\"flow_book_snapshots\".\"best_ask\" is null or (\"flow_book_snapshots\".\"best_ask\" > 0 and \"flow_book_snapshots\".\"best_ask\" < 'Infinity'::double precision))"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.flow_events": {
       "name": "flow_events",
       "schema": "",
@@ -4233,7 +4322,7 @@
       "checkConstraints": {
         "flow_events_check": {
           "name": "flow_events_check",
-          "value": "\"flow_events\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_events\".\"direction\" in ('bullish', 'bearish', 'neutral') and \"flow_events\".\"source\" in ('ibkr', 'quantdata') and length(\"flow_events\".\"detail\") <= 300 and length(\"flow_events\".\"key\") <= 160"
+          "value": "(\"flow_events\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') or (\"flow_events\".\"symbol\" in ('IWM', 'NVDA') and \"flow_events\".\"source\" = 'quantdata')) and \"flow_events\".\"direction\" in ('bullish', 'bearish', 'neutral') and \"flow_events\".\"source\" in ('ibkr', 'quantdata') and length(\"flow_events\".\"detail\") <= 300 and length(\"flow_events\".\"key\") <= 160"
         }
       },
       "isRLSEnabled": false
@@ -4821,7 +4910,7 @@
       "checkConstraints": {
         "flow_option_gaps_check": {
           "name": "flow_option_gaps_check",
-          "value": "\"flow_option_gaps\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_option_gaps\".\"end_time\" >= \"flow_option_gaps\".\"start_time\""
+          "value": "\"flow_option_gaps\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA') and \"flow_option_gaps\".\"end_time\" >= \"flow_option_gaps\".\"start_time\""
         }
       },
       "isRLSEnabled": false
@@ -5017,7 +5106,7 @@
       "checkConstraints": {
         "flow_option_prints_check": {
           "name": "flow_option_prints_check",
-          "value": "\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_option_prints\".\"ticker\" in ('SPY', 'SPX', 'QQQ', 'NDX') and \"flow_option_prints\".\"right\" in ('call', 'put') and \"flow_option_prints\".\"premium\" >= 0 and length(\"flow_option_prints\".\"id\") <= 64"
+          "value": "\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA') and \"flow_option_prints\".\"ticker\" in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and \"flow_option_prints\".\"right\" in ('call', 'put') and \"flow_option_prints\".\"premium\" >= 0 and length(\"flow_option_prints\".\"id\") <= 64"
         }
       },
       "isRLSEnabled": false
@@ -5076,7 +5165,7 @@
       "checkConstraints": {
         "flow_samples_check": {
           "name": "flow_samples_check",
-          "value": "\"flow_samples\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_samples\".\"source\" in ('ticks', 'depth', 'options', 'gex', 'net_drift', 'market_premium') and \"flow_samples\".\"status\" in ('ok', 'empty', 'unavailable', 'skipped') and \"flow_samples\".\"items\" >= 0 and length(coalesce(\"flow_samples\".\"message\", '')) <= 300"
+          "value": "(\"flow_samples\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') or (\"flow_samples\".\"symbol\" in ('IWM', 'NVDA') and \"flow_samples\".\"source\" = 'options')) and \"flow_samples\".\"source\" in ('ticks', 'depth', 'options', 'gex', 'net_drift', 'market_premium') and \"flow_samples\".\"status\" in ('ok', 'empty', 'unavailable', 'skipped') and \"flow_samples\".\"items\" >= 0 and length(coalesce(\"flow_samples\".\"message\", '')) <= 300"
         }
       },
       "isRLSEnabled": false
@@ -7779,6 +7868,75 @@
       },
       "isRLSEnabled": false
     },
+    "public.price_freshness_state": {
+      "name": "price_freshness_state",
+      "schema": "",
+      "columns": {
+        "active_keys": {
+          "name": "active_keys",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "last_transition_at": {
+          "name": "last_transition_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monitor": {
+          "name": "monitor",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pending_delivery": {
+          "name": "pending_delivery",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_event_id": {
+          "name": "pending_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_keys": {
+          "name": "pending_keys",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "pending_kind": {
+          "name": "pending_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "price_freshness_state_check": {
+          "name": "price_freshness_state_check",
+          "value": "\"price_freshness_state\".\"monitor\" ~ '^[a-z0-9-]{1,40}$' and array_position(\"price_freshness_state\".\"active_keys\", NULL) is null and array_position(\"price_freshness_state\".\"pending_keys\", NULL) is null and ((\"price_freshness_state\".\"pending_event_id\" is null and \"price_freshness_state\".\"pending_kind\" is null and \"price_freshness_state\".\"pending_delivery\" is null and \"price_freshness_state\".\"pending_keys\" = '{}'::text[]) or (\"price_freshness_state\".\"pending_event_id\" is not null and \"price_freshness_state\".\"pending_kind\" is not null and \"price_freshness_state\".\"pending_delivery\" is not null and char_length(trim(\"price_freshness_state\".\"pending_event_id\")) between 1 and 80 and char_length(\"price_freshness_state\".\"pending_event_id\") <= 80 and \"price_freshness_state\".\"pending_kind\" in ('alert', 'recovery') and \"price_freshness_state\".\"pending_delivery\" in ('pending', 'not-configured', 'failed') and ((\"price_freshness_state\".\"pending_kind\" = 'alert' and cardinality(\"price_freshness_state\".\"pending_keys\") > 0) or (\"price_freshness_state\".\"pending_kind\" = 'recovery' and \"price_freshness_state\".\"pending_keys\" = '{}'::text[]))))"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.openbb_ingest_runs": {
       "name": "openbb_ingest_runs",
       "schema": "",
@@ -8087,13 +8245,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unknown'"
-        },
         "underlying": {
           "name": "underlying",
           "type": "text",
@@ -8120,7 +8271,7 @@
       "checkConstraints": {
         "openbb_option_iv_daily_check": {
           "name": "openbb_option_iv_daily_check",
-          "value": "\"openbb_option_iv_daily\".\"underlying\" ~ '^[A-Z0-9.^=-]{1,16}$' and \"openbb_option_iv_daily\".\"source\" in ('cboe', 'yahoo_fallback', 'unknown') and (\"openbb_option_iv_daily\".\"underlying_price\" is null or (\"openbb_option_iv_daily\".\"underlying_price\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"underlying_price\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"atm_iv_30d\" is null or (\"openbb_option_iv_daily\".\"atm_iv_30d\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"atm_iv_30d\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"put_iv_25d_30d\" is null or (\"openbb_option_iv_daily\".\"put_iv_25d_30d\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"put_iv_25d_30d\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"call_iv_25d_30d\" is null or (\"openbb_option_iv_daily\".\"call_iv_25d_30d\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"call_iv_25d_30d\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"net_gex\" is null or (\"openbb_option_iv_daily\".\"net_gex\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"net_gex\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"gamma_flip\" is null or (\"openbb_option_iv_daily\".\"gamma_flip\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"gamma_flip\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"call_wall\" is null or (\"openbb_option_iv_daily\".\"call_wall\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"call_wall\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"put_wall\" is null or (\"openbb_option_iv_daily\".\"put_wall\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"put_wall\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"call_oi\" is null or \"openbb_option_iv_daily\".\"call_oi\" >= 0) and (\"openbb_option_iv_daily\".\"put_oi\" is null or \"openbb_option_iv_daily\".\"put_oi\" >= 0) and (\"openbb_option_iv_daily\".\"call_volume\" is null or \"openbb_option_iv_daily\".\"call_volume\" >= 0) and (\"openbb_option_iv_daily\".\"put_volume\" is null or \"openbb_option_iv_daily\".\"put_volume\" >= 0) and (\"openbb_option_iv_daily\".\"contracts\" is null or \"openbb_option_iv_daily\".\"contracts\" >= 0)"
+          "value": "\"openbb_option_iv_daily\".\"underlying\" ~ '^[A-Z0-9.^=-]{1,16}$' and (\"openbb_option_iv_daily\".\"underlying_price\" is null or (\"openbb_option_iv_daily\".\"underlying_price\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"underlying_price\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"atm_iv_30d\" is null or (\"openbb_option_iv_daily\".\"atm_iv_30d\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"atm_iv_30d\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"put_iv_25d_30d\" is null or (\"openbb_option_iv_daily\".\"put_iv_25d_30d\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"put_iv_25d_30d\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"call_iv_25d_30d\" is null or (\"openbb_option_iv_daily\".\"call_iv_25d_30d\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"call_iv_25d_30d\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"net_gex\" is null or (\"openbb_option_iv_daily\".\"net_gex\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"net_gex\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"gamma_flip\" is null or (\"openbb_option_iv_daily\".\"gamma_flip\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"gamma_flip\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"call_wall\" is null or (\"openbb_option_iv_daily\".\"call_wall\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"call_wall\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"put_wall\" is null or (\"openbb_option_iv_daily\".\"put_wall\" > '-Infinity'::float8 and \"openbb_option_iv_daily\".\"put_wall\" < 'Infinity'::float8)) and (\"openbb_option_iv_daily\".\"call_oi\" is null or \"openbb_option_iv_daily\".\"call_oi\" >= 0) and (\"openbb_option_iv_daily\".\"put_oi\" is null or \"openbb_option_iv_daily\".\"put_oi\" >= 0) and (\"openbb_option_iv_daily\".\"call_volume\" is null or \"openbb_option_iv_daily\".\"call_volume\" >= 0) and (\"openbb_option_iv_daily\".\"put_volume\" is null or \"openbb_option_iv_daily\".\"put_volume\" >= 0) and (\"openbb_option_iv_daily\".\"contracts\" is null or \"openbb_option_iv_daily\".\"contracts\" >= 0)"
         }
       },
       "isRLSEnabled": false
@@ -9438,6 +9589,255 @@
         "optimization_runs_trials_check": {
           "name": "optimization_runs_trials_check",
           "value": "jsonb_typeof(\"optimization_runs\".\"trials\") = 'array' and jsonb_array_length(\"optimization_runs\".\"trials\") <= 5000 and octet_length(\"optimization_runs\".\"trials\"::text) <= 16777216 and \"optimization_runs\".\"trial_count\" between 0 and 1000000 and \"optimization_runs\".\"trial_count\" >= jsonb_array_length(\"optimization_runs\".\"trials\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.option_chain_snapshot_quotes": {
+      "name": "option_chain_snapshot_quotes",
+      "schema": "",
+      "columns": {
+        "ask": {
+          "name": "ask",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bid": {
+          "name": "bid",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "iv": {
+          "name": "iv",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last": {
+          "name": "last",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "open_interest": {
+          "name": "open_interest",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "right": {
+          "name": "right",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_id": {
+          "name": "snapshot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "strike": {
+          "name": "strike",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "volume": {
+          "name": "volume",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "option_chain_snapshot_quotes_snapshot_id_option_chain_snapshots_id_fk": {
+          "name": "option_chain_snapshot_quotes_snapshot_id_option_chain_snapshots_id_fk",
+          "tableFrom": "option_chain_snapshot_quotes",
+          "tableTo": "option_chain_snapshots",
+          "columnsFrom": ["snapshot_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "option_chain_snapshot_quotes_pk": {
+          "name": "option_chain_snapshot_quotes_pk",
+          "columns": ["snapshot_id", "strike", "right"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "option_chain_snapshot_quotes_check": {
+          "name": "option_chain_snapshot_quotes_check",
+          "value": "\"option_chain_snapshot_quotes\".\"strike\" > 0 and \"option_chain_snapshot_quotes\".\"strike\" < 'Infinity'::float8 and \"option_chain_snapshot_quotes\".\"right\" in ('call', 'put') and (\"option_chain_snapshot_quotes\".\"bid\" is null or (\"option_chain_snapshot_quotes\".\"bid\" >= 0 and \"option_chain_snapshot_quotes\".\"bid\" < 'Infinity'::float8)) and (\"option_chain_snapshot_quotes\".\"ask\" is null or (\"option_chain_snapshot_quotes\".\"ask\" >= 0 and \"option_chain_snapshot_quotes\".\"ask\" < 'Infinity'::float8)) and (\"option_chain_snapshot_quotes\".\"last\" is null or (\"option_chain_snapshot_quotes\".\"last\" >= 0 and \"option_chain_snapshot_quotes\".\"last\" < 'Infinity'::float8)) and (\"option_chain_snapshot_quotes\".\"volume\" is null or \"option_chain_snapshot_quotes\".\"volume\" >= 0) and (\"option_chain_snapshot_quotes\".\"open_interest\" is null or \"option_chain_snapshot_quotes\".\"open_interest\" >= 0) and (\"option_chain_snapshot_quotes\".\"iv\" is null or (\"option_chain_snapshot_quotes\".\"iv\" >= 0 and \"option_chain_snapshot_quotes\".\"iv\" < 'Infinity'::float8)) and \"option_chain_snapshot_quotes\".\"source\" in ('ibkr', 'yahoo', 'quantdata', 'mixed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.option_chain_snapshots": {
+      "name": "option_chain_snapshots",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expiry": {
+          "name": "expiry",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "quote_count": {
+          "name": "quote_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_at": {
+          "name": "snapshot_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spot": {
+          "name": "spot",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trading_day": {
+          "name": "trading_day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "underlying": {
+          "name": "underlying",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "option_chain_snapshots_at_underlying_expiry_idx": {
+          "name": "option_chain_snapshots_at_underlying_expiry_idx",
+          "columns": [
+            {
+              "expression": "snapshot_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "underlying",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expiry",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "option_chain_snapshots_underlying_at_idx": {
+          "name": "option_chain_snapshots_underlying_at_idx",
+          "columns": [
+            {
+              "expression": "underlying",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "snapshot_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "option_chain_snapshots_underlying_day_idx": {
+          "name": "option_chain_snapshots_underlying_day_idx",
+          "columns": [
+            {
+              "expression": "underlying",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "trading_day",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "snapshot_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "option_chain_snapshots_check": {
+          "name": "option_chain_snapshots_check",
+          "value": "char_length(trim(\"option_chain_snapshots\".\"id\")) between 1 and 128 and \"option_chain_snapshots\".\"underlying\" ~ '^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$' and char_length(trim(\"option_chain_snapshots\".\"source\")) between 1 and 64 and \"option_chain_snapshots\".\"quote_count\" > 0 and (\"option_chain_snapshots\".\"spot\" is null or (\"option_chain_snapshots\".\"spot\" > 0 and \"option_chain_snapshots\".\"spot\" < 'Infinity'::float8))"
         }
       },
       "isRLSEnabled": false
@@ -29363,413 +29763,6 @@
         "watchlist_items_buy_zone_check": {
           "name": "watchlist_items_buy_zone_check",
           "value": "(\"watchlist_items\".\"buy_zone_low\" is null or \"watchlist_items\".\"buy_zone_low\" > 0) and (\"watchlist_items\".\"buy_zone_high\" is null or \"watchlist_items\".\"buy_zone_high\" > 0) and (\"watchlist_items\".\"buy_zone_low\" is null or \"watchlist_items\".\"buy_zone_high\" is null or \"watchlist_items\".\"buy_zone_low\" <= \"watchlist_items\".\"buy_zone_high\")"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.price_freshness_state": {
-      "name": "price_freshness_state",
-      "schema": "",
-      "columns": {
-        "active_keys": {
-          "name": "active_keys",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "last_transition_at": {
-          "name": "last_transition_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "monitor": {
-          "name": "monitor",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "pending_delivery": {
-          "name": "pending_delivery",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pending_event_id": {
-          "name": "pending_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pending_keys": {
-          "name": "pending_keys",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "pending_kind": {
-          "name": "pending_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "price_freshness_state_check": {
-          "name": "price_freshness_state_check",
-          "value": "\"price_freshness_state\".\"monitor\" ~ '^[a-z0-9-]{1,40}$' and array_position(\"price_freshness_state\".\"active_keys\", NULL) is null and array_position(\"price_freshness_state\".\"pending_keys\", NULL) is null and ((\"price_freshness_state\".\"pending_event_id\" is null and \"price_freshness_state\".\"pending_kind\" is null and \"price_freshness_state\".\"pending_delivery\" is null and \"price_freshness_state\".\"pending_keys\" = '{}'::text[]) or (\"price_freshness_state\".\"pending_event_id\" is not null and \"price_freshness_state\".\"pending_kind\" is not null and \"price_freshness_state\".\"pending_delivery\" is not null and char_length(trim(\"price_freshness_state\".\"pending_event_id\")) between 1 and 80 and char_length(\"price_freshness_state\".\"pending_event_id\") <= 80 and \"price_freshness_state\".\"pending_kind\" in ('alert', 'recovery') and \"price_freshness_state\".\"pending_delivery\" in ('pending', 'not-configured', 'failed') and ((\"price_freshness_state\".\"pending_kind\" = 'alert' and cardinality(\"price_freshness_state\".\"pending_keys\") > 0) or (\"price_freshness_state\".\"pending_kind\" = 'recovery' and \"price_freshness_state\".\"pending_keys\" = '{}'::text[]))))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.flow_book_snapshots": {
-      "name": "flow_book_snapshots",
-      "schema": "",
-      "columns": {
-        "ask_prices": {
-          "name": "ask_prices",
-          "type": "double precision[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ask_sizes": {
-          "name": "ask_sizes",
-          "type": "double precision[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "best_ask": {
-          "name": "best_ask",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "best_bid": {
-          "name": "best_bid",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bid_prices": {
-          "name": "bid_prices",
-          "type": "double precision[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bid_sizes": {
-          "name": "bid_sizes",
-          "type": "double precision[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "capture": {
-          "name": "capture",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contract": {
-          "name": "contract",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "min_tick": {
-          "name": "min_tick",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "symbol": {
-          "name": "symbol",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "flow_book_snapshots_symbol_captured_at_pk": {
-          "name": "flow_book_snapshots_symbol_captured_at_pk",
-          "columns": ["symbol", "captured_at"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "flow_book_snapshots_check": {
-          "name": "flow_book_snapshots_check",
-          "value": "\"flow_book_snapshots\".\"symbol\" in ('ES', 'NQ') and \"flow_book_snapshots\".\"capture\" in ('sampled', 'streamed') and \"flow_book_snapshots\".\"min_tick\" > 0 and \"flow_book_snapshots\".\"min_tick\" < 'Infinity'::double precision and length(\"flow_book_snapshots\".\"contract\") between 1 and 20 and coalesce(array_ndims(\"flow_book_snapshots\".\"bid_prices\"), 0) <= 1 and coalesce(array_ndims(\"flow_book_snapshots\".\"bid_sizes\"), 0) <= 1 and coalesce(array_ndims(\"flow_book_snapshots\".\"ask_prices\"), 0) <= 1 and coalesce(array_ndims(\"flow_book_snapshots\".\"ask_sizes\"), 0) <= 1 and cardinality(\"flow_book_snapshots\".\"bid_prices\") = cardinality(\"flow_book_snapshots\".\"bid_sizes\") and cardinality(\"flow_book_snapshots\".\"bid_prices\") <= 20 and cardinality(\"flow_book_snapshots\".\"ask_prices\") = cardinality(\"flow_book_snapshots\".\"ask_sizes\") and cardinality(\"flow_book_snapshots\".\"ask_prices\") <= 20 and cardinality(\"flow_book_snapshots\".\"bid_prices\") + cardinality(\"flow_book_snapshots\".\"ask_prices\") > 0 and array_position(\"flow_book_snapshots\".\"bid_prices\", NULL) is null and array_position(\"flow_book_snapshots\".\"bid_sizes\", NULL) is null and array_position(\"flow_book_snapshots\".\"ask_prices\", NULL) is null and array_position(\"flow_book_snapshots\".\"ask_sizes\", NULL) is null and 0 < all(\"flow_book_snapshots\".\"bid_prices\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"bid_prices\") and 0 < all(\"flow_book_snapshots\".\"bid_sizes\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"bid_sizes\") and 0 < all(\"flow_book_snapshots\".\"ask_prices\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"ask_prices\") and 0 < all(\"flow_book_snapshots\".\"ask_sizes\") and 'Infinity'::double precision > all(\"flow_book_snapshots\".\"ask_sizes\") and (\"flow_book_snapshots\".\"best_bid\" is null) = (cardinality(\"flow_book_snapshots\".\"bid_prices\") = 0) and (\"flow_book_snapshots\".\"best_bid\" is null or (\"flow_book_snapshots\".\"best_bid\" > 0 and \"flow_book_snapshots\".\"best_bid\" < 'Infinity'::double precision)) and (\"flow_book_snapshots\".\"best_ask\" is null) = (cardinality(\"flow_book_snapshots\".\"ask_prices\") = 0) and (\"flow_book_snapshots\".\"best_ask\" is null or (\"flow_book_snapshots\".\"best_ask\" > 0 and \"flow_book_snapshots\".\"best_ask\" < 'Infinity'::double precision))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.option_chain_snapshot_quotes": {
-      "name": "option_chain_snapshot_quotes",
-      "schema": "",
-      "columns": {
-        "ask": {
-          "name": "ask",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bid": {
-          "name": "bid",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "iv": {
-          "name": "iv",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last": {
-          "name": "last",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "open_interest": {
-          "name": "open_interest",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "right": {
-          "name": "right",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot_id": {
-          "name": "snapshot_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "strike": {
-          "name": "strike",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "volume": {
-          "name": "volume",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "option_chain_snapshot_quotes_snapshot_id_option_chain_snapshots_id_fk": {
-          "name": "option_chain_snapshot_quotes_snapshot_id_option_chain_snapshots_id_fk",
-          "tableFrom": "option_chain_snapshot_quotes",
-          "tableTo": "option_chain_snapshots",
-          "columnsFrom": ["snapshot_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "option_chain_snapshot_quotes_pk": {
-          "name": "option_chain_snapshot_quotes_pk",
-          "columns": ["snapshot_id", "strike", "right"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "option_chain_snapshot_quotes_check": {
-          "name": "option_chain_snapshot_quotes_check",
-          "value": "\"option_chain_snapshot_quotes\".\"strike\" > 0 and \"option_chain_snapshot_quotes\".\"strike\" < 'Infinity'::float8 and \"option_chain_snapshot_quotes\".\"right\" in ('call', 'put') and (\"option_chain_snapshot_quotes\".\"bid\" is null or (\"option_chain_snapshot_quotes\".\"bid\" >= 0 and \"option_chain_snapshot_quotes\".\"bid\" < 'Infinity'::float8)) and (\"option_chain_snapshot_quotes\".\"ask\" is null or (\"option_chain_snapshot_quotes\".\"ask\" >= 0 and \"option_chain_snapshot_quotes\".\"ask\" < 'Infinity'::float8)) and (\"option_chain_snapshot_quotes\".\"last\" is null or (\"option_chain_snapshot_quotes\".\"last\" >= 0 and \"option_chain_snapshot_quotes\".\"last\" < 'Infinity'::float8)) and (\"option_chain_snapshot_quotes\".\"volume\" is null or \"option_chain_snapshot_quotes\".\"volume\" >= 0) and (\"option_chain_snapshot_quotes\".\"open_interest\" is null or \"option_chain_snapshot_quotes\".\"open_interest\" >= 0) and (\"option_chain_snapshot_quotes\".\"iv\" is null or (\"option_chain_snapshot_quotes\".\"iv\" >= 0 and \"option_chain_snapshot_quotes\".\"iv\" < 'Infinity'::float8)) and \"option_chain_snapshot_quotes\".\"source\" in ('ibkr', 'yahoo', 'quantdata', 'mixed')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.option_chain_snapshots": {
-      "name": "option_chain_snapshots",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expiry": {
-          "name": "expiry",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "quote_count": {
-          "name": "quote_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot_at": {
-          "name": "snapshot_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "spot": {
-          "name": "spot",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "trading_day": {
-          "name": "trading_day",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "underlying": {
-          "name": "underlying",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "option_chain_snapshots_at_underlying_expiry_idx": {
-          "name": "option_chain_snapshots_at_underlying_expiry_idx",
-          "columns": [
-            {
-              "expression": "snapshot_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "underlying",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "expiry",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "option_chain_snapshots_underlying_at_idx": {
-          "name": "option_chain_snapshots_underlying_at_idx",
-          "columns": [
-            {
-              "expression": "underlying",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "snapshot_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "option_chain_snapshots_underlying_day_idx": {
-          "name": "option_chain_snapshots_underlying_day_idx",
-          "columns": [
-            {
-              "expression": "underlying",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "trading_day",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "snapshot_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "option_chain_snapshots_check": {
-          "name": "option_chain_snapshots_check",
-          "value": "char_length(trim(\"option_chain_snapshots\".\"id\")) between 1 and 128 and \"option_chain_snapshots\".\"underlying\" ~ '^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$' and char_length(trim(\"option_chain_snapshots\".\"source\")) between 1 and 64 and \"option_chain_snapshots\".\"quote_count\" > 0 and (\"option_chain_snapshots\".\"spot\" is null or (\"option_chain_snapshots\".\"spot\" > 0 and \"option_chain_snapshots\".\"spot\" < 'Infinity'::float8))"
         }
       },
       "isRLSEnabled": false

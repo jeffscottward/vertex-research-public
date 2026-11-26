@@ -15,15 +15,16 @@ export default async function WatchlistPage() {
     requestHeaders.get("cookie"),
     requestHeaders.get("cf-connecting-ip")
   );
+  const isOperator = session?.isOperator === true;
   return (
     <div className="space-y-6">
       <PageHeader
         description="Tickers you track, with buy zones and notes."
         title="Watchlist"
       />
-      <BasketWatchlistSection />
+      {isOperator ? <BasketWatchlistSection /> : null}
       <WatchlistWorkspace
-        operator={session?.isOperator === true}
+        operator={isOperator}
         portfolioSource={resolveJournalSource()}
       />
     </div>

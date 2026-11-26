@@ -1,0 +1,814 @@
+<svg
+  aria-labelledby="title desc"
+  height="540"
+  role="img"
+  viewBox="0 0 1120 540"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title id="title">Vertex Deployments Snapshot v2: Before vs After</title>
+  <desc id="desc">
+    Visual flow comparing how QuantVPS deploys overwrote the live Caddy
+    allow-list causing HTTP 403 on /vertex-status/v2, versus committing
+    @status_v2_caller to the repo template and running a 2-minute alert probe.
+  </desc>
+  <defs>
+    <marker
+      id="arr-red"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#f85149" />
+    </marker>
+    <marker
+      id="arr-green"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="arr-gold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#d29922" />
+    </marker>
+    <marker
+      id="arr-muted"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#8b949e" />
+    </marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect fill="#0d1117" height="540" rx="14" width="1120" />
+
+  <!-- Header -->
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="20"
+    font-weight="700"
+    x="36"
+    y="42"
+  >
+    QuantVPS /vertex-status/v2 Tailnet Access &amp; Regression Guard
+  </text>
+  <text
+    fill="#8b949e"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+    x="36"
+    y="64"
+  >
+    Template drift caused HTTP 403 on Deployments; commit @status_v2_caller +
+    add 2-min self-probe alert
+  </text>
+
+  <!-- BEFORE Panel -->
+  <rect
+    fill="#161b22"
+    height="428"
+    rx="12"
+    stroke="#30363d"
+    stroke-width="1.5"
+    width="520"
+    x="28"
+    y="84"
+  />
+  <rect fill="#2d1517" height="40" rx="12" width="520" x="28" y="84" />
+  <rect fill="#2d1517" height="12" width="520" x="28" y="112" />
+  <circle cx="52" cy="104" fill="#f85149" r="7" />
+  <text
+    fill="#ff7b72"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="700"
+    x="68"
+    y="109"
+  >
+    BEFORE — Live patch overwritten, silent HTTP 403
+  </text>
+
+  <!-- Before: Repo Template icon -->
+  <rect
+    fill="#0d1117"
+    height="68"
+    rx="8"
+    stroke="#6e7681"
+    stroke-width="1.5"
+    width="142"
+    x="52"
+    y="148"
+  />
+  <!-- File icon -->
+  <path
+    d="M70 164 h14 l6 6 v18 h-20 z"
+    fill="none"
+    stroke="#8b949e"
+    stroke-width="1.6"
+  />
+  <path d="M84 164 v6 h6" fill="none" stroke="#8b949e" stroke-width="1.6" />
+  <text
+    fill="#c9d1d9"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="98"
+    y="176"
+  >
+    Repo Template
+  </text>
+  <text
+    fill="#f85149"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="98"
+    y="193"
+  >
+    rig-only v2
+  </text>
+
+  <!-- Arrow: installer overwrites -->
+  <line
+    marker-end="url(#arr-red)"
+    stroke="#f85149"
+    stroke-dasharray="5 3"
+    stroke-width="2"
+    x1="194"
+    x2="262"
+    y1="182"
+    y2="182"
+  />
+  <text
+    fill="#ff7b72"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+    x="200"
+    y="172"
+  >
+    deploys
+  </text>
+  <text
+    fill="#ff7b72"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+    x="197"
+    y="199"
+  >
+    overwrite
+  </text>
+
+  <!-- Before: Caddy Gate -->
+  <rect
+    fill="#0d1117"
+    height="84"
+    rx="8"
+    stroke="#f85149"
+    stroke-width="1.8"
+    width="248"
+    x="272"
+    y="142"
+  />
+  <!-- Shield X icon -->
+  <path
+    d="M294 158 l12 -4 l12 4 v12 c0 9 -6 15 -12 18 c-6 -3 -12 -9 -12 -18 z"
+    fill="#2d1517"
+    stroke="#f85149"
+    stroke-width="1.6"
+  />
+  <path
+    d="M301 168 l10 10 M311 168 l-10 10"
+    stroke="#f85149"
+    stroke-width="2"
+  />
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="328"
+    y="169"
+  >
+    vertex-status-tailnet
+  </text>
+  <text
+    fill="#8b949e"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="328"
+    y="187"
+  >
+    @not_rig blocks VPS IP
+  </text>
+  <text
+    fill="#ff7b72"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="328"
+    y="205"
+  >
+    POST /load len=3317
+  </text>
+
+  <!-- Before: vertex-web caller -->
+  <rect
+    fill="#0d1117"
+    height="72"
+    rx="8"
+    stroke="#30363d"
+    stroke-width="1.5"
+    width="142"
+    x="52"
+    y="274"
+  />
+  <!-- Browser window icon -->
+  <rect
+    fill="none"
+    height="18"
+    rx="3"
+    stroke="#58a6ff"
+    stroke-width="1.6"
+    width="24"
+    x="66"
+    y="290"
+  />
+  <line stroke="#58a6ff" stroke-width="1.4" x1="66" x2="90" y1="296" y2="296" />
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="98"
+    y="303"
+  >
+    vertex-web
+  </text>
+  <text
+    fill="#8b949e"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="98"
+    y="320"
+  >
+    VPS IP + token
+  </text>
+
+  <!-- Arrow: vertex-web -> Caddy -> 403 -->
+  <path
+    d="M194 300 C235 300 245 204 272 204"
+    fill="none"
+    marker-end="url(#arr-muted)"
+    stroke="#8b949e"
+    stroke-width="2"
+  />
+  <path
+    d="M396 226 L396 274"
+    fill="none"
+    marker-end="url(#arr-red)"
+    stroke="#f85149"
+    stroke-width="2.2"
+  />
+
+  <!-- HTTP 403 Badge -->
+  <rect
+    fill="#3d1418"
+    height="44"
+    rx="22"
+    stroke="#f85149"
+    stroke-width="1.8"
+    width="132"
+    x="330"
+    y="280"
+  />
+  <text
+    fill="#ff7b72"
+    font-family="ui-monospace, monospace"
+    font-size="16"
+    font-weight="700"
+    text-anchor="middle"
+    x="396"
+    y="307"
+  >
+    HTTP 403
+  </text>
+
+  <!-- Before: Deployments UI broken state -->
+  <rect
+    fill="#0d1117"
+    height="114"
+    rx="8"
+    stroke="#30363d"
+    stroke-width="1.2"
+    width="468"
+    x="52"
+    y="376"
+  />
+  <text
+    fill="#c9d1d9"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="70"
+    y="400"
+  >
+    /deployments UI &amp; Monitoring
+  </text>
+  <!-- Broken chips -->
+  <rect
+    fill="#2d1517"
+    height="28"
+    rx="6"
+    stroke="#f85149"
+    stroke-width="1"
+    width="206"
+    x="70"
+    y="414"
+  />
+  <text
+    fill="#ff7b72"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="82"
+    y="432"
+  >
+    Snapshot: HTTP 403
+  </text>
+  <rect
+    fill="#2d1517"
+    height="28"
+    rx="6"
+    stroke="#f85149"
+    stroke-width="1"
+    width="214"
+    x="288"
+    y="414"
+  />
+  <text
+    fill="#ff7b72"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="300"
+    y="432"
+  >
+    Kill switch: not read
+  </text>
+  <!-- Silent bell crossed out -->
+  <circle
+    cx="82"
+    cy="466"
+    fill="#21262d"
+    r="10"
+    stroke="#6e7681"
+    stroke-width="1.2"
+  />
+  <line stroke="#f85149" stroke-width="1.8" x1="75" x2="89" y1="459" y2="473" />
+  <text
+    fill="#8b949e"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    x="102"
+    y="470"
+  >
+    No alert probe — regression unseen for 2 days
+  </text>
+
+  <!-- AFTER Panel -->
+  <rect
+    fill="#161b22"
+    height="428"
+    rx="12"
+    stroke="#30363d"
+    stroke-width="1.5"
+    width="520"
+    x="572"
+    y="84"
+  />
+  <rect fill="#12261e" height="40" rx="12" width="520" x="572" y="84" />
+  <rect fill="#12261e" height="12" width="520" x="572" y="112" />
+  <circle cx="596" cy="104" fill="#3fb950" r="7" />
+  <text
+    fill="#56d364"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="700"
+    x="612"
+    y="109"
+  >
+    AFTER — Committed @status_v2_caller + 2-min Alert Probe
+  </text>
+
+  <!-- After: Repo Template committed -->
+  <rect
+    fill="#0d1117"
+    height="68"
+    rx="8"
+    stroke="#3fb950"
+    stroke-width="1.5"
+    width="146"
+    x="596"
+    y="148"
+  />
+  <path
+    d="M614 164 h14 l6 6 v18 h-20 z"
+    fill="none"
+    stroke="#3fb950"
+    stroke-width="1.6"
+  />
+  <path d="M628 164 v6 h6" fill="none" stroke="#3fb950" stroke-width="1.6" />
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="642"
+    y="176"
+  >
+    Repo + CI Test
+  </text>
+  <text
+    fill="#56d364"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="642"
+    y="193"
+  >
+    @status_v2
+  </text>
+
+  <!-- Arrow: deploys preserve rule -->
+  <line
+    marker-end="url(#arr-green)"
+    stroke="#3fb950"
+    stroke-width="2"
+    x1="742"
+    x2="806"
+    y1="182"
+    y2="182"
+  />
+  <text
+    fill="#56d364"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+    x="748"
+    y="172"
+  >
+    all deploys
+  </text>
+  <text
+    fill="#56d364"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+    x="752"
+    y="199"
+  >
+    preserve
+  </text>
+
+  <!-- After: Caddy Gate -->
+  <rect
+    fill="#0d1117"
+    height="84"
+    rx="8"
+    stroke="#3fb950"
+    stroke-width="1.8"
+    width="252"
+    x="816"
+    y="142"
+  />
+  <!-- Shield check icon -->
+  <path
+    d="M838 158 l12 -4 l12 4 v12 c0 9 -6 15 -12 18 c-6 -3 -12 -9 -12 -18 z"
+    fill="#12261e"
+    stroke="#3fb950"
+    stroke-width="1.6"
+  />
+  <path d="M844 172 l4 4 l8 -9" fill="none" stroke="#56d364" stroke-width="2" />
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="872"
+    y="169"
+  >
+    vertex-status-tailnet
+  </text>
+  <text
+    fill="#56d364"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="872"
+    y="187"
+  >
+    Rig + VPS + Bearer -&gt; 200
+  </text>
+  <text
+    fill="#d29922"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="872"
+    y="205"
+  >
+    No/bad token -&gt; 403/401
+  </text>
+
+  <!-- After: vertex-web caller -->
+  <rect
+    fill="#0d1117"
+    height="62"
+    rx="8"
+    stroke="#30363d"
+    stroke-width="1.5"
+    width="146"
+    x="596"
+    y="266"
+  />
+  <rect
+    fill="none"
+    height="18"
+    rx="3"
+    stroke="#58a6ff"
+    stroke-width="1.6"
+    width="24"
+    x="610"
+    y="280"
+  />
+  <line
+    stroke="#58a6ff"
+    stroke-width="1.4"
+    x1="610"
+    x2="634"
+    y1="286"
+    y2="286"
+  />
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="642"
+    y="293"
+  >
+    vertex-web
+  </text>
+  <text
+    fill="#56d364"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="642"
+    y="310"
+  >
+    200 OK + chip
+  </text>
+
+  <!-- After: 2-min Alert Probe -->
+  <rect
+    fill="#0d1117"
+    height="66"
+    rx="8"
+    stroke="#d29922"
+    stroke-width="1.5"
+    width="146"
+    x="596"
+    y="344"
+  />
+  <!-- Bell icon -->
+  <path
+    d="M622 361 a7 7 0 0 1 7 7 v6 l3 3 h-20 l3 -3 v-6 a7 7 0 0 1 7 -7 z"
+    fill="none"
+    stroke="#d29922"
+    stroke-width="1.6"
+  />
+  <circle cx="622" cy="381" fill="#d29922" r="2" />
+  <text
+    fill="#f0f6fc"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="642"
+    y="370"
+  >
+    v2-alert timer
+  </text>
+  <text
+    fill="#d29922"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="642"
+    y="387"
+  >
+    every 2 min
+  </text>
+
+  <!-- Arrows from callers to Caddy & outcomes -->
+  <path
+    d="M742 292 C780 292 786 204 816 204"
+    fill="none"
+    marker-end="url(#arr-green)"
+    stroke="#3fb950"
+    stroke-width="2"
+  />
+  <path
+    d="M742 368 C786 368 796 218 816 218"
+    fill="none"
+    marker-end="url(#arr-gold)"
+    stroke="#d29922"
+    stroke-dasharray="4 3"
+    stroke-width="1.8"
+  />
+
+  <!-- 200 OK & 403 Guard badges -->
+  <rect
+    fill="#12261e"
+    height="38"
+    rx="19"
+    stroke="#3fb950"
+    stroke-width="1.6"
+    width="120"
+    x="816"
+    y="256"
+  />
+  <text
+    fill="#56d364"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="876"
+    y="280"
+  >
+    Token: 200
+  </text>
+  <rect
+    fill="#2b2111"
+    height="38"
+    rx="19"
+    stroke="#d29922"
+    stroke-width="1.6"
+    width="120"
+    x="948"
+    y="256"
+  />
+  <text
+    fill="#e3b341"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="1008"
+    y="280"
+  >
+    No-tok: 403
+  </text>
+
+  <!-- Alert box -->
+  <rect
+    fill="#0d1117"
+    height="96"
+    rx="8"
+    stroke="#d29922"
+    stroke-width="1.4"
+    width="252"
+    x="816"
+    y="314"
+  />
+  <text
+    fill="#e3b341"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="832"
+    y="338"
+  >
+    #omp-alerts (127.0.0.1:47821)
+  </text>
+  <text
+    fill="#c9d1d9"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="832"
+    y="358"
+  >
+    • 3x fail (403/401/err) -&gt; 1 alert
+  </text>
+  <text
+    fill="#c9d1d9"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="832"
+    y="376"
+  >
+    • No-token 200 bypass -&gt; instant
+  </text>
+  <text
+    fill="#56d364"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="832"
+    y="394"
+  >
+    • Recovery notice on 200 return
+  </text>
+
+  <line
+    marker-end="url(#arr-gold)"
+    stroke="#d29922"
+    stroke-width="1.8"
+    x1="742"
+    x2="812"
+    y1="382"
+    y2="382"
+  />
+
+  <!-- After: Footer verification bar -->
+  <rect
+    fill="#0d1117"
+    height="62"
+    rx="8"
+    stroke="#30363d"
+    stroke-width="1.2"
+    width="472"
+    x="596"
+    y="428"
+  />
+  <rect
+    fill="#12261e"
+    height="28"
+    rx="6"
+    stroke="#3fb950"
+    stroke-width="1"
+    width="136"
+    x="612"
+    y="445"
+  />
+  <text
+    fill="#56d364"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="680"
+    y="463"
+  >
+    Session: live
+  </text>
+  <rect
+    fill="#12261e"
+    height="28"
+    rx="6"
+    stroke="#3fb950"
+    stroke-width="1"
+    width="152"
+    x="760"
+    y="445"
+  />
+  <text
+    fill="#56d364"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="836"
+    y="463"
+  >
+    Kill switch: read
+  </text>
+  <rect
+    fill="#1f2937"
+    height="28"
+    rx="6"
+    stroke="#58a6ff"
+    stroke-width="1"
+    width="128"
+    x="924"
+    y="445"
+  />
+  <text
+    fill="#79c0ff"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="988"
+    y="463"
+  >
+    0 trading edits
+  </text>
+</svg>

@@ -19,7 +19,21 @@ import {
 // 14 days for the others. flow_market_premium and flow_tape_seconds are never pruned.
 
 export const FLOW_SYMBOL_VALUES = ["SPY", "ES", "QQQ", "NQ"] as const;
-export const FLOW_OPTION_TICKER_VALUES = ["SPY", "SPX", "QQQ", "NDX"] as const;
+export const FLOW_INDEX_OPTION_TICKER_VALUES = [
+  "SPY",
+  "SPX",
+  "QQQ",
+  "NDX",
+] as const;
+export const FLOW_EXTRA_OPTION_TICKER_VALUES = ["IWM", "NVDA"] as const;
+export const FLOW_OPTION_TICKER_VALUES = [
+  ...FLOW_INDEX_OPTION_TICKER_VALUES,
+  ...FLOW_EXTRA_OPTION_TICKER_VALUES,
+] as const;
+export const FLOW_OPTION_PRINT_SYMBOL_VALUES = [
+  ...FLOW_SYMBOL_VALUES,
+  ...FLOW_EXTRA_OPTION_TICKER_VALUES,
+] as const;
 export const FLOW_SOURCE_VALUES = [
   "ticks",
   "depth",
@@ -31,7 +45,13 @@ export const FLOW_SOURCE_VALUES = [
 export type FlowSymbolValue = (typeof FLOW_SYMBOL_VALUES)[number];
 export type FlowSourceValue = (typeof FLOW_SOURCE_VALUES)[number];
 export type FlowSampleStatusValue = "ok" | "empty" | "unavailable" | "skipped";
+export type FlowIndexOptionTickerValue =
+  (typeof FLOW_INDEX_OPTION_TICKER_VALUES)[number];
+export type FlowExtraOptionTickerValue =
+  (typeof FLOW_EXTRA_OPTION_TICKER_VALUES)[number];
 export type FlowOptionTickerValue = (typeof FLOW_OPTION_TICKER_VALUES)[number];
+export type FlowOptionPrintSymbolValue =
+  (typeof FLOW_OPTION_PRINT_SYMBOL_VALUES)[number];
 export type FlowDirectionValue = "bullish" | "bearish" | "neutral";
 export type FlowEventKindValue =
   | "large_print"
@@ -79,6 +99,8 @@ const utc = (name: string) =>
 const num = (name: string) => doublePrecision(name);
 const symbolCheck = (column: unknown) =>
   sql`${column} in ('SPY', 'ES', 'QQQ', 'NQ')`;
+const optionPrintSymbolCheck = (column: unknown) =>
+  sql`${column} in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA')`;
 
 export const flowSamples = pgTable(
   "flow_samples",
@@ -88,13 +110,13 @@ export const flowSamples = pgTable(
     message: text("message"),
     source: text("source").$type<FlowSourceValue>().notNull(),
     status: text("status").$type<FlowSampleStatusValue>().notNull(),
-    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+    symbol: text("symbol").$type<FlowOptionPrintSymbolValue>().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.symbol, table.source, table.at] }),
     check(
       "flow_samples_check",
-      sql`${symbolCheck(table.symbol)} and ${table.source} in ('ticks', 'depth', 'options', 'gex', 'net_drift', 'market_premium') and ${table.status} in ('ok', 'empty', 'unavailable', 'skipped') and ${table.items} >= 0 and length(coalesce(${table.message}, '')) <= 300`
+      sql`(${symbolCheck(table.symbol)} or (${table.symbol} in ('IWM', 'NVDA') and ${table.source} = 'options')) and ${table.source} in ('ticks', 'depth', 'options', 'gex', 'net_drift', 'market_premium') and ${table.status} in ('ok', 'empty', 'unavailable', 'skipped') and ${table.items} >= 0 and length(coalesce(${table.message}, '')) <= 300`
     ),
   ]
 );
@@ -173,7 +195,7 @@ export const flowOptionPrints = pgTable(
     side: text("side").$type<FlowOptionSideValue>().notNull(),
     size: integer("size").notNull(),
     strike: num("strike").notNull(),
-    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+    symbol: text("symbol").$type<FlowOptionPrintSymbolValue>().notNull(),
     ticker: text("ticker").$type<FlowOptionTickerValue>().notNull(),
     tradedAt: utc("traded_at").notNull(),
     underlyingPrice: num("underlying_price"),
@@ -188,7 +210,7 @@ export const flowOptionPrints = pgTable(
     ),
     check(
       "flow_option_prints_check",
-      sql`${symbolCheck(table.symbol)} and ${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX') and ${table.right} in ('call', 'put') and ${table.premium} >= 0 and length(${table.id}) <= 64`
+      sql`${optionPrintSymbolCheck(table.symbol)} and ${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and ${table.right} in ('call', 'put') and ${table.premium} >= 0 and length(${table.id}) <= 64`
     ),
   ]
 );
@@ -205,13 +227,13 @@ export const flowOptionGaps = pgTable(
     createdAt: utc("created_at").notNull(),
     endTime: utc("end_time").notNull(),
     startTime: utc("start_time").notNull(),
-    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+    symbol: text("symbol").$type<FlowOptionPrintSymbolValue>().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.symbol, table.startTime] }),
     check(
       "flow_option_gaps_check",
-      sql`${symbolCheck(table.symbol)} and ${table.endTime} >= ${table.startTime}`
+      sql`${optionPrintSymbolCheck(table.symbol)} and ${table.endTime} >= ${table.startTime}`
     ),
   ]
 );
@@ -228,14 +250,14 @@ export const flowEvents = pgTable(
     price: num("price"),
     size: num("size"),
     source: text("source").$type<FlowEventSourceValue>().notNull(),
-    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+    symbol: text("symbol").$type<FlowOptionPrintSymbolValue>().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.symbol, table.key] }),
     index("flow_events_symbol_time_idx").on(table.symbol, table.at),
     check(
       "flow_events_check",
-      sql`${symbolCheck(table.symbol)} and ${table.direction} in ('bullish', 'bearish', 'neutral') and ${table.source} in ('ibkr', 'quantdata') and length(${table.detail}) <= 300 and length(${table.key}) <= 160`
+      sql`(${symbolCheck(table.symbol)} or (${table.symbol} in ('IWM', 'NVDA') and ${table.source} = 'quantdata')) and ${table.direction} in ('bullish', 'bearish', 'neutral') and ${table.source} in ('ibkr', 'quantdata') and length(${table.detail}) <= 300 and length(${table.key}) <= 160`
     ),
   ]
 );
@@ -254,7 +276,7 @@ export const flowGex = pgTable(
     regime: text("regime").$type<FlowGexRegimeValue>().notNull(),
     spot: num("spot"),
     symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
-    ticker: text("ticker").$type<FlowOptionTickerValue>().notNull(),
+    ticker: text("ticker").$type<FlowIndexOptionTickerValue>().notNull(),
     totalGex: num("total_gex"),
     zeroDteShare: num("zero_dte_share"),
   },

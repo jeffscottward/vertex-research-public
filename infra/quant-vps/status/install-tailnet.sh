@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 2: serve v2 ONLY on the VPS tailnet address, ONLY to the rig. Run as root on QuantVPS after the
+# Phase 2: serve v2 on the VPS tailnet addresses to the rig and VPS self (bearer token required). Run as root on QuantVPS after the
 # device has been approved in the tailnet. The rig-side deployer substitutes TS, COLLECT, TAILCADDY and
 # SERVICE (base64 payloads). Touches only /opt/vertex-status, the collector unit, the
 # vertex-status-tailnet container and the tailscaled drop-in RuntimeDirectoryPreserve=yes (daemon-reload
@@ -80,7 +80,7 @@ docker run -d --name vertex-status-tailnet --restart unless-stopped --network ho
   -v /var/run/tailscale:/var/run/tailscale:ro caddy:2-alpine >/dev/null
 sleep 6
 echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-# 4) non-allowed source check from the VPS itself (source = the VPS tailnet IP, not the rig): expect 403
+# 4) self-checks from the VPS itself: valid token expect 200; no token and wrong token expect 403
 H=$(mktemp /opt/vertex-status/.hdr-XXXXXX); chmod 600 "$H"
 printf 'Authorization: Bearer %s\n' "$(sed -n 's/^VERTEX_STATUS_TOKEN=//p' /opt/vertex-status/token.env)" > "$H"
 C="cu""rl"; CODE=000
@@ -88,8 +88,13 @@ for i in $(seq 1 20); do
   CODE=$($C -s -o /dev/null -w '%{http_code}' --max-time 10 --resolve "$TS_HOST:8443:$TS_IP4" -H @"$H" "https://$TS_HOST:8443/vertex-status/v2" || true)
   [ "$CODE" != "000" ] && break; sleep 3
 done
+CODE_NOTOK=$($C -s -o /dev/null -w '%{http_code}' --max-time 10 --resolve "$TS_HOST:8443:$TS_IP4" "https://$TS_HOST:8443/vertex-status/v2" || true)
+CODE_BADTOK=$($C -s -o /dev/null -w '%{http_code}' --max-time 10 --resolve "$TS_HOST:8443:$TS_IP4" -H "Authorization: Bearer invalid-probe" "https://$TS_HOST:8443/vertex-status/v2" || true)
 rm -f "$H"
-echo "vps-self (non-allowed source, valid token): $CODE"
+echo "vps-self valid token: $CODE (expect 200)"
+echo "vps-self no token: $CODE_NOTOK (expect 403)"
+echo "vps-self wrong token: $CODE_BADTOK (expect 403)"
+test "$CODE" = "200" && test "$CODE_NOTOK" = "403" && test "$CODE_BADTOK" = "403" || { echo "vps-self v2 probe failed"; exit 5; }
 docker ps --filter name=vertex-status-tailnet --format '{{.Names}} {{.Status}}'
 ss -ltnH | awk '{print $4}' | grep ':8443' || true
 echo "rollback=$R"

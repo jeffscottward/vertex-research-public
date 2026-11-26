@@ -8,15 +8,16 @@ How it works: the API stores a new backtest run with the engine `nautilus-trader
 
 | File | Use |
 | --- | --- |
-| `vertex-nautilus-worker.service` | User unit, `Restart=always`. Every start waits 65 s first (`ExecStartPre`), so with its own key the limiter count of the previous process has reset (with a shared key use 125 s; see the unit comment). `SIGTERM` stops the worker; a running engine process is killed and its run fails. |
-| `vertex-nautilus-worker-run.sh` | Start script template. It reads the write key from its own `0600` file and starts the worker from a runner checkout. Contains placeholders only. |
+| `setup-nautilus-venv.sh` | Idempotent setup/repair script for the Python 3.12 NautilusTrader venv (default `~/.local/share/vertex/nautilus-venv`). Installs strictly from `services/research/requirements-nautilus-linux-py312.lock` with hash verification (`uv` preferred, `python3.12 -m venv` fallback) and verifies `nautilus_trader` and `nautilus_backtest` import cleanly. |
+| `vertex-nautilus-worker.service` | User unit, `Restart=always` with `RestartPreventExitStatus=64` (static setup/missing-venv errors fail the unit immediately instead of spinning every 75 s). Every start waits 65 s first (`ExecStartPre`), so with its own key the limiter count of the previous process has reset (with a shared key use 125 s; see the unit comment). `SIGTERM` stops the worker; a running engine process is killed and its run fails. |
+| `vertex-nautilus-worker-run.sh` | Start script template. It reads the write key from its own `0600` file, checks that `VERTEX_NAUTILUS_PYTHON` is an executable file (exiting 64 if missing), and starts the worker from a runner checkout. Contains placeholders only. |
 
 ## Install
 
-1. Create a Python venv with the Nautilus lock: `python3.12 -m venv <venv> && <venv>/bin/pip install -r services/research/requirements-nautilus-linux-py312.lock`.
+1. Create or repair the Python 3.12 venv from the hash-pinned Nautilus lock: `infra/research-worker/setup-nautilus-venv.sh` (default target `~/.local/share/vertex/nautilus-venv`; pass `--venv <dir>` for another path). Manual equivalent: `python3.12 -m venv <venv> && <venv>/bin/python -m pip install --no-deps --require-hashes --only-binary=:all: -r services/research/requirements-nautilus-linux-py312.lock`.
 2. Create an operator agent key with write access in the portal (Agent keys). Save only the key in a file with mode `0600`, for example `~/.config/vertex/agent-write-key`.
 3. Copy `vertex-nautilus-worker-run.sh` to `~/.local/bin/vertex-nautilus-worker-run`, set mode `0700` and replace every `__PLACEHOLDER__`.
-4. Check one cycle by hand: `~/.local/bin/vertex-nautilus-worker-run --once` (exit 0; it prints `run <id>: succeeded` when it found a run).
+4. Check one cycle by hand: `~/.local/bin/vertex-nautilus-worker-run --once` (exit 0; it prints `run <id>: succeeded` when it found a run). When `VERTEX_NAUTILUS_PYTHON` is missing or not executable, the launcher exits `64` (failing the unit cleanly), `--once` exits `1`, and daemon mode skips claiming queued runs, alerts with `missing python` after 3 failed cycles, and recovers automatically once the venv is restored.
 5. Copy `vertex-nautilus-worker.service` to `~/.config/systemd/user/` and run `systemctl --user daemon-reload && systemctl --user enable --now vertex-nautilus-worker.service` (it returns after the 65 s start wait; `--no-block` returns at once). Run `loginctl enable-linger` once so the service runs without a login session.
 6. Set `VERTEX_BACKTEST_RUNS_ENGINE=nautilus` in the web app environment and restart the web app only through `infra/quantvps/restart-when-idle.sh` ([infra/quantvps/README.md](../quantvps/README.md)). Without this setting the API runs backtests itself and the worker finds no runs. To switch back, set `typescript` (or remove the line) and restart the same way; queued Nautilus runs still go to the worker.
 
@@ -28,7 +29,7 @@ Logs: `journalctl --user -u vertex-nautilus-worker.service`. The worker never pr
 | --- | --- |
 | `VERTEX_ORIGIN` | Portal origin (https). |
 | `VERTEX_AGENT_API_KEY` | Operator agent write key (read from the key file by the start script). |
-| `VERTEX_NAUTILUS_PYTHON` | Python of the Nautilus venv. |
+| `VERTEX_NAUTILUS_PYTHON` | Executable Python binary of the Nautilus venv. Checked at startup and before every claim. |
 | `VERTEX_WORKER_IDLE_MS` | First wait after an empty claim. Default 3000. Each further empty claim doubles the wait; a claim that returns work resets it. |
 | `VERTEX_WORKER_IDLE_MAX_MS` | Longest wait between empty claims. Default 45000 (not below `VERTEX_WORKER_IDLE_MS`). The web restart pauses the worker with the pause file, so a short cap (3000 with its own key) does not block restarts: see [Web restarts](#web-restarts). |
 | `VERTEX_WORKER_REQUEST_BUDGET` | Requests before a quiet pause. Default 150 (shared key); 1 to 580. With its own key: 550. See [Request budget](#request-budget). |
@@ -58,7 +59,7 @@ The worker therefore:
 - On a 429 answer to a claim, waits the quiet pause (125 s by default), or the `Retry-After` time when the answer has a longer one, and then starts again with the 3 s idle wait.
 - On a 429 answer while it delivers a result, waits once (125 s, or less when the run would pass the API's 10-minute stale limit; it stops 30 s before it) and tries once more. With less than 1 s left it does not try again. A second 429 fails the run with "Could not deliver the Nautilus result". Without this cut a 9-minute run plus the wait would pass the stale limit, and the API would refuse the finished result with 409.
 
-What the quiet pause depends on: the count resets only after a gap of more than 60 s with no accepted request on the key. The worker is silent for 125 s; the other client of the shared key is the QuantVPS Autopilot tick (`vertex-autopilot.timer`, `OnUnitActiveSec=1min` plus the run time, one request per tick). With one tick inside the pause, the two gaps add up to 125 s, so one is over 60 s; with two ticks, the gap between them is over 60 s. It depends on ticks being more than 60 s apart with one request each; if Autopilot ever ticks 60 s apart or closer, or spreads several requests over a tick, the shared key may never reset and the worker and the tick reach 429 again. A separate worker key is the robust fix; the owner chose to reuse the Autopilot key (2026-11-05).
+What the quiet pause depends on: the count resets only after a gap of more than 60 s with no accepted request on the key. The worker is silent for 125 s; the other every-minute clients of the shared key on QuantVPS are `vertex-autopilot.timer` and `vertex-flow.timer`, which both align on `OnCalendar=*-*-* *:*:00` with `AccuracySec=1s` (so they share the `:00` tick and leave a >35 s quiet window for `restart-when-idle.sh`). Because calendar ticks at `:00` with `AccuracySec=1s` fire about 60 s apart (and can be slightly under 60 s on jitter), a shared key may not always clear the 60 s limiter window during a quiet pause; a separate worker key remains the robust fix (the owner chose to reuse the Autopilot key on 2026-11-05).
 
 ### Own key (fast polling)
 

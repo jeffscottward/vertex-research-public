@@ -283,11 +283,16 @@ const scoreUpside = (
   d: DeepValueMetrics
 ): DeepValueCriterionResult => {
   // Peer valuation when the industry median is known; else 52-week-high headroom (overlaps with Entry).
-  if (d.peerUpsidePct !== null)
+  if (d.peerUpsidePct !== null) {
+    const peers =
+      f.peerCount === undefined
+        ? "peer count not in peer data"
+        : `n=${f.peerCount}`;
     return result(
       tier(d.peerUpsidePct, DEEP_VALUE_CUTOFFS.upsideToHighPct, true),
-      `${signed(d.peerUpsidePct)}% to the price implied by the industry median EV ÷ sales ${(f.peerEvSales as number).toFixed(2)} (n=${f.peerCount ?? "?"}).`
+      `${signed(d.peerUpsidePct)}% to the price implied by the industry median EV ÷ sales ${(f.peerEvSales as number).toFixed(2)} (${peers}).`
     );
+  }
   if (d.upsideToHighPct === null)
     return missing("peer valuation and 52-week high");
   return result(
@@ -328,17 +333,25 @@ const scoreSubstance = (
   )
     score = 2;
   const growth = grow === null ? "" : `, ${signed(grow)}% vs prior year`;
+  const fiscalYear =
+    f.revenueYear === undefined
+      ? "fiscal year not in SEC data"
+      : `FY ${f.revenueYear}`;
   return result(
     score,
-    `Revenue ${formatUsd(f.revenue)} (FY ${f.revenueYear ?? "?"})${growth}.`
+    `Revenue ${formatUsd(f.revenue)} (${fiscalYear})${growth}.`
   );
 };
 
 const scoreLongevity = (f: DeepValueFacts): DeepValueCriterionResult => {
   if (!finite(f.yearsReporting)) return missing("SEC reporting history");
+  const since =
+    f.firstYear === undefined
+      ? "first reporting year not in SEC data"
+      : `since ${f.firstYear}`;
   return result(
     tier(f.yearsReporting, DEEP_VALUE_CUTOFFS.yearsReporting, true),
-    `${f.yearsReporting} years of SEC financial data (since ${f.firstYear ?? "?"}).`
+    `${f.yearsReporting} years of SEC financial data (${since}).`
   );
 };
 

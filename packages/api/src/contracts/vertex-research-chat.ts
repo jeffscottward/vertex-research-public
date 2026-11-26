@@ -32,7 +32,8 @@ export const VertexResearchChatErrors = {
   },
   SERVICE_UNAVAILABLE: {
     status: 503,
-    message: "Vertex research chat service unavailable",
+    message:
+      "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
     data: VertexUnavailableDataSchema,
   },
   INVALID_SOURCE: {

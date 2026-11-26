@@ -209,7 +209,8 @@ export type ResearchScreenStatusOutput = z.infer<
 export const RESEARCH_SCREEN_API_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
   STORAGE_ERROR: {
-    message: "Research screen storage unavailable",
+    message:
+      "Research screen storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether the tick was recorded, then retry.",
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },

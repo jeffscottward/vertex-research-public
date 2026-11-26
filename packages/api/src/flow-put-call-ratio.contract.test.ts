@@ -105,13 +105,14 @@ describe("flow.putCallRatio input", () => {
     expect(FlowPutCallRatioInputSchema.safeParse(input).success).toBe(false);
   });
 
-  it("matches every instrument that collects option prints", () => {
+  it("stays scoped to SPY and ES, which collect option prints", () => {
     const collected = FLOW_SYMBOLS.filter((symbol) =>
       FLOW_INSTRUMENTS[symbol].sources.includes("options")
     );
-    expect([...FLOW_PUT_CALL_RATIO_SYMBOLS].sort()).toEqual(
-      [...collected].sort()
-    );
+    expect([...FLOW_PUT_CALL_RATIO_SYMBOLS].sort()).toEqual(["ES", "SPY"]);
+    for (const symbol of FLOW_PUT_CALL_RATIO_SYMBOLS) {
+      expect(collected).toContain(symbol);
+    }
   });
 });
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   fileAgeMs,
+  isExecutableFile,
   restartLockState,
   runCommand,
   runNautilusWorker,
@@ -13,12 +14,13 @@ import {
 } from "./backtest-worker/nautilus-worker.ts";
 
 process.exitCode = await runNautilusWorker(process.argv.slice(2), {
+  canExecute: isExecutableFile,
   env: process.env,
   fileAgeMs,
   hostname: hostname(),
   post: (url, init) => globalThis.fetch(url, init),
-  restartLock: restartLockState,
   researchDir: fileURLToPath(new URL("../services/research/", import.meta.url)),
+  restartLock: restartLockState,
   runCommand,
   signal: stopSignal(process),
   sleep,

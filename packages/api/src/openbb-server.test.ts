@@ -96,6 +96,7 @@ const fakes = (): Fakes => ({
   },
   openbb: {
     blockedStreaks: vi.fn(async () => []),
+    changes13fMarket: vi.fn(async () => []),
     congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
     cot: vi.fn(async () => []),
     cusipsForSymbol: vi.fn(async () => []),
@@ -150,6 +151,7 @@ const fakes = (): Fakes => ({
 const clientFor = (
   options: Readonly<{
     fakes?: Fakes;
+    flow?: unknown;
     apiKey?: string;
     keyAccess?: "read" | "write";
     email?: string;
@@ -170,6 +172,9 @@ const clientFor = (
             .series as unknown as MarketDailySeriesRepository,
           openbb: options.fakes.openbb as unknown as OpenbbRepository,
         }),
+    ...(options.flow === undefined
+      ? {}
+      : { flow: options.flow as NonNullable<Repositories["flow"]> }),
   };
   const agentApiKeys = {
     authenticate: vi.fn(async (headers: Headers) => {
@@ -1977,5 +1982,174 @@ describe("openbb.ivHistory", () => {
       clientFor({}).openbb.ivHistory({ symbol: "SPY" }),
       "STORAGE_ERROR"
     );
+  });
+});
+
+describe("openbb.changes13f and openbb.status overdue", () => {
+  it("returns market-wide 13F changes with delayDays and coverage (fresh and overdue)", async () => {
+    const repos = fakes();
+    setOpenbbClockForTesting(() => new Date("2026-11-23T16:00:00.000Z"));
+    repos.openbb.changes13fMarket.mockResolvedValueOnce([
+      {
+        accessionNumber: "0001193125-26-000001",
+        change: "new",
+        cusip: "037833100",
+        filedOn: "2026-11-11",
+        filerCik: "1067983",
+        filerName: "Berkshire Hathaway",
+        issuer: "Apple Inc.",
+        optionType: "",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: null,
+        previousValue: null,
+        shares: 1000,
+        symbol: "AAPL",
+        value: 225_000,
+      },
+    ]);
+    repos.openbb.sec13fFilings.mockResolvedValueOnce([
+      {
+        accessionNumber: "0001193125-26-000001",
+        filedOn: "2026-11-11",
+        filerCik: "1067983",
+        filerName: "Berkshire Hathaway",
+        periodEnding: "2026-09-30",
+        rows: 89,
+      },
+      {
+        accessionNumber: "0001193125-26-000000",
+        filedOn: "2026-08-14",
+        filerCik: "1067983",
+        filerName: "Berkshire Hathaway",
+        periodEnding: "2026-06-30",
+        rows: 85,
+      },
+      {
+        accessionNumber: "0001193125-26-000002",
+        filedOn: "2026-11-10",
+        filerCik: "1350694",
+        filerName: "Bridgewater",
+        periodEnding: "2026-09-30",
+        rows: 500,
+      },
+    ]);
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([
+      {
+        job: "sec-13f",
+        latest: {
+          error: null,
+          finishedAt: new Date("2026-11-23T12:00:00.000Z"),
+          id: "r1",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-23T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+        latestUsable: {
+          error: null,
+          finishedAt: new Date("2026-11-23T12:00:00.000Z"),
+          id: "r1",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-23T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+      },
+    ]);
+    const client = clientFor({ fakes: repos });
+    const res = await client.openbb.changes13f({ ticker: " aapl " });
+    expect(repos.openbb.changes13fMarket).toHaveBeenCalledWith({
+      change: "all",
+      limit: 50,
+      ticker: "AAPL",
+    });
+    expect(res.changes[0]?.delayDays).toBe(42);
+    expect(res.coverage.filersWithTwoBooks).toBe(1);
+    expect(res.coverage.totalFilers).toBe(2);
+    expect(res.coverage.overdue).toBe(false);
+
+    // Blank ticker coerces to undefined; stale run sets overdueSince
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([
+      {
+        job: "sec-13f",
+        latest: {
+          error: null,
+          finishedAt: new Date("2026-11-18T12:00:00.000Z"),
+          id: "r2",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-18T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+        latestUsable: {
+          error: null,
+          finishedAt: new Date("2026-11-18T12:00:00.000Z"),
+          id: "r2",
+          job: "sec-13f",
+          openbbVersion: "4.0",
+          rowsReceived: 10,
+          rowsWritten: 10,
+          startedAt: new Date("2026-11-18T11:59:00.000Z"),
+          status: "ok",
+          warnings: [],
+        },
+      },
+    ]);
+    const stale = await client.openbb.changes13f({ ticker: "   " });
+    expect(repos.openbb.changes13fMarket).toHaveBeenLastCalledWith({
+      change: "all",
+      limit: 50,
+      ticker: null,
+    });
+    expect(stale.coverage.overdue).toBe(true);
+    expect(stale.coverage.overdueSince).toBe("2026-11-21T12:00:00.000Z");
+
+    // No sec-13f run yet -> lastOkAt/lastRunAt/lastStatus null, overdue true
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([]);
+    const noRun = await client.openbb.changes13f({});
+    expect(noRun.coverage.lastOkAt).toBeNull();
+    expect(noRun.coverage.lastRunAt).toBeNull();
+    expect(noRun.coverage.lastStatus).toBeNull();
+    expect(noRun.coverage.overdue).toBe(true);
+
+    // Non-empty symbol in insiderClusters passes trimmed uppercase symbol
+    const bySym = await client.openbb.insiderClusters({ symbol: " nvda " });
+    expect(bySym.clusters).toEqual([]);
+
+    // Empty symbol in insiderClusters coerces cleanly to undefined
+    const clusters = await client.openbb.insiderClusters({ symbol: "  " });
+    expect(clusters.clusters).toEqual([]);
+  });
+
+  it("includes per-source overdue fields in openbb.status", async () => {
+    const repos = fakes();
+    setOpenbbClockForTesting(() => new Date("2026-11-23T16:00:00.000Z"));
+    const status = await clientFor({ fakes: repos }).openbb.status({});
+    expect(status.checkedAt.toISOString()).toBe("2026-11-23T16:00:00.000Z");
+    expect(status.sources.length).toBeGreaterThanOrEqual(23);
+    expect(status.overdueCount).toBe(
+      status.sources.filter((s) => s.overdue).length
+    );
+
+    // With flow repository attached, openbb.status also evaluates market_premium + SPY flow samples
+    const withFlow = clientFor({
+      fakes: repos,
+      flow: {
+        latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
+        marketPremiumLedger: vi.fn(async () => []),
+      },
+    });
+    const flowStatus = await withFlow.openbb.status({});
+    expect(flowStatus.sources.some((s) => s.kind === "flow")).toBe(true);
   });
 });

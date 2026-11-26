@@ -146,7 +146,8 @@ const clusterOf = (window: readonly Filing[]): OpenbbInsiderCluster => {
 export const insiderClusters = (
   purchases: readonly OpenbbInsiderPurchase[],
   owners: readonly OpenbbForm4Owner[],
-  since: Date
+  since: Date,
+  symbol?: string
 ): OpenbbInsiderCluster[] => {
   const byIssuer = new Map<string, Filing[]>();
   for (const filing of filingsOf(purchases, owners)) {
@@ -170,7 +171,9 @@ export const insiderClusters = (
         .slice(0, end + 1)
         .filter((filing) => filing.acceptedAt.getTime() >= start);
       if (personsIn(window) >= OPENBB_INSIDER_CLUSTER_MIN_PERSONS) {
-        clusters.push(clusterOf(window));
+        const cluster = clusterOf(window);
+        if (symbol === undefined || cluster.issuerSymbol === symbol)
+          clusters.push(cluster);
         break;
       }
     }

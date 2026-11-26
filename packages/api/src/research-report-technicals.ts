@@ -1,7 +1,10 @@
+import type { MarketBarColumns } from "@darkfactory/db/server";
 import { sma } from "@darkfactory/shared/indicators";
 
 import type {
+  ResearchReportDataSource,
   ResearchReportFibonacci,
+  ResearchReportFreshness,
   ResearchReportPivot,
   ResearchReportStoredTechnicals,
   ResearchReportTechnicals,
@@ -11,6 +14,10 @@ import type {
   ResearchReportVolumeProfile,
   ResearchReportWeinstein,
 } from "./contracts/research-reports.ts";
+import {
+  expectedFreshnessSession,
+  nyseSessionsBehind,
+} from "./price-freshness.ts";
 
 // Technicals of a research dossier (merge plan P1-4). Pure functions only.
 // The indicator math is a port of the old workspace builders `scripts/analyze-technicals.mjs`
@@ -54,6 +61,70 @@ const ISO_INSTANT =
 /** Stored dates pass only as `YYYY-MM-DD`; other text is never passed on. */
 const dateOrNull = (value: unknown): string | null =>
   typeof value === "string" && DATE.test(value) ? value : null;
+
+const calendarDateOrNull = (value: unknown): string | null => {
+  if (typeof value !== "string" || !DATE.test(value)) return null;
+  const millis = Date.parse(`${value}T00:00:00Z`);
+  return finite(millis) && new Date(millis).toISOString().slice(0, 10) === value
+    ? value
+    : null;
+};
+
+/** Maximum NYSE sessions behind expectedFreshnessSession before dossier price data is marked stale. */
+const DOSSIER_TECHNICALS_MAX_SESSIONS_BEHIND = 2;
+
+/** Evaluates how fresh a dossier's data date is against the latest expected finished NYSE session. */
+export const evaluateDossierFreshness = (
+  asOf: string | null,
+  now: Date = new Date()
+): ResearchReportFreshness => {
+  const expectedSession = expectedFreshnessSession(now);
+  const validDate = calendarDateOrNull(asOf);
+  if (validDate === null) {
+    return {
+      asOf: null,
+      expectedSession,
+      isStale: false,
+      maxSessionsBehind: DOSSIER_TECHNICALS_MAX_SESSIONS_BEHIND,
+      sessionsBehind: null,
+      status: "no_date",
+    };
+  }
+  const sessionsBehind = nyseSessionsBehind(validDate, expectedSession);
+  const isStale = sessionsBehind > DOSSIER_TECHNICALS_MAX_SESSIONS_BEHIND;
+  return {
+    asOf: validDate,
+    expectedSession,
+    isStale,
+    maxSessionsBehind: DOSSIER_TECHNICALS_MAX_SESSIONS_BEHIND,
+    sessionsBehind,
+    status: isStale ? "stale" : "fresh",
+  };
+};
+
+/** Converts columnar stored daily bars (`market_bars`) into ordered `DossierBar` records. */
+export const marketBarColumnsToDossierBars = (
+  columns: MarketBarColumns
+): DossierBar[] => {
+  const dates = new Set<string>();
+  const bars: DossierBar[] = [];
+  for (let index = 0; index < columns.t.length; index += 1) {
+    const timestamp = columns.t[index];
+    const close = columns.c[index];
+    if (!(finite(timestamp) && finite(close))) continue;
+    const date = new Date(timestamp).toISOString().slice(0, 10);
+    if (dates.has(date)) continue;
+    dates.add(date);
+    bars.push({
+      close,
+      date,
+      high: numberOrNaN(columns.h[index]),
+      low: numberOrNaN(columns.l[index]),
+      volume: numberOrNaN(columns.v?.[index]),
+    });
+  }
+  return bars;
+};
 
 /**
  * Completed daily bars in input order (port of `completedBars`): drops partial bars, bars
@@ -188,6 +259,124 @@ const TREND_CHECK_KEYS = [
   "sma150AboveSma200",
   "sma200Rising20Sessions",
 ] as const;
+
+const SMA200_SLOPE_SESSIONS = 20;
+const RANGE_52_WEEK_SESSIONS = 252;
+
+const barHighOrClose = (bar: DossierBar): number =>
+  finite(bar.high) ? bar.high : bar.close;
+const barLowOrClose = (bar: DossierBar): number =>
+  finite(bar.low) ? bar.low : bar.close;
+
+const computeSma200Slope = (
+  bars: readonly DossierBar[],
+  closes: readonly number[],
+  currentSma200: number | null,
+  lastDate: string
+): ResearchReportStoredTechnicals["sma200Slope"] => {
+  const earlierIndex = bars.length - 1 - SMA200_SLOPE_SESSIONS;
+  if (currentSma200 === null || earlierIndex < 0) return null;
+  const earlierSma200 = nullable(sma(closes, 200)[earlierIndex]);
+  if (earlierSma200 === null) return null;
+  return {
+    change: round(currentSma200 - earlierSma200),
+    changePct:
+      earlierSma200 > 0
+        ? round((100 * (currentSma200 - earlierSma200)) / earlierSma200)
+        : null,
+    fromDate: (bars[earlierIndex] as DossierBar).date,
+    toDate: lastDate,
+  };
+};
+
+const computeRange52Week = (
+  bars: readonly DossierBar[]
+): NonNullable<ResearchReportStoredTechnicals["range52Week"]> => {
+  const yearSlice = bars.slice(-RANGE_52_WEEK_SESSIONS);
+  const firstYear = yearSlice[0] as DossierBar;
+  let high52 = barHighOrClose(firstYear);
+  let high52Date = firstYear.date;
+  let low52 = barLowOrClose(firstYear);
+  let low52Date = firstYear.date;
+  for (const bar of yearSlice) {
+    const high = barHighOrClose(bar);
+    const low = barLowOrClose(bar);
+    if (high > high52) {
+      high52 = high;
+      high52Date = bar.date;
+    }
+    if (low < low52) {
+      low52 = low;
+      low52Date = bar.date;
+    }
+  }
+  return {
+    high: round(high52),
+    highDate: high52Date,
+    low: round(low52),
+    lowDate: low52Date,
+    sampleCount: yearSlice.length,
+  };
+};
+
+const computeMaximumObservedHigh = (
+  bars: readonly DossierBar[],
+  lastClose: number
+): NonNullable<ResearchReportStoredTechnicals["maximumObservedHigh"]> => {
+  const firstBar = bars[0] as DossierBar;
+  let maxHigh = barHighOrClose(firstBar);
+  let maxHighDate = firstBar.date;
+  for (const bar of bars) {
+    const high = barHighOrClose(bar);
+    if (high > maxHigh) {
+      maxHigh = high;
+      maxHighDate = bar.date;
+    }
+  }
+  return {
+    date: maxHighDate,
+    drawdownPct:
+      maxHigh > 0 ? round((100 * (lastClose - maxHigh)) / maxHigh) : null,
+    price: round(maxHigh),
+  };
+};
+
+const isAbove = (left: number | null, right: number | null): boolean | null =>
+  left === null || right === null ? null : left > right;
+
+/** Full indicator set and trend checks computed directly from daily bars. */
+export const computeFullIndicators = (
+  bars: readonly DossierBar[]
+): ResearchReportStoredTechnicals | null => {
+  const last = bars.at(-1);
+  if (last === undefined) return null;
+  const closes = bars.map((bar) => bar.close);
+  const core = recomputeIndicators(bars);
+  const sma200Slope = computeSma200Slope(bars, closes, core.sma200, last.date);
+  const trendValues: Readonly<
+    Record<ResearchReportTrendCheck["key"], boolean | null>
+  > = {
+    closeAboveSma20: isAbove(last.close, core.sma20),
+    closeAboveSma50: isAbove(last.close, core.sma50),
+    closeAboveSma150: isAbove(last.close, core.sma150),
+    closeAboveSma200: isAbove(last.close, core.sma200),
+    sma50AboveSma150: isAbove(core.sma50, core.sma150),
+    sma50AboveSma200: isAbove(core.sma50, core.sma200),
+    sma150AboveSma200: isAbove(core.sma150, core.sma200),
+    sma200Rising20Sessions:
+      sma200Slope === null ? null : sma200Slope.change > 0,
+  };
+  return {
+    ...core,
+    maximumObservedHigh: computeMaximumObservedHigh(bars, last.close),
+    range52Week: computeRange52Week(bars),
+    sma200Slope,
+    trendChecks: TREND_CHECK_KEYS.map((key) => ({
+      key,
+      passed: trendValues[key],
+    })),
+  };
+};
 
 const storedNumber = (data: Json, key: string): number | null =>
   nullable(data[key] as number | null | undefined);
@@ -433,13 +622,37 @@ const STAGE_LABELS = {
   4: "Stage 4: declining",
 } as const;
 
+const formatWeinsteinResult = (
+  latest: WeeklyClose,
+  completeWeeks: number,
+  sma30: number,
+  slopePct: number,
+  stage: 1 | 2 | 3 | 4 | null,
+  asOf?: string
+): ResearchReportWeinstein => ({
+  asOf: asOf ?? latest.week,
+  completeWeeks,
+  isStale: false,
+  label:
+    stage === null
+      ? "Stage 1 or 3: unresolved (no earlier Stage 2 or 4)"
+      : STAGE_LABELS[stage],
+  sma30: round(sma30),
+  sma30ChangePct: round(slopePct),
+  stage,
+  staleReason: null,
+  weekEnding: latest.week,
+  weeklyClose: round(latest.close),
+});
+
 /**
  * Weinstein stage from complete weekly closes (KB rule, 2026-11-16): Stage 2 when the close is
  * above a rising 30-week SMA, Stage 4 when it is below a falling one. Any other week is Stage 3
  * after a Stage 2, Stage 1 after a Stage 4, and unresolved before the first Stage 2 or 4.
  */
 export const weinsteinStage = (
-  weeks: readonly WeeklyClose[]
+  weeks: readonly WeeklyClose[],
+  asOf?: string
 ): ResearchReportWeinstein | null => {
   const { flatBandPct, historyWeeks, minimumWeeks, slopeWeeks, smaWeeks } =
     WEINSTEIN_RULE;
@@ -481,18 +694,14 @@ export const weinsteinStage = (
     stage = decided;
   }
   const latest = weeks.at(-1) as WeeklyClose;
-  return {
-    completeWeeks: weeks.length,
-    label:
-      stage === null
-        ? "Stage 1 or 3: unresolved (no earlier Stage 2 or 4)"
-        : STAGE_LABELS[stage],
-    sma30: round(averages.at(-1) as number),
-    sma30ChangePct: round(slopePct),
+  return formatWeinsteinResult(
+    latest,
+    weeks.length,
+    averages.at(-1) as number,
+    slopePct,
     stage,
-    weekEnding: latest.week,
-    weeklyClose: round(latest.close),
-  };
+    asOf
+  );
 };
 
 const VOLUME_PROFILE_RULE = Object.freeze({
@@ -505,6 +714,7 @@ const VOLUME_PROFILE_RULE = Object.freeze({
 /** Bump when a rule or window changes, so a saved value can be tied to the method that made it. */
 export const TECHNICALS_METHOD = Object.freeze({
   fibonacciWindowSessions: FIBONACCI_WINDOW,
+  freshnessMaxSessionsBehind: DOSSIER_TECHNICALS_MAX_SESSIONS_BEHIND,
   pivotLookbackSessions: PIVOT_LOOKBACK_SESSIONS,
   version: 1,
   volumeProfile: VOLUME_PROFILE_RULE,
@@ -633,75 +843,56 @@ export const volumeProfile = (
   };
 };
 
-/** Inputs of one dossier revision: its stored technicals and (when stored) its market dataset. */
+/** Inputs of one dossier technicals build: stored revision datasets plus optional fresher daily bars. */
 export type ResearchReportTechnicalsInput = Readonly<{
   assetType: string | null;
+  liveBars?: readonly DossierBar[] | null;
+  liveBarsCollectedAt?: string | null;
   market: unknown;
+  now?: Date;
   technicals: unknown;
 }>;
 
-/**
- * The technicals view of one dossier revision. Week completeness uses the market dataset's
- * `collectedAt` (else the last bar's date at 21:00 UTC), never the request time, so the same
- * revision always gives the same answer.
- */
-export const buildResearchReportTechnicals = ({
+const applyWeinsteinFreshness = (
+  rawWeinstein: ResearchReportWeinstein | null,
+  freshness: ResearchReportFreshness,
+  lastDate: string,
+  warnings: string[]
+): ResearchReportWeinstein | null => {
+  if (!freshness.isStale) return rawWeinstein;
+  const staleReason = `Daily bars end ${lastDate} (${freshness.sessionsBehind} NYSE sessions behind ${freshness.expectedSession}; limit is ${freshness.maxSessionsBehind} sessions).`;
+  warnings.push(
+    `Price data is stale: ${staleReason} Indicators and Weinstein stage reflect that date, not the current market.`
+  );
+  if (rawWeinstein === null) return null;
+  return {
+    ...rawWeinstein,
+    asOf: lastDate,
+    isStale: true,
+    label: `${rawWeinstein.label} (stale; data as of ${lastDate})`,
+    staleReason,
+  };
+};
+
+const appendMarkerWarnings = ({
   assetType,
-  market,
-  technicals,
-}: ResearchReportTechnicalsInput): Omit<
-  ResearchReportTechnicals,
-  "dataRevision" | "reportId"
-> => {
-  const stored = readStoredTechnicals(technicals);
-  const marketBody = record(market);
-  const bars = completedBars(marketBody?.["history"]);
-  const last = bars.at(-1);
-  const warnings: string[] = [];
-  if (last === undefined) {
+  fibonacci,
+  profile,
+  rawWeinstein,
+  warnings,
+  weekCount,
+}: Readonly<{
+  assetType: string | null;
+  fibonacci: ResearchReportFibonacci | null;
+  profile: ResearchReportVolumeProfile | null;
+  rawWeinstein: ResearchReportWeinstein | null;
+  warnings: string[];
+  weekCount: number;
+}>): void => {
+  if (rawWeinstein === null)
     warnings.push(
-      "No stored daily bars in this revision: pivots, Weinstein stage, Fibonacci levels and the volume profile are unavailable."
-    );
-    return {
-      bars: null,
-      check: compareWithStored(stored, null),
-      fibonacci: null,
-      method: TECHNICALS_METHOD,
-      pivots: null,
-      recomputed: null,
-      stored,
-      volumeProfile: null,
-      warnings,
-      weinstein: null,
-    };
-  }
-  // Only a parseable time passes, normalized to ISO 8601 UTC.
-  const collected = marketBody?.["collectedAt"];
-  // ISO 8601 with Z or an explicit offset only: a time without a zone would depend on the host.
-  const collectedMillis =
-    typeof collected === "string" && ISO_INSTANT.test(collected)
-      ? Date.parse(collected)
-      : Number.NaN;
-  const collectedAt = finite(collectedMillis)
-    ? new Date(collectedMillis).toISOString()
-    : null;
-  const now = collectedAt ?? `${last.date}T21:00:00Z`;
-  const recomputed = recomputeIndicators(bars);
-  const check = compareWithStored(stored, recomputed);
-  if (check.status === "mismatch")
-    warnings.push(
-      `Recomputed values differ from the stored values (${check.mismatches.join(", ")}): the stored bars may not be the bars behind the stored indicators.`
-    );
-  const pivots = swingPivots(bars);
-  const candidates = candidatePivots(pivots, last.close);
-  const weeks = weeklyCloses(bars, now);
-  const weinstein = weinsteinStage(weeks);
-  const fibonacci = fibonacciLevels(bars, last.close);
-  const profile = volumeProfile(bars, last.close);
-  if (weinstein === null)
-    warnings.push(
-      weeks.length < WEINSTEIN_RULE.minimumWeeks
-        ? `Weinstein stage needs ${WEINSTEIN_RULE.minimumWeeks} complete weeks; this revision has ${weeks.length}.`
+      weekCount < WEINSTEIN_RULE.minimumWeeks
+        ? `Weinstein stage needs ${WEINSTEIN_RULE.minimumWeeks} complete weeks; this revision has ${weekCount}.`
         : "Weinstein stage unavailable: the 30-week SMA or its slope is not a finite positive value inside the classified window."
     );
   if (fibonacci === null)
@@ -714,15 +905,117 @@ export const buildResearchReportTechnicals = ({
     warnings.push(
       "Continuous futures bars can contain roll gaps; a roll inside a window can distort pivots, Fibonacci levels and the volume profile."
     );
+};
+
+const normalizeInstant = (value: unknown): string | null => {
+  const millis =
+    typeof value === "string" && ISO_INSTANT.test(value)
+      ? Date.parse(value)
+      : Number.NaN;
+  return finite(millis) ? new Date(millis).toISOString() : null;
+};
+
+/**
+ * The technicals view of one dossier. Week completeness uses the active bar set's collection
+ * time (else the last bar's date at 21:00 UTC), kept separate from wall-clock `now`, which is
+ * used solely to evaluate staleness against the expected NYSE session.
+ */
+export const buildResearchReportTechnicals = ({
+  assetType,
+  liveBars,
+  liveBarsCollectedAt,
+  market,
+  now = new Date(),
+  technicals,
+}: ResearchReportTechnicalsInput): Omit<
+  ResearchReportTechnicals,
+  "dataRevision" | "reportId"
+> => {
+  const stored = readStoredTechnicals(technicals);
+  const marketBody = record(market);
+  const storedBars = completedBars(marketBody?.["history"]);
+  const storedLast = storedBars.at(-1);
+  const live = liveBars ?? [];
+  const liveLast = live.at(-1);
+  const useLiveBars =
+    liveLast !== undefined &&
+    (storedLast === undefined || liveLast.date > storedLast.date);
+  const bars = useLiveBars ? live : storedBars;
+  const barsSource: ResearchReportDataSource = useLiveBars
+    ? "market_bars"
+    : "revision";
+  const last = bars.at(-1);
+  const warnings: string[] = [];
+  if (last === undefined) {
+    const dataDate = stored.asOf;
+    const freshness = evaluateDossierFreshness(dataDate, now);
+    warnings.push(
+      "No stored daily bars in this revision: pivots, Weinstein stage, Fibonacci levels and the volume profile are unavailable."
+    );
+    return {
+      bars: null,
+      check: compareWithStored(stored, null),
+      current: null,
+      dataDate,
+      fibonacci: null,
+      freshness,
+      method: TECHNICALS_METHOD,
+      pivots: null,
+      recomputed: null,
+      stored,
+      volumeProfile: null,
+      warnings,
+      weinstein: null,
+    };
+  }
+  // Only a parseable ISO instant passes, normalized to UTC.
+  const collectedAt = useLiveBars
+    ? normalizeInstant(liveBarsCollectedAt)
+    : normalizeInstant(marketBody?.["collectedAt"]);
+  const weekCompletenessAt = collectedAt ?? `${last.date}T21:00:00Z`;
+  const storedRecomputed =
+    storedBars.length > 0 ? recomputeIndicators(storedBars) : null;
+  const check = compareWithStored(stored, storedRecomputed);
+  if (check.status === "mismatch")
+    warnings.push(
+      `Recomputed values differ from the stored values (${check.mismatches.join(", ")}): the stored bars may not be the bars behind the stored indicators.`
+    );
+  const current = computeFullIndicators(bars);
+  const pivots = swingPivots(bars);
+  const candidates = candidatePivots(pivots, last.close);
+  const weeks = weeklyCloses(bars, weekCompletenessAt);
+  const rawWeinstein = weinsteinStage(weeks, last.date);
+  const fibonacci = fibonacciLevels(bars, last.close);
+  const profile = volumeProfile(bars, last.close);
+  const dataDate = last.date;
+  const freshness = evaluateDossierFreshness(dataDate, now);
+  const weinstein = applyWeinsteinFreshness(
+    rawWeinstein,
+    freshness,
+    last.date,
+    warnings
+  );
+  appendMarkerWarnings({
+    assetType,
+    fibonacci,
+    profile,
+    rawWeinstein,
+    warnings,
+    weekCount: weeks.length,
+  });
   return {
     bars: {
       collectedAt,
       count: bars.length,
       firstDate: (bars[0] as DossierBar).date,
       lastDate: last.date,
+      source: barsSource,
     },
     check,
+    current,
+    dataDate,
     fibonacci,
+    freshness,
     method: TECHNICALS_METHOD,
     pivots: {
       candidateResistance: candidates.resistance,
@@ -730,7 +1023,7 @@ export const buildResearchReportTechnicals = ({
       items: pivots,
       lookbackSessions: PIVOT_LOOKBACK_SESSIONS,
     },
-    recomputed,
+    recomputed: storedRecomputed,
     stored,
     volumeProfile: profile,
     warnings,

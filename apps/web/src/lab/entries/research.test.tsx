@@ -10,6 +10,7 @@ import {
   ResearchPaperSchema,
   ResearchReportDatasetOutputSchema,
   ResearchReportsListOutputSchema,
+  ResearchReportTechnicalsOutputSchema,
   ResearchScreenStatusOutputSchema,
   WatchlistItemSchema,
 } from "@darkfactory/api";
@@ -40,6 +41,7 @@ import {
   labMarketNews,
   labPickListScreen,
   labResearchDataset,
+  labResearchTechnicals,
   labResearchTranscript,
 } from "../fixtures/research.ts";
 import { mountLab, unmountLab } from "../test-support.tsx";
@@ -70,6 +72,7 @@ describe("research lab fixtures", () => {
         labResearchTranscript(LAB_RESEARCH_THREAD_ID)
       );
       ResearchReportsListOutputSchema.parse(LAB_RESEARCH_REPORTS);
+      ResearchReportTechnicalsOutputSchema.parse(labResearchTechnicals("SPY"));
       ResearchScreenStatusOutputSchema.parse(LAB_RESEARCH_SCREEN);
       ResearchReportDatasetOutputSchema.parse(
         labResearchDataset("NVDA", "news")
@@ -336,6 +339,34 @@ describe("research lab entries", () => {
     ).not.toBeNull();
     expect(
       host.querySelector("[data-flow-strike-heatmap-inspector]")
+    ).not.toBeNull();
+    // The Jigsaw-style Live DOM ladder panel of ES (when SPY is selected): live stream + ladder table.
+    await vi.waitFor(() =>
+      expect(host.querySelector('[data-live-dom-panel="ES"]')).not.toBeNull()
+    );
+    expect(host.querySelector("[data-live-dom-table]")).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-flow-trade-bubbles-svg]")).not.toBeNull()
+    );
+    expect(
+      host.querySelectorAll("[data-flow-trade-bubble]").length
+    ).toBeGreaterThan(0);
+    // The option print bubbles panel of SPY: price line, proportional bubbles, open gap, and table.
+    await vi.waitFor(() =>
+      expect(
+        host
+          .querySelector("[data-flow-option-bubbles]")
+          ?.getAttribute("data-flow-option-bubbles-state")
+      ).toBe("response")
+    );
+    expect(
+      host.querySelector("[data-flow-option-bubbles-chart]")
+    ).not.toBeNull();
+    expect(
+      host.querySelectorAll("[data-flow-option-bubble]").length
+    ).toBeGreaterThan(0);
+    expect(
+      host.querySelector("[data-flow-option-bubbles-table]")
     ).not.toBeNull();
   });
 });

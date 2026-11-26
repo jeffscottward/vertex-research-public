@@ -27,10 +27,10 @@ const rollbackSql = read(
   "../../../packages/db/rollback/0064_openbb_sources.down.sql"
 );
 const sourceMigrationSql = read(
-  "../../../packages/db/migrations/0095_common_mikhail_rasputin.sql"
+  "../../../packages/db/migrations/0096_common_mikhail_rasputin.sql"
 );
 const sourceRollbackSql = read(
-  "../../../packages/db/rollback/0095_common_mikhail_rasputin.down.sql"
+  "../../../packages/db/rollback/0096_common_mikhail_rasputin.down.sql"
 );
 const congressMigrationSql = read(
   "../../../packages/db/migrations/0085_congress_trades.sql"
@@ -1032,6 +1032,302 @@ describe("OpenBB IV provenance and sources (Postgres)", () => {
         "insert into openbb_sec_13f_filings (accession_number, filed_on, filer_cik, filer_name, period_ending, rows) values ('12-3', '2026-11-14', '1', 'x', '2026-09-30', 1)"
       )
     ).rejects.toThrow(/openbb_sec_13f_filings_check/u);
+  });
+  it("computes market-wide 13F quarter-over-quarter changes in Postgres", async () => {
+    const repository = createOpenbbRepository(db());
+    const q2Acc = "0002000001-26-000001";
+    const q3Acc = "0002000001-26-000002";
+    const q3LaterAcc = "0002000001-26-000099";
+    const gapQ1Acc = "0002000002-26-000001";
+    const gapQ3Acc = "0002000002-26-000002";
+
+    await repository.upsertRows("sec_13f_filings", [
+      {
+        accessionNumber: q2Acc,
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        periodEnding: "2026-06-30",
+        rows: 4,
+      },
+      {
+        accessionNumber: q3Acc,
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        periodEnding: "2026-09-30",
+        rows: 4,
+      },
+      // Later filing for the same period must be ignored in favor of earliest filedOn.
+      {
+        accessionNumber: q3LaterAcc,
+        filedOn: "2026-11-15",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        periodEnding: "2026-09-30",
+        rows: 1,
+      },
+      // Non-consecutive quarters (Q1 -> Q3, missing Q2) must be excluded.
+      {
+        accessionNumber: gapQ1Acc,
+        filedOn: "2026-05-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        periodEnding: "2026-03-31",
+        rows: 1,
+      },
+      {
+        accessionNumber: gapQ3Acc,
+        filedOn: "2026-11-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        periodEnding: "2026-09-30",
+        rows: 1,
+      },
+    ]);
+
+    await repository.upsertRows("cusip_symbols", [
+      { cusip: "67066G104", lastSeen: "2026-11-10", symbol: "NVDA" },
+    ]);
+
+    const row = (overrides: {
+      accessionNumber: string;
+      cusip: string;
+      filedOn: string;
+      filerCik: string;
+      filerName: string;
+      issuer: string;
+      optionType?: "" | "call" | "put";
+      periodEnding: string;
+      shares?: number | null;
+      symbol?: string | null;
+      value: number;
+    }) => ({
+      assetClass: null,
+      optionType: "" as const,
+      shares: null,
+      symbol: null,
+      weight: null,
+      ...overrides,
+    });
+
+    await repository.upsertRows("sec_13f_holdings", [
+      // Q2 holdings for ALPHA CAPITAL LP
+      row({
+        accessionNumber: q2Acc,
+        cusip: "67066G104",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "NVIDIA CORP",
+        periodEnding: "2026-06-30",
+        shares: 100,
+        symbol: null,
+        value: 10_000,
+      }),
+      row({
+        accessionNumber: q2Acc,
+        cusip: "594918104",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "MICROSOFT CORP",
+        periodEnding: "2026-06-30",
+        shares: 500,
+        symbol: "MSFT",
+        value: 200_000,
+      }),
+      row({
+        accessionNumber: q2Acc,
+        cusip: "023135106",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "AMAZON COM INC",
+        periodEnding: "2026-06-30",
+        shares: 300,
+        symbol: "AMZN",
+        value: 60_000,
+      }),
+      row({
+        accessionNumber: q2Acc,
+        cusip: "30303M102",
+        filedOn: "2026-08-14",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "META PLATFORMS INC",
+        periodEnding: "2026-06-30",
+        shares: 50,
+        symbol: "META",
+        value: 25_000,
+      }),
+      // Q3 holdings for ALPHA CAPITAL LP (earliest original q3Acc)
+      row({
+        accessionNumber: q3Acc,
+        cusip: "67066G104",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "NVIDIA CORP",
+        periodEnding: "2026-09-30",
+        shares: 250,
+        symbol: null,
+        value: 30_000,
+      }),
+      row({
+        accessionNumber: q3Acc,
+        cusip: "594918104",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "MICROSOFT CORP",
+        periodEnding: "2026-09-30",
+        shares: 200,
+        symbol: "MSFT",
+        value: 80_000,
+      }),
+      row({
+        accessionNumber: q3Acc,
+        cusip: "30303M102",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "META PLATFORMS INC",
+        periodEnding: "2026-09-30",
+        shares: 50,
+        symbol: "META",
+        value: 28_000,
+      }),
+      row({
+        accessionNumber: q3Acc,
+        cusip: "88160R101",
+        filedOn: "2026-11-12",
+        filerCik: "2000001",
+        filerName: "ALPHA CAPITAL LP",
+        issuer: "TESLA INC",
+        periodEnding: "2026-09-30",
+        shares: 400,
+        symbol: "TSLA",
+        value: 100_000,
+      }),
+      // Non-consecutive filer holdings (must not appear)
+      row({
+        accessionNumber: gapQ1Acc,
+        cusip: "88160R101",
+        filedOn: "2026-05-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        issuer: "TESLA INC",
+        periodEnding: "2026-03-31",
+        shares: 10,
+        symbol: "TSLA",
+        value: 2000,
+      }),
+      row({
+        accessionNumber: gapQ3Acc,
+        cusip: "88160R101",
+        filedOn: "2026-11-14",
+        filerCik: "2000002",
+        filerName: "SKIPPED QUARTER FUND",
+        issuer: "TESLA INC",
+        periodEnding: "2026-09-30",
+        shares: 90,
+        symbol: "TSLA",
+        value: 20_000,
+      }),
+    ]);
+
+    const all = await repository.changes13fMarket({
+      change: "all",
+      limit: 50,
+      ticker: null,
+    });
+    expect(
+      all.map((entry) => ({
+        accessionNumber: entry.accessionNumber,
+        change: entry.change,
+        cusip: entry.cusip,
+        filedOn: entry.filedOn,
+        period: entry.period,
+        previousPeriod: entry.previousPeriod,
+        previousShares: entry.previousShares,
+        shares: entry.shares,
+        symbol: entry.symbol,
+      }))
+    ).toEqual([
+      {
+        accessionNumber: q3Acc,
+        change: "reduced",
+        cusip: "594918104",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 500,
+        shares: 200,
+        symbol: "MSFT",
+      },
+      {
+        accessionNumber: q3Acc,
+        change: "new",
+        cusip: "88160R101",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: null,
+        shares: 400,
+        symbol: "TSLA",
+      },
+      {
+        accessionNumber: q3Acc,
+        change: "sold",
+        cusip: "023135106",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 300,
+        shares: null,
+        symbol: "AMZN",
+      },
+      {
+        accessionNumber: q3Acc,
+        change: "added",
+        cusip: "67066G104",
+        filedOn: "2026-11-12",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 100,
+        shares: 250,
+        symbol: "NVDA",
+      },
+    ]);
+
+    // Filter by CUSIP-mapped ticker (raw_symbol is null)
+    const nvda = await repository.changes13fMarket({
+      change: "all",
+      limit: 50,
+      ticker: "NVDA",
+    });
+    expect(nvda.map((entry) => [entry.symbol, entry.change])).toEqual([
+      ["NVDA", "added"],
+    ]);
+
+    // Filter by direct symbol + change kind
+    const msftReduced = await repository.changes13fMarket({
+      change: "reduced",
+      limit: 50,
+      ticker: "MSFT",
+    });
+    expect(msftReduced.map((entry) => [entry.symbol, entry.change])).toEqual([
+      ["MSFT", "reduced"],
+    ]);
+
+    // Limit caps results in descending max(value, previousValue) order
+    const topTwo = await repository.changes13fMarket({
+      change: "all",
+      limit: 2,
+      ticker: null,
+    });
+    expect(topTwo.map((entry) => entry.symbol)).toEqual(["MSFT", "TSLA"]);
   });
 
   it("refuses the rollback while rows exist", async () => {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { FlowControlSchema, type FlowOptionTicker } from "../contracts/flow.ts";
+import {
+  FlowControlSchema,
+  type FlowIndexOptionTicker,
+} from "../contracts/flow.ts";
 import { FLOW_FUTURES_RULES } from "../flow-control-rules.ts";
 import type { FlowDeepTradeRow } from "../flow-deep-trades.ts";
 import type { FlowEventRow, FlowMinuteRow } from "../flow-features.ts";
@@ -23,7 +26,7 @@ const at = (minute: number) => new Date(FROM.getTime() + minute * 60_000);
 const NOW = at(21);
 
 const bucket = (
-  ticker: FlowOptionTicker,
+  ticker: FlowIndexOptionTicker,
   minute: number,
   netCallPremium: number,
   netPutPremium: number,
@@ -42,7 +45,7 @@ const bucket = (
 });
 
 const run = (
-  ticker: FlowOptionTicker,
+  ticker: FlowIndexOptionTicker,
   start: number,
   end: number,
   call: number,
@@ -111,7 +114,7 @@ const print = (
   minute: number,
   side: FlowOptionPrintRow["side"],
   right: FlowOptionPrintRow["right"],
-  ticker: FlowOptionTicker = "SPX"
+  ticker: FlowIndexOptionTicker = "SPX"
 ) =>
   ({
     premium: 1000,
