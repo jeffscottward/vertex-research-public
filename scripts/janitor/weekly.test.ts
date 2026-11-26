@@ -220,15 +220,28 @@ describe("busy files", () => {
   const WT_A = "/home/u/Github/trading/vertex-research-public-wt-job-a";
   const WT_OLD = "/home/u/Github/trading/vertex-research-public-wt-old";
   const LOCAL = "git -c core.quotePath=false";
-  const worktreeList =
-    `worktree ${MAIN}\nHEAD aaa\nbranch refs/heads/${LIVE}\n\n` +
-    `worktree ${WT_A}\nHEAD bbb\nbranch refs/heads/ws/job-a\n\n` +
-    `worktree ${WT_OLD}\nHEAD ccc\ndetached\nprunable gitdir file points to non-existent location\n\n` +
-    "worktree /srv/bare.git\nbare\n";
+  /** `git worktree list --porcelain -z`: NUL after each field and entry. */
+  const porcelain = (...entries: string[][]) =>
+    entries.map((fields) => `${fields.join("\0")}\0\0`).join("");
+  const worktreeList = porcelain(
+    [`worktree ${MAIN}`, "HEAD aaa", `branch refs/heads/${LIVE}`],
+    [`worktree ${WT_A}`, "HEAD bbb", "branch refs/heads/ws/job-a", "locked"],
+    [
+      `worktree ${WT_OLD}`,
+      "HEAD ccc",
+      "detached",
+      "prunable gitdir file points to non-existent location",
+    ],
+    ["worktree /srv/bare.git", "bare"]
+  );
+  const one = porcelain([`worktree ${WT_A}`, "HEAD bbb"]);
 
   it("parses usable worktrees and skips bare and prunable ones", () => {
     expect(parseWorktrees(worktreeList)).toEqual([MAIN, WT_A]);
     expect(parseWorktrees("")).toEqual([]);
+    expect(
+      parseWorktrees(porcelain(["worktree /tmp/odd\nname", "detached"]))
+    ).toEqual(["/tmp/odd\nname"]);
   });
 
   it("marks untracked, uncommitted and unpushed files of local worktrees busy", () => {
@@ -236,12 +249,12 @@ describe("busy files", () => {
       ...healthyRepo,
       "gh pr list": ok(""),
       "git for-each-ref": ok(""),
-      "git worktree list --porcelain": ok(worktreeList),
+      "git worktree list --porcelain -z": ok(worktreeList),
       [`${LOCAL} ls-files --others --exclude-standard`]: [
         ok(""),
         ok("apps/web/new-page.tsx\n"),
       ],
-      [`${LOCAL} diff --name-only --no-renames HEAD`]: [
+      [`${LOCAL} diff-index --name-only --no-renames HEAD`]: [
         ok("docs/edited.md\n"),
         ok("apps/web/old-page.tsx\n"),
       ],
@@ -273,7 +286,7 @@ describe("busy files", () => {
   it("keeps local edits of a worktree with unrelated history but skips its commits", () => {
     const { calls, run } = fakeRun({
       ...healthyRepo,
-      "git worktree list --porcelain": ok(`worktree ${WT_A}\nHEAD bbb\n`),
+      "git worktree list --porcelain -z": ok(one),
       [`${LOCAL} ls-files --others`]: ok("new.ts\n"),
       [`git merge-base origin/${LIVE} HEAD`]: fail,
     });
@@ -284,11 +297,10 @@ describe("busy files", () => {
   });
 
   it("fails closed when local worktrees cannot be read", () => {
-    const one = `worktree ${WT_A}\nHEAD bbb\n`;
     const cases: [Record<string, Answer>, string][] = [
       [{ "git worktree list": fail }, "cannot list local worktrees"],
       [
-        { [`${LOCAL} diff --name-only --no-renames HEAD`]: fail },
+        { [`${LOCAL} diff-index --name-only --no-renames HEAD`]: fail },
         `cannot list local changes in ${WT_A}`,
       ],
       [
@@ -309,7 +321,7 @@ describe("busy files", () => {
       const { run } = fakeRun({
         ...answers,
         ...healthyRepo,
-        "git worktree list --porcelain": ok(one),
+        "git worktree list --porcelain -z": ok(one),
       });
       expect(() => collectBusyFiles(run, MAIN, LIVE)).toThrow(message);
     }
@@ -347,13 +359,17 @@ describe("busy files", () => {
       git(main, "push", "-q", "origin", "base");
       git(main, "worktree", "add", "-q", "-b", "ws/job", job, "origin/base");
       writeFileSync(join(job, "brand new.ts"), "export const n = 1;\n");
+      writeFileSync(join(job, "café.ts"), "export const c = 1;\n");
+      git(job, "add", "café.ts");
+      git(job, "commit", "-qm", "unpushed");
+      writeFileSync(join(main, "kept.ts"), "export const k = 2;\n");
       const { run: busyRun } = fakeRun({});
       const real: JanitorDeps["run"] = (command, args, options) =>
         command === "gh"
           ? busyRun(command, args, options)
           : run(command, args, options);
       const busy = collectBusyFiles(real, main, "base");
-      expect(busy.files).toEqual(["brand new.ts"]);
+      expect(busy.files).toEqual(["brand new.ts", "café.ts", "kept.ts"]);
       expect(busy.worktrees).toBe(2);
     } finally {
       rmSync(root, { force: true, recursive: true });

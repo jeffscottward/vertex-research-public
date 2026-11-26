@@ -93,13 +93,14 @@ export const resolveDefaultBranch = (run: Run, cwd: string): string => {
 };
 
 /**
- * Paths of the usable worktrees in `git worktree list --porcelain` output. A
- * bare entry has no files and a prunable one has no directory left.
+ * Paths of the usable worktrees in `git worktree list --porcelain -z` output
+ * (NUL after each field, one more after each entry, so a path may hold a
+ * newline). A bare entry has no files and a prunable one has no directory.
  */
 export const parseWorktrees = (stdout: string): string[] =>
   stdout
-    .split(/\n\s*\n/u)
-    .map((block) => lines(block))
+    .split("\0\0")
+    .map((entry) => entry.split("\0"))
     .filter(
       (fields) =>
         !fields.some(
@@ -125,8 +126,11 @@ const localWork = (
   wt: string,
   baseRef: string
 ): { files: string[]; unrelated: boolean } => {
+  // diff-index compares without refreshing the index, so the janitor never
+  // takes index.lock in a live job's worktree; a file that is only touched
+  // shows as changed, which errs on the busy side.
   const changed = gitPaths(run, wt, [
-    "diff",
+    "diff-index",
     "--name-only",
     "--no-renames",
     "HEAD",
@@ -163,7 +167,7 @@ const collectLocalWork = (
   cwd: string,
   baseRef: string
 ): { files: string[]; unrelated: string[]; worktrees: number } => {
-  const listed = run("git", ["worktree", "list", "--porcelain"], { cwd });
+  const listed = run("git", ["worktree", "list", "--porcelain", "-z"], { cwd });
   if (listed.status !== 0) throw new Error("cannot list local worktrees");
   const worktrees = parseWorktrees(listed.stdout);
   const files: string[] = [];
