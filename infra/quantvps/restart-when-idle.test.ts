@@ -259,6 +259,9 @@ const setup = (files: Record<string, string>) => {
     join(dir, "migrations-check.sh"),
     `#!/usr/bin/env bash
 if [ "\${1:-}" = "--print-sql" ]; then echo "SELECT 1;"; exit 0; fi
+# Read the snapshot like the real checker. Without this, a slow writer meets a closed pipe,
+# SIGPIPE fails the pipeline under pipefail and the guard exits 15 instead of passing.
+cat >/dev/null
 echo "all 0 build migrations applied (test hook)"
 exit 0
 `
@@ -2672,6 +2675,7 @@ describe("migration guard", { timeout: 30_000 }, () => {
       join(dir, "crash-checker.sh"),
       `#!/usr/bin/env bash
 if [ "\${1:-}" = "--print-sql" ]; then echo "SELECT 1;"; exit 0; fi
+cat >/dev/null
 echo "ReferenceError: simulated runtime crash" >&2
 exit 1
 `

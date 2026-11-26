@@ -708,6 +708,18 @@ request refused for the caller reserve is `skipped` and stores no sample. Net dr
 300 s (09:30 to 16:20 New York). The worst case of one run is 24 QuantData requests (4 net drift, 16
 option pages, 3 GEX, 1 market premium) against 30 minus the caller reserve of 6.
 
+## Wall x drift read
+
+Design: [gex-wall-drift-confluence/design.md](designs/gex-wall-drift-confluence/design.md). The browser grades
+the current GEX wall touch with the pure rule `gradeGexWallDrift` (`packages/api/src/gex-wall-drift-rules.ts`,
+`gex-wall-drift-rules.v1`): the `flow.snapshot` GEX levels of the options ticker of the view (never the shifted
+`symbolLevels`) and the `flow.control` net drift series of the same ticker, price from the newest settled drift
+minute. Reads: `hold-A`, `break-risk`, `no-read` or `no-data`, each non-graded read with a typed code (for example
+`drift_stale`, `window_gap`, `not_at_wall`). The badge sits above the control panel on `/flow` and in the options
+analytics panel of `/stock` for operators on SPY, SPX, QQQ and NDX. No API field, table or collector changes. The
+read is unvalidated research context until the pre-registered study
+([gex-wall-drift-confluence.md](../specs/strategies/gex-wall-drift-confluence.md)) has a verdict.
+
 ## Market premium
 
 Smart money PR 2 ([plan-pr2.md](designs/smart-money/plan-pr2.md)). The source `market_premium` is

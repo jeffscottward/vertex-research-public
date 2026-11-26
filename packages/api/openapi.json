@@ -144953,6 +144953,1186 @@
         ]
       }
     },
+    "/market-regime": {
+      "get": {
+        "operationId": "marketRegime.get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "etfs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "breadth90": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "ageSeconds": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "armedOn": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "detail": {
+                                "maxLength": 300,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "latestAdvPct": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "latestDate": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "latestFinal": {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "latestKind": {
+                                "anyOf": [
+                                  {
+                                    "enum": [
+                                      "UP_90",
+                                      "UP_80",
+                                      "NEUTRAL",
+                                      "DOWN_80",
+                                      "DOWN_90"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "latestUpPct": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "scope": {
+                                "enum": [
+                                  "etf",
+                                  "market_wide"
+                                ],
+                                "type": "string"
+                              },
+                              "sessionsLeft": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "signalState": {
+                                "anyOf": [
+                                  {
+                                    "enum": [
+                                      "IDLE",
+                                      "ARMED",
+                                      "FORMING",
+                                      "FIRED"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "source": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              },
+                              "staleLimitSeconds": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              "state": {
+                                "enum": [
+                                  "fired",
+                                  "forming",
+                                  "armed",
+                                  "idle",
+                                  "missing"
+                                ],
+                                "type": "string"
+                              },
+                              "strict": {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "ageSeconds",
+                              "asOf",
+                              "detail",
+                              "scope",
+                              "source",
+                              "stale",
+                              "staleLimitSeconds",
+                              "armedOn",
+                              "latestAdvPct",
+                              "latestDate",
+                              "latestFinal",
+                              "latestKind",
+                              "latestUpPct",
+                              "sessionsLeft",
+                              "signalState",
+                              "state",
+                              "strict"
+                            ],
+                            "type": "object"
+                          },
+                          "credit": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "ageSeconds": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "detail": {
+                                "maxLength": 300,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "hyOas": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "hyOasBps": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "hyOasChange20dBps": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "hyOasPct1y": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "igOas": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "scope": {
+                                "enum": [
+                                  "etf",
+                                  "market_wide"
+                                ],
+                                "type": "string"
+                              },
+                              "source": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              },
+                              "staleLimitSeconds": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              "state": {
+                                "enum": [
+                                  "calm",
+                                  "widening",
+                                  "stressed",
+                                  "missing"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "ageSeconds",
+                              "asOf",
+                              "detail",
+                              "scope",
+                              "source",
+                              "stale",
+                              "staleLimitSeconds",
+                              "hyOas",
+                              "hyOasBps",
+                              "hyOasChange20dBps",
+                              "hyOasPct1y",
+                              "igOas",
+                              "state"
+                            ],
+                            "type": "object"
+                          },
+                          "dealerGamma": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "ageSeconds": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "callWall": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "detail": {
+                                "maxLength": 300,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "flip": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "netGex": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "oiSession": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "putWall": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "scope": {
+                                "enum": [
+                                  "etf",
+                                  "market_wide"
+                                ],
+                                "type": "string"
+                              },
+                              "source": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "spot": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "spotVsFlip": {
+                                "anyOf": [
+                                  {
+                                    "enum": [
+                                      "above",
+                                      "below",
+                                      "at"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              },
+                              "staleLimitSeconds": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              "state": {
+                                "enum": [
+                                  "positive",
+                                  "neutral",
+                                  "negative",
+                                  "not_covered",
+                                  "missing"
+                                ],
+                                "type": "string"
+                              },
+                              "upstreamRegime": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 40,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "ageSeconds",
+                              "asOf",
+                              "detail",
+                              "scope",
+                              "source",
+                              "stale",
+                              "staleLimitSeconds",
+                              "callWall",
+                              "flip",
+                              "netGex",
+                              "oiSession",
+                              "putWall",
+                              "spot",
+                              "spotVsFlip",
+                              "state",
+                              "upstreamRegime"
+                            ],
+                            "type": "object"
+                          },
+                          "hasStaleInputs": {
+                            "type": "boolean"
+                          },
+                          "missingCount": {
+                            "maximum": 5,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "mixedDrivers": {
+                            "items": {
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "maxItems": 8,
+                            "type": "array"
+                          },
+                          "staleCount": {
+                            "maximum": 5,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "summary": {
+                            "enum": [
+                              "risk_on",
+                              "mixed",
+                              "risk_off",
+                              "incomplete"
+                            ],
+                            "type": "string"
+                          },
+                          "symbol": {
+                            "enum": [
+                              "QQQ",
+                              "SPY",
+                              "IWM",
+                              "DIA"
+                            ],
+                            "type": "string"
+                          },
+                          "trend": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "ageSeconds": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "close": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "detail": {
+                                "maxLength": 300,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "pctVsSma200": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "pctVsSma50": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "scope": {
+                                "enum": [
+                                  "etf",
+                                  "market_wide"
+                                ],
+                                "type": "string"
+                              },
+                              "sessions": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "sma200": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sma50": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sma50AboveSma200": {
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "source": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              },
+                              "staleLimitSeconds": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              "state": {
+                                "enum": [
+                                  "uptrend",
+                                  "mixed",
+                                  "downtrend",
+                                  "missing"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "ageSeconds",
+                              "asOf",
+                              "detail",
+                              "scope",
+                              "source",
+                              "stale",
+                              "staleLimitSeconds",
+                              "close",
+                              "pctVsSma50",
+                              "pctVsSma200",
+                              "sessions",
+                              "sma50",
+                              "sma50AboveSma200",
+                              "sma200",
+                              "state"
+                            ],
+                            "type": "object"
+                          },
+                          "volatility": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "ageSeconds": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                        "type": "string"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "atmIv30d": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "detail": {
+                                "maxLength": 300,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "etfVolIndex": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "etfVolIndexId": {
+                                "enum": [
+                                  "VIX",
+                                  "VXN",
+                                  "RVX",
+                                  "VXD"
+                                ],
+                                "type": "string"
+                              },
+                              "ivPercentile": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "scope": {
+                                "enum": [
+                                  "etf",
+                                  "market_wide"
+                                ],
+                                "type": "string"
+                              },
+                              "source": {
+                                "maxLength": 80,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "stale": {
+                                "type": "boolean"
+                              },
+                              "staleLimitSeconds": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              "state": {
+                                "enum": [
+                                  "calm",
+                                  "elevated",
+                                  "extreme",
+                                  "missing"
+                                ],
+                                "type": "string"
+                              },
+                              "termStructure": {
+                                "enum": [
+                                  "contango",
+                                  "flat",
+                                  "backwardation",
+                                  "missing"
+                                ],
+                                "type": "string"
+                              },
+                              "vix": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "vix3mVix6m": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "vix9dVix": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "vixVix3m": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "ageSeconds",
+                              "asOf",
+                              "detail",
+                              "scope",
+                              "source",
+                              "stale",
+                              "staleLimitSeconds",
+                              "atmIv30d",
+                              "etfVolIndex",
+                              "etfVolIndexId",
+                              "ivPercentile",
+                              "state",
+                              "termStructure",
+                              "vix",
+                              "vix3mVix6m",
+                              "vix9dVix",
+                              "vixVix3m"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "breadth90",
+                          "credit",
+                          "dealerGamma",
+                          "hasStaleInputs",
+                          "missingCount",
+                          "mixedDrivers",
+                          "staleCount",
+                          "summary",
+                          "symbol",
+                          "trend",
+                          "volatility"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 4,
+                      "minItems": 4,
+                      "type": "array"
+                    },
+                    "generatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "overall": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "missingPillarCount": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "staleEtfs": {
+                          "items": {
+                            "enum": [
+                              "QQQ",
+                              "SPY",
+                              "IWM",
+                              "DIA"
+                            ],
+                            "type": "string"
+                          },
+                          "maxItems": 4,
+                          "type": "array"
+                        },
+                        "stalePillarCount": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "summary": {
+                          "enum": [
+                            "risk_on",
+                            "mixed",
+                            "risk_off",
+                            "incomplete"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "missingPillarCount",
+                        "staleEtfs",
+                        "stalePillarCount",
+                        "summary"
+                      ],
+                      "type": "object"
+                    },
+                    "researchOnlyNote": {
+                      "maxLength": 200,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "etfs",
+                    "generatedAt",
+                    "overall",
+                    "researchOnlyNote"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          }
+        },
+        "summary": "Read-only unified market regime across QQQ, SPY, IWM and DIA (trend, breadth-90, dealer gamma, credit, volatility)",
+        "tags": [
+          "Market context"
+        ]
+      }
+    },
     "/master-rules/search": {
       "post": {
         "operationId": "masterRules.search",
