@@ -239,7 +239,7 @@
     </text>
   </g>
   <text x="750" y="250" fill="#e6edf3" font-size="15" font-weight="600">
-    5 certified SQL terms (migration 0098)
+    5 certified SQL terms (migration 0100)
   </text>
   <text x="750" y="272" fill="#7ee787" font-size="13">
     SELECT-only grants · source, as_of &amp; data_delay per row

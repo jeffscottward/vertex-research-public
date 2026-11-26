@@ -13,15 +13,15 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM "public"."semantic_terms"
     WHERE "id" IN ('large_options_premium_ranking', 'congress_trades', 'insider_cluster_buys', 'institutional_13f_changes', 'short_volume')
-      AND ("updated_by" IS NOT NULL OR NOT "certified" OR "certified_by" IS DISTINCT FROM 'migration 0098' OR "certification_note" IS DISTINCT FROM seed_note)
+      AND ("updated_by" IS NOT NULL OR NOT "certified" OR "certified_by" IS DISTINCT FROM 'migration 0100' OR "certification_note" IS DISTINCT FROM seed_note)
   ) OR EXISTS (
     SELECT 1 FROM "public"."semantic_sql_attributes"
     WHERE "id" IN ('large_options_premium_ranking', 'congress_trades', 'insider_cluster_buys', 'institutional_13f_changes', 'short_volume')
-      AND ("updated_by" IS NOT NULL OR NOT "certified" OR "certified_by" IS DISTINCT FROM 'migration 0098' OR "certification_note" IS DISTINCT FROM seed_note)
+      AND ("updated_by" IS NOT NULL OR NOT "certified" OR "certified_by" IS DISTINCT FROM 'migration 0100' OR "certification_note" IS DISTINCT FROM seed_note)
   ) OR EXISTS (
     SELECT 1 FROM "public"."semantic_relationships"
     WHERE "id" IN ('flow_market_premium_session', 'congress_trades_filing', 'form4_transactions_filing', 'form4_owners_filing', 'sec_13f_holdings_filing')
-      AND ("updated_by" IS NOT NULL OR NOT "certified" OR "certified_by" IS DISTINCT FROM 'migration 0098' OR "certification_note" IS DISTINCT FROM seed_note)
+      AND ("updated_by" IS NOT NULL OR NOT "certified" OR "certified_by" IS DISTINCT FROM 'migration 0100' OR "certification_note" IS DISTINCT FROM seed_note)
   ) OR EXISTS (
     SELECT 1 FROM "public"."semantic_sql_attributes"
     WHERE "grain" IN ('ticker', 'filing_trade', 'issuer_cluster', 'filer_position', 'ticker_session')

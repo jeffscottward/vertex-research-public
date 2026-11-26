@@ -265,7 +265,7 @@ describe("0058_semantic_unlinked_runs migration", () => {
     expect(migration).toContain(
       `ALTER TABLE "semantic_sql_attributes" ADD COLUMN "grain" text DEFAULT 'strategy' NOT NULL;`
     );
-    // 0058 added the initial five grains; 0098 widened the check constraint to ten grains.
+    // 0058 added the initial five grains; 0100 widened the check constraint to ten grains.
     expect(migration).toContain(
       `ADD CONSTRAINT "semantic_sql_attributes_grain_check" CHECK ("semantic_sql_attributes"."grain" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor'))`
     );
@@ -461,17 +461,17 @@ describe("0100_semantic_terms_smart_money migration", () => {
       expect(body, `${term.id} as_of column`).toContain(" as as_of");
       expect(body, `${term.id} data_delay column`).toContain(" as data_delay");
     }
-    expect(migration.split("'migration 0098'").length - 1).toBe(15);
+    expect(migration.split("'migration 0100'").length - 1).toBe(15);
   });
 
-  it("is journaled as idx 98 right after 0097 with a newer timestamp", () => {
+  it("is journaled as idx 100 right after 0099 with a newer timestamp", () => {
     const index = journal.entries.findIndex(
       (entry) => entry.tag === "0100_semantic_terms_smart_money"
     );
-    expect(journal.entries[index]).toMatchObject({ idx: 98 });
+    expect(journal.entries[index]).toMatchObject({ idx: 100 });
     expect(journal.entries[index - 1]).toMatchObject({
-      idx: 97,
-      tag: "0097_common_mikhail_rasputin",
+      idx: 99,
+      tag: "0099_flow_option_prints_oi_flags",
     });
     expect(journal.entries[index]?.when).toBeGreaterThan(
       journal.entries[index - 1]?.when ?? 0
