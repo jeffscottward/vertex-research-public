@@ -28,8 +28,11 @@ import {
   AssistantTurnError,
   runAssistantTurn,
 } from "../../../packages/api/src/server/assistant-runtime.ts";
+import { setCongressTradesClockForTesting } from "../../../packages/api/src/server/congress-trades.ts";
 import { setFlowClockForTesting } from "../../../packages/api/src/server/flow.ts";
 import type { CallProcedure } from "../../../packages/api/src/server/mcp.ts";
+import { setOpenbbClockForTesting } from "../../../packages/api/src/server/openbb.ts";
+import { setSmartMoneyClockForTesting } from "../../../packages/api/src/server/smart-money.ts";
 import { setSemanticTermsDependenciesForTesting } from "../../../packages/api/src/server/semantic-terms.ts";
 import {
   EVAL_NOW,
@@ -152,6 +155,10 @@ export const startEvalBackend = async (
   });
   // flow_control and flow_snapshot read the flow clock: pin it so answers and the replay digest are stable.
   setFlowClockForTesting(() => EVAL_NOW);
+  // Smart-money tools (smartMoney/ranking, congressTrades/feed, openbb/*) read their clocks: pin them too.
+  setSmartMoneyClockForTesting(() => EVAL_NOW);
+  setCongressTradesClockForTesting(() => EVAL_NOW);
+  setOpenbbClockForTesting(() => EVAL_NOW);
   const repositories = createRepositories(resource.db, { now: () => EVAL_NOW });
   const dispatch = async (request: Request): Promise<Response> => {
     const context = createApiContext(request, {
@@ -187,6 +194,9 @@ export const startEvalBackend = async (
       setSemanticTermsDependenciesForTesting({});
       setDeployStatusFetchOptionsForTesting({});
       setFlowClockForTesting();
+      setSmartMoneyClockForTesting(null);
+      setCongressTradesClockForTesting(null);
+      setOpenbbClockForTesting(null);
       await resource.close();
       await dropPostgresTestDatabase(testDatabase);
     },

@@ -48,6 +48,13 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
   model_runs_get: ok({ id: "mr_nvda_1" }),
   model_runs_list: ok(),
   model_runs_search: ok({ query: "support" }),
+  openbb_13f_changes: ok(),
+  openbb_congress_trades: ok(),
+  openbb_insider_clusters: ok(),
+  openbb_sec: ok({ symbol: "NVDA" }),
+  openbb_shorts: ok({ symbol: "NVDA" }),
+  openbb_smart_money_ranking: ok(),
+  openbb_status: ok(),
   optimizations_get: ok({ id: "opt_orb_1" }),
   optimizations_list: ok(),
   options_gex_context: {
@@ -70,6 +77,7 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
 /** Parameters for the terms that refuse a query without one (terms_list marks them `required`). */
 const REQUIRED_TERM_PARAMS: Readonly<Record<string, unknown>> = {
   position: { symbol: "NVDA" },
+  short_volume: { symbol: "NVDA" },
 };
 
 /**
@@ -80,12 +88,17 @@ const REQUIRED_TERM_PARAMS: Readonly<Record<string, unknown>> = {
 const ANSWERING_TERMS: readonly string[] = [
   "backtest_max_drawdown",
   "backtest_sharpe",
+  "congress_trades",
   "deployment_request",
   "drift_level",
+  "insider_cluster_buys",
+  "institutional_13f_changes",
+  "large_options_premium_ranking",
   "net_liquidation",
   "open_risk",
   "pnl",
   "position",
+  "short_volume",
   "strategy_gate_pass",
 ];
 

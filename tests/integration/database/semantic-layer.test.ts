@@ -104,9 +104,9 @@ describe("semantic layer (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
-  it("seeds ten certified terms, the five uncertified trend indicator terms and the three uncertified flow control terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
+  it("seeds the certified terms (0056 + 0097 smart money), the uncertified trend and flow control terms, all SQL attributes, and eleven joins on real columns", async () => {
     const catalog = await repository.catalog();
-    // Migration 0056 seeds ten certified terms; migrations 0074 and 0081 add five and three uncertified ones with source none.
+    // Migration 0056 seeds ten certified terms; 0074 and 0081 add five and three uncertified ones; 0097 adds five certified smart-money terms.
     expect(
       catalog.terms.map((term) => [term.id, term.source, term.certified])
     ).toEqual([
@@ -114,16 +114,21 @@ describe("semantic layer (Postgres)", () => {
       ["backtest_max_drawdown", "postgres", true],
       ["backtest_sharpe", "postgres", true],
       ["chandelier_exit", "none", false],
+      ["congress_trades", "postgres", true],
       ["crown_copy_leg", "none", true],
       ["deployment_request", "postgres", true],
       ["drift_level", "postgres", true],
       ["flow_control_state", "none", false],
       ["futures_deep_trades", "none", false],
+      ["insider_cluster_buys", "postgres", true],
+      ["institutional_13f_changes", "postgres", true],
+      ["large_options_premium_ranking", "postgres", true],
       ["net_liquidation", "feed", true],
       ["open_risk", "feed", true],
       ["options_net_drift", "none", false],
       ["pnl", "feed", true],
       ["position", "feed", true],
+      ["short_volume", "postgres", true],
       ["slingshot", "none", false],
       ["strategy_gate_pass", "postgres", true],
       ["supertrend", "none", false],
@@ -156,8 +161,28 @@ describe("semantic layer (Postgres)", () => {
         "run_spec",
         "eval fixture (stands in for the owner)",
       ],
+      ["congress_trades", "congress_trades", "filing_trade", "migration 0097"],
       ["deployment_request", "deployment_request", "request", "migration 0056"],
       ["drift_level", "drift_level", "monitor", "migration 0056"],
+      [
+        "insider_cluster_buys",
+        "insider_cluster_buys",
+        "issuer_cluster",
+        "migration 0097",
+      ],
+      [
+        "institutional_13f_changes",
+        "institutional_13f_changes",
+        "filer_position",
+        "migration 0097",
+      ],
+      [
+        "large_options_premium_ranking",
+        "large_options_premium_ranking",
+        "ticker",
+        "migration 0097",
+      ],
+      ["short_volume", "short_volume", "ticker_session", "migration 0097"],
       [
         "strategy_gate_pass",
         "strategy_gate_pass",
@@ -178,7 +203,7 @@ describe("semantic layer (Postgres)", () => {
         (attribute) => attribute.grain
       )
     ).toEqual(["strategy", "run_spec"]);
-    expect(catalog.relationships).toHaveLength(6);
+    expect(catalog.relationships).toHaveLength(11);
     const columns = await database().execute<{ name: string }>(
       "select table_name || '.' || column_name as name from information_schema.columns where table_schema = 'public'"
     );
@@ -552,5 +577,101 @@ describe("semantic layer (Postgres)", () => {
         note: null,
       })
     ).toBe("not_found");
+  });
+
+  it("answers all five certified smart-money SQL terms as vertex_semantic_reader with source, as_of and data_delay", async () => {
+    // 1. large_options_premium_ranking: excludes holiday session (2026-10-31 with 1 ticker) and ranks NVDA #1.
+    const ranking = await okRows("large_options_premium_ranking", [null, null]);
+    expect(ranking.map((row) => [row["rank"], row["ticker"]])).toEqual([
+      [1, "NVDA"],
+      [2, "SPY"],
+      [3, "QQQ"],
+    ]);
+    expect(ranking[0]).toMatchObject({
+      net_premium_usd: 3_200_000,
+      newest_session_date: "2026-10-30",
+      session_status: "complete",
+      ticker: "NVDA",
+    });
+    expect(String(ranking[0]?.["source"])).toContain("QuantData");
+    expect(String(ranking[0]?.["data_delay"])).toContain("15 minutes");
+    // Filtering by ticker preserves market-wide rank and handles floats / extreme numeric values safely.
+    const spyOnly = await okRows("large_options_premium_ranking", [2.9, "spy"]);
+    expect(spyOnly).toHaveLength(1);
+    expect(spyOnly[0]).toMatchObject({
+      rank: 2,
+      sessions_present: 2,
+      ticker: "SPY",
+    });
+    expect(
+      (await okRows("large_options_premium_ranking", [1e30, "NVDA"])).length
+    ).toBe(1);
+
+    // 2. congress_trades: excludes stale row_number > row_count, escapes LIKE wildcards, computes filing_delay_days.
+    const congressNvda = await okRows("congress_trades", ["nvda", null, null]);
+    expect(congressNvda).toHaveLength(1);
+    expect(congressNvda[0]).toMatchObject({
+      as_of: "2026-10-30",
+      chamber: "house",
+      filing_delay_days: 10,
+      member: "Fictional Rep. A. Rivera",
+      ticker: "NVDA",
+      transaction_type: "purchase",
+    });
+    expect(String(congressNvda[0]?.["source"])).toContain("STOCK Act");
+    expect(String(congressNvda[0]?.["data_delay"])).toContain("45 days");
+    // Stale re-parse row (row_number = 2 > row_count = 1) is excluded.
+    expect(await okRows("congress_trades", ["STALE", null, 30])).toEqual([]);
+    // Wildcard "%" is escaped, so it does not match every member.
+    expect(await okRows("congress_trades", [null, "%", 30])).toEqual([]);
+
+    // 3. insider_cluster_buys: joint filers count as 1 person, 4/A amendments & stale rows excluded.
+    const clusters = await okRows("insider_cluster_buys", [7, null]);
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toMatchObject({
+      distinct_insiders: 3,
+      filing_count: 3,
+      issuer_symbol: "EXMP",
+      total_shares: 2300,
+      total_value_usd: 116_800,
+      value_incomplete: false,
+    });
+    expect(String(clusters[0]?.["source"])).toContain("SEC EDGAR Form 4");
+    expect(String(clusters[0]?.["data_delay"])).toContain("2 business days");
+
+    // 4. institutional_13f_changes: matches via CUSIP map (symbol null on holding), excludes unchanged MSFT.
+    const changes13f = await okRows("institutional_13f_changes", [null, null]);
+    expect(changes13f).toHaveLength(1);
+    expect(changes13f[0]).toMatchObject({
+      as_of: "2026-10-29",
+      change: "added",
+      delay_days: 29,
+      filer_name: "Example Capital LP",
+      period: "2026-09-30",
+      previous_period: "2026-06-30",
+      ticker: "NVDA",
+    });
+    expect(String(changes13f[0]?.["source"])).toContain("13F-HR");
+    expect(String(changes13f[0]?.["data_delay"])).toContain("45 days");
+    expect(
+      await okRows("institutional_13f_changes", ["nvda", "added"])
+    ).toHaveLength(1);
+    expect(await okRows("institutional_13f_changes", ["nvda", "sold"])).toEqual(
+      []
+    );
+
+    // 5. short_volume: FINRA Reg SHO ratio + safe null on total_volume = 0.
+    const shorts = await okRows("short_volume", ["nvda", 30]);
+    expect(shorts).toHaveLength(2);
+    expect(shorts[0]).toMatchObject({
+      as_of: "2026-10-30",
+      short_ratio_percent: 48,
+      symbol: "NVDA",
+    });
+    expect(String(shorts[0]?.["source"])).toContain("FINRA Reg SHO");
+    expect(String(shorts[0]?.["data_delay"])).toContain("End-of-day");
+    const zeroVol = await okRows("short_volume", ["ZERO", 30]);
+    expect(zeroVol).toHaveLength(1);
+    expect(zeroVol[0]?.["short_ratio_percent"]).toBeNull();
   });
 });

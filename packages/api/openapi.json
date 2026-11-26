@@ -199188,7 +199188,12 @@
                                     "run_spec",
                                     "candidate",
                                     "request",
-                                    "monitor"
+                                    "monitor",
+                                    "ticker",
+                                    "filing_trade",
+                                    "issuer_cluster",
+                                    "filer_position",
+                                    "ticker_session"
                                   ],
                                   "type": "string"
                                 }
@@ -199199,7 +199204,7 @@
                               ],
                               "type": "object"
                             },
-                            "maxItems": 5,
+                            "maxItems": 10,
                             "type": "array"
                           },
                           "id": {
@@ -199727,7 +199732,12 @@
                               "run_spec",
                               "candidate",
                               "request",
-                              "monitor"
+                              "monitor",
+                              "ticker",
+                              "filing_trade",
+                              "issuer_cluster",
+                              "filer_position",
+                              "ticker_session"
                             ],
                             "type": "string"
                           },
@@ -200964,7 +200974,12 @@
                               "run_spec",
                               "candidate",
                               "request",
-                              "monitor"
+                              "monitor",
+                              "ticker",
+                              "filing_trade",
+                              "issuer_cluster",
+                              "filer_position",
+                              "ticker_session"
                             ],
                             "type": "string"
                           },
@@ -200996,7 +201011,7 @@
                         ],
                         "type": "object"
                       },
-                      "maxItems": 5,
+                      "maxItems": 10,
                       "type": "array"
                     },
                     "label": {
@@ -201034,7 +201049,7 @@
                     "query": {
                       "anyOf": [
                         {
-                          "maxLength": 41000,
+                          "maxLength": 82000,
                           "type": "string"
                         },
                         {
