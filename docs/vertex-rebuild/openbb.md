@@ -535,19 +535,23 @@ writes, and no tool places or changes orders.
   The Core 7 IV panel names the Yahoo option chain and its symbols when the newest run used the
   second source (`ivSourceNotice`, marker `OPENBB_YAHOO_FALLBACK_NOTE`), and shows each underlying's
   `historyState` from the sampled rows (`affected` -> "Yahoo IV in sample", `clean` -> "Cboe only",
-  `source_unverified` -> "Source not verified").
-- `openbb.status.lastFallbackAt`: audit timestamp (`finishedAt ?? startedAt`) of the newest
-  qualifying `cboe-option-iv` run (`status = 'ok'`, `rows_written > 0`, and `note` contains
-  `OPENBB_YAHOO_FALLBACK_NOTE`: `Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate
-  4%, trailing dividend yield)`). Order by `finishedAt DESC, startedAt DESC, id DESC`. This audit
-  timestamp does not identify current sample membership or clear the caveat. A carry-forward skip,
-  zero-row run, incomplete write, failed run, or blocked run does not qualify. `null` means no
-  qualifying run record, not clean history.
-- Rollout order for the daily IV `source` column: apply migration 0095 first, then deploy the API
-  that accepts payloads with and without `source`, then update the producer that sends `source`.
-  An old strict API refuses the new producer payload. To roll back, roll the producer back before
-  the API; run `packages/db/rollback/0096_common_mikhail_rasputin.down.sql` last. It refuses to run
-  while any row has a known source.
+  `source_unverified` -> "Source not verified"). A row whose 1-year percentile uses a
+  volatility-index proxy shows "Proxy index basis", because that percentile uses no option-chain
+  rows.
+- `openbb.status.lastFallbackAt`: audit timestamp (`finishedAt`) of the newest qualifying
+  `cboe-option-iv` run: status `ok` or `partial`, `rows_received > 0`,
+  `rows_written = rows_received`, and one `warnings` entry that ends with `used the Yahoo option
+  chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)`. Order by
+  `finishedAt DESC, startedAt DESC, id DESC`. This audit timestamp does not identify current
+  sample membership or clear the caveat. A carry-forward skip, zero-row run, incomplete write,
+  failed run, or blocked run does not qualify. `null` means no qualifying run record, not clean
+  history.
+- Rollout order for the daily IV `source` column: apply migration `0096_common_mikhail_rasputin`
+  first, then deploy the API that accepts payloads with and without `source`, then update the
+  producer that sends `source`. An old strict API refuses the new producer payload. To roll back,
+  roll the producer back before the API; run
+  `packages/db/rollback/0096_common_mikhail_rasputin.down.sql` last. It refuses to run while any
+  row has a known source.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
 - `/smart-money`: per-source freshness strip (Options premium, Form 4, Congress House, Congress Senate, SEC 13F — no blended score), shared ticker filter, and four independent source panels: large options trades (QuantData), insider cluster buys (SEC Form 4, 7 days), Congress trades (House and Senate PTRs, 30 days, Purchases/All toggle), and 13F quarter-over-quarter changes (SEC Form 13F-HR).
