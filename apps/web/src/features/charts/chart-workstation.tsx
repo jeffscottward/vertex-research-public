@@ -29,6 +29,7 @@ import type {
   SeriesPane,
 } from "./types.ts";
 import { VERTEX_STUDIES } from "./vertex-studies.ts";
+import { studiesForVolume, VOLUME_NOTES, volumeCoverage } from "./volume.ts";
 import {
   CHART_TYPES,
   type ChartType,
@@ -132,7 +133,7 @@ export const ChartWorkstation = ({
   symbol,
   label,
   pricePrecision,
-  studies,
+  studies: requestedStudies,
   markers,
   expectedMove,
   seriesPane,
@@ -160,6 +161,12 @@ export const ChartWorkstation = ({
   const values = useMemo(
     () => displayValues(candles, chartType),
     [candles, chartType]
+  );
+  // No volume (forex, non-USD stocks): keep the volume pane and volume studies off.
+  const coverage = volumeCoverage(candles);
+  const studies = useMemo(
+    () => studiesForVolume(requestedStudies, coverage),
+    [coverage, requestedStudies]
   );
   const series = useRef({ key, values });
   series.current = { key, values };
@@ -462,6 +469,14 @@ export const ChartWorkstation = ({
                 </div>
               ))}
             </dl>
+            {coverage === "all" ? null : (
+              <p
+                className="mt-2 text-muted-foreground text-xs"
+                data-no-volume={coverage}
+              >
+                {VOLUME_NOTES[coverage]}
+              </p>
+            )}
           </section>
           <section aria-labelledby="vx-object-tree" data-object-tree="">
             <h3 className="font-semibold" id="vx-object-tree">
@@ -475,7 +490,12 @@ export const ChartWorkstation = ({
                 studies.volume ? "Volume" : null,
                 ...studies.sma.map((period) => `SMA ${period}`),
                 ...studies.ema.map((period) => `EMA ${period}`),
-                ...(studies.extra ?? []).map((id) => VERTEX_STUDIES[id].label),
+                ...(studies.extra ?? []).map((id) =>
+                  // AlphaTrend needs volume on every bar for MFI; else it uses RSI.
+                  coverage === "all"
+                    ? VERTEX_STUDIES[id].label
+                    : VERTEX_STUDIES[id].label.replace("(MFI)", "(RSI)")
+                ),
                 ...(studies.panes ?? []),
                 markers.length > 0 ? `Trade markers (${markers.length})` : null,
                 expectedMove ? `Expected move (${expectedMove.expiry})` : null,
