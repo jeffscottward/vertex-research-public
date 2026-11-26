@@ -6,7 +6,7 @@
 * **Date:** 2026-11-19
 * **Status:** Reviewed (EGM consolidated review, auto-resolved 2026-11-19)
 * **Card:** vertex-smart-money-gaps
-* **PR plans:** [plan-pr1.md](plan-pr1.md) (Congress trades), [plan-pr2.md](plan-pr2.md) (market-wide options premium), [plan-pr3.md](plan-pr3.md) (Form 4 market-wide), [plan-pr5.md](plan-pr5.md) (13F changes and FINRA short volume), [plan-pr6.md](plan-pr6.md) (`/smart-money` page, stock-tab sections, overdue state and alerts). Later PRs get their own plan file and EGM review before build.
+* **PR plans:** [plan-pr1.md](plan-pr1.md) (Congress trades), [plan-pr2.md](plan-pr2.md) (market-wide options premium), [plan-pr3.md](plan-pr3.md) (Form 4 market-wide), [plan-pr5.md](plan-pr5.md) (13F changes and FINRA short volume), [plan-pr6.md](plan-pr6.md) (`/smart-money` page, stock-tab sections, overdue state and alerts), [plan-pr7.md](plan-pr7.md) (smart-money backtests).
 
 ---
 
@@ -166,12 +166,12 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 * `/smart-money`: one list per source, no blended score. The stock page's existing filings tab gains Congress, insider cluster and options-premium sections and keeps its SEC filings and fails-to-deliver panels.
 * Each source gets a maximum age in the job registry (`OPENBB_JOBS` metadata and the flow sources table). `openbb.status` computes `overdue`; a QuantVPS timer sends one alert per incident through the existing ntfy alert path (`price-alerts-ntfy.ts`) and clears it on recovery.
 
-### PR 7: Backtests (research only)
+### PR 7: Backtests (research only; detail in [plan-pr7.md](plan-pr7.md))
 
-* Insider clusters: feed the existing Strategy Library entry `insider-purchase-confirmation`; the cluster rule is a counted variant. History: the PR 3 job run with `--since` (acceptance time is public-at).
-* Congress buys: entry at the next open after the filing date; first filing per trade.
-* Large bullish premium (QuantData's bullish class includes sold puts, so the signal is named "large bullish premium", not "call flow"): QuantData has about 1 year of history, below the agreed 2-year holdout, so the result is recorded as "insufficient history" with the data start date, and the frozen rule collects out-of-sample events.
-* Deflated Sharpe from the existing implementation; trial count from the existing run store; pass rule in `decisions.md`.
+* Insider clusters: feed the existing Strategy Library entry `insider-purchase-confirmation`; the cluster rule (`>= 3` distinct owner groups within 10 calendar days) is the primary counted variant. Multi-year history (`2016q1`–`2026q1`) streams from SEC quarterly Form 3/4/5 datasets (`FILING_DATE` is public-at) into a research-only file on the rig, not a Postgres table (PR 3's note names the same datasets for multi-year research).
+* Congress buys: entry at the next open after the first `filed_on` date (`2022`–`2026`, House `house.v1` + Senate `senate.v1`, first filing per trade).
+* Large bullish premium (QuantData's bullish class includes sold puts, so the signal is named "large bullish premium", not "call flow"): QuantData has ~13 months of complete history, below the agreed 2-year holdout, so the result is recorded as `needs-more-data` with the data start date, and the frozen rule (`N = 1`, zero parameter sweep) collects out-of-sample events until `2027-10-16`.
+* Deflated Sharpe from `services/research/backtesting/optimizer.py` (`deflated_sharpe_ratio`) and `strategies/trend_trio/study.py` (`moments`); trial count `N` logged in `trials.json`; deterministic verdict rules in [plan-pr7.md](plan-pr7.md).
 
 ## Alternatives Considered
 
@@ -247,4 +247,4 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 
 ## Detailed Implementation Plan
 
-See [plan-pr1.md](plan-pr1.md) for PR 1 and [plan-pr2.md](plan-pr2.md) for PR 2. Each later PR adds `plan-prN.md` with its own file list and verification plan before build.
+See [plan-pr1.md](plan-pr1.md), [plan-pr2.md](plan-pr2.md), [plan-pr3.md](plan-pr3.md), [plan-pr5.md](plan-pr5.md), [plan-pr6.md](plan-pr6.md), and [plan-pr7.md](plan-pr7.md) for the per-PR file lists, contracts, and verification plans.

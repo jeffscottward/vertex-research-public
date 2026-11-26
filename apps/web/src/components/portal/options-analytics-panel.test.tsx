@@ -15,6 +15,7 @@ import {
   vi,
 } from "vitest";
 import { labFlowControl } from "../../lab/fixtures/flow.ts";
+import { labGreekHeatmap } from "../../lab/fixtures/market.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
@@ -47,10 +48,21 @@ afterEach(() => {
 });
 
 const render = async (
-  gateway: OptionsAnalyticsGateway | undefined,
+  gateway:
+    | Partial<OptionsAnalyticsGateway>
+    | OptionsAnalyticsGateway
+    | undefined,
   symbol = "NVDA",
   wallDrift = false
 ): Promise<HTMLElement> => {
+  const resolved: OptionsAnalyticsGateway | undefined =
+    gateway === undefined
+      ? undefined
+      : {
+          greekHeatmap: vi.fn(() => new Promise<never>(() => undefined)),
+          ...gateway,
+          snapshot: gateway.snapshot ?? vi.fn(),
+        };
   host = document.createElement("div");
   document.body.append(host);
   const mounted = createRoot(host);
@@ -58,7 +70,7 @@ const render = async (
   await act(async () => {
     mounted.render(
       <OptionsAnalyticsPanel
-        gateway={gateway}
+        gateway={resolved}
         symbol={symbol}
         wallDrift={wallDrift}
       />
@@ -570,6 +582,74 @@ describe("OptionsAnalyticsPanel", () => {
     });
     expect(snapshot).toHaveBeenCalledTimes(4);
     return expect(view.querySelector("[data-spot-row]")).toBeNull();
+  });
+
+  it("reads the heatmap once per snapshot load and keeps the selected heatmap tab", async () => {
+    const greekHeatmap = vi.fn(async () => labGreekHeatmap("NVDA"));
+    const snapshot = vi.fn(async () => fixture());
+    const view = await render({ greekHeatmap, snapshot });
+    const tab = (id: string) =>
+      view.querySelector<HTMLButtonElement>(`[data-heatmap-tab="${id}"]`);
+    expect(greekHeatmap).toHaveBeenCalledTimes(1);
+    expect(tab("gex")?.getAttribute("aria-selected")).toBe("true");
+    await act(async () => {
+      tab("vex")?.click();
+    });
+    expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
+
+    const refresh = [...view.querySelectorAll("button")].find(
+      (button) => button.textContent === "Refresh"
+    );
+    await act(async () => {
+      refresh?.click();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    expect(greekHeatmap).toHaveBeenCalledTimes(2);
+    return expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("asks for the heatmap of a new symbol only after the snapshot of that symbol answered", async () => {
+    let release: (value: OptionsAnalyticsOutput) => void = () => undefined;
+    const greekHeatmap = vi.fn(async (input: { symbol: string }) =>
+      labGreekHeatmap(input.symbol)
+    );
+    const snapshot = vi
+      .fn<(input: OptionsAnalyticsInput) => Promise<OptionsAnalyticsOutput>>()
+      .mockResolvedValueOnce(fixture())
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          })
+      );
+    const view = await render({ greekHeatmap, snapshot });
+    expect(greekHeatmap.mock.calls).toEqual([[{ symbol: "NVDA" }]]);
+
+    // The symbol changes while the NVDA snapshot is on screen and the AAPL snapshot is pending.
+    await act(async () => {
+      root?.render(
+        <OptionsAnalyticsPanel
+          gateway={{ greekHeatmap, snapshot }}
+          symbol="AAPL"
+        />
+      );
+    });
+    expect(snapshot).toHaveBeenLastCalledWith({
+      flowHours: 24,
+      symbol: "AAPL",
+    });
+    expect(greekHeatmap.mock.calls).toEqual([[{ symbol: "NVDA" }]]);
+
+    await act(async () => {
+      release(fixture({ symbol: "AAPL" }));
+    });
+    expect(greekHeatmap.mock.calls).toEqual([
+      [{ symbol: "NVDA" }],
+      [{ symbol: "AAPL" }],
+    ]);
+    return expect(
+      view.querySelector("[data-greek-heatmap]")?.getAttribute("data-symbol")
+    ).toBe("AAPL");
   });
 
   it("shows section messages, rate limits and errors", async () => {

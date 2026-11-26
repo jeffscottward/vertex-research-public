@@ -31,6 +31,7 @@ import {
   OPENBB_TABLES,
   OpenbbBatchDocumentSchema,
   OpenbbEventsInputSchema,
+  OpenbbIngestBatchSchema,
   OpenbbIngestInputSchema,
   OpenbbRecordRunInputSchema,
   openbbBlockedError,
@@ -114,6 +115,7 @@ const fakes = (): Fakes => ({
     insiderPurchases: vi.fn(async () => ({ owners: [], purchases: [] })),
     insiderTrades: vi.fn(async () => []),
     lastRunsFor: vi.fn(async () => []),
+    lastYahooFallbackAt: vi.fn(async () => null),
     latestRuns: vi.fn(async () => []),
     macroPoints: vi.fn(async () => []),
     macroSeries: vi.fn(async () => []),
@@ -230,7 +232,12 @@ const vxRows = [
   { asOf: "2026-10-30", contractMonth: "2026-11", price: 17 },
 ];
 
-const ivRow = (underlying: string, asOf: string, atmIv30d: number | null) => ({
+const ivRow = (
+  underlying: string,
+  asOf: string,
+  atmIv30d: number | null,
+  source: "cboe" | "yahoo_fallback" | "unknown" = "unknown"
+) => ({
   asOf,
   atmIv30d,
   callIv25d30d: null,
@@ -244,6 +251,7 @@ const ivRow = (underlying: string, asOf: string, atmIv30d: number | null) => ({
   putOi: 1,
   putVolume: 1,
   putWall: null,
+  source,
   underlying,
   underlyingPrice: 100,
 });
@@ -285,6 +293,27 @@ const rowCases = (name: string) =>
     JSON.parse(readFileSync(new URL(name, PYTHON_FIXTURES), "utf8"))
   );
 
+const optionIvDailyFixtures = {
+  v1: JSON.parse(
+    readFileSync(
+      new URL(
+        "./contracts/fixtures/openbb-option-iv-daily-v1.json",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  ) as unknown,
+  v2: JSON.parse(
+    readFileSync(
+      new URL(
+        "./contracts/fixtures/openbb-option-iv-daily-v2.json",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  ) as unknown,
+};
+
 describe("openbb contract fixtures", () => {
   it("accepts every fetcher fixture document (one per job) and covers every table", () => {
     const seen = new Set<string>();
@@ -303,13 +332,41 @@ describe("openbb contract fixtures", () => {
         if (dir === PYTHON_FIXTURES) jobs.add(document.job);
         for (const { table, rows } of document.tables) {
           if (rows.length > 0) seen.add(table);
-          for (const row of rows.slice(0, 2000))
+          for (const row of rows.slice(0, 2000)) {
             expect(OPENBB_ROW_SCHEMAS[table].safeParse(row).success).toBe(true);
+          }
         }
       }
     }
     expect([...jobs].sort()).toEqual([...OPENBB_JOBS].sort());
     expect([...seen].sort()).toEqual([...OPENBB_TABLES].sort());
+  });
+
+  it("accepts legacy daily IV rows and preserves only known source tags", () => {
+    const legacy = OpenbbBatchDocumentSchema.parse(optionIvDailyFixtures.v1);
+    const legacyDaily = legacy.tables.find(
+      (table) => table.table === "option_iv_daily"
+    );
+    expect(legacyDaily?.rows.map((row) => Reflect.get(row, "source"))).toEqual([
+      undefined,
+      undefined,
+    ]);
+
+    const tagged = OpenbbBatchDocumentSchema.parse(optionIvDailyFixtures.v2);
+    const taggedDaily = tagged.tables.find(
+      (table) => table.table === "option_iv_daily"
+    );
+    expect(taggedDaily?.rows.map((row) => Reflect.get(row, "source"))).toEqual([
+      "cboe",
+      "yahoo_fallback",
+    ]);
+    const taggedRow = taggedDaily?.rows[0];
+    expect(
+      OPENBB_ROW_SCHEMAS.option_iv_daily.safeParse({
+        ...(taggedRow ?? {}),
+        source: "unknown",
+      }).success
+    ).toBe(false);
   });
 
   it("refuses every row the Python validator refuses", () => {
@@ -318,6 +375,21 @@ describe("openbb contract fixtures", () => {
       (entry) => OPENBB_ROW_SCHEMAS[entry.table].safeParse(entry.row).success
     );
     expect(accepted.map((entry) => `${entry.table}: ${entry.why}`)).toEqual([]);
+  });
+
+  it("refuses every invalid daily IV row through the ingest batch schema", () => {
+    const entries = rowCases(INVALID_ROWS).filter(
+      (entry) => entry.table === "option_iv_daily"
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    const accepted = entries.filter(
+      (entry) =>
+        OpenbbIngestBatchSchema.safeParse({
+          rows: [entry.row],
+          table: entry.table,
+        }).success
+    );
+    expect(accepted.map((entry) => entry.why)).toEqual([]);
   });
 
   it("accepts every edge row the Python validator accepts", () => {
@@ -651,6 +723,35 @@ describe("openbb writes", () => {
     expect(repos.openbb.upsertRows).toHaveBeenCalledWith("vx_curve", vxRows);
   });
 
+  it("leaves an untagged daily IV source to the database default", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    const row = {
+      asOf: "2026-11-20",
+      atmIv30d: 0.2,
+      callIv25d30d: 0.18,
+      callOi: 10,
+      callVolume: 20,
+      callWall: 110,
+      contracts: 20,
+      gammaFlip: 105,
+      netGex: 12.5,
+      putIv25d30d: 0.22,
+      putOi: 15,
+      putVolume: 25,
+      putWall: 90,
+      underlying: "SPY",
+      underlyingPrice: 100,
+    };
+    await client.openbb.ingest({
+      batch: { rows: [row], table: "option_iv_daily" },
+      job: "cboe-option-iv",
+    });
+    expect(repos.openbb.upsertRows).toHaveBeenCalledWith("option_iv_daily", [
+      row,
+    ]);
+  });
+
   it("stores a 13F ledger row only when its whole book is stored, and serves the skip list", async () => {
     const repos = fakes();
     const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
@@ -934,10 +1035,12 @@ describe("openbb reads", () => {
     repos.openbb.tableStats.mockResolvedValue([
       { newestDate: "2026-11-03", rows: 2, table: "openbb_cot_positions" },
     ]);
+    repos.openbb.lastYahooFallbackAt.mockResolvedValue(NOW);
     const status = await clientFor({ fakes: repos }).openbb.status({});
     expect(status.runs[0]?.startedAt).toEqual(NOW);
     expect(status.runs[0]?.blocked).toBeNull();
     expect(status.tables).toHaveLength(1);
+    expect(status.lastFallbackAt).toEqual(NOW);
   });
 
   it("reports a blocked streak with its start and the next retry time", async () => {
@@ -1068,11 +1171,17 @@ describe("openbb reads", () => {
     repos.openbb.vxCurve.mockResolvedValue(vxRows);
     repos.openbb.optionIvDaily.mockResolvedValue([
       ...proxyDays.map((day, index) =>
-        ivRow("SPY", day, index === 251 ? 0.5 : 0.1 + index * 0.001)
+        ivRow(
+          "SPY",
+          day,
+          index === 251 ? 0.5 : 0.1 + index * 0.001,
+          index === 0 ? "yahoo_fallback" : "cboe"
+        )
       ),
       ...proxyDays
         .slice(-9)
         .map((day, index) => ivRow("QQQ", day, 0.24 + index * 0.01)),
+      ...proxyDays.slice(-5).map((day) => ivRow("DIA", day, 0.2, "cboe")),
     ]);
     repos.openbb.optionIvTermLatest.mockResolvedValue([
       {
@@ -1126,11 +1235,14 @@ describe("openbb reads", () => {
         row.underlying,
         row.ivPercentile,
         row.sessions,
+        row.historyState,
       ])
     ).toEqual([
-      ["SPY", 100, 252],
-      ["QQQ", null, 9],
+      ["SPY", 100, 252, "affected"],
+      ["QQQ", null, 9, "source_unverified"],
+      ["DIA", null, 5, "clean"],
     ]);
+    expect(context.ivDaily[0]).not.toHaveProperty("source");
     const byUnderlying = new Map(
       context.ivOneYear.map((row) => [row.underlying, row])
     );

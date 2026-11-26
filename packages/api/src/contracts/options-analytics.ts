@@ -349,7 +349,107 @@ const snapshot = oc
   .input(OptionsAnalyticsInputSchema)
   .output(OptionsAnalyticsOutputSchema);
 
-export const optionsAnalyticsContract = { snapshot };
+export const GREEK_HEATMAP_METRICS = [
+  "gex",
+  "vex",
+  "charm",
+  "dex",
+  "volumeGex",
+] as const;
+export type GreekHeatmapMetric = (typeof GREEK_HEATMAP_METRICS)[number];
+
+export const GREEK_HEATMAP_STATUSES = ["ok", "empty", "failed"] as const;
+export type GreekHeatmapStatus = (typeof GREEK_HEATMAP_STATUSES)[number];
+const GreekHeatmapStatusSchema = z.enum(GREEK_HEATMAP_STATUSES);
+
+export const GreekHeatmapInputSchema = z
+  .object({
+    symbol: OptionsAnalyticsInputSchema.shape.symbol,
+  })
+  .strict();
+
+export const GreekHeatmapExpirySchema = z
+  .object({
+    expiry: isoDate,
+    dte: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const GreekHeatmapMarksSchema = z
+  .object({
+    // Strike with the largest absolute net exposure across the shown expiries.
+    kingStrike: finite.nullable(),
+    // Strike with the largest positive net exposure across the shown expiries.
+    callWall: finite.nullable(),
+    // Strike with the most negative net exposure across the shown expiries.
+    putWall: finite.nullable(),
+    // Per-expiry spot-sweep zero crossing nearest spot (GEX and Volume-GEX; null otherwise).
+    flip: finite.nullable(),
+  })
+  .strict();
+
+export const GreekHeatmapRowSchema = z
+  .object({
+    strike: finite,
+    // Aligned 1:1 with `expiries`; null when no OI/volume or no IV exists at this cell.
+    values: z.array(finite.nullable()),
+    // Net sum across shown expiries at this strike; null when every cell is null.
+    total: finite.nullable(),
+  })
+  .strict();
+
+export const GreekHeatmapMetricDataSchema = z
+  .object({
+    status: GreekHeatmapStatusSchema,
+    message: z.string().max(300).nullable(),
+    // Ordered descending by strike (highest at top, lowest at bottom).
+    rows: z.array(GreekHeatmapRowSchema),
+    // Net sum per expiry column across in-range strikes; aligned 1:1 with `expiries`.
+    expiryTotals: z.array(finite.nullable()),
+    // Net sum across all in-range strikes and shown expiries.
+    grandTotal: finite.nullable(),
+    marks: GreekHeatmapMarksSchema,
+  })
+  .strict();
+
+export const GreekHeatmapOutputSchema = z
+  .object({
+    symbol: z.string(),
+    source: z.literal("quantdata"),
+    receivedAt: z.string(),
+    spot: finite.nullable(),
+    rateLimited: z.boolean(),
+    retryAfterSeconds: z.number().nonnegative().nullable(),
+    status: GreekHeatmapStatusSchema,
+    message: z.string().max(300).nullable(),
+    expiries: z.array(GreekHeatmapExpirySchema),
+    metrics: z
+      .object({
+        gex: GreekHeatmapMetricDataSchema,
+        vex: GreekHeatmapMetricDataSchema,
+        charm: GreekHeatmapMetricDataSchema,
+        dex: GreekHeatmapMetricDataSchema,
+        volumeGex: GreekHeatmapMetricDataSchema,
+      })
+      .strict(),
+    notes: z.array(z.string().max(300)),
+  })
+  .strict();
+
+const greekHeatmap = oc
+  .errors(OPTIONS_ANALYTICS_ERRORS)
+  .route({
+    method: "GET",
+    path: "/options-analytics/greek-heatmap",
+    operationId: "optionsAnalytics.greekHeatmap",
+    summary:
+      "Read-only strike-by-expiry Greek exposure heatmap (GEX, VEX, charm, DEX and volume-GEX) with king, wall and gamma flip marks for one symbol",
+    tags: ["Market data"],
+  })
+  .input(GreekHeatmapInputSchema)
+  .output(GreekHeatmapOutputSchema);
+
+export const optionsAnalyticsContract = { greekHeatmap, snapshot };
 
 export type OptionsAnalyticsInput = z.input<typeof OptionsAnalyticsInputSchema>;
 export type OptionsAnalyticsParsedInput = z.output<
@@ -366,6 +466,15 @@ export type GexContext = z.infer<typeof GexContextSchema>;
 export type GexContextFactor = z.infer<typeof GexContextFactorSchema>;
 export type GexProfilePoint = z.infer<typeof GexProfilePointSchema>;
 export type OptionsSectionStatus = (typeof OPTIONS_SECTION_STATUSES)[number];
+export type GreekHeatmapInput = z.input<typeof GreekHeatmapInputSchema>;
+export type GreekHeatmapParsedInput = z.output<typeof GreekHeatmapInputSchema>;
+export type GreekHeatmapOutput = z.infer<typeof GreekHeatmapOutputSchema>;
+export type GreekHeatmapExpiry = z.infer<typeof GreekHeatmapExpirySchema>;
+export type GreekHeatmapMarks = z.infer<typeof GreekHeatmapMarksSchema>;
+export type GreekHeatmapRow = z.infer<typeof GreekHeatmapRowSchema>;
+export type GreekHeatmapMetricData = z.infer<
+  typeof GreekHeatmapMetricDataSchema
+>;
 export type StrikeProfiles = z.infer<typeof StrikeProfilesSchema>;
 export type StrikeProfileRow = z.infer<typeof StrikeProfileRowSchema>;
 export type StrikeProfileFlowSource =

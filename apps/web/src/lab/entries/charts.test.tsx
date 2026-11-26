@@ -117,7 +117,7 @@ describe("charts lab entry", () => {
     );
   });
 
-  it("serves options analytics with the default flow window", async () => {
+  it("serves options analytics and Greek heatmap with the default flow window", async () => {
     const snapshot = await labOptionsAnalyticsGateway.snapshot({
       symbol: "NVDA",
     });
@@ -127,6 +127,11 @@ describe("charts lab entry", () => {
       symbol: "NVDA",
     });
     expect(six.flow.hours).toBe(6);
+    const heatmap = await labOptionsAnalyticsGateway.greekHeatmap({
+      symbol: "NVDA",
+    });
+    expect(heatmap.status).toBe("ok");
+    expect(heatmap.symbol).toBe("NVDA");
     const control = await labOptionsAnalyticsGateway.flowControl?.({
       group: "nasdaq100",
     });

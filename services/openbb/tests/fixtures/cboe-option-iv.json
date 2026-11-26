@@ -20,6 +20,7 @@
           "putOi": 184816,
           "putVolume": 61143,
           "putWall": 330.0,
+          "source": "yahoo_fallback",
           "underlying": "GLD",
           "underlyingPrice": 322.87
         },
@@ -37,6 +38,7 @@
           "putOi": 730799,
           "putVolume": 1160060,
           "putWall": 700.0,
+          "source": "yahoo_fallback",
           "underlying": "SPY",
           "underlyingPrice": 689.81
         }
