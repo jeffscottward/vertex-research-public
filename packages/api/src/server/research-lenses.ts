@@ -540,8 +540,9 @@ const reportLensFailure = (
   attributes: Readonly<Record<string, string>> = {}
 ): void => {
   if (context.semanticEvents === undefined) return;
-  if (error instanceof ResearchLensError && error.code !== "UNAVAILABLE")
-    return;
+  const code = error instanceof ResearchLensError ? error.code : null;
+  // NOT_FOUND and NOT_CONFIGURED are typed answers, not failures.
+  if (code === "NOT_FOUND" || code === "NOT_CONFIGURED") return;
   const event: SemanticEvent = {
     action: procedure,
     attributes,
@@ -552,7 +553,11 @@ const reportLensFailure = (
     },
     entityType: "research-lens",
     errorCategory:
-      error instanceof ResearchLensError ? "unavailable" : "unexpected",
+      code === "UNAVAILABLE"
+        ? "unavailable"
+        : code === "UPSTREAM_ERROR"
+          ? "upstream"
+          : "unexpected",
     eventId: crypto.randomUUID(),
     name: `vertex.researchLenses.${procedure}`,
     occurredAt: new Date().toISOString(),

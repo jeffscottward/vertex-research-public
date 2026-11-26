@@ -893,6 +893,20 @@ describe("researchLenses procedures", () => {
     );
     // A typed answer such as NOT_FOUND is not a failure to report.
     expect(events).toHaveLength(2);
+    // A bad upstream answer (HTTP 500) is a 502 and is reported.
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 500 }),
+      now: () => at,
+    });
+    await expectCode(
+      client.researchLenses.deepValue({}),
+      "UPSTREAM_ERROR",
+      502
+    );
+    expect(events[2]).toMatchObject({
+      correlation: { procedure: "researchLenses.deepValue" },
+      errorCategory: "upstream",
+    });
     // A broken sink never changes the answer the caller gets.
     const broken: SemanticEventPort = {
       emit: async () => {
