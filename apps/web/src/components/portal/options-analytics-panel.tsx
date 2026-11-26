@@ -35,6 +35,7 @@ import {
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
 import { StrikeProfilesPanel } from "./strike-profiles-panel.tsx";
+import { StockWallDrift } from "./wall-drift-badge.tsx";
 
 // Per-symbol options research panel on /charts and the stock page: IV term structure, skew
 // and surface, estimated GEX with OI walls and its context strip, strike profiles (OI, flow
@@ -579,11 +580,14 @@ const Flow = ({ section }: { readonly section: FlowSection }) => {
 export interface OptionsAnalyticsPanelProps {
   readonly gateway?: OptionsAnalyticsGateway | undefined;
   readonly symbol: string;
+  /** Show the wall x drift read (operators only; net drift is operator-only data). */
+  readonly wallDrift?: boolean;
 }
 
 export const OptionsAnalyticsPanel = ({
   symbol,
   gateway: supplied,
+  wallDrift = false,
 }: OptionsAnalyticsPanelProps) => {
   const headingId = useId();
   const selectId = useId();
@@ -660,6 +664,26 @@ export const OptionsAnalyticsPanel = ({
           </button>
         </div>
       </div>
+      <StockWallDrift
+        analytics={
+          state.type === "loading"
+            ? { detail: "options analytics is loading", kind: "missing" }
+            : state.type === "error"
+              ? {
+                  detail: `options analytics failed: ${state.code}`,
+                  kind: "missing",
+                }
+              : state.data.rateLimited
+                ? {
+                    detail: `QuantData rate limit; retry in about ${state.data.retryAfterSeconds ?? 60} s`,
+                    kind: "missing",
+                  }
+                : { analytics: state.data, kind: "ready" }
+        }
+        enabled={wallDrift}
+        loadControl={gateway.flowControl}
+        symbol={symbol}
+      />
       {state.type === "loading" ? (
         <p aria-busy="true" className="text-muted-foreground text-sm">
           Loading options analytics…
