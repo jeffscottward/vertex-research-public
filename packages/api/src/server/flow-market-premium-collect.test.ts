@@ -20,6 +20,7 @@ const at = (iso: string) => new Date(iso);
 const FRI_1000 = at("2026-11-20T15:00:00.000Z");
 const FRI_1635 = at("2026-11-20T21:35:00.000Z");
 const SAT_1200 = at("2026-11-21T17:00:00.000Z");
+const THANKSGIVING_1200 = at("2026-11-26T17:00:00.000Z");
 const HOUR = 3_600_000;
 
 const totals = (premium = 3) => ({
@@ -365,6 +366,53 @@ describe("collectMarketPremium", () => {
       status: "ok",
     });
     expect(storeMarketPremium.mock.calls[0]?.[0].session.status).toBe(
+      "complete"
+    );
+  });
+
+  it("makes no live capture on a market holiday", async () => {
+    // Thanksgiving, Thursday 2026-11-26 at 12:00 New York: a weekday inside 09:30-16:15.
+    const { deps, request, storeMarketPremium } = depsWith({
+      ledger: fullLedger("2026-11-26"),
+      now: THANKSGIVING_1200,
+      sessionDate: "2026-11-26",
+    });
+    await expect(collectMarketPremium(deps)).resolves.toMatchObject({
+      message: expect.stringMatching(/^not due; /u),
+      record: false,
+      status: "skipped",
+    });
+    expect(request).not.toHaveBeenCalled();
+    expect(storeMarketPremium).not.toHaveBeenCalled();
+  });
+
+  it("fills a gap on a market holiday and settles the holiday on the next day", async () => {
+    const onHoliday = depsWith({
+      ledger: fullLedger("2026-11-26").filter(
+        (row) => row.sessionDate !== "2026-01-05"
+      ),
+      now: THANKSGIVING_1200,
+      sessionDate: "2026-11-26",
+    });
+    await expect(collectMarketPremium(onHoliday.deps)).resolves.toMatchObject({
+      message: expect.stringMatching(/^gap fill 2026-01-05: /u),
+      status: "ok",
+    });
+    expect(onHoliday.request.mock.calls[0]?.[1]).toMatchObject({
+      sessionDate: "2026-01-05",
+    });
+
+    // Friday 2026-11-27 at 00:05 New York: the holiday is a missing weekday before today.
+    const nextDay = depsWith({
+      ledger: fullLedger("2026-11-26"),
+      now: at("2026-11-27T05:05:00.000Z"),
+      sessionDate: "2026-11-26",
+    });
+    await expect(collectMarketPremium(nextDay.deps)).resolves.toMatchObject({
+      message: expect.stringMatching(/^gap fill 2026-11-26: /u),
+      status: "ok",
+    });
+    expect(nextDay.storeMarketPremium.mock.calls[0]?.[0].session.status).toBe(
       "complete"
     );
   });

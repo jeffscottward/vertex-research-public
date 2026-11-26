@@ -798,14 +798,17 @@ are recorded under SPY in `flow_samples`, so `flow.collect` with `symbols` that 
 
 Each run makes at most one request (`packages/api/src/server/flow-market-premium-collect.ts`):
 
-1. **Live capture.** While options trade (09:30-16:15 New York, the options and GEX session), today's
-   session is captured when its ledger row is missing or its last attempt is at least 840 s old
-   (about every 15 minutes with the 60 s timer).
+1. **Live capture.** While options trade (09:30-16:15 New York on an NYSE trading day;
+   `isMarketPremiumSessionOpen`), today's session is captured when its ledger row is missing or its
+   last attempt is at least 840 s old (about every 15 minutes with the 60 s timer).
 2. **Gap fill.** Otherwise the collector requests the oldest weekday of the last 400 days (before
    today) whose ledger row is missing, or is `partial` or `unavailable` and was last tried at least
    6 hours ago. This is the one-year backfill (about 280 weekdays at one request per run, about 5
    hours after the first deploy), the settle fetch of each live session after midnight, and the
    repair of missed sessions. QuantData kept at least 371 days on 2026-11-20.
+
+On a market holiday no live capture runs. The gap fill stores the holiday on a later day as
+`complete` with the few tickers that traded.
 
 Storage: `flow_market_premium` keeps one row per (session date, ticker); a capture replaces the
 session's whole row set in one transaction (rows of older captures are deleted). An answer with
