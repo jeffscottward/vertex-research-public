@@ -1181,6 +1181,7 @@ describe("openbb reads", () => {
       ...proxyDays
         .slice(-9)
         .map((day, index) => ivRow("QQQ", day, 0.24 + index * 0.01)),
+      ...proxyDays.slice(-5).map((day) => ivRow("DIA", day, 0.2, "cboe")),
     ]);
     repos.openbb.optionIvTermLatest.mockResolvedValue([
       {
@@ -1239,6 +1240,7 @@ describe("openbb reads", () => {
     ).toEqual([
       ["SPY", 100, 252, "affected"],
       ["QQQ", null, 9, "source_unverified"],
+      ["DIA", null, 5, "clean"],
     ]);
     expect(context.ivDaily[0]).not.toHaveProperty("source");
     const byUnderlying = new Map(
