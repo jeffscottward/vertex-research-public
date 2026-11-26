@@ -1285,13 +1285,50 @@ required: the endpoint reads existing 730-day `flow_large_trades` (`readLargeTra
   (`All deep`, `>= 2x`, `>= 3x`) filters, keyboard arrow inspection, and a top-15 prints table.
   Research view only; no order, arming, or risk-setting path.
 
+### Live option-print tickers (migration 0095)
+
+Smart money PR 4 ([plan-pr4.md](designs/smart-money/plan-pr4.md)) activates live option-print
+collection for `QQQ` and `NDX` and widens `FLOW_OPTION_TICKERS` by N=2 to 6 tickers (`SPY`, `SPX`,
+`QQQ`, `NDX`, `IWM`, `NVDA`). Option-only tickers (`IWM`, `NVDA`) are separate from `FLOW_SYMBOLS`,
+so they add zero IBKR requests, zero GEX fetches, and zero net-drift fetches.
+
+- **QuantData budget:** `DEFAULT_MAX_PER_MINUTE` rises from 30 to 54 req/60 s with
+  `DEFAULT_QUOTA_RESERVE = 60` and `FLOW_QUANTDATA_CALLER_RESERVE = 6` (48 collector starts/min).
+  Minute-parity staggering splits the 6 option streams into two groups of 3 (even minutes:
+  `SPY, SPX, IWM`; odd minutes: `QQQ, NDX, NVDA`; `FLOW_DUE_SECONDS.options = 50`). Each stream
+  caps at 8 order-flow pages per run (`FLOW_OPTION_RUN_PAGES_MAX`), so a collector run uses at most
+  32 QuantData requests (24 option pages + 3 GEX + 4 net drift + 1 market premium <= 48).
+  Single-stock equity options (`NVDA`) close at 16:00 ET; index and broad-ETF options (`SPY`,
+  `SPX`, `QQQ`, `NDX`, `IWM`) close at 16:15 ET.
+- **Read path:** `flow.optionPrints` (`flow-option-prints.v1`) returns full-window aggregates,
+  newest prints, freshness, unread gap count, source, and per-ticker delay for all 6 tickers. The
+  `/flow` page mounts `<FlowOptionTapePanel />`, and MCP exposes read-only `flow_option_prints`
+  (deferred from the in-app assistant until semantic-layer evals are re-recorded).
+- **Deploy (after 16:00 ET or before 08:30 ET, owner rule 2026-11-16):**
+  1. Pause the flow timer on QuantVPS: `sudo systemctl stop vertex-flow.timer`.
+  2. Apply `packages/db/migrations/0095_flow_option_tickers.sql` alone with
+     `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+     `db:migrate`).
+  3. Run a rolled-back write probe as `vertex_research` inserting an `IWM` row into
+     `flow_option_prints` and `flow_samples` (`source = 'options'`).
+  4. Deploy `vertex-web` at the exact merged commit SHA via `infra/quantvps/restart-when-idle.sh`.
+  5. Run one QuantVPS dry-run tick, resume `vertex-flow.timer`, and run the live Postgres, `/flow`
+     dark-mode screenshot, and MCP checks.
+- **Rollback:** Pause `vertex-flow.timer`, deploy the previous `vertex-web` SHA, and resume the
+  timer (the previous app runs cleanly against the widened CHECK constraints). Only if reverting
+  the DB constraints is required: pause `vertex-flow.timer`, explicitly delete `IWM`/`NVDA` rows
+  from `flow_option_prints`, `flow_option_gaps`, `flow_samples`, and `flow_events`, apply
+  `packages/db/rollback/0095_flow_option_tickers.down.sql` (which refuses while any `IWM`/`NVDA`
+  row exists), and resume `vertex-flow.timer`.
+
 ## Agent semantic layer
 
 Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
-the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-control.v1` of one
-group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
-with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
-`flow_control_state`. Each points to the tool `flow_control`.
+the same `flow-snapshot.v1` document as the page), `flow_control` (`flow-control.v1` of one
+group), and `flow_option_prints` (`flow-option-prints.v1` of one of the 6 option tickers). The
+catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms with source
+`none` (migration 0081): `options_net_drift`, `futures_deep_trades` and `flow_control_state`. Each
+points to the tool `flow_control`.
 
 Migration `0084_semantic_terms_flow_streamed_tape` (card `vertex-flow-terms-streamed-tape`) replaces
 the 0081 texts of `futures_deep_trades` and `flow_control_state`, which said that the tape is sampled

@@ -132,6 +132,20 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readOptionPrintSlotPrices: vi.fn(async () => []),
     readOptionPrintStrikeBuckets: vi.fn(async () => []),
     readOptionStrikeTotals: vi.fn(async () => []),
+    readOptionTape: vi.fn<FlowRepository["readOptionTape"]>(async () => ({
+      prints: [],
+      summary: {
+        bearishPremium: 0,
+        blocks: 0,
+        bullishPremium: 0,
+        callPremium: 0,
+        goldenSweeps: 0,
+        putPremium: 0,
+        sweeps: 0,
+        trades: 0,
+        unusualCount: 0,
+      },
+    })),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recentSamples: vi.fn(async () => []),
@@ -382,7 +396,7 @@ describe("flow.collect", () => {
     expect(output.budget).toEqual({
       ibkrLimit: 6,
       ibkrRecent: null,
-      quantDataFree: 24 - quantDataFetch.mock.calls.length,
+      quantDataFree: 48 - quantDataFetch.mock.calls.length,
       quantDataReserve: 6,
       runSeconds: 0,
     });
@@ -2121,5 +2135,44 @@ describe("flow.tradeBubbles handler", () => {
       clientFor(undefined).tradeBubbles({ minutes: 60, symbol: "ES" }),
       NOT_CONFIGURED
     );
+  });
+});
+
+describe("flow.optionPrints", () => {
+  it("returns flow-option-prints.v1 with source, delay, summary and freshness for all 6 tickers", async () => {
+    const repo = fakeRepository({
+      readOptionTape: vi.fn(async () => ({
+        prints: [],
+        summary: {
+          bearishPremium: 10_000,
+          blocks: 1,
+          bullishPremium: 90_000,
+          callPremium: 80_000,
+          goldenSweeps: 0,
+          putPremium: 20_000,
+          sweeps: 2,
+          trades: 5,
+          unusualCount: 1,
+        },
+      })),
+    });
+    const out = await clientFor(repo).optionPrints({
+      limit: 25,
+      ticker: "NVDA",
+      windowMinutes: 60,
+    });
+    expect(out.schemaVersion).toBe("flow-option-prints.v1");
+    expect(out.ticker).toBe("NVDA");
+    expect(out.symbol).toBe("NVDA");
+    expect(out.source).toBe("QuantData order-flow/consolidated");
+    expect(out.delay).toContain("09:30-16:00 ET");
+    expect(out.summary.trades).toBe(5);
+    expect(out.unreadRanges).toBe(0);
+  });
+
+  it("is open to read API keys (for MCP flow_option_prints) and the viewer account", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "optionPrints"])).toBe(true);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.optionPrints")).toBe(true);
+    expect(isAgentViewerReadProcedure(["flow", "optionPrints"])).toBe(true);
   });
 });

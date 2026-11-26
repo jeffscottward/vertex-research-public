@@ -83,12 +83,12 @@ describe("flow.hedgingPressure input", () => {
     expect(FlowHedgingPressureInputSchema.safeParse(input).success).toBe(false);
   });
 
-  it("names exactly the symbols whose sources include options", () => {
-    expect(FLOW_HEDGING_SYMBOLS).toEqual(
-      FLOW_SYMBOLS.filter((symbol) =>
-        FLOW_INSTRUMENTS[symbol].sources.includes("options")
-      )
-    );
+  it("stays scoped to SPY and ES, which collect option prints", () => {
+    expect(FLOW_HEDGING_SYMBOLS).toEqual(["SPY", "ES"]);
+    for (const symbol of FLOW_HEDGING_SYMBOLS) {
+      expect(FLOW_SYMBOLS).toContain(symbol);
+      expect(FLOW_INSTRUMENTS[symbol].sources).toContain("options");
+    }
   });
 });
 

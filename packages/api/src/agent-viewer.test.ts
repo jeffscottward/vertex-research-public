@@ -274,6 +274,7 @@ const REVIEWED_READS: readonly string[] = [
   "flow.liveDom",
   "flow.liveDomStream",
   "flow.optionBubbles",
+  "flow.optionPrints",
   "flow.putCallRatio",
   "flow.snapshot",
   "flow.strikeHeatmap",
