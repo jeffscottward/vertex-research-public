@@ -453,13 +453,28 @@ describe("FlowTradeBubblesPanel", () => {
     );
     expect(toggle?.getAttribute("aria-pressed")).toBe("true");
     expect(el.querySelector("[data-flow-gamma-lines]")).not.toBeNull();
-    expect(el.querySelector("[data-flow-gamma-offscale]")).not.toBeNull();
+    // The levels are drawn before the candles, so the newest candles stay on top of them.
+    const order = [
+      ...el.querySelectorAll(
+        "[data-flow-gamma-lines], [data-flow-trade-bubbles-candle]"
+      ),
+    ].map((node) => node.hasAttribute("data-flow-gamma-lines"));
+    expect(order[0]).toBe(true);
+    expect(order.length).toBeGreaterThan(1);
+    const strip = el.querySelector("[data-flow-gamma-strip]");
+    expect(strip?.textContent).toContain(
+      "Gamma levels: GEX estimate as of Nov 25, 10:30 AM EST"
+    );
+    // The chart SVG is hidden from screen readers: the drawn levels are also given as text.
+    expect(
+      strip?.querySelector("[data-flow-gamma-in-range]")?.textContent
+    ).toBe("In range: ◎ Max pain 6,013.00, ⇄ Flip 6,012.00");
     act(() => {
       toggle?.click();
     });
     expect(toggle?.getAttribute("aria-pressed")).toBe("false");
     expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
-    expect(el.querySelector("[data-flow-gamma-offscale]")).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-strip]")).toBeNull();
   });
 
   it("omits gamma overlay when viewing SPY so SPY GEX levels are never plotted on the ES futures scale", () => {
@@ -498,6 +513,6 @@ describe("FlowTradeBubblesPanel", () => {
       el.querySelector("[data-flow-trade-bubbles-gamma-toggle]")
     ).toBeNull();
     expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
-    expect(el.querySelector("[data-flow-gamma-offscale]")).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-strip]")).toBeNull();
   });
 });

@@ -3,8 +3,9 @@
 // What: accessible, token-styled SVG rendering for horizontal gamma levels (gamma flip, call wall,
 // put wall, max pain, king node) on /flow price charts:
 // - `<SvgGammaLevelLines />`: reusable SVG `<g>` overlay drawn inside any /flow price-chart SVG.
-// - `<OffScaleGammaLevelsStrip />`: compact strip listing gamma levels above/below an intraday
-//   price chart's current Y-axis zoom so intraday candles/bubbles are never compressed.
+// - `<FlowGammaLevelsStrip />`: strip under an intraday price chart: when the GEX estimate was
+//   stored, the levels in range (as text for screen readers) and the levels above/below the
+//   chart's Y-axis zoom, so intraday candles/bubbles are never compressed.
 // - `<FlowGammaLevelsChart />`: full GEX-levels-on-price chart rendered inside `GexPanel` for all
 //   /flow symbols (SPY, QQQ, ES, NQ).
 // Display only: research context, never a trade signal or order input.
@@ -19,14 +20,19 @@ import {
   GAMMA_LEVEL_META,
   type GammaLevelKind,
 } from "../../features/charts/gamma-levels-overlay.ts";
+import { formatPrice } from "../../features/flow/format.ts";
 import {
   buildFlowGexPriceChart,
   FLOW_GAMMA_COLOR_VAR,
+  type FlowPriceOverlayLevels,
   type OffScaleGammaLevel,
   type SvgGammaLevelLine,
 } from "../../features/flow/gamma-levels-view-model.ts";
 
-/** Draws horizontal gamma level lines and non-overlapping right-edge pill badges inside an SVG. */
+/**
+ * Draws horizontal gamma level lines and non-overlapping pill badges inside an SVG. The pills
+ * sit at the left edge, over the oldest prices: the newest price and its label are at the right.
+ */
 export const SvgGammaLevelLines = ({
   lines,
   chartX,
@@ -38,16 +44,15 @@ export const SvgGammaLevelLines = ({
 }>) => {
   if (lines.length === 0) return null;
   const x2 = chartX + chartWidth;
-  const pillRight = x2 - 4;
+  const pillX = chartX + 4;
   return (
     <g data-flow-gamma-lines="">
       {lines.map((line) => {
         const maxPillWidth = Math.max(40, chartWidth - 8);
         const pillWidth = Math.min(
           maxPillWidth,
-          Math.max(76, line.pillText.length * 6.2 + 12)
+          Math.max(76, Math.ceil(line.pillText.length * 6.2 + 12))
         );
-        const pillX = Math.max(chartX + 2, pillRight - pillWidth);
         const shifted = Math.abs(line.labelY - line.y) > 2;
         return (
           <g data-flow-gamma-line={line.key} key={line.key}>
@@ -78,10 +83,10 @@ export const SvgGammaLevelLines = ({
                 stroke={line.color}
                 strokeOpacity={0.7}
                 strokeWidth={1}
-                x1={Math.max(chartX, pillX - 8)}
-                x2={pillX}
-                y1={line.y}
-                y2={line.labelY}
+                x1={pillX + pillWidth}
+                x2={Math.min(x2, pillX + pillWidth + 8)}
+                y1={line.labelY}
+                y2={line.y}
               />
             ) : null}
             <rect
@@ -98,8 +103,8 @@ export const SvgGammaLevelLines = ({
             <text
               className="fill-foreground font-mono text-[10px]"
               dominantBaseline="middle"
-              textAnchor="end"
-              x={pillX + pillWidth - 5}
+              textAnchor="start"
+              x={pillX + 5}
               y={line.labelY}
             >
               {line.pillText}
@@ -133,65 +138,56 @@ const InlineStrokeSwatch = ({
   </svg>
 );
 
-/** Lists gamma levels sitting above or below a zoomed intraday chart without distorting its Y-axis. */
-export const OffScaleGammaLevelsStrip = ({
-  above,
-  below,
-}: Readonly<{
-  above: readonly OffScaleGammaLevel[];
-  below: readonly OffScaleGammaLevel[];
-}>) => {
-  if (above.length === 0 && below.length === 0) return null;
-  return (
-    <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground text-xs"
-      data-flow-gamma-offscale=""
-    >
-      {above.length > 0 ? (
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-foreground">↑ Above range:</span>
-          {above.map((item) => (
-            <span
-              className="inline-flex items-center gap-1 font-mono tabular-nums"
-              key={item.key}
-            >
-              <InlineStrokeSwatch
-                color={item.color}
-                dashArray={item.dashArray}
-                strokeWidth={item.strokeWidth}
-              />
-              <span>
-                {item.glyphs} {item.shortLabel} {item.priceText}
-                {item.distanceText === null ? "" : ` (${item.distanceText})`}
-              </span>
-            </span>
-          ))}
+const OffScaleList = ({
+  items,
+  label,
+}: Readonly<{ items: readonly OffScaleGammaLevel[]; label: string }>) =>
+  items.length === 0 ? null : (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="font-medium text-foreground">{label}</span>
+      {items.map((item) => (
+        <span
+          className="inline-flex items-center gap-1 font-mono tabular-nums"
+          key={item.key}
+        >
+          <InlineStrokeSwatch
+            color={item.color}
+            dashArray={item.dashArray}
+            strokeWidth={item.strokeWidth}
+          />
+          <span>
+            {item.glyphs} {item.shortLabel} {item.priceText}
+            {item.distanceText === null ? "" : ` (${item.distanceText})`}
+          </span>
         </span>
-      ) : null}
-      {below.length > 0 ? (
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-foreground">↓ Below range:</span>
-          {below.map((item) => (
-            <span
-              className="inline-flex items-center gap-1 font-mono tabular-nums"
-              key={item.key}
-            >
-              <InlineStrokeSwatch
-                color={item.color}
-                dashArray={item.dashArray}
-                strokeWidth={item.strokeWidth}
-              />
-              <span>
-                {item.glyphs} {item.shortLabel} {item.priceText}
-                {item.distanceText === null ? "" : ` (${item.distanceText})`}
-              </span>
-            </span>
-          ))}
-        </span>
-      ) : null}
-    </div>
+      ))}
+    </span>
   );
-};
+
+/**
+ * Strip under an intraday /flow price chart with gamma levels: when the estimate was stored, the
+ * drawn levels as text for screen readers (the chart SVG is hidden from them), and the levels
+ * above or below the chart's Y-axis zoom.
+ */
+export const FlowGammaLevelsStrip = ({
+  levels,
+}: Readonly<{ levels: FlowPriceOverlayLevels }>) => (
+  <div
+    className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground text-xs"
+    data-flow-gamma-strip=""
+  >
+    <span data-flow-gamma-as-of="">
+      Gamma levels: GEX estimate as of {levels.asOfText}
+    </span>
+    {levels.visibleLines.length === 0 ? null : (
+      <span className="sr-only" data-flow-gamma-in-range="">
+        In range: {levels.visibleLines.map((line) => line.pillText).join(", ")}
+      </span>
+    )}
+    <OffScaleList items={levels.offScaleAbove} label="↑ Above range:" />
+    <OffScaleList items={levels.offScaleBelow} label="↓ Below range:" />
+  </div>
+);
 
 const LegendSwatch = ({ kind }: Readonly<{ kind: GammaLevelKind }>) => {
   const meta = GAMMA_LEVEL_META[kind];
@@ -299,6 +295,7 @@ export const FlowGammaLevelsChart = ({
                 fill="var(--foreground)"
                 r={3}
               />
+              {/* Above the dot, so the label does not print over the price line. */}
               <text
                 className="fill-foreground font-mono text-[10px]"
                 dominantBaseline="middle"
@@ -312,7 +309,7 @@ export const FlowGammaLevelsChart = ({
                     ? chart.spotX - 7
                     : chart.spotX + 7
                 }
-                y={chart.spotY}
+                y={Math.max(chart.chartY + 6, chart.spotY - 9)}
               >
                 {chart.spotLabel}
               </text>
@@ -348,7 +345,9 @@ export const FlowGammaLevelsChart = ({
                 {meta.label}:
               </span>
               <span className="font-mono text-foreground tabular-nums">
-                {entry === undefined ? "not computed" : entry.price.toFixed(2)}
+                {entry === undefined
+                  ? "not computed"
+                  : formatPrice(entry.price)}
               </span>
             </li>
           );

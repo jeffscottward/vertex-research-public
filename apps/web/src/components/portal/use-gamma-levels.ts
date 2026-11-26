@@ -4,8 +4,10 @@
 // max pain, king node) for /charts price charts.
 // - US equities (STK / USD): consumes the already-loaded `OptionsAnalyticsPanel` snapshot so no
 //   duplicate QuantData request is sent.
-// - Supported CME futures (ES / NQ, FUT or CONTFUT): fetches `flow.snapshot` for stored `flow_gex`
+// - ES / NQ continuous futures (CONTFUT only): fetches `flow.snapshot` for stored `flow_gex`
 //   basis-shifted levels only when the toggle is enabled, with generation-scoped cancellation.
+//   The stored basis is the continuous front contract minus the index, so a dated contract
+//   (FUT), which trades at a calendar spread to it, gets no levels.
 // Display only: research context, never an order or risk input.
 // Used by: components/portal/charts-workspace.tsx.
 
@@ -15,7 +17,7 @@ import {
   type MarketSecType,
   type OptionsAnalyticsOutput,
 } from "@darkfactory/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   gammaLevelsFromFlowGex,
@@ -49,7 +51,9 @@ export const resolveGammaLevelsEligibility = (
   if (trimmed === "") return null;
   if (secType === "STK" && currency === "USD")
     return { kind: "optionsAnalytics", symbol: trimmed };
+  // `flow_gex.basis` is measured on the continuous front contract (flow-collect `gexBasis`).
   if (
+    secType === "CONTFUT" &&
     isFlowInstrument(trimmed, secType) &&
     FLOW_INSTRUMENTS[trimmed].kind === "future"
   )
@@ -80,7 +84,9 @@ const stateFromAnalytics = (
   const overlay = gammaLevelsFromOptionsAnalytics(report.data);
   if (overlay === null)
     return {
-      reason: "no GEX or max-pain levels computed for this snapshot.",
+      reason: report.data.rateLimited
+        ? "QuantData rate limit reached; levels return with the next snapshot."
+        : "no GEX or max-pain levels computed for this snapshot.",
       type: "empty",
     };
   return { overlay, type: "ready" };
@@ -111,6 +117,16 @@ export const useGammaLevelsView = ({
 
   const flowSymbol =
     eligibility?.kind === "flowGex" ? eligibility.symbol : null;
+  const analyticsSymbol =
+    eligibility?.kind === "optionsAnalytics" ? eligibility.symbol : null;
+  // Memoized so the chart gets the same overlay object until the panel reports again.
+  const analyticsState = useMemo(
+    () =>
+      analyticsSymbol === null
+        ? IDLE_STATE
+        : stateFromAnalytics(analyticsReport, analyticsSymbol),
+    [analyticsReport, analyticsSymbol]
+  );
 
   useEffect(() => {
     const mine = ++generation.current;
@@ -191,7 +207,7 @@ export const useGammaLevelsView = ({
 
   const state: GammaLevelsLoadState =
     eligibility.kind === "optionsAnalytics"
-      ? stateFromAnalytics(analyticsReport, eligibility.symbol)
+      ? analyticsState
       : flowState.symbol === eligibility.symbol
         ? flowState.state
         : { type: "loading" };

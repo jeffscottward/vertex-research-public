@@ -22,7 +22,7 @@ import {
   groupCoincidentGammaLevels,
   resolveGammaLabelY,
 } from "../charts/gamma-levels-overlay.ts";
-import { formatNyTime, formatPrice } from "./format.ts";
+import { formatNyDateTime, formatNyTime, formatPrice } from "./format.ts";
 
 export const FLOW_GAMMA_COLOR_VAR: Readonly<Record<GammaLevelKind, string>> =
   Object.freeze({
@@ -65,6 +65,8 @@ export type OffScaleGammaLevel = Readonly<{
 
 export type FlowPriceOverlayLevels = Readonly<{
   overlay: GammaLevelsOverlay;
+  /** When the stored GEX estimate was computed, e.g. "Nov 25, 3:45 PM EST". */
+  asOfText: string;
   entries: readonly GammaLevelEntry[];
   visibleLines: readonly SvgGammaLevelLine[];
   offScaleAbove: readonly OffScaleGammaLevel[];
@@ -90,7 +92,8 @@ const formatSignedPct = (
 /**
  * Computes SVG line geometry for gamma levels over an existing /flow price chart's Y-axis.
  * Levels within `[priceMin, priceMax]` plot as full-width horizontal lines with de-overlapped
- * right-edge labels; levels outside the intraday range collect into `offScaleAbove`/`offScaleBelow`.
+ * labels; levels outside the intraday range collect into `offScaleAbove`/`offScaleBelow`.
+ * Prices use the same text as the chart's axis (`formatPrice`).
  */
 export const buildFlowPriceOverlayLevels = (
   input: Readonly<{
@@ -101,7 +104,6 @@ export const buildFlowPriceOverlayLevels = (
     chartY: number;
     chartHeight: number;
     referencePrice?: number | null;
-    pricePrecision?: number;
   }>
 ): FlowPriceOverlayLevels | null => {
   const overlay = gammaLevelsFromFlowGex(input.symbol, input.gex);
@@ -110,9 +112,8 @@ export const buildFlowPriceOverlayLevels = (
   if (!Number.isFinite(span) || span <= 0 || input.chartHeight <= 0)
     return null;
 
-  const precision = input.pricePrecision ?? 2;
   const ref = input.referencePrice ?? overlay.spot;
-  const groups = groupCoincidentGammaLevels(overlay, precision);
+  const groups = groupCoincidentGammaLevels(overlay);
   const entries = extractGammaLevelEntries(overlay, ref);
   const kingColor = FLOW_GAMMA_COLOR_VAR.kingNode;
 
@@ -125,37 +126,24 @@ export const buildFlowPriceOverlayLevels = (
 
   for (const group of groups) {
     const meta = GAMMA_LEVEL_META[group.primaryKind];
-    const color = FLOW_GAMMA_COLOR_VAR[group.primaryKind];
-    const strokeWidth = group.hasKingNode
-      ? Math.max(meta.strokeWidth, 2.25)
-      : meta.strokeWidth;
-    if (group.price > input.priceMax) {
-      offScaleAbove.push({
-        color,
-        dashArray: meta.svgDashArray,
-        distanceText: formatSignedPct(group.price, ref),
-        glyphs: group.glyphs,
-        key: group.key,
-        pillText: group.pillText,
-        price: group.price,
-        priceText: group.price.toFixed(precision),
-        shortLabel: group.shortLabel,
-        strokeWidth,
-      });
-    } else if (group.price < input.priceMin) {
-      offScaleBelow.push({
-        color,
-        dashArray: meta.svgDashArray,
-        distanceText: formatSignedPct(group.price, ref),
-        glyphs: group.glyphs,
-        key: group.key,
-        pillText: group.pillText,
-        price: group.price,
-        priceText: group.price.toFixed(precision),
-        shortLabel: group.shortLabel,
-        strokeWidth,
-      });
-    } else {
+    const priceText = formatPrice(group.price);
+    const offScale: OffScaleGammaLevel = {
+      color: FLOW_GAMMA_COLOR_VAR[group.primaryKind],
+      dashArray: meta.svgDashArray,
+      distanceText: formatSignedPct(group.price, ref),
+      glyphs: group.glyphs,
+      key: group.key,
+      pillText: `${group.glyphs} ${group.shortLabel} ${priceText}`,
+      price: group.price,
+      priceText,
+      shortLabel: group.shortLabel,
+      strokeWidth: group.hasKingNode
+        ? Math.max(meta.strokeWidth, 2.25)
+        : meta.strokeWidth,
+    };
+    if (group.price > input.priceMax) offScaleAbove.push(offScale);
+    else if (group.price < input.priceMin) offScaleBelow.push(offScale);
+    else {
       const ratio = (group.price - input.priceMin) / span;
       const y = round1(input.chartY + (1 - ratio) * input.chartHeight);
       inRange.push({ group, y });
@@ -182,7 +170,7 @@ export const buildFlowPriceOverlayLevels = (
       isMergedWithKing: group.hasKingNode && group.kinds.length > 1,
       key: group.key,
       labelY: round1(placed[group.key] as number),
-      pillText: group.pillText,
+      pillText: `${group.glyphs} ${group.shortLabel} ${formatPrice(group.price)}`,
       price: group.price,
       primaryKind: group.primaryKind,
       shortLabel: group.shortLabel,
@@ -194,6 +182,7 @@ export const buildFlowPriceOverlayLevels = (
   });
 
   return {
+    asOfText: formatNyDateTime(overlay.asOf),
     entries,
     offScaleAbove,
     offScaleBelow,
@@ -360,11 +349,12 @@ export const buildFlowGexPriceChart = (
   const hasMinuteSeries = closePoints.length > 0;
   const lastClosePoint = closePoints.at(-1) ?? null;
   const spotPrice = lastClose ?? overlay.spot;
+  // Without minute closes the spot marker sits at the right edge: level pills use the left edge.
   const spotX =
     spotPrice === null
       ? null
       : lastClosePoint === null
-        ? PAD_LEFT + 8
+        ? PAD_LEFT + PLOT_WIDTH - 8
         : xOf(lastClosePoint.ms);
   const spotY = spotPrice === null ? null : yOf(spotPrice);
   const spotLabel =

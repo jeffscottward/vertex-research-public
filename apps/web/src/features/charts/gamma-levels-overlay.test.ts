@@ -469,6 +469,36 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
     expect(texts).toContain("◎ Max pain 600.00");
     expect(texts.some((t) => t.startsWith("↑ Above:"))).toBe(true);
     expect(texts.some((t) => t.startsWith("↓ Below:"))).toBe(true);
+    // In-bounds pills sit at the left edge, away from the newest candles; a pill moved off its
+    // line by the de-overlap keeps a leader from the line.
+    const pills = figures.filter(
+      (f) => f.type === "text" && !/^[↑↓]/u.test(f.attrs.text)
+    );
+    expect(pills.map((f) => f.type === "text" && f.attrs)).toEqual([
+      {
+        align: "left",
+        baseline: "middle",
+        text: "⇄ Flip 602.50",
+        x: 8,
+        y: 120,
+      },
+      {
+        align: "left",
+        baseline: "middle",
+        text: "◎ Max pain 600.00",
+        x: 8,
+        y: 140,
+      },
+    ]);
+    expect(
+      figures.some(
+        (f) =>
+          f.type === "line" &&
+          f.attrs.coordinates[0]?.y === 124 &&
+          f.attrs.coordinates[1]?.x === 8 &&
+          f.attrs.coordinates[1]?.y === 140
+      )
+    ).toBe(true);
 
     // Every figure sets ignoreEvent: true so user drawings and panning stay unaffected.
     expect(figures.every((f) => f.ignoreEvent)).toBe(true);
@@ -507,6 +537,21 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
       .map((f) => f.attrs.text);
     expect(narrowTexts).toContain("↑ Above: 2 (▲★ 615.00…)");
     expect(narrowTexts).toContain("↓ Below: 2 (◎ 600.00…)");
+
+    // A narrow pane draws the short pill (glyphs and price) so it covers few candles.
+    const narrowInBounds = gammaLevelsFigures(
+      [
+        { x: 50, y: 60 },
+        { x: 50, y: 140 },
+        { x: 50, y: 200 },
+        { x: 50, y: 280 },
+      ],
+      data,
+      { height: 360, width: 375 }
+    );
+    expect(
+      narrowInBounds.filter((f) => f.type === "text").map((f) => f.attrs.text)
+    ).toEqual(["▲★ 615.00", "⇄ 602.50", "◎ 600.00", "▼ 590.00"]);
 
     // Mid-width 460 px viewport also condenses 3+ off-scale groups when the full string would clip.
     const midWidthFigs = gammaLevelsFigures(

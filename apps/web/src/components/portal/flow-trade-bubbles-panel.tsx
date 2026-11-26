@@ -61,7 +61,7 @@ import {
 import type { FlowSymbol } from "../../features/flow/view-model.ts";
 import { loadFailedLabel } from "../status-time.ts";
 import {
-  OffScaleGammaLevelsStrip,
+  FlowGammaLevelsStrip,
   SvgGammaLevelLines,
 } from "./flow-gamma-levels-chart.tsx";
 
@@ -205,6 +205,13 @@ const BubbleChartSvg = ({
           </g>
         ))}
 
+        {/* Horizontal dealer gamma levels, under the candles and the price lines */}
+        <SvgGammaLevelLines
+          chartWidth={plot.chartWidth}
+          chartX={plot.chartX}
+          lines={gammaLines}
+        />
+
         {/* 1-minute OHLC candles */}
         {plot.candles.map((candle) => {
           const stroke =
@@ -270,13 +277,6 @@ const BubbleChartSvg = ({
             strokeWidth={1.5}
           />
         )}
-
-        {/* Horizontal dealer gamma levels */}
-        <SvgGammaLevelLines
-          chartWidth={plot.chartWidth}
-          chartX={plot.chartX}
-          lines={gammaLines}
-        />
 
         {/* Selected crosshair */}
         {selectedPoint === null ? null : (
@@ -671,10 +671,7 @@ const TradeBubblesDocument = ({
             titleId={titleId}
           />
           {showGammaLevels && gammaOverlay !== null ? (
-            <OffScaleGammaLevelsStrip
-              above={gammaOverlay.offScaleAbove}
-              below={gammaOverlay.offScaleBelow}
-            />
+            <FlowGammaLevelsStrip levels={gammaOverlay} />
           ) : null}
 
           {/* Legend */}

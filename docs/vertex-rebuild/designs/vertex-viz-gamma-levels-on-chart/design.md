@@ -41,14 +41,14 @@ Because `kingNode` maximizes `|net GEX|`, it shares a strike with either `callWa
 ## Portal surfaces
 
 1. **`/charts` (`ChartsWorkspace`):**
-   - KLineCharts custom overlay `vxGammaLevels` (`apps/web/src/features/charts/gamma-levels-overlay.ts`, wired through `kline-adapter.ts`, `ChartWorkstation`, and `MarketBarsChart`): locked (`lock: true`, `ignoreEvent: true`), non-overlapping right-edge pills (`resolveGammaLabelY`), top/bottom edge summaries for off-viewport levels, and Object Tree listing.
+   - KLineCharts custom overlay `vxGammaLevels` (`apps/web/src/features/charts/gamma-levels-overlay.ts`, wired through `kline-adapter.ts`, `ChartWorkstation`, and `MarketBarsChart`): locked (`lock: true`, `ignoreEvent: true`), non-overlapping pills at the left edge, over the oldest bars, so the newest candles stay visible (`resolveGammaLabelY`; a pane narrower than 420 px shows the short pill with glyphs and price), top/bottom edge summaries for off-viewport levels, and Object Tree listing.
    - `ChartToolbar` toggle (`Gamma levels`, 44 px target) + `GammaLevelsBar` legend/status/source-disclosure strip.
-   - US equities (`STK`/`USD`) reuse the `OptionsAnalyticsPanel` snapshot via `onReport` (zero duplicate QuantData requests); supported futures (`ES`/`NQ`) read stored basis-shifted `flow_gex` via `flow.snapshot` and never plot unshifted index levels when `basis` is null.
+   - US equities (`STK`/`USD`) reuse the `OptionsAnalyticsPanel` snapshot via `onReport` (zero duplicate QuantData requests); continuous `ES`/`NQ` futures (`CONTFUT`) read stored basis-shifted `flow_gex` via `flow.snapshot` and never plot unshifted index levels when `basis` is null. A dated contract (`FUT`) gets no levels: the stored basis is the continuous front contract minus the index, and a dated contract trades at a calendar spread to it.
    - Suppressed automatically during bar replay so live levels never leak onto historical replay bars.
    - `OptionsAnalyticsPanel` also lists `King node (largest |GEX|)` alongside Gamma flip, Call wall, and Put wall.
 2. **`/flow` (`FlowWorkspace`):**
    - `GexPanel` renders `FlowGammaLevelsChart` (intraday close/VWAP or spot ladder with all five gamma levels fitted cleanly into bounds) above the updated 5-row GEX levels table.
-   - `FlowTradeBubblesPanel` (`ES`/`NQ` 1-min candles + VWAP) and `FlowOptionBubblesPanel` (`SPY` / `ES` (`SPX` options) underlying price path) overlay in-range levels via `SvgGammaLevelLines` (using `document.ticker` so `ES` Option Bubbles plots unshifted `SPX` levels) with an accessible `Gamma levels` toggle and list out-of-range levels in `OffScaleGammaLevelsStrip` so intraday candles and bubbles are never compressed.
+   - `FlowTradeBubblesPanel` (`ES`/`NQ` 1-min candles + VWAP) and `FlowOptionBubblesPanel` (`SPY` / `ES` (`SPX` options) underlying price path) overlay in-range levels via `SvgGammaLevelLines` (using `document.ticker` so `ES` Option Bubbles plots unshifted `SPX` levels) with an accessible `Gamma levels` toggle. The pills sit at the left edge and the levels are drawn under the candles and price lines. `FlowGammaLevelsStrip` under each chart states when the GEX estimate was stored, repeats the in-range levels as text for screen readers, and lists out-of-range levels so intraday candles and bubbles are never compressed.
 
 ## Acceptance check
 

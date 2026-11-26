@@ -1,4 +1,4 @@
-// What: pure data model, coincident-level grouping, non-overlapping right-edge label placement,
+// What: pure data model, coincident-level grouping, non-overlapping label placement,
 // and KLineCharts 9.8.12 custom overlay figure generator (`vxGammaLevels`) for drawing gamma flip,
 // call wall, put wall, max pain, and king node as horizontal lines on price charts.
 // Display only: research context, never an order or risk input.
@@ -124,6 +124,7 @@ export type GammaLevelGroup = Readonly<{
 const COINCIDENT_EPSILON = 1e-6;
 const PILL_MIN_GAP_PX = 20;
 const PILL_PADDING_Y_PX = 12;
+const PILL_EDGE_X_PX = 8;
 
 const positiveFiniteOrNull = (
   value: number | null | undefined
@@ -371,7 +372,7 @@ export type LabelPlacementInput = Readonly<{
 }>;
 
 /**
- * Resolves vertical overlaps among right-edge level pills while staying within `[minY, maxY]`.
+ * Resolves vertical overlaps among level pills while staying within `[minY, maxY]`.
  * Deterministic: sorts by `idealY` ascending, enforces `minGap` downward then upward, and clamps.
  */
 export const resolveGammaLabelY = (
@@ -556,7 +557,9 @@ const pillStyle = (
 /**
  * Generates KLineCharts overlay figures for horizontal gamma levels.
  * `coordinates[i]` maps 1:1 to `data.lines[i]`. In-bounds lines draw full-width with
- * de-overlapped right-edge pills; out-of-bounds levels summarize cleanly at the top/bottom edges.
+ * de-overlapped pills at the left edge, over the oldest bars, so the newest candles stay
+ * visible; a pane narrower than 420 px gets the short pill (glyphs and price). Out-of-bounds
+ * levels summarize at the top/bottom edges.
  */
 export const gammaLevelsFigures = (
   coordinates: readonly OverlayCoordinate[],
@@ -591,6 +594,8 @@ export const gammaLevelsFigures = (
   }
 
   const figures: GammaLevelsFigure[] = [];
+  const narrow = width < 420;
+  const pillX = PILL_EDGE_X_PX;
   const topReserve =
     above.length > 0 ? PILL_PADDING_Y_PX + 20 : PILL_PADDING_Y_PX;
   const bottomReserve =
@@ -649,12 +654,11 @@ export const gammaLevelsFigures = (
     }
 
     const labelY = placedY[spec.key] as number;
-    const pillX = Math.max(8, width - 6);
     if (Math.abs(labelY - y) > 2) {
       figures.push({
         attrs: {
           coordinates: [
-            { x: Math.max(0, pillX - 10), y },
+            { x: 0, y },
             { x: pillX, y: labelY },
           ],
         },
@@ -665,9 +669,9 @@ export const gammaLevelsFigures = (
     }
     figures.push({
       attrs: {
-        align: "right",
+        align: "left",
         baseline: "middle",
-        text: spec.pillText,
+        text: narrow ? `${spec.glyphs} ${spec.priceText}` : spec.pillText,
         x: pillX,
         y: labelY,
       },
@@ -683,7 +687,6 @@ export const gammaLevelsFigures = (
   }
 
   const edgeX = Math.max(8, width - 6);
-  const narrow = width < 420;
   const formatEdgeSummary = (
     items: readonly GammaLevelLineSpec[],
     direction: "↑ Above" | "↓ Below"

@@ -607,13 +607,11 @@ describe("FlowOptionBubblesPanel", () => {
     );
     expect(toggle?.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector("[data-flow-gamma-lines]")).not.toBeNull();
-    expect(
-      container.querySelector("[data-flow-gamma-offscale]")
-    ).not.toBeNull();
+    expect(container.querySelector("[data-flow-gamma-strip]")).not.toBeNull();
     await click(toggle);
     expect(toggle?.getAttribute("aria-pressed")).toBe("false");
     expect(container.querySelector("[data-flow-gamma-lines]")).toBeNull();
-    expect(container.querySelector("[data-flow-gamma-offscale]")).toBeNull();
+    expect(container.querySelector("[data-flow-gamma-strip]")).toBeNull();
   });
 
   it("plots unshifted SPX gamma levels on ES option bubbles rather than basis-shifted ES futures levels", async () => {
@@ -673,8 +671,8 @@ describe("FlowOptionBubblesPanel", () => {
       />
     );
     const lines = container.querySelector("[data-flow-gamma-lines]");
-    expect(lines?.textContent).toContain("6005.00");
-    expect(lines?.textContent).toContain("6008.00");
-    expect(lines?.textContent).not.toContain("6030.00");
+    expect(lines?.textContent).toContain("6,005.00");
+    expect(lines?.textContent).toContain("6,008.00");
+    expect(lines?.textContent).not.toContain("6,030.00");
   });
 });

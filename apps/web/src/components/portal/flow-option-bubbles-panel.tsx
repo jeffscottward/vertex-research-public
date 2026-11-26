@@ -68,7 +68,7 @@ import {
   sortOptionBubblesForTable,
 } from "../../features/flow/option-bubbles-view-model.ts";
 import {
-  OffScaleGammaLevelsStrip,
+  FlowGammaLevelsStrip,
   SvgGammaLevelLines,
 } from "./flow-gamma-levels-chart.tsx";
 
@@ -976,10 +976,7 @@ export const FlowOptionBubblesPanel = ({
                   selectedId={activeSelectedId}
                 />
                 {showGammaLevels && gammaOverlay !== null ? (
-                  <OffScaleGammaLevelsStrip
-                    above={gammaOverlay.offScaleAbove}
-                    below={gammaOverlay.offScaleBelow}
-                  />
+                  <FlowGammaLevelsStrip levels={gammaOverlay} />
                 ) : null}
                 {tableBubbles.length === 0 ? (
                   <p

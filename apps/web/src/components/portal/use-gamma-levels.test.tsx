@@ -138,7 +138,7 @@ const mountHook = async (initial: HarnessProps) => {
 };
 
 describe("resolveGammaLevelsEligibility", () => {
-  it("classifies USD equities, supported futures, and ineligible instruments", () => {
+  it("classifies USD equities, continuous ES/NQ futures, and ineligible instruments", () => {
     expect(resolveGammaLevelsEligibility(null, "USD", "SPY")).toBeNull();
     expect(resolveGammaLevelsEligibility("STK", "USD", "  ")).toBeNull();
     expect(resolveGammaLevelsEligibility("STK", "EUR", "SAP")).toBeNull();
@@ -146,15 +146,17 @@ describe("resolveGammaLevelsEligibility", () => {
       kind: "optionsAnalytics",
       symbol: "SPY",
     });
-    expect(resolveGammaLevelsEligibility("FUT", "USD", "ES")).toEqual({
+    expect(resolveGammaLevelsEligibility("CONTFUT", "USD", "ES")).toEqual({
       kind: "flowGex",
       symbol: "ES",
     });
+    // A dated contract trades at a calendar spread to the continuous basis: no levels.
+    expect(resolveGammaLevelsEligibility("FUT", "USD", "ES")).toBeNull();
     expect(resolveGammaLevelsEligibility("CONTFUT", "USD", "NQ")).toEqual({
       kind: "flowGex",
       symbol: "NQ",
     });
-    expect(resolveGammaLevelsEligibility("FUT", "USD", "CL")).toBeNull();
+    expect(resolveGammaLevelsEligibility("CONTFUT", "USD", "CL")).toBeNull();
   });
 });
 
@@ -203,6 +205,21 @@ describe("useGammaLevelsView", () => {
     expect(get().state.type).toBe("empty");
     expect(get().overlay).toBeNull();
 
+    // A snapshot cut short by the QuantData rate limit names the cause.
+    await update({
+      ...base,
+      analyticsReport: {
+        data: { ...optionsData(false), rateLimited: true },
+        symbol: "SPY",
+        type: "ready",
+      },
+    });
+    expect(get().state).toEqual({
+      reason:
+        "QuantData rate limit reached; levels return with the next snapshot.",
+      type: "empty",
+    });
+
     await update({
       ...base,
       analyticsReport: {
@@ -213,6 +230,19 @@ describe("useGammaLevelsView", () => {
     });
     expect(get().state.type).toBe("ready");
     expect(get().overlay?.kingNode).toBe(615);
+
+    // A report of the symbol shown before never draws on the next symbol's chart.
+    await update({
+      ...base,
+      analyticsReport: {
+        data: optionsData(true),
+        symbol: "SPY",
+        type: "ready",
+      },
+      symbol: "AAPL",
+    });
+    expect(get().state).toEqual({ type: "loading" });
+    expect(get().overlay).toBeNull();
 
     // Replay hides overlay while preserving ready state.
     await update({
@@ -285,7 +315,7 @@ describe("useGammaLevelsView", () => {
       currency: "USD",
       flowSnapshot: { snapshot },
       replayActive: false,
-      secType: "FUT",
+      secType: "CONTFUT",
       symbol: "ES",
     };
     const { get, update } = await mountHook(base);

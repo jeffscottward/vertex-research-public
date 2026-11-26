@@ -4,9 +4,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { buildFlowPriceOverlayLevels } from "../../features/flow/gamma-levels-view-model.ts";
 import {
   FlowGammaLevelsChart,
-  OffScaleGammaLevelsStrip,
+  FlowGammaLevelsStrip,
   SvgGammaLevelLines,
 } from "./flow-gamma-levels-chart.tsx";
 
@@ -135,11 +136,6 @@ describe("FlowGammaLevelsChart & SVG helpers", () => {
       </svg>
     );
     expect(noLines.querySelector("[data-flow-gamma-lines]")).toBeNull();
-
-    const noOffScale = await mount(
-      <OffScaleGammaLevelsStrip above={[]} below={[]} />
-    );
-    expect(noOffScale.textContent).toBe("");
   });
 
   it("renders intraday price line, VWAP, gamma level lines, shifted leaders, and legend", async () => {
@@ -226,89 +222,61 @@ describe("FlowGammaLevelsChart & SVG helpers", () => {
         />
       </svg>
     );
+    // The pill sits at the left edge of the plot; its leader runs from the pill to the line.
+    expect(shifted.querySelector("rect")?.getAttribute("x")).toBe("44");
+    expect(shifted.querySelector("text")?.getAttribute("text-anchor")).toBe(
+      "start"
+    );
+    const [levelLine, leader] = [...shifted.querySelectorAll("line")];
     expect(shifted.querySelectorAll("line")).toHaveLength(2);
+    expect(levelLine?.getAttribute("x1")).toBe("40");
+    expect(levelLine?.getAttribute("x2")).toBe("540");
+    expect(
+      ["x1", "y1", "x2", "y2"].map((name) => leader?.getAttribute(name))
+    ).toEqual(["137", "96", "145", "80"]);
   });
 
-  it("renders off-scale above and below level strips with optional distances", async () => {
+  it("states the as-of time, the levels in range for screen readers, and the levels off the scale", async () => {
+    const levelsFor = (priceMin: number, priceMax: number, spot = 605) => {
+      const built = buildFlowPriceOverlayLevels({
+        chartHeight: 200,
+        chartY: 16,
+        gex: gex({ spot: spot === 0 ? null : spot }),
+        priceMax,
+        priceMin,
+        symbol: "SPY",
+      });
+      if (built === null) throw new Error("fixture has no gamma levels");
+      return built;
+    };
     const host = await mount(
-      <OffScaleGammaLevelsStrip
-        above={[
-          {
-            color: "var(--success)",
-            dashArray: undefined,
-            distanceText: "+3.2%",
-            glyphs: "▲★",
-            key: "callWall+kingNode",
-            pillText: "▲★ Call wall · King 620.00",
-            price: 620,
-            priceText: "620.00",
-            shortLabel: "Call wall · King",
-            strokeWidth: 2.25,
-          },
-        ]}
-        below={[
-          {
-            color: "var(--destructive)",
-            dashArray: undefined,
-            distanceText: null,
-            glyphs: "▼",
-            key: "putWall",
-            pillText: "▼ Put wall 580.00",
-            price: 580,
-            priceText: "580.00",
-            shortLabel: "Put wall",
-            strokeWidth: 1.75,
-          },
-        ]}
-      />
+      <FlowGammaLevelsStrip levels={levelsFor(600, 610)} />
     );
+    expect(host.querySelector("[data-flow-gamma-as-of]")?.textContent).toBe(
+      "Gamma levels: GEX estimate as of Nov 25, 10:30 AM EST"
+    );
+    const inRange = host.querySelector("[data-flow-gamma-in-range]");
+    expect(inRange?.textContent).toBe("In range: ⇄ Flip 602.00");
+    expect(inRange?.className).toBe("sr-only");
     expect(host.textContent).toContain("↑ Above range:");
-    expect(host.textContent).toContain("+3.2%");
+    expect(host.textContent).toContain("▲★ Call wall · King 615.00 (+1.7%)");
     expect(host.textContent).toContain("↓ Below range:");
-    expect(host.textContent).toContain("580.00");
+    expect(host.textContent).toContain("▼ Put wall 590.00 (-2.5%)");
 
-    // Also cover single-side off-scale strips (above only with null distance, below only with distance).
+    // Above only, no reference price: no distance text and no "below" list.
     const aboveOnly = await mount(
-      <OffScaleGammaLevelsStrip
-        above={[
-          {
-            color: "var(--success)",
-            dashArray: undefined,
-            distanceText: null,
-            glyphs: "▲",
-            key: "callWall",
-            pillText: "▲ Call wall 620.00",
-            price: 620,
-            priceText: "620.00",
-            shortLabel: "Call wall",
-            strokeWidth: 1.75,
-          },
-        ]}
-        below={[]}
-      />
+      <FlowGammaLevelsStrip levels={levelsFor(580, 610, 0)} />
     );
+    expect(aboveOnly.textContent).toContain("▲★ Call wall · King 615.00");
+    expect(aboveOnly.textContent).not.toContain("%");
     expect(aboveOnly.textContent).not.toContain("↓ Below range:");
 
+    // Below only, and no level inside the range: no in-range text.
     const belowOnly = await mount(
-      <OffScaleGammaLevelsStrip
-        above={[]}
-        below={[
-          {
-            color: "var(--destructive)",
-            dashArray: undefined,
-            distanceText: "-2.1%",
-            glyphs: "▼",
-            key: "putWall",
-            pillText: "▼ Put wall 580.00",
-            price: 580,
-            priceText: "580.00",
-            shortLabel: "Put wall",
-            strokeWidth: 1.75,
-          },
-        ]}
-      />
+      <FlowGammaLevelsStrip levels={levelsFor(616, 630)} />
     );
-    expect(belowOnly.textContent).toContain("-2.1%");
+    expect(belowOnly.textContent).toContain("▼ Put wall 590.00 (-2.5%)");
     expect(belowOnly.textContent).not.toContain("↑ Above range:");
+    expect(belowOnly.querySelector("[data-flow-gamma-in-range]")).toBeNull();
   });
 });

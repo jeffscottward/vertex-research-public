@@ -172,7 +172,44 @@ describe("buildFlowPriceOverlayLevels", () => {
     expect(built?.offScaleAbove[0]?.distanceText).toBe("+1.8%");
     expect(built?.offScaleBelow.map((l) => l.key)).toEqual(["putWall"]);
     expect(built?.offScaleBelow[0]?.distanceText).toBe("-1.5%");
-    expect(built?.visibleLines.map((l) => l.key)).toEqual(["maxPain", "flip"]);
+    expect(built?.offScaleAbove[0]?.priceText).toBe("6,110.00");
+    // y grows downward: 6,010 is 60% up a 5,950-6,050 axis that is 200 high and starts at 16.
+    expect(
+      built?.visibleLines.map(({ key, labelY, pillText, y }) => ({
+        key,
+        labelY,
+        pillText,
+        y,
+      }))
+    ).toEqual([
+      { key: "maxPain", labelY: 96, pillText: "◎ Max pain 6,010.00", y: 96 },
+      { key: "flip", labelY: 136, pillText: "⇄ Flip 5,990.00", y: 136 },
+    ]);
+    expect(built?.asOfText).toBe("Nov 25, 10:30 AM EST");
+
+    // Two levels closer than one pill height: the lower pill moves down, its line does not.
+    const close = buildFlowPriceOverlayLevels({
+      chartHeight: 200,
+      chartY: 16,
+      gex: sampleGex({
+        symbolLevels: {
+          callWall: null,
+          flip: 6008,
+          kingNode: null,
+          maxPain: 6010,
+          putWall: null,
+        },
+      }),
+      priceMax: 6050,
+      priceMin: 5950,
+      symbol: "ES",
+    });
+    expect(
+      close?.visibleLines.map(({ key, labelY, y }) => ({ key, labelY, y }))
+    ).toEqual([
+      { key: "maxPain", labelY: 96, y: 96 },
+      { key: "flip", labelY: 114, y: 100 },
+    ]);
 
     // When all levels are inside range, merged king+wall marks isMergedWithKing.
     const full = buildFlowPriceOverlayLevels({
@@ -250,6 +287,8 @@ describe("buildFlowGexPriceChart", () => {
     );
     expect(noMinutes?.hasMinuteSeries).toBe(false);
     expect(noMinutes?.spotLabel).toBe("Spot 6,010.00");
+    // The spot marker sits at the right edge of the plot; the level pills use the left edge.
+    expect(noMinutes?.spotX).toBe(698);
 
     // Also works when both minutes and spot are null.
     const noSpot = buildFlowGexPriceChart(
