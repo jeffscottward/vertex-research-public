@@ -1,10 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import {
-  createNodeDatabase,
-  createResearchStudyRepository,
-  type Database,
-} from "@darkfactory/db/server";
+import { createNodeDatabase, type Database } from "@darkfactory/db/server";
 import { migrate } from "@darkfactory/db/server/migration";
 import {
   createPostgresTestDatabase,
@@ -13,7 +9,7 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Data migration 0095 (Smart-money PR 7 backtests), its guarded rollback, and research_studies upserts on Postgres.
+// Data migration 0095 (Smart-money PR 7 backtests) and its guarded rollback on Postgres.
 const migrationSql = readFileSync(
   new URL(
     "../../../packages/db/migrations/0095_strategy_catalog_smart_money_backtests.sql",
@@ -37,12 +33,34 @@ const postgres = (): PostgresTestDatabase => {
   return testDatabase;
 };
 
-const getDb = (): Database => {
-  if (resource === undefined) throw new Error("Database not started");
-  return resource.db;
+const runMigration = async (): Promise<void> => {
+  for (const stmt of migrationSql.split("--> statement-breakpoint")) {
+    const sql = stmt.trim();
+    if (sql !== "") await postgres().query(sql);
+  }
 };
 
-describe("0095 smart-money PR 7 catalog rows and studies (Postgres)", () => {
+const insiderRow = async () => {
+  const rows = await postgres().query<{
+    status: string;
+    source_ref: string;
+    unedited: boolean;
+  }>(
+    `select status, source_ref, (updated_at = created_at) as unedited
+       from strategies where slug = 'insider-purchase-confirmation'`
+  );
+  return rows[0];
+};
+
+const newRowCount = async (): Promise<number | undefined> => {
+  const rows = await postgres().query<{ count: number }>(
+    `select count(*)::int as count from strategies
+      where slug in ('smart-money-congress-buys', 'smart-money-large-bullish-premium')`
+  );
+  return rows[0]?.count;
+};
+
+describe("0095 smart-money PR 7 catalog rows (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({
@@ -127,10 +145,7 @@ describe("0095 smart-money PR 7 catalog rows and studies (Postgres)", () => {
     ]);
 
     // Re-running migration SQL is idempotent (no duplicate slugs, no update once needs-data is gone).
-    for (const stmt of migrationSql.split("--> statement-breakpoint")) {
-      const sql = stmt.trim();
-      if (sql !== "") await postgres().query(sql);
-    }
+    await runMigration();
     const countRows = await postgres().query<{ count: number }>(
       `select count(*)::int as count from strategies where slug in (
          'insider-purchase-confirmation',
@@ -139,55 +154,6 @@ describe("0095 smart-money PR 7 catalog rows and studies (Postgres)", () => {
        )`
     );
     expect(countRows[0]?.count).toBe(3);
-  });
-
-  it("upserts all three research_studies documents cleanly", async () => {
-    const repo = createResearchStudyRepository(getDb());
-    const samples = [
-      {
-        id: "insider-purchase-confirmation",
-        verdict: "no-edge",
-        specRef: "docs/specs/strategies/insider-purchase-confirmation.md",
-      },
-      {
-        id: "smart-money-congress-buys",
-        verdict: "no-edge",
-        specRef: "docs/specs/strategies/smart-money-congress-buys.md",
-      },
-      {
-        id: "smart-money-large-bullish-premium",
-        verdict: "needs-more-data",
-        specRef: "docs/specs/strategies/smart-money-large-bullish-premium.md",
-      },
-    ] as const;
-
-    for (const sample of samples) {
-      const result = await repo.upsert({
-        id: sample.id,
-        ranOn: "2026-11-25",
-        specRef: sample.specRef,
-        summary: {
-          id: sample.id,
-          kind: "strategy-backtest",
-          ran: "2026-11-25",
-          spec: sample.specRef,
-          verdict: sample.verdict,
-        },
-      });
-      expect(result.id).toBe(sample.id);
-    }
-
-    const verdicts = new Map(
-      (await repo.verdicts(samples.map((s) => s.id))).map((row) => [
-        row.id,
-        row.verdict,
-      ])
-    );
-    expect(verdicts.get("insider-purchase-confirmation")).toBe("no-edge");
-    expect(verdicts.get("smart-money-congress-buys")).toBe("no-edge");
-    expect(verdicts.get("smart-money-large-bullish-premium")).toBe(
-      "needs-more-data"
-    );
   });
 
   it("refuses rollback when any of the three rows was edited", async () => {
@@ -253,5 +219,46 @@ describe("0095 smart-money PR 7 catalog rows and studies (Postgres)", () => {
         status: "researching",
       },
     ]);
+  });
+
+  it("leaves the insider row alone when it was edited, has no needs-data tag, or is not in the migrated state", async () => {
+    // State after the clean rollback: the 0031 row, unedited, and no new rows.
+    expect(await insiderRow()).toEqual({
+      source_ref: "services/research/strategies/alert_templates.py",
+      status: "researching",
+      unedited: true,
+    });
+
+    // An edited row (updated_at differs from created_at) is not updated; the new rows are added.
+    await postgres().query(
+      "update strategies set updated_at = created_at + interval '1 second' where slug = 'insider-purchase-confirmation'"
+    );
+    await runMigration();
+    expect((await insiderRow())?.status).toBe("researching");
+    expect(await newRowCount()).toBe(2);
+    await postgres().query(
+      "update strategies set updated_at = created_at where slug = 'insider-purchase-confirmation'"
+    );
+
+    // A row without the needs-data tag is not updated either.
+    await postgres().query(
+      "update strategies set tags = tags - 'needs-data' where slug = 'insider-purchase-confirmation'"
+    );
+    expect((await insiderRow())?.unedited).toBe(true);
+    await runMigration();
+    expect((await insiderRow())?.status).toBe("researching");
+
+    // Rollback: the two new rows go, and the 0031 values are not written over a row that the
+    // forward migration never changed.
+    await postgres().query(
+      "update strategies set source_ref = 'docs/specs/strategies/other.md' where slug = 'insider-purchase-confirmation'"
+    );
+    await postgres().query(rollbackSql);
+    expect(await newRowCount()).toBe(0);
+    expect(await insiderRow()).toEqual({
+      source_ref: "docs/specs/strategies/other.md",
+      status: "researching",
+      unedited: true,
+    });
   });
 });

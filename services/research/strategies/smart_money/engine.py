@@ -77,9 +77,7 @@ def raw_closes_from_splits(
 class SignalEvent:
     symbol: str
     trigger_day: date
-    rank_value: float  # descending tie-break for slot allocation (e.g., dollar value)
-    signal_kind: str = ""
-    delay_days: int | None = None
+    rank_value: float  # slots fill in descending order of this value (dollar value or net premium)
 
 
 @dataclass(frozen=True, slots=True)
@@ -537,17 +535,18 @@ def evaluate_verdict(
             f"Rule is frozen (N = {n_trials}) for forward out-of-sample collection.",
         )
 
+    # Every bar is written as "not (value passes)", so a NaN input fails its bar.
     dsr_val = 0.0 if dsr_probability is None else dsr_probability
     reasons: list[str] = []
-    if oos_events < min_oos_events:
+    if not oos_events >= min_oos_events:
         reasons.append(f"OOS events {oos_events} < {min_oos_events}")
-    if oos_sharpe <= 0.0:
+    if not oos_sharpe > 0.0:
         reasons.append(f"OOS annualized excess Sharpe {oos_sharpe:.3f} <= 0")
-    if dsr_val < dsr_pass:
+    if not dsr_val >= dsr_pass:
         reasons.append(f"DSR {dsr_val:.3f} < {dsr_pass:.2f} (N = {n_trials})")
     if stress_oos_sharpe is None:
         reasons.append("20 bps stress OOS Sharpe was not computed")
-    elif stress_oos_sharpe <= 0.0:
+    elif not stress_oos_sharpe > 0.0:
         reasons.append(f"20 bps stress OOS Sharpe {stress_oos_sharpe:.3f} <= 0")
 
     if stress_oos_sharpe is not None and not reasons:

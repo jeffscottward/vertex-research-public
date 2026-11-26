@@ -11,8 +11,8 @@ import re
 import zipfile
 from bisect import bisect_right
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
 
@@ -267,6 +267,31 @@ def _to_alert_bars(bars: Sequence[DailyBar]) -> list[at.DailyBar]:
     return out
 
 
+def count_owner_groups(owner_group_keys: Iterable[str]) -> int:
+    """Distinct persons or entities among reporting-owner CIK sets (union-find).
+
+    Owner CIKs that report on one filing are one group, and a CIK that also files alone or with
+    others joins those filings into the same group. This is the rule of the live cluster list
+    (``personsIn`` in packages/api/src/insider-clusters.ts).
+    """
+    parent: dict[str, str] = {}
+
+    def root(cik: str) -> str:
+        while parent[cik] != cik:
+            parent[cik] = parent[parent[cik]]
+            cik = parent[cik]
+        return cik
+
+    for key in owner_group_keys:
+        ciks = key.split("|")
+        for cik in ciks:
+            parent.setdefault(cik, cik)
+        first = root(ciks[0])
+        for cik in ciks[1:]:
+            parent[root(cik)] = first
+    return len({root(cik) for cik in parent})
+
+
 def _detect_insider_clusters(
     purchases: Sequence[Form4Purchase],
     *,
@@ -294,29 +319,14 @@ def _detect_insider_clusters(
             if last_trigger is not None and (d - last_trigger).days < cooldown_days:
                 continue
             window_rows = [r for r in rows if 0 <= (d - r.filing_date).days <= window_days]
-            distinct_owners = {r.owner_group_key for r in window_rows}
-            if len(distinct_owners) < min_owners:
+            if count_owner_groups(r.owner_group_key for r in window_rows) < min_owners:
                 continue
             total_value = sum(r.dollar_value for r in window_rows)
             if total_value < min_cluster_value:
                 continue
             # Use the ticker on the triggering day's latest filing.
             ticker = by_day[d][-1].ticker
-            delays = [
-                (r.filing_date - r.transaction_date).days
-                for r in window_rows
-                if r.transaction_date is not None and r.filing_date >= r.transaction_date
-            ]
-            avg_delay = round(sum(delays) / len(delays)) if delays else None
-            events.append(
-                SignalEvent(
-                    symbol=ticker,
-                    trigger_day=d,
-                    rank_value=total_value,
-                    signal_kind=f"cluster-{len(distinct_owners)}p",
-                    delay_days=avg_delay,
-                )
-            )
+            events.append(SignalEvent(symbol=ticker, trigger_day=d, rank_value=total_value))
             last_trigger = d
 
     events.sort(key=lambda e: (e.trigger_day, -e.rank_value, e.symbol))
@@ -362,15 +372,7 @@ def _apply_price_confirmation(
                     continue
                 prior_high = max(series.close[start:t])
                 if series.close[t] > prior_high:
-                    confirmed.append(
-                        SignalEvent(
-                            symbol=sym,
-                            trigger_day=day,
-                            rank_value=ev.rank_value,
-                            signal_kind="cluster-confirm",
-                            delay_days=ev.delay_days,
-                        )
-                    )
+                    confirmed.append(SignalEvent(symbol=sym, trigger_day=day, rank_value=ev.rank_value))
                     used.add(idx)
                     last_alert = day
                     break
@@ -433,14 +435,7 @@ def build_signal1_variants(
             day_val = sum(
                 r.dollar_value for r in rows if 0 <= (sig.day - r.filing_date).days <= 30
             )
-            baseline_events.append(
-                SignalEvent(
-                    symbol=sym,
-                    trigger_day=sig.day,
-                    rank_value=day_val,
-                    signal_kind=sig.kind,
-                )
-            )
+            baseline_events.append(SignalEvent(symbol=sym, trigger_day=sig.day, rank_value=day_val))
     baseline_events.sort(key=lambda e: (e.trigger_day, -e.rank_value, e.symbol))
 
     # Variants 2-4: insider cluster buys.
@@ -463,6 +458,8 @@ def build_signal1_variants(
         "cluster-3p-10d-100k": cluster_3p_100k,
         "cluster-3p-10d-confirm": cluster_confirm,
         "cluster-3p-10d-no-10b5-1": cluster_no_10b5_1,
+        # Diagnostic only: the same rule on every issuer, with or without bars (coverage of the cap).
+        "cluster-3p-10d-all-issuers": _detect_insider_clusters(purchases, min_cluster_value=0.0),
     }
     return variants, diagnostics
 
@@ -484,66 +481,70 @@ def normalize_congress_member(name: str) -> str:
     return " ".join(text.split())
 
 
-def dedupe_congress_purchases(rows: Sequence[CongressPurchase]) -> tuple[list[CongressPurchase], int]:
-    """Keep first-filed disclosure per trade (earliest filed_on), null-safe on transaction_date."""
-    best: dict[tuple[str, str, str, str, str, str], CongressPurchase] = {}
-    duplicates_removed = 0
+def _sum_optional(left: float | None, right: float | None) -> float | None:
+    if left is None and right is None:
+        return None
+    return (left or 0.0) + (right or 0.0)
+
+
+def dedupe_congress_purchases(rows: Sequence[CongressPurchase]) -> tuple[list[CongressPurchase], dict[str, int]]:
+    """One event per trade: lots of one filing are summed, and the first filing wins.
+
+    The trade key is (chamber, normalized member, holder, ticker, transaction date or doc id,
+    purchase). Rows with the same key inside one filing are separate lots bought on the same day:
+    their amount bounds are summed. The same key in another filing is a re-disclosure or an
+    amendment: the filing with the earliest ``filed_on`` is kept, so a later filing never moves
+    the public-at date. A row without a transaction date is keyed by its filing, so it never
+    collides with another filing.
+    """
+    by_filing: dict[tuple[tuple[str, str, str, str, str, str], str], CongressPurchase] = {}
+    lots_merged = 0
     for row in rows:
         if row.transaction_type != "purchase":
             continue
         ticker = _clean_ticker(row.ticker)
         if ticker is None:
             continue
-        norm_member = normalize_congress_member(row.member)
+        chamber = row.chamber.lower().strip()
         tx_key = row.transaction_date.isoformat() if row.transaction_date is not None else row.doc_id
         key = (
-            row.chamber.lower().strip(),
-            norm_member,
+            chamber,
+            normalize_congress_member(row.member),
             (row.holder or "").lower().strip(),
             ticker,
             tx_key,
             row.transaction_type,
         )
+        lot = by_filing.get((key, row.doc_id))
+        if lot is None:
+            by_filing[(key, row.doc_id)] = replace(row, chamber=chamber, ticker=ticker)
+        else:
+            lots_merged += 1
+            by_filing[(key, row.doc_id)] = replace(
+                lot,
+                amount_low=_sum_optional(lot.amount_low, row.amount_low),
+                amount_high=_sum_optional(lot.amount_high, row.amount_high),
+            )
+
+    best: dict[tuple[str, str, str, str, str, str], CongressPurchase] = {}
+    later_filings_dropped = 0
+    for (key, _doc_id), trade in by_filing.items():
         prev = best.get(key)
         if prev is None:
-            best[key] = CongressPurchase(
-                chamber=row.chamber.lower().strip(),
-                doc_id=row.doc_id,
-                member=row.member,
-                holder=row.holder,
-                ticker=ticker,
-                transaction_type=row.transaction_type,
-                transaction_date=row.transaction_date,
-                filed_on=row.filed_on,
-                amount_low=row.amount_low,
-                amount_high=row.amount_high,
-                amends=row.amends,
-            )
-        else:
-            duplicates_removed += 1
-            if row.filed_on < prev.filed_on or (row.filed_on == prev.filed_on and not row.amends and prev.amends):
-                best[key] = CongressPurchase(
-                    chamber=row.chamber.lower().strip(),
-                    doc_id=row.doc_id,
-                    member=row.member,
-                    holder=row.holder,
-                    ticker=ticker,
-                    transaction_type=row.transaction_type,
-                    transaction_date=row.transaction_date,
-                    filed_on=row.filed_on,
-                    amount_low=row.amount_low,
-                    amount_high=row.amount_high,
-                    amends=row.amends,
-                )
+            best[key] = trade
+            continue
+        later_filings_dropped += 1
+        if (trade.filed_on, trade.amends, trade.doc_id) < (prev.filed_on, prev.amends, prev.doc_id):
+            best[key] = trade
     deduped = sorted(best.values(), key=lambda r: (r.filed_on, r.chamber, r.ticker, r.doc_id))
-    return deduped, duplicates_removed
+    return deduped, {"same_filing_lots_merged": lots_merged, "later_filings_dropped": later_filings_dropped}
 
 
 def build_signal2_variants(
     rows: Sequence[CongressPurchase],
 ) -> tuple[dict[str, list[SignalEvent]], dict[str, int]]:
     """Build all 4 pre-registered Congress purchase variants using first filed_on."""
-    deduped, duplicates_removed = dedupe_congress_purchases(rows)
+    deduped, dedupe_counts = dedupe_congress_purchases(rows)
 
     all_buys: list[SignalEvent] = []
     large_50k: list[SignalEvent] = []
@@ -558,11 +559,11 @@ def build_signal2_variants(
             else None
         )
         if amt >= 1_001.0:
-            all_buys.append(SignalEvent(r.ticker, r.filed_on, amt, "congress-buy", delay))
+            all_buys.append(SignalEvent(r.ticker, r.filed_on, amt))
         if amt >= 50_001.0:
-            large_50k.append(SignalEvent(r.ticker, r.filed_on, amt, "congress-50k", delay))
+            large_50k.append(SignalEvent(r.ticker, r.filed_on, amt))
         if delay is not None and 0 <= delay <= 15:
-            fast_15d.append(SignalEvent(r.ticker, r.filed_on, amt, "congress-fast15d", delay))
+            fast_15d.append(SignalEvent(r.ticker, r.filed_on, amt))
         by_ticker[r.ticker].append(r)
 
     multi_member: list[SignalEvent] = []
@@ -579,7 +580,7 @@ def build_signal2_variants(
             members = {normalize_congress_member(r.member) for r in window}
             if len(members) >= 2:
                 total_amt = sum(float(r.amount_low or 0.0) for r in window)
-                multi_member.append(SignalEvent(ticker, d, total_amt, f"congress-multi-{len(members)}"))
+                multi_member.append(SignalEvent(ticker, d, total_amt))
                 last_trigger = d
 
     for seq in (all_buys, large_50k, fast_15d, multi_member):
@@ -588,7 +589,7 @@ def build_signal2_variants(
     diagnostics = {
         "raw_rows": len(rows),
         "deduped_purchases": len(deduped),
-        "duplicates_removed": duplicates_removed,
+        **dedupe_counts,
     }
     return {
         "all-buys": all_buys,
@@ -629,6 +630,7 @@ def build_signal3_events(
     events: list[SignalEvent] = []
     passed_filter = 0
     without_bars = 0
+    top10_without_bars = 0
     illiquid = 0
     for session_day in sorted(by_session):
         qualifying: list[MarketPremiumRow] = []
@@ -641,32 +643,28 @@ def build_signal3_events(
             if r.trade_count < PREMIUM_MIN_TRADES:
                 continue
             bars = sorted_bars.get(r.ticker)
-            idx_map = day_indices.get(r.ticker)
-            if not bars or not idx_map:
+            if not bars:
+                # No bars: liquidity is unknown. The ticker keeps its rank, and the portfolio
+                # counts it as a missing-bar event, so the top 10 never depends on which tickers
+                # happen to have bars.
                 without_bars += 1
-                continue
-            if not check_point_in_time_liquidity(bars, idx_map, session_day):
+            elif not check_point_in_time_liquidity(bars, day_indices[r.ticker], session_day):
                 illiquid += 1
                 continue
             qualifying.append(r)
         passed_filter += len(qualifying)
         qualifying.sort(key=lambda r: (-r.net_premium, r.ticker))
         for r in qualifying[:PREMIUM_TOP_N]:
-            events.append(
-                SignalEvent(
-                    symbol=r.ticker,
-                    trigger_day=session_day,
-                    rank_value=r.net_premium,
-                    signal_kind="large-bullish-premium",
-                    delay_days=0,
-                )
-            )
+            events.append(SignalEvent(symbol=r.ticker, trigger_day=session_day, rank_value=r.net_premium))
+            if not sorted_bars.get(r.ticker):
+                top10_without_bars += 1
 
     diagnostics = {
         "complete_sessions": len(by_session),
         "non_complete_rows_skipped": non_complete,
         "qualifying_ticker_sessions": passed_filter,
         "premium_rows_without_bars": without_bars,
+        "top10_events_without_bars": top10_without_bars,
         "premium_rows_illiquid": illiquid,
         "selected_top10_events": len(events),
     }

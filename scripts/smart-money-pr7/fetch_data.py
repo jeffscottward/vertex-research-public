@@ -9,6 +9,10 @@ Runs on the rig (not imported by services/research or CI). Resumable and rate-li
    congress_trades.jsonl + metadata.json.
 4. Caches daily OHLCV bars (2015-06-01..2026-11-24) for SPY + 146 STOCKS + event
    tickers (capped at 600) from Yahoo Finance chart API -> bars/<SYM>.csv.
+5. Caches daily bars (from 2025-06-01) for every other ticker that passes the frozen
+   premium tests on a complete session -> bars_premium/<SYM>.csv (study 3 only).
+6. Caches daily bars for every other ticker with a cluster event or a Congress purchase
+   -> bars_events/<SYM>.csv (post-hoc full-universe check of studies 1 and 2 only).
 
 Research only. Zero paid data sources. Never prints credentials or emails.
 """
@@ -34,10 +38,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "services" / "research"))
 sys.path.insert(0, str(REPO_ROOT / "research" / "backtests" / "freestockalerts"))
 
+from strategies.smart_money.__main__ import load_form4_jsonl  # noqa: E402
 from strategies.smart_money.engine import raw_closes_from_splits  # noqa: E402
 from strategies.smart_money.signals import (  # noqa: E402
     CLUSTER_MIN_OWNERS,
     CLUSTER_WINDOW_DAYS,
+    PREMIUM_BULLISH_RATIO_MIN,
+    PREMIUM_FLOOR_USD,
+    PREMIUM_MIN_TRADES,
+    SYMBOL_RE,
+    _detect_insider_clusters,
     Form4Purchase,
     parse_sec_form4_zip,
 )
@@ -131,12 +141,14 @@ def fetch_sec_form4(out_dir: Path, email: str) -> Path:
     return jsonl_path
 
 
-def _ssh_psql_jsonl(sql: str) -> list[dict[str, Any]]:
+def _ssh_psql_jsonl(sql: str, what: str) -> list[dict[str, Any]]:
+    """Rows of one read-only query on QuantVPS Postgres. An SQL error or an empty result stops the run."""
     wrapped = f"SELECT row_to_json(t) FROM ({sql}) t;"
     cmd = [
         "ssh",
         "quantvps",
-        "sudo docker exec -i vertex-postgres psql -U postgres -d vertex_research_development -tAq",
+        # ON_ERROR_STOP: without it psql exits 0 after an SQL error and the export would be empty.
+        "sudo docker exec -i vertex-postgres psql -v ON_ERROR_STOP=1 -U postgres -d vertex_research_development -tAq",
     ]
     proc = subprocess.run(cmd, input=wrapped, capture_output=True, text=True, check=True)
     rows: list[dict[str, Any]] = []
@@ -144,6 +156,8 @@ def _ssh_psql_jsonl(sql: str) -> list[dict[str, Any]]:
         line = line.strip()
         if line:
             rows.append(json.loads(line))
+    if not rows:
+        raise RuntimeError(f"QuantVPS export returned no rows: {what}")
     return rows
 
 
@@ -162,7 +176,7 @@ def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]
         WHERE s.status = 'complete'
         ORDER BY p.session_date, p.ticker
     """
-    prem_rows = _ssh_psql_jsonl(prem_sql)
+    prem_rows = _ssh_psql_jsonl(prem_sql, "flow_market_premium complete sessions")
     prem_path = out_dir / "market_premium.jsonl"
     with prem_path.open("w", encoding="utf-8") as fh:
         for r in prem_rows:
@@ -192,7 +206,7 @@ def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]
           AND t.filed_on >= '2026-01-01'
         ORDER BY t.filed_on, t.chamber, t.doc_id, t.row_number
     """
-    cong_2026 = _ssh_psql_jsonl(cong_sql)
+    cong_2026 = _ssh_psql_jsonl(cong_sql, "2026 Congress purchases")
     cong_2026_path = out_dir / "congress_2026.json"
     cong_2026_path.write_text(json.dumps(cong_2026, indent=1), encoding="utf-8")
 
@@ -203,7 +217,7 @@ def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]
         GROUP BY 1, 2, 3
         ORDER BY 1, 2, 3
     """
-    ledger_2026 = _ssh_psql_jsonl(ledger_sql)
+    ledger_2026 = _ssh_psql_jsonl(ledger_sql, "2026 Congress filing ledger")
     print(f"[pg] exported {len(cong_2026)} 2026 Congress purchases; ledger groups={len(ledger_2026)}", flush=True)
     return prem_path, cong_2026_path, {"ledger_2026": ledger_2026}
 
@@ -217,20 +231,34 @@ def _month_windows(start_year: int, end_year: int) -> list[tuple[str, str]]:
     return windows
 
 
+def _require_complete_chunk(payload: dict[str, Any], label: str) -> None:
+    """Stop when a monthly Congress chunk is not complete.
+
+    The job reports a filing whose download failed, a deadline cut or a refused host only as a
+    warning or a ``blocked`` entry, and leaves the filing out of both tables. Such a month would
+    lose trades without a trace in the ledger, so it is never cached or used.
+    """
+    if "blocked" in payload:
+        raise RuntimeError(f"{label}: blocked upstream ({payload['blocked']})")
+    warnings = [str(w) for w in payload.get("warnings") or []]
+    if warnings:
+        raise RuntimeError(f"{label}: {len(warnings)} warning(s), first: {warnings[0][:300]}")
+
+
 def _fetch_chamber_history(
     job: str,
     chamber: str,
     windows: list[tuple[str, str]],
     chunks_dir: Path,
     env: dict[str, str],
-) -> tuple[list[dict[str, Any]], Counter[tuple[str, str, str, str]], list[str]]:
+) -> tuple[list[dict[str, Any]], Counter[tuple[str, str, str, str]]]:
     purchases: list[dict[str, Any]] = []
     counts: Counter[tuple[str, str, str, str]] = Counter()  # (chamber, filing year, status, reason)
-    deadline_warnings: list[str] = []
     for since_s, until_s in windows:
         cpath = chunks_dir / f"{job}_{since_s}_{until_s}.json"
         if cpath.exists() and cpath.stat().st_size > 20:
             payload = json.loads(cpath.read_text(encoding="utf-8"))
+            _require_complete_chunk(payload, f"{job} {since_s}..{until_s} (cached {cpath.name})")
         else:
             cmd = [
                 str(OPENBB_VENV_PYTHON),
@@ -246,11 +274,8 @@ def _fetch_chamber_history(
             if proc.returncode != 0:
                 raise RuntimeError(f"{job} {since_s}..{until_s} exited {proc.returncode}: {proc.stderr[-500:]}")
             payload = json.loads(proc.stdout)
+            _require_complete_chunk(payload, f"{job} {since_s}..{until_s}")
             cpath.write_text(json.dumps(payload), encoding="utf-8")
-
-        for w in payload.get("warnings") or []:
-            if "deadline" in str(w).lower():
-                deadline_warnings.append(f"{job} {since_s}..{until_s}: {w}")
 
         raw_tables = payload.get("tables") or []
         if isinstance(raw_tables, dict):
@@ -295,7 +320,7 @@ def _fetch_chamber_history(
             )
             month_buys += 1
         print(f"[{job}] {since_s}..{until_s}: {len(filings)} filings, {month_buys} buys", flush=True)
-    return purchases, counts, deadline_warnings
+    return purchases, counts
 
 
 def fetch_congress_history(out_dir: Path, email: str, ledger_2026: list[dict[str, Any]]) -> tuple[Path, dict[str, Any]]:
@@ -322,18 +347,13 @@ def fetch_congress_history(out_dir: Path, email: str, ledger_2026: list[dict[str
     if cong_2026_path.exists():
         all_purchases.extend(json.loads(cong_2026_path.read_text(encoding="utf-8")))
 
-    deadline_warnings: list[str] = []
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_house = pool.submit(_fetch_chamber_history, "congress-house", "house", windows, chunks_dir, env)
         f_senate = pool.submit(_fetch_chamber_history, "congress-senate", "senate", windows, chunks_dir, env)
         for fut in (f_house, f_senate):
-            p_rows, c_map, d_warns = fut.result()
+            p_rows, c_map = fut.result()
             all_purchases.extend(p_rows)
             ledger_counts.update(c_map)
-            deadline_warnings.extend(d_warns)
-
-    if deadline_warnings:
-        raise RuntimeError(f"Deadline truncation detected in Congress fetch: {deadline_warnings[:5]}")
 
     out_path = out_dir / "congress_trades.jsonl"
     with out_path.open("w", encoding="utf-8") as fh:
@@ -348,6 +368,11 @@ def fetch_congress_history(out_dir: Path, email: str, ledger_2026: list[dict[str
 
 
 def _select_universe_tickers(out_dir: Path) -> list[str]:
+    """The pre-registered universe of studies 1 and 2 (at most 600 tickers, SPY and the 146 stocks first).
+
+    The list is part of the pre-registered method: do not change the counting rules or the order
+    of ties here, or the recorded studies no longer describe this universe.
+    """
     import universe as fsa_universe  # type: ignore[import-not-found]
 
     base_stocks: set[str] = {s.upper() for s in fsa_universe.STOCKS}
@@ -501,11 +526,10 @@ def _bars_csv_is_current(csv_path: Path) -> bool:
         return header == list(BAR_COLUMNS) and bool(fh.readline().strip())
 
 
-def fetch_daily_bars(out_dir: Path) -> dict[str, Any]:
-    bars_dir = out_dir / "bars"
+def _fetch_bars(tickers: list[str], bars_dir: Path, first_day: datetime, label: str) -> tuple[int, list[str]]:
+    """Cache one CSV per ticker; returns (tickers with bars, tickers Yahoo has no history for)."""
     bars_dir.mkdir(parents=True, exist_ok=True)
-    tickers = _select_universe_tickers(out_dir)
-    p1 = int(datetime(2015, 6, 1, tzinfo=timezone.utc).timestamp())
+    p1 = int(first_day.timestamp())
     p2 = int(datetime(2026, 11, 25, tzinfo=timezone.utc).timestamp())
 
     cached = 0
@@ -519,7 +543,7 @@ def fetch_daily_bars(out_dir: Path) -> dict[str, Any]:
             try:
                 chart = _yahoo_chart(sym, p1, p2)
             except YahooFetchError as exc:
-                print(f"[bars] {exc}", flush=True)
+                print(f"[{label}] {exc}", flush=True)
                 failed.append(sym)
                 chart = None
             rows = _chart_rows(chart) if chart else []
@@ -535,19 +559,99 @@ def fetch_daily_bars(out_dir: Path) -> dict[str, Any]:
             time.sleep(0.12)
         if idx % 50 == 0 or idx == len(tickers):
             print(
-                f"[bars] {idx}/{len(tickers)} done (ok={cached}, not_found={len(not_found)}, failed={len(failed)})",
+                f"[{label}] {idx}/{len(tickers)} done (ok={cached}, not_found={len(not_found)}, failed={len(failed)})",
                 flush=True,
             )
     if failed:
         # A ticker that Yahoo knows must not drop out of the universe because of a rate limit.
         raise YahooFetchError(
-            f"{len(failed)} tickers failed after retries: {' '.join(failed)}. Run --only bars again; "
+            f"{len(failed)} tickers failed after retries: {' '.join(failed)}. Run the step again; "
             "tickers that are already cached are kept."
         )
+    return cached, sorted(not_found)
+
+
+def fetch_daily_bars(out_dir: Path) -> dict[str, Any]:
+    """Bars of the pre-registered universe (studies 1 and 2, and the benchmark)."""
+    tickers = _select_universe_tickers(out_dir)
+    cached, not_found = _fetch_bars(tickers, out_dir / "bars", datetime(2015, 6, 1, tzinfo=timezone.utc), "bars")
+    return {"universe_requested": len(tickers), "bars_cached": cached, "bars_not_found": not_found}
+
+
+def _premium_candidate_tickers(out_dir: Path) -> list[str]:
+    """Every ticker that passes the frozen premium tests on at least one complete session."""
+    tickers: set[str] = set()
+    with (out_dir / "market_premium.jsonl").open("r", encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            bullish = float(r["bullish_premium"])
+            total = bullish + float(r["bearish_premium"])
+            if (
+                str(r.get("session_status") or "complete") == "complete"
+                and bullish >= PREMIUM_FLOOR_USD
+                and total > 0
+                and bullish / total >= PREMIUM_BULLISH_RATIO_MIN
+                and int(r["trade_count"]) >= PREMIUM_MIN_TRADES
+                and SYMBOL_RE.match(str(r["ticker"]).strip().upper())
+            ):
+                tickers.add(str(r["ticker"]).strip().upper())
+    return sorted(tickers)
+
+
+def fetch_premium_bars(out_dir: Path) -> dict[str, Any]:
+    """Bars for the large-bullish-premium study only, in their own folder.
+
+    The frozen rule ranks every ticker that passes the premium tests, so its bars must not depend
+    on the 600-ticker cap of the other two studies. Tickers of that cap are already in ``bars/``.
+    """
+    in_universe = set(_select_universe_tickers(out_dir))
+    candidates = _premium_candidate_tickers(out_dir)
+    extra = [t for t in candidates if t not in in_universe]
+    cached, not_found = _fetch_bars(
+        extra, out_dir / "bars_premium", datetime(2025, 6, 1, tzinfo=timezone.utc), "premium-bars"
+    )
     return {
-        "universe_requested": len(tickers),
-        "bars_cached": cached,
-        "bars_not_found": sorted(not_found),
+        "premium_tickers_candidates": len(candidates),
+        "premium_bars_extra_requested": len(extra),
+        "premium_bars_extra_cached": cached,
+        "premium_bars_extra_not_found": not_found,
+    }
+
+
+def _event_tickers(out_dir: Path) -> list[str]:
+    """Every ticker with a cluster event (any issuer) or a Congress purchase."""
+    tickers: set[str] = set()
+    clusters = _detect_insider_clusters(load_form4_jsonl(out_dir / "form4_purchases.jsonl"))
+    tickers.update(event.symbol for event in clusters)
+    with (out_dir / "congress_trades.jsonl").open("r", encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                symbol = str(json.loads(line)["ticker"]).strip().upper()
+                if SYMBOL_RE.match(symbol):
+                    tickers.add(symbol)
+    return sorted(tickers)
+
+
+def fetch_event_bars(out_dir: Path) -> dict[str, Any]:
+    """Bars for the post-hoc full-universe check of studies 1 and 2, in their own folder.
+
+    The pre-registered universe (``bars/``) is capped at 600 tickers chosen by whole-sample event
+    counts. This step fetches every other ticker that has a cluster event or a Congress purchase,
+    so the runner can report the primary trials without the cap beside the pre-registered result.
+    """
+    in_universe = set(_select_universe_tickers(out_dir))
+    candidates = _event_tickers(out_dir)
+    extra = [t for t in candidates if t not in in_universe]
+    cached, not_found = _fetch_bars(
+        extra, out_dir / "bars_events", datetime(2015, 6, 1, tzinfo=timezone.utc), "event-bars"
+    )
+    return {
+        "event_tickers_candidates": len(candidates),
+        "event_bars_extra_requested": len(extra),
+        "event_bars_extra_cached": cached,
+        "event_bars_extra_not_found": not_found,
     }
 
 
@@ -560,7 +664,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--only",
-        choices=["all", "sec", "postgres", "congress", "bars"],
+        choices=["all", "sec", "postgres", "congress", "bars", "premium-bars", "event-bars"],
         default="all",
     )
     args = parser.parse_args()
@@ -583,6 +687,12 @@ def main() -> int:
         meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     if args.only in ("all", "bars"):
         meta.update(fetch_daily_bars(args.out_dir))
+        meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    if args.only in ("all", "premium-bars"):
+        meta.update(fetch_premium_bars(args.out_dir))
+        meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    if args.only in ("all", "event-bars"):
+        meta.update(fetch_event_bars(args.out_dir))
         meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     return 0
 

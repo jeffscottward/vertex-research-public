@@ -33,6 +33,14 @@ def _cut(text: str, limit: int) -> str:
     return cleaned[: limit - 1].rstrip() + "…"
 
 
+def _fit(text: str, limit: int, field: str) -> str:
+    """A disclosure text that must reach the reader whole: too long stops the run, never a silent cut."""
+    cleaned = " ".join(text.split()).strip()
+    if len(cleaned) > limit:
+        raise ValueError(f"{field} has {len(cleaned)} characters; the study contract allows {limit}")
+    return cleaned
+
+
 def _finite(val: float, default: float = 0.0) -> float:
     return round(val, 6) if math.isfinite(val) else default
 
@@ -154,7 +162,13 @@ def build_study_document(
                 "runs": list(runs),
             }
         ],
-        "gaps": [{"choice": _cut(choice, 400), "gap": _cut(gap, 300)} for gap, choice in gaps],
+        "gaps": [
+            {
+                "choice": _fit(choice, 400, f"{study_id} gap '{gap}' text"),
+                "gap": _fit(gap, 300, f"{study_id} gap '{gap}' name"),
+            }
+            for gap, choice in gaps
+        ],
         "id": study_id,
         "kind": "strategy-backtest",
         "notes": notes[:NOTES_MAX_CHARS].strip(),
@@ -169,12 +183,12 @@ def build_study_document(
             {
                 "check": _cut(str(r["check"]), 80),
                 "pass": r["pass"],
-                "result": _cut(str(r["result"]), 300),
+                "result": _fit(str(r["result"]), 300, f"{study_id} robustness '{r['check']}' result"),
             }
             for r in robustness
         ],
         "rules": [
-            {"item": _cut(item, 60), "rule": _cut(rule, 400), "source": _cut(src, 200)}
+            {"item": _cut(item, 60), "rule": _fit(rule, 400, f"{study_id} rule '{item}'"), "source": _cut(src, 200)}
             for item, rule, src in rules
         ],
         "sensitivity": [
@@ -195,7 +209,7 @@ def build_study_document(
         "spec": f"docs/specs/strategies/{study_id}.md",
         "title": _cut(title, 200),
         "verdict": verdict,
-        "verdictReason": _cut(verdict_reason, 1000),
+        "verdictReason": _fit(verdict_reason, 1000, f"{study_id} verdict reason"),
     }
     raw = json.dumps(doc, separators=(",", ":"), sort_keys=True).encode("utf-8")
     if len(raw) > MAX_DOC_BYTES:

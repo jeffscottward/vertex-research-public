@@ -5,6 +5,9 @@ Synthetic fixtures only (public repository). Pure stdlib + services/research mod
 from __future__ import annotations
 
 import csv
+import hashlib
+import importlib.util
+import inspect
 import io
 import json
 import math
@@ -13,13 +16,13 @@ import statistics
 import sys
 import zipfile
 from ast import Import, ImportFrom, parse, walk
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
-from strategies.trend_trio.study import moments
 import strategies.smart_money as smart_money_package
+from backtesting.optimizer import DeflatedSharpe, deflated_sharpe_ratio
 from strategies.smart_money import (
     CongressPurchase,
     DailyBar,
@@ -38,9 +41,21 @@ from strategies.smart_money import (
     parse_sec_form4_zip,
     simulate_event_portfolio,
 )
+from strategies.smart_money import __main__ as main_module
+from strategies.smart_money import document as document_module
+from strategies.smart_money import engine as engine_module
 from strategies.smart_money.__main__ import (
+    POST_HOC_CHECK,
+    POST_HOC_GAP,
+    GatedStudy,
+    RunContext,
+    StudyWindow,
     _add_years,
     _congress_coverage_gaps,
+    _gate_robustness_rows,
+    _hash_files,
+    _post_hoc_full_universe,
+    _sensitivity_rows,
     _spy_benchmark_stats,
     _universe_note,
     load_bars_dir,
@@ -48,9 +63,8 @@ from strategies.smart_money.__main__ import (
     load_form4_jsonl,
     load_premium_jsonl,
     run_all_studies,
+    run_gated_study,
 )
-from strategies.smart_money import document as document_module
-from strategies.smart_money import engine as engine_module
 from strategies.smart_money.__main__ import main as cli_main
 from strategies.smart_money.document import (
     MAX_BATCH_BYTES,
@@ -75,7 +89,9 @@ from strategies.smart_money.signals import (
     _parse_float,
     _parse_sec_date,
     _to_alert_bars,
+    count_owner_groups,
 )
+from strategies.trend_trio.study import moments
 
 
 def _make_trading_days(start: date, count: int) -> list[date]:
@@ -288,8 +304,8 @@ def test_congress_normalization_and_first_filing_null_safe_dedupe() -> None:
         CongressPurchase("house", "20010001", "Hon. Alice Roe", None, "MSFT", "purchase", None, date(2024, 6, 1), 1001, 15000),
         CongressPurchase("house", "20010002", "Hon. Alice Roe", None, "MSFT", "purchase", None, date(2024, 6, 5), 1001, 15000),
     ]
-    deduped, removed = dedupe_congress_purchases(rows)
-    assert removed == 1
+    deduped, counts = dedupe_congress_purchases(rows)
+    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 1}
     assert len(deduped) == 4
     nvda_self = [r for r in deduped if r.ticker == "NVDA" and r.holder == "self"]
     assert len(nvda_self) == 1
@@ -531,13 +547,25 @@ def test_frozen_premium_baseline_refuses_a_full_holdout_window(tmp_path: Path) -
             w.writerow(["date", "open", "high", "low", "close", "adj_close", "volume", "raw_close"])
             for b in seq:
                 w.writerow([b.day.isoformat(), b.open, b.high, b.low, b.close, b.adj_close, b.volume, b.raw_close])
-    premium = [
-        {"session_date": d.isoformat(), "ticker": "ACME", "bullish_premium": 800_000, "bearish_premium": 0, "trade_count": 5}
-        for d in days[30:540]
-    ]
-    (data_dir / "market_premium.jsonl").write_text("\n".join(json.dumps(r) for r in premium) + "\n", encoding="utf-8")
+
+    def run(sessions: int) -> dict[str, Any]:
+        premium = [
+            {"session_date": d.isoformat(), "ticker": "ACME", "bullish_premium": 800_000, "bearish_premium": 0, "trade_count": 5}
+            for d in days[30 : 30 + sessions]
+        ]
+        _write_event_files(data_dir, premium=premium)
+        return run_all_studies(data_dir=data_dir, out_dir=tmp_path / f"out-{sessions}", ran=date(2026, 11, 25), commit="8e1622224")
+
     with pytest.raises(ValueError, match="pre-register the out-of-sample split"):
-        run_all_studies(data_dir=data_dir, out_dir=tmp_path / "out", ran=date(2026, 11, 25), commit="8e1622224")
+        run(510)
+    # The guard starts at exactly the holdout length (490 sessions); one session less is still a baseline.
+    with pytest.raises(ValueError, match="smart-money-large-bullish-premium: 490 sessions reach the 490-session holdout"):
+        run(490)
+    assert not (tmp_path / "out-490").exists()
+    summary = run(489)["summaries"]["smart-money-large-bullish-premium"]
+    assert summary["verdict"] == "needs-more-data"
+    assert summary["complete_sessions"] == 489
+    assert summary["n_trials"] == 1
 
 
 def _write_form4_zip(
@@ -566,6 +594,102 @@ def _write_bars_csv(path: Path, bars: list[DailyBar]) -> None:
 def _flat_bars(days: list[date], price: float = 100.0, volume: float = 1_000_000.0) -> list[DailyBar]:
     """Bars with open = high = low = close, so every daily return is exactly zero."""
     return [DailyBar(d, price, price, price, price, price, volume, price) for d in days]
+
+
+def _bars_from_closes(days: list[date], closes: list[float], volume: float = 2_000_000.0) -> list[DailyBar]:
+    """Bars with open = high = low = close = the given close (no adjustment, no split)."""
+    return [DailyBar(d, c, c, c, c, c, volume, c) for d, c in zip(days, closes, strict=True)]
+
+
+def _growing_bars(days: list[date], rate: float, volume: float = 1_000_000.0) -> list[DailyBar]:
+    """Bars from 100: the close is ``rate`` above the open on every session, the open is the previous close."""
+    bars: list[DailyBar] = []
+    price = 100.0
+    for d in days:
+        close = price * (1.0 + rate)
+        bars.append(DailyBar(d, price, close, price, close, close, volume, close))
+        price = close
+    return bars
+
+
+def _hand_returns(sessions: int, trades: list[tuple[int, float]], holding: int, cost_bps: float = 10.0) -> list[float]:
+    """Daily portfolio return by hand for ``_growing_bars`` stocks against a flat benchmark.
+
+    Each trade is (entry session, daily rate). It fills one of 10 equal slots for ``holding``
+    sessions and pays the cost on its entry day and on its exit day.
+    """
+    cost = cost_bps / 10_000.0
+    out = [0.0] * sessions
+    for entry, rate in trades:
+        for k in range(holding):
+            legs = (k == 0) + (k == holding - 1)
+            out[entry + k] += (rate - legs * cost) / 10.0
+    return out
+
+
+def _hand_sharpe(returns: list[float]) -> float:
+    """Per-observation Sharpe: mean over sample standard deviation, 0 for a constant series."""
+    deviation = statistics.stdev(returns)
+    return statistics.fmean(returns) / deviation if deviation > 0 else 0.0
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+
+# One row per event file that loads but makes no event: a lone purchase in a ticker without bars,
+# a sale, and a complete session whose only row is below the premium floor.
+_IDLE_FORM4_ROW: dict[str, Any] = {
+    "accession_number": "idle-1",
+    "filing_date": "2020-01-02",
+    "issuer_cik": "999",
+    "ticker": "IDLE",
+    "owner_group_key": "idle",
+    "security": "common",
+    "shares": 1,
+    "price": 1,
+}
+_IDLE_CONGRESS_ROW: dict[str, Any] = {
+    "chamber": "house",
+    "doc_id": "idle-1",
+    "member": "Member Idle",
+    "ticker": "IDLE",
+    "transaction_type": "sale",
+    "filed_on": "2020-01-02",
+}
+_IDLE_PREMIUM_ROW: dict[str, Any] = {
+    "session_date": "2020-01-02",
+    "ticker": "IDLE",
+    "bullish_premium": 1,
+    "bearish_premium": 0,
+    "trade_count": 1,
+}
+
+
+def _record_calls(monkeypatch: pytest.MonkeyPatch, name: str) -> list[dict[str, Any]]:
+    """Record the arguments of every call of a function of the runner module; the function still runs."""
+    real = getattr(main_module, name)
+    calls: list[dict[str, Any]] = []
+
+    def recorder(*args: Any, **kwargs: Any) -> Any:
+        calls.append(dict(inspect.signature(real).bind(*args, **kwargs).arguments))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(main_module, name, recorder)
+    return calls
+
+
+def _write_event_files(
+    data_dir: Path,
+    *,
+    form4: list[dict[str, Any]] | None = None,
+    congress: list[dict[str, Any]] | None = None,
+    premium: list[dict[str, Any]] | None = None,
+) -> None:
+    """Write the three collector event files; a file that is not given holds its idle row."""
+    _write_jsonl(data_dir / "form4_purchases.jsonl", form4 if form4 is not None else [_IDLE_FORM4_ROW])
+    _write_jsonl(data_dir / "congress_trades.jsonl", congress if congress is not None else [_IDLE_CONGRESS_ROW])
+    _write_jsonl(data_dir / "market_premium.jsonl", premium if premium is not None else [_IDLE_PREMIUM_ROW])
 
 
 _ZERO_METRICS = PeriodMetrics(0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, None)
@@ -745,13 +869,15 @@ def test_parse_sec_form4_zip_skips_rows_with_missing_fields(tmp_path: Path) -> N
     _write_form4_zip(
         zip_path,
         {
-            "SUBMISSION.tsv": [sub("A1"), sub("NO-OWNER")],
+            # AMEND is a complete, valid amendment (Form 4/A): only the original Form 4 counts.
+            "SUBMISSION.tsv": [sub("A1"), sub("NO-OWNER"), sub("AMEND", DOCUMENT_TYPE="4/A")],
             "REPORTINGOWNER.tsv": [
                 {"ACCESSION_NUMBER": "A1", "RPTOWNERCIK": "0000900001", "RPTOWNER_RELATIONSHIP": "", "RPTOWNER_TITLE": ""},
                 # An owner row of a filing that is not a kept Form 4 submission.
                 {"ACCESSION_NUMBER": "UNKNOWN", "RPTOWNERCIK": "0000900002", "RPTOWNER_RELATIONSHIP": "Director", "RPTOWNER_TITLE": ""},
                 # An owner row without a CIK does not form an owner group.
                 {"ACCESSION_NUMBER": "NO-OWNER", "RPTOWNERCIK": "", "RPTOWNER_RELATIONSHIP": "", "RPTOWNER_TITLE": ""},
+                {"ACCESSION_NUMBER": "AMEND", "RPTOWNERCIK": "0000900009", "RPTOWNER_RELATIONSHIP": "Director", "RPTOWNER_TITLE": ""},
             ],
             "NONDERIV_TRANS.tsv": [
                 tx("UNKNOWN"),  # accession without a kept submission
@@ -762,6 +888,7 @@ def test_parse_sec_form4_zip_skips_rows_with_missing_fields(tmp_path: Path) -> N
                 tx("A1", TRANS_SHARES="-5"),  # non-positive share count
                 tx("A1", TRANS_PRICEPERSHARE="0"),  # non-positive price
                 tx("NO-OWNER"),  # no owner group
+                tx("AMEND", TRANS_SHARES="777"),  # amendment
                 tx("A1", TRANS_SHARES="500", SHRS_OWND_FOLLOWING_TRANS="300", TRANS_DATE="01/30/2024"),
             ],
         },
@@ -786,25 +913,25 @@ def test_insider_cluster_cooldown_value_floor_and_10b5_1_exclusion() -> None:
     days = _make_trading_days(date(2024, 1, 2), 90)
     bars = {"ACME": _make_bars(days, start_price=20.0, daily_return=0.0)}
 
-    def buy(acc: str, idx: int, owner: str, shares: float, tx_date: date | None, flagged: bool = False) -> Form4Purchase:
-        return Form4Purchase(acc, days[idx], tx_date, "123", "ACME", owner, "Director", "common", shares, 20.0, None, flagged)
+    def buy(acc: str, idx: int, owner: str, shares: float, flagged: bool = False) -> Form4Purchase:
+        return Form4Purchase(acc, days[idx], None, "123", "ACME", owner, "Director", "common", shares, 20.0, None, flagged)
 
     purchases = [
-        # First cluster: three owners in three sessions, $6,000 in total, each filed 2 days after the trade.
-        buy("a1", 10, "owner1", 100, days[10] - timedelta(days=2)),
-        buy("a2", 11, "owner2", 100, days[11] - timedelta(days=2)),
-        buy("a3", 12, "owner3", 100, days[12] - timedelta(days=2)),
+        # First cluster: three owners in three sessions, $6,000 in total.
+        buy("a1", 10, "owner1", 100),
+        buy("a2", 11, "owner2", 100),
+        buy("a3", 12, "owner3", 100),
         # One day after the trigger: inside the 14-day cooldown, so no second event.
-        buy("a4", 13, "owner4", 100, days[13] - timedelta(days=2)),
+        buy("a4", 13, "owner4", 100),
         # Second cluster after the cooldown: $120,000 in total, one owner trades under a 10b5-1 plan.
-        buy("b1", 40, "owner5", 2000, None),
-        buy("b2", 41, "owner6", 2000, days[41] - timedelta(days=4), flagged=True),
-        buy("b3", 42, "owner7", 2000, days[42] + timedelta(days=1)),  # trade date after filing: no delay
+        buy("b1", 40, "owner5", 2000),
+        buy("b2", 41, "owner6", 2000, flagged=True),
+        buy("b3", 42, "owner7", 2000),
     ]
     variants, diag = build_signal1_variants(purchases, bars)
 
-    first = SignalEvent("ACME", days[12], 6_000.0, "cluster-3p", 2)
-    second = SignalEvent("ACME", days[42], 120_000.0, "cluster-3p", 4)
+    first = SignalEvent("ACME", days[12], 6_000.0)
+    second = SignalEvent("ACME", days[42], 120_000.0)
     assert variants["cluster-3p-10d"] == [first, second]
     # The $100,000 floor drops the small cluster, also on the day a fourth owner joins it.
     assert variants["cluster-3p-10d-100k"] == [second]
@@ -812,9 +939,169 @@ def test_insider_cluster_cooldown_value_floor_and_10b5_1_exclusion() -> None:
     assert variants["cluster-3p-10d-no-10b5-1"] == [first]
     # A flat price never closes above its 50-day average, so nothing is confirmed.
     assert variants["cluster-3p-10d-confirm"] == []
-    assert diag["raw_purchases"] == 7
-    assert diag["cleaned_purchases"] == 7
-    assert diag["post_2023_10b5_1_flagged"] == 1
+    assert variants["cluster-3p-10d-all-issuers"] == [first, second]
+    assert sorted(variants) == [
+        "cluster-3p-10d",
+        "cluster-3p-10d-100k",
+        "cluster-3p-10d-all-issuers",
+        "cluster-3p-10d-confirm",
+        "cluster-3p-10d-no-10b5-1",
+        "confirmation-baseline",
+    ]
+    assert diag == {
+        "raw_purchases": 7,
+        "cleaned_purchases": 7,
+        "ticker_without_bars": 0,
+        "no_bar_by_filing_day": 0,
+        "price_sanity_rejected": 0,
+        "post_2023_10b5_1_flagged": 1,
+    }
+
+
+def test_count_owner_groups_merges_cik_sets_that_share_a_member() -> None:
+    assert count_owner_groups([]) == 0
+    assert count_owner_groups(["100"]) == 1
+    assert count_owner_groups(["100", "200", "300"]) == 3
+    assert count_owner_groups(["100", "100", "100"]) == 1
+    # A person who files alone and jointly is one group.
+    assert count_owner_groups(["100", "100|200"]) == 1
+    # Joint filings that share a member chain into one group, in any order.
+    assert count_owner_groups(["100|200", "200|300", "300"]) == 1
+    assert count_owner_groups(["300", "100|200", "200|300"]) == 1
+    assert count_owner_groups(["100|200", "300|400"]) == 2
+    # The last key joins two groups that were apart until then.
+    assert count_owner_groups(["100|200", "300|400", "500", "200|300"]) == 2
+    assert count_owner_groups(iter(["100|200|300", "400"])) == 2
+
+
+def test_insider_cluster_window_is_ten_days_and_cooldown_is_fourteen_days() -> None:
+    d0 = date(2024, 3, 1)
+
+    def buy(acc: str, issuer: str, ticker: str, offset: int, owner: str) -> Form4Purchase:
+        return Form4Purchase(acc, d0 + timedelta(days=offset), None, issuer, ticker, owner, "Director", "common", 100, 10.0, None)
+
+    purchases = [
+        # TEN: the third owner files exactly 10 days after the first one.
+        buy("t1", "10", "TEN", 0, "a"),
+        buy("t2", "10", "TEN", 5, "b"),
+        buy("t3", "10", "TEN", 10, "c"),
+        # ELEVEN: 11 days after the first one, so no window holds three owners.
+        buy("e1", "11", "ELEVEN", 0, "a"),
+        buy("e2", "11", "ELEVEN", 5, "b"),
+        buy("e3", "11", "ELEVEN", 11, "c"),
+        # COOL: a trigger on day 0, three new owners on day 13 (cooldown), a seventh on day 14.
+        buy("c1", "12", "COOL", 0, "a"),
+        buy("c2", "12", "COOL", 0, "b"),
+        buy("c3", "12", "COOL", 0, "c"),
+        buy("c4", "12", "COOL", 13, "d"),
+        buy("c5", "12", "COOL", 13, "e"),
+        buy("c6", "12", "COOL", 13, "f"),
+        buy("c7", "12", "COOL", 14, "g"),
+        # JOINT: three filings of one owner group plus one other owner are two groups.
+        buy("j1", "13", "JOINT", 0, "1"),
+        buy("j2", "13", "JOINT", 1, "1|2"),
+        buy("j3", "13", "JOINT", 2, "2|3"),
+        buy("j4", "13", "JOINT", 3, "4"),
+        # RENAMED: the issuer changes its ticker; the latest filing of the trigger day names it.
+        buy("r1", "14", "OLDT", 0, "a"),
+        buy("r2", "14", "OLDT", 1, "b"),
+        buy("r4", "14", "NEWT", 2, "c"),
+        buy("r3", "14", "OLDT", 2, "d"),
+    ]
+    variants, diag = build_signal1_variants(purchases, {})
+    assert variants["cluster-3p-10d-all-issuers"] == [
+        SignalEvent("COOL", d0, 3_000.0),
+        SignalEvent("NEWT", d0 + timedelta(days=2), 4_000.0),
+        SignalEvent("TEN", d0 + timedelta(days=10), 3_000.0),
+        # Window of day 14: days 4 to 14, so the four later owners and not the first three.
+        SignalEvent("COOL", d0 + timedelta(days=14), 4_000.0),
+    ]
+    # No ticker has bars, so the tradable variants are empty.
+    assert diag["ticker_without_bars"] == len(purchases) == 21
+    assert diag["cleaned_purchases"] == 0
+    for name in ("confirmation-baseline", "cluster-3p-10d", "cluster-3p-10d-100k", "cluster-3p-10d-confirm", "cluster-3p-10d-no-10b5-1"):
+        assert variants[name] == []
+
+
+def test_form4_price_guard_reads_the_as_printed_close_and_keeps_both_boundaries() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 30)
+    bars = {
+        # A later 40-for-1 split: restated close 2, as-printed close 80.
+        "SPLT": _make_bars(days, start_price=2.0, daily_return=0.0, raw_factor=40.0),
+        "FLAT": _make_bars(days, start_price=100.0, daily_return=0.0),
+    }
+    assert bars["SPLT"][20].close == 2.0 and bars["SPLT"][20].raw_close == 80.0
+    assert bars["FLAT"][20].raw_close == 100.0
+
+    def cluster(prefix: str, issuer: str, ticker: str, idx: int, shares: float, price: float) -> list[Form4Purchase]:
+        return [
+            Form4Purchase(f"{prefix}-{n}", days[idx], None, issuer, ticker, f"{prefix}-owner{n}", "Director", "common", shares, price, None)
+            for n in range(3)
+        ]
+
+    purchases = [
+        # Reported at the as-printed price: 1.0x the close of the filing day.
+        *cluster("printed", "1", "SPLT", 20, 100, 80.0),
+        # Reported at the restated price: 0.025x the as-printed close, although 1.0x the restated one.
+        *cluster("restated", "2", "SPLT", 20, 100, 2.0),
+        # Against an as-printed close of 100: 4.0x and 0.25x are inside the guard.
+        *cluster("high-in", "10", "FLAT", 21, 10, 400.0),
+        *cluster("high-out", "11", "FLAT", 22, 10, 400.01),
+        *cluster("low-in", "12", "FLAT", 23, 10, 25.0),
+        *cluster("low-out", "13", "FLAT", 24, 10, 24.99),
+    ]
+    variants, diag = build_signal1_variants(purchases, bars)
+    # The rank value is the dollar value of the rows that passed, so it shows which rows they are.
+    assert variants["cluster-3p-10d"] == [
+        SignalEvent("SPLT", days[20], 3 * 100 * 80.0),
+        SignalEvent("FLAT", days[21], 3 * 10 * 400.0),
+        SignalEvent("FLAT", days[23], 3 * 10 * 25.0),
+    ]
+    assert diag["raw_purchases"] == 18
+    assert diag["cleaned_purchases"] == 9
+    assert diag["price_sanity_rejected"] == 9
+    # The diagnostic variant runs the cluster rule on every row, rejected or not.
+    assert len(variants["cluster-3p-10d-all-issuers"]) == 6
+
+
+def test_insider_cluster_value_floor_is_inclusive_at_100k() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 30)
+    bars = {sym: _make_bars(days, start_price=100.0, daily_return=0.0) for sym in ("EXACT", "UNDER")}
+
+    def buy(ticker: str, issuer: str, n: int, shares: float) -> Form4Purchase:
+        return Form4Purchase(f"{ticker}-{n}", days[20], None, issuer, ticker, f"owner{n}", "Director", "common", shares, 100.0, None)
+
+    purchases = [
+        buy("EXACT", "1", 0, 400), buy("EXACT", "1", 1, 300), buy("EXACT", "1", 2, 300),  # $100,000
+        buy("UNDER", "2", 0, 400), buy("UNDER", "2", 1, 300), buy("UNDER", "2", 2, 299),  # $99,900
+    ]
+    variants, _diag = build_signal1_variants(purchases, bars)
+    assert variants["cluster-3p-10d"] == [
+        SignalEvent("EXACT", days[20], 100_000.0),
+        SignalEvent("UNDER", days[20], 99_900.0),
+    ]
+    assert variants["cluster-3p-10d-100k"] == [SignalEvent("EXACT", days[20], 100_000.0)]
+
+
+def test_confirmation_baseline_starts_at_the_filing_day_not_the_transaction_day() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 90)
+    # A steady rise: every close is above the 50-day average and above every earlier close.
+    bars = {"ACME": _make_bars(days, start_price=50.0, daily_return=0.004, volume=2_000_000.0)}
+    price = bars["ACME"][58].close
+    purchases = [
+        # Bought on days[50], public on days[58]: $150,000 by a director.
+        Form4Purchase("acc1", days[58], days[50], "123", "ACME", "owner1", "Director", "common", 150_000 / price, price, None),
+        # Too small for the template (below $100,000), filed one day later.
+        Form4Purchase("acc2", days[59], days[57], "123", "ACME", "owner2", "Director", "common", 50_000 / price, price, None),
+    ]
+    variants, diag = build_signal1_variants(purchases, bars)
+    assert diag["cleaned_purchases"] == 2
+    (event,) = variants["confirmation-baseline"]
+    # The first close above the highest close since the filing day is one session after it.
+    # Counting from the transaction day would alert on days[51], before the filing was public.
+    assert (event.symbol, event.trigger_day) == ("ACME", days[59])
+    # The rank value is the dollar value of all cleaned purchases filed in the 30 days before.
+    assert math.isclose(event.rank_value, 200_000.0, rel_tol=1e-12)
 
 
 def test_signal1_short_price_history_gives_clusters_but_no_confirmation_variants() -> None:
@@ -866,7 +1153,7 @@ def test_cluster_price_confirmation_needs_a_new_high_since_the_trigger() -> None
     # 59 rising closes (63.0 at the end), a spike to 70, two lower closes, then a new high at 71.
     closes = [50.0 * 1.004**i for i in range(59)] + [70.0, 66.0, 67.0, 71.0]
     closes += [71.0 * 1.004 ** (i + 1) for i in range(len(days) - len(closes))]
-    acme = [DailyBar(d, c, c, c, c, c, 2_000_000.0, c) for d, c in zip(days, closes, strict=True)]
+    acme = _bars_from_closes(days, closes)
     # 56 bars of which two are invalid: 54 usable bars are too few for the 50-day average.
     short = _flat_bars(days[:54]) + [
         DailyBar(days[54], 0.0, 100.0, 100.0, 100.0, 100.0, 1_000_000.0, 100.0),
@@ -874,11 +1161,11 @@ def test_cluster_price_confirmation_needs_a_new_high_since_the_trigger() -> None
     ]
     events = [
         # Trigger on a non-trading day: the reference window starts at the next session (days[59]).
-        SignalEvent("ACME", saturday, 9_000.0, "cluster-3p", 2),
-        SignalEvent("ACME", days[63], 5_000.0, "cluster-4p", 3),
-        SignalEvent("SHORT", days[40], 1.0, "cluster-3p"),
-        SignalEvent("EMPTY", days[60], 1.0, "cluster-3p"),
-        SignalEvent("NOBARS", days[60], 1.0, "cluster-3p"),
+        SignalEvent("ACME", saturday, 9_000.0),
+        SignalEvent("ACME", days[63], 5_000.0),
+        SignalEvent("SHORT", days[40], 1.0),
+        SignalEvent("EMPTY", days[60], 1.0),
+        SignalEvent("NOBARS", days[60], 1.0),
     ]
     confirmed = _apply_price_confirmation(
         events,
@@ -886,11 +1173,63 @@ def test_cluster_price_confirmation_needs_a_new_high_since_the_trigger() -> None
     )
     assert confirmed == [
         # days[60] and days[61] close above the 50-day average but not above the 70 spike.
-        SignalEvent("ACME", days[62], 9_000.0, "cluster-confirm", 2),
+        SignalEvent("ACME", days[62], 9_000.0),
         # The second trigger waits for the 14-day alert cooldown: days[72] is the first session after it.
-        SignalEvent("ACME", days[72], 5_000.0, "cluster-confirm", 3),
+        SignalEvent("ACME", days[72], 5_000.0),
     ]
     assert (days[72] - days[62]).days == 14
+
+
+def test_cluster_price_confirmation_needs_sma50_a_strictly_higher_close_and_thirty_days() -> None:
+    days = _make_trading_days(date(2024, 1, 1), 95)
+    trigger = days[60]
+    assert days[0].weekday() == 0 and trigger.weekday() == 0  # Mondays
+    rising = [100.0 * 1.004**i for i in range(61)]  # up to the trigger day
+    top = rising[-1]
+
+    # DIP: 35 closes at 149, 13 at 51, one at 43, the trigger day at 50, 9 at 52, then 101 and 103.
+    # The 50 closes that end with 101 sum to 25*149 + 13*51 + 43 + 50 + 9*52 + 101 = 5050: average 101.
+    dip = [149.0] * 35 + [51.0] * 13 + [43.0, 50.0] + [52.0] * 9 + [101.0, 103.0]
+    dip += [103.0] * (len(days) - len(dip))
+    assert dip[49] == 50.0 and dip[59] == 101.0 and sum(dip[10:60]) / 50 == 101.0
+    assert sum(dip[11:61]) / 50 == 100.08
+
+    def after_trigger(tail: list[float]) -> list[float]:
+        closes = rising + tail
+        return closes + [closes[-1]] * (len(days) - len(closes))
+
+    bars = {
+        "DIP": _bars_from_closes(days, dip),
+        # UP keeps rising: the first later close is already a new high.
+        "UP": _bars_from_closes(days, [100.0 * 1.004**i for i in range(len(days))]),
+        # PLATEAU repeats the trigger-day close for five sessions, then closes 1% higher.
+        "PLATEAU": _bars_from_closes(days, after_trigger([top] * 5 + [top * 1.01])),
+        # W30 and W31 stay below the trigger-day close and make a new high 30 or 31 days later.
+        "W30": _bars_from_closes(days, after_trigger([top * 0.99] * 21 + [top * 1.05])),
+        "W31": _bars_from_closes(days, after_trigger([top * 0.99] * 22 + [top * 1.05])),
+    }
+    assert (days[82] - trigger).days == 30 and (days[83] - trigger).days == 31
+    assert bars["W30"][82].close == top * 1.05 and bars["W31"][83].close == top * 1.05
+    assert bars["W31"][82].close == top * 0.99
+
+    events = [
+        SignalEvent("DIP", days[49], 5.0),
+        SignalEvent("UP", trigger, 4.0),
+        SignalEvent("PLATEAU", trigger, 3.0),
+        SignalEvent("W30", trigger, 2.0),
+        SignalEvent("W31", trigger, 1.0),
+    ]
+    assert _apply_price_confirmation(events, bars) == [
+        # DIP: days[50] (52) is a new high since the trigger but far below the 50-day average;
+        # days[59] (101) equals the average, which is not above it; days[60] (103 > 100.08) confirms.
+        SignalEvent("DIP", days[60], 5.0),
+        # UP: never on the trigger day itself; the next session confirms.
+        SignalEvent("UP", days[61], 4.0),
+        # PLATEAU: an equal close is not a new high.
+        SignalEvent("PLATEAU", days[66], 3.0),
+        # W30 confirms on the last day of the window; W31 is one day late and never confirms.
+        SignalEvent("W30", days[82], 2.0),
+    ]
 
 
 def test_congress_dedupe_keeps_the_first_filing_and_drops_non_purchases() -> None:
@@ -898,20 +1237,72 @@ def test_congress_dedupe_keeps_the_first_filing_and_drops_non_purchases() -> Non
     rows = [
         CongressPurchase("house", "d1", "Rep. Member Alpha", "self", "ACME", "sale", tx_day, date(2024, 3, 10), 1001, 15000),
         CongressPurchase("house", "d2", "Rep. Member Alpha", "self", "--", "purchase", tx_day, date(2024, 3, 10), 1001, 15000),
-        # The original comes first; the later amendment is counted as a duplicate and does not replace it.
+        # The original comes first; the later amendment is dropped and does not replace it.
         CongressPurchase("House ", "d3", "Rep. Member Alpha", "Self", "acme", "purchase", tx_day, date(2024, 3, 10), 1001, 15000),
         CongressPurchase("house", "d4", "Member Alpha", "self", "ACME", "purchase", tx_day, date(2024, 3, 20), 15001, 50000, amends=True),
         # Same filing day: the original replaces the amendment that was read first.
         CongressPurchase("senate", "d5", "Sen. Member Beta", None, "ACME", "purchase", tx_day, date(2024, 3, 12), 50001, 100000, amends=True),
         CongressPurchase("senate", "d6", "Sen. Member Beta", None, "ACME", "purchase", tx_day, date(2024, 3, 12), 15001, 50000),
-        # Same filing day, both originals: the first one read stays.
+        # Same filing day, both originals: the lower document id stays.
         CongressPurchase("senate", "d7", "Sen. Member Beta", None, "ACME", "purchase", tx_day, date(2024, 3, 12), 1001, 15000),
+        # An earlier filing that is read last still wins: the order of the rows does not matter.
+        CongressPurchase("house", "e2", "Member Gamma", "self", "ZETA", "purchase", tx_day, date(2024, 3, 20), 1001, 15000),
+        CongressPurchase("house", "e1", "Member Gamma", "self", "ZETA", "purchase", tx_day, date(2024, 3, 15), 15001, 50000),
+        CongressPurchase("house", "e0", "Member Gamma", "self", "ZETA", "purchase", tx_day, date(2024, 3, 15), 50001, 100000),
     ]
-    deduped, removed = dedupe_congress_purchases(rows)
-    assert removed == 3
-    assert [(r.doc_id, r.chamber, r.ticker, r.amount_low) for r in deduped] == [
-        ("d3", "house", "ACME", 1001),
-        ("d6", "senate", "ACME", 15001),
+    deduped, counts = dedupe_congress_purchases(rows)
+    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 5}
+    assert [(r.doc_id, r.chamber, r.ticker, r.filed_on, r.amount_low, r.amends) for r in deduped] == [
+        ("d3", "house", "ACME", date(2024, 3, 10), 1001, False),
+        ("d6", "senate", "ACME", date(2024, 3, 12), 15001, False),
+        ("e0", "house", "ZETA", date(2024, 3, 15), 50001, False),
+    ]
+
+
+def test_congress_lots_of_one_filing_are_summed_and_later_filings_do_not_add() -> None:
+    tx_day = date(2024, 3, 1)
+    filed = date(2024, 3, 10)
+
+    def lot(doc_id: str, ticker: str, low: float | None, high: float | None, *, filed_on: date = filed, amends: bool = False) -> CongressPurchase:
+        return CongressPurchase("house", doc_id, "Rep. Member Alpha", "self", ticker, "purchase", tx_day, filed_on, low, high, amends)
+
+    rows = [
+        # Three lots of one trade in one filing: the bounds add up; a lot without a range adds nothing.
+        lot("L1", "ACME", 25_001, 50_000),
+        lot("L1", "ACME", 25_000, 49_999),
+        lot("L1", "ACME", None, None),
+        # A later amendment of the same trade is another filing: dropped, never added.
+        lot("L2", "ACME", 100_001, 250_000, filed_on=date(2024, 3, 25), amends=True),
+        # Two lots without a range stay without a range.
+        lot("N1", "NORNG", None, None),
+        lot("N1", "NORNG", None, None),
+        # A lot without a range, then one with a range.
+        lot("X1", "MIXD", None, None),
+        lot("X1", "MIXD", 1_001, 15_000),
+        # A null transaction date is keyed by the filing: its two lots merge, another filing stays apart.
+        CongressPurchase("house", "U1", "Rep. Member Alpha", "self", "UNDT", "purchase", None, filed, 1_001, 15_000),
+        CongressPurchase("house", "U1", "Rep. Member Alpha", "self", "UNDT", "purchase", None, filed, 1_001, 15_000),
+        CongressPurchase("house", "U2", "Rep. Member Alpha", "self", "UNDT", "purchase", None, filed, 1_001, 15_000),
+    ]
+    deduped, counts = dedupe_congress_purchases(rows)
+    assert counts == {"same_filing_lots_merged": 5, "later_filings_dropped": 1}
+    assert [(r.doc_id, r.ticker, r.amount_low, r.amount_high, r.filed_on) for r in deduped] == [
+        ("L1", "ACME", 50_001.0, 99_999.0, filed),
+        ("X1", "MIXD", 1_001.0, 15_000.0, filed),
+        ("N1", "NORNG", None, None, filed),
+        ("U1", "UNDT", 2_002.0, 30_000.0, filed),
+        ("U2", "UNDT", 1_001, 15_000, filed),
+    ]
+
+    variants, diag = build_signal2_variants(rows)
+    assert diag == {"raw_rows": 11, "deduped_purchases": 5, "same_filing_lots_merged": 5, "later_filings_dropped": 1}
+    # The summed lower bound reaches the $50,001 floor that neither lot reaches alone.
+    assert variants["large-50k"] == [SignalEvent("ACME", filed, 50_001.0)]
+    assert variants["all-buys"] == [
+        SignalEvent("ACME", filed, 50_001.0),
+        SignalEvent("UNDT", filed, 2_002.0),
+        SignalEvent("MIXD", filed, 1_001.0),
+        SignalEvent("UNDT", filed, 1_001.0),
     ]
 
 
@@ -929,31 +1320,69 @@ def test_congress_variants_apply_amount_floors_delay_window_and_multi_member_coo
         CongressPurchase("senate", "s2", "Sen. Member Beta", "self", "OMEGA", "purchase", date(2024, 4, 10), date(2024, 4, 1), 1001, 15000),
     ]
     variants, diag = build_signal2_variants(rows)
-    assert diag == {"raw_rows": 7, "deduped_purchases": 7, "duplicates_removed": 0}
+    assert diag == {"raw_rows": 7, "deduped_purchases": 7, "same_filing_lots_merged": 0, "later_filings_dropped": 0}
 
     assert variants["multi-member-30d"] == [
         # Second member files 4 days after the first one.
-        SignalEvent("ACME", date(2024, 3, 5), 1001.0 + 15001.0, "congress-multi-2"),
+        SignalEvent("ACME", date(2024, 3, 5), 1001.0 + 15001.0),
         # The third member on 2024-03-10 is inside the 14-day cooldown; the next filing day is not.
-        SignalEvent("ACME", date(2024, 3, 25), 1001.0 + 15001.0 + 50001.0, "congress-multi-3"),
+        SignalEvent("ACME", date(2024, 3, 25), 1001.0 + 15001.0 + 50001.0),
     ]
-    assert [(e.symbol, e.trigger_day, e.rank_value) for e in variants["all-buys"]] == [
-        ("ACME", date(2024, 3, 1), 1001.0),
-        ("ZETA", date(2024, 3, 4), 1001.0),
-        ("ACME", date(2024, 3, 5), 15001.0),
-        ("ZETA", date(2024, 3, 6), 1001.0),
-        ("ACME", date(2024, 3, 10), 50001.0),
-        ("OMEGA", date(2024, 4, 1), 1001.0),
+    assert variants["all-buys"] == [
+        SignalEvent("ACME", date(2024, 3, 1), 1001.0),
+        SignalEvent("ZETA", date(2024, 3, 4), 1001.0),
+        SignalEvent("ACME", date(2024, 3, 5), 15001.0),
+        SignalEvent("ZETA", date(2024, 3, 6), 1001.0),
+        SignalEvent("ACME", date(2024, 3, 10), 50001.0),
+        SignalEvent("OMEGA", date(2024, 4, 1), 1001.0),
     ]
-    assert variants["large-50k"] == [SignalEvent("ACME", date(2024, 3, 10), 50001.0, "congress-50k", 2)]
-    assert [(e.symbol, e.trigger_day, e.rank_value, e.delay_days) for e in variants["fast-filed-15d"]] == [
-        ("ACME", date(2024, 3, 1), 1001.0, 10),
-        ("ZETA", date(2024, 3, 4), 1001.0, 3),
-        ("ZETA", date(2024, 3, 6), 1001.0, 4),
-        ("ACME", date(2024, 3, 10), 50001.0, 2),
-        ("ACME", date(2024, 3, 25), 0.0, 5),
+    assert variants["large-50k"] == [SignalEvent("ACME", date(2024, 3, 10), 50001.0)]
+    # Delays: 10, 3, 4, 2 and 5 days. The 33-day filing and the filing before its trade date are out.
+    assert variants["fast-filed-15d"] == [
+        SignalEvent("ACME", date(2024, 3, 1), 1001.0),
+        SignalEvent("ZETA", date(2024, 3, 4), 1001.0),
+        SignalEvent("ZETA", date(2024, 3, 6), 1001.0),
+        SignalEvent("ACME", date(2024, 3, 10), 50001.0),
+        SignalEvent("ACME", date(2024, 3, 25), 0.0),
     ]
-    assert {e.delay_days for e in variants["all-buys"] if e.symbol == "OMEGA"} == {None}
+
+
+def test_congress_variant_boundaries_are_inclusive() -> None:
+    def buy(doc_id: str, member: str, ticker: str, tx: date, filed_on: date, low: float) -> CongressPurchase:
+        return CongressPurchase("house", doc_id, member, "self", ticker, "purchase", tx, filed_on, low, None)
+
+    d0 = date(2024, 5, 1)
+    rows = [
+        # Amount floors: $1,001 and $50,001 are in, one dollar less is out.
+        buy("a1", "Member Alpha", "AT1001", d0 - timedelta(days=40), d0, 1_001),
+        buy("a2", "Member Alpha", "AT1000", d0 - timedelta(days=40), d0, 1_000),
+        buy("a3", "Member Alpha", "AT50001", d0 - timedelta(days=40), d0, 50_001),
+        buy("a4", "Member Alpha", "AT50000", d0 - timedelta(days=40), d0, 50_000),
+        # Reporting delay: 0 and 15 days are fast, 16 days is not.
+        buy("f0", "Member Alpha", "DELAY0", d0, d0, 1_001),
+        buy("f15", "Member Alpha", "DELAY15", d0 - timedelta(days=15), d0, 1_001),
+        buy("f16", "Member Alpha", "DELAY16", d0 - timedelta(days=16), d0, 1_001),
+        # Second member 30 days after the first one: inside the window. 31 days: outside.
+        buy("w1", "Member Alpha", "WIN30", d0 - timedelta(days=40), d0, 1_001),
+        buy("w2", "Member Beta", "WIN30", d0 - timedelta(days=40), d0 + timedelta(days=30), 15_001),
+        buy("w3", "Member Alpha", "WIN31", d0 - timedelta(days=40), d0, 1_001),
+        buy("w4", "Member Beta", "WIN31", d0 - timedelta(days=40), d0 + timedelta(days=31), 15_001),
+        # A multi-member event, then a third member exactly 14 days later: the cooldown is over.
+        buy("c1", "Member Alpha", "COOL14", d0 - timedelta(days=40), d0, 1_001),
+        buy("c2", "Member Beta", "COOL14", d0 - timedelta(days=40), d0, 1_001),
+        buy("c3", "Member Gamma", "COOL14", d0 - timedelta(days=40), d0 + timedelta(days=13), 1_001),
+        buy("c4", "Member Delta", "COOL14", d0 - timedelta(days=40), d0 + timedelta(days=14), 1_001),
+    ]
+    variants, _diag = build_signal2_variants(rows)
+    assert "AT1001" in {e.symbol for e in variants["all-buys"]}
+    assert "AT1000" not in {e.symbol for e in variants["all-buys"]}
+    assert sorted(e.symbol for e in variants["large-50k"]) == ["AT50001"]
+    assert sorted(e.symbol for e in variants["fast-filed-15d"]) == ["DELAY0", "DELAY15"]
+    assert variants["multi-member-30d"] == [
+        SignalEvent("COOL14", d0, 2_002.0),
+        SignalEvent("COOL14", d0 + timedelta(days=14), 4_004.0),
+        SignalEvent("WIN30", d0 + timedelta(days=30), 16_002.0),
+    ]
 
 
 def test_signal3_drops_small_thin_and_unpriced_rows_and_keeps_top_ten_by_net_premium() -> None:
@@ -970,7 +1399,8 @@ def test_signal3_drops_small_thin_and_unpriced_rows_and_keeps_top_ten_by_net_pre
         MarketPremiumRow(sday, "--", 900_000.0, 0.0, 5),  # no usable ticker
         MarketPremiumRow(sday, "SMALL", 499_999.0, 0.0, 5),  # below the $500,000 floor
         MarketPremiumRow(sday, "FEWTR", 900_000.0, 0.0, 2),  # fewer than 3 trades
-        MarketPremiumRow(sday, "NOBAR", 900_000.0, 0.0, 5),  # no price history
+        # No price history: the row keeps its rank. It is 13th here, and first in the next session.
+        MarketPremiumRow(sday, "NOBAR", 900_000.0, 0.0, 5),
         MarketPremiumRow(next_day, "NOBAR", 900_000.0, 0.0, 5),
         MarketPremiumRow(sday, "THIN", 900_000.0, 0.0, 5),  # price history below the dollar-volume floor
         # Rows that fail a premium test are not counted as bar problems, with or without bars.
@@ -983,16 +1413,65 @@ def test_signal3_drops_small_thin_and_unpriced_rows_and_keeps_top_ten_by_net_pre
     assert diag == {
         "complete_sessions": 2,
         "non_complete_rows_skipped": 0,
-        "qualifying_ticker_sessions": 13,
+        "qualifying_ticker_sessions": 15,
         "premium_rows_without_bars": 2,
+        "top10_events_without_bars": 1,
         "premium_rows_illiquid": 1,
-        "selected_top10_events": 11,
+        "selected_top10_events": 12,
     }
     first_session = [e for e in events if e.trigger_day == sday]
     assert [e.symbol for e in first_session] == ["T12", "T11", "T10", "T09", "T08", "T07", "T06", "T05", "T04", "T02"]
-    assert first_session[0] == SignalEvent("T12", sday, 1_110_000.0, "large-bullish-premium", 0)
+    assert first_session[0] == SignalEvent("T12", sday, 1_110_000.0)
     # Sessions are emitted in date order; the rank value is bullish minus bearish premium.
-    assert events[-1] == SignalEvent("T01", next_day, 600_000.0, "large-bullish-premium", 0)
+    assert events[10:] == [SignalEvent("NOBAR", next_day, 900_000.0), SignalEvent("T01", next_day, 600_000.0)]
+
+
+def test_signal3_ranks_by_net_premium_and_keeps_the_inclusive_floors() -> None:
+    days = _make_trading_days(date(2025, 10, 1), 30)
+    sday, next_day = days[25], days[26]
+    fillers = [f"F{i}" for i in range(1, 10)]
+    with_bars = ("HEDGED", "CLEAN", "TAIL", "FLOOR", "SHARE", "BELOW", "UNDER", "TWO", *fillers)
+    bars = {sym: _make_bars(days, start_price=100.0, volume=500_000.0) for sym in with_bars}
+    bars["EMPTY"] = []  # a ticker that is listed but has no bar is a ticker without bars
+    rows = [
+        # Net premium: INDEX 2.4M (no bars), CLEAN 2.0M, HEDGED 1.8M, F9..F1 1.09M..1.01M, TAIL 0.9M.
+        # Bullish premium alone would put HEDGED first and TAIL fourth.
+        MarketPremiumRow(sday, "HEDGED", 3_000_000.0, 1_200_000.0, 9),
+        MarketPremiumRow(sday, "TAIL", 1_500_000.0, 600_000.0, 9),
+        MarketPremiumRow(sday, "CLEAN", 2_000_000.0, 0.0, 9),
+        MarketPremiumRow(sday, "INDEX", 2_500_000.0, 100_000.0, 9),
+        *[MarketPremiumRow(sday, sym, 1_000_000.0 + 10_000.0 * i, 0.0, 9) for i, sym in enumerate(fillers, start=1)],
+        # Exactly at the floors: $500,000 bullish premium with 3 trades, and a 70% bullish share.
+        MarketPremiumRow(next_day, "FLOOR", 500_000.0, 0.0, 3),
+        MarketPremiumRow(next_day, "SHARE", 700_000.0, 300_000.0, 3),
+        # Just below them.
+        MarketPremiumRow(next_day, "BELOW", 699_999.0, 300_001.0, 3),
+        MarketPremiumRow(next_day, "UNDER", 499_999.99, 0.0, 3),
+        MarketPremiumRow(next_day, "TWO", 500_000.0, 0.0, 2),
+        MarketPremiumRow(next_day, "EMPTY", 600_000.0, 0.0, 3),
+    ]
+    events, diag = build_signal3_events(rows, bars)
+    assert events == [
+        SignalEvent("INDEX", sday, 2_400_000.0),
+        SignalEvent("CLEAN", sday, 2_000_000.0),
+        SignalEvent("HEDGED", sday, 1_800_000.0),
+        *[SignalEvent(f"F{i}", sday, 1_000_000.0 + 10_000.0 * i) for i in range(9, 2, -1)],
+        SignalEvent("EMPTY", next_day, 600_000.0),
+        SignalEvent("FLOOR", next_day, 500_000.0),
+        SignalEvent("SHARE", next_day, 400_000.0),
+    ]
+    # The ticker without bars takes one of the ten places: F2, F1 and TAIL are cut.
+    assert len([e for e in events if e.trigger_day == sday]) == 10
+    # INDEX and EMPTY count in both "without bars" counters.
+    assert diag == {
+        "complete_sessions": 2,
+        "non_complete_rows_skipped": 0,
+        "qualifying_ticker_sessions": 16,
+        "premium_rows_without_bars": 2,
+        "top10_events_without_bars": 2,
+        "premium_rows_illiquid": 0,
+        "selected_top10_events": 13,
+    }
 
 
 def test_adjusted_open_scales_with_the_adjustment_factor() -> None:
@@ -1134,6 +1613,151 @@ def test_portfolio_entry_day_comes_from_the_full_calendar_not_from_the_cut_windo
     assert res.skipped_outside_window == 0
 
 
+def test_liquidity_reads_the_median_of_exactly_the_last_twenty_dollar_volumes() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 30)
+
+    def volume_bars(dollar_volumes: list[float]) -> tuple[list[DailyBar], dict[date, int]]:
+        bars = [DailyBar(d, 100.0, 100.0, 100.0, 100.0, 100.0, dv / 100.0, 100.0) for d, dv in zip(days, dollar_volumes)]
+        return bars, {b.day: i for i, b in enumerate(bars)}
+
+    # 17 sessions at $1M and 3 at $1,000M: the median is $1M, the mean is about $151M.
+    bars, index = volume_bars([1e6] * 17 + [1e9] * 3)
+    assert check_point_in_time_liquidity(bars, index, days[19]) is False
+    # 9 sessions without a trade and 11 at $20M: the median is $20M, the mean is $11M.
+    bars, index = volume_bars([0.0] * 9 + [20e6] * 11)
+    assert check_point_in_time_liquidity(bars, index, days[19], min_median_dollar_vol=15e6) is True
+
+    # Sessions 2..21 are the window of session 21: ten at $5M and ten at $15M, median $10M.
+    # Session 1 before it and session 22 after it are at $5M; either one would pull the median to $5M.
+    bars, index = volume_bars([5e6] * 12 + [15e6] * 10 + [5e6] * 8)
+    assert check_point_in_time_liquidity(bars, index, days[21]) is True
+    assert check_point_in_time_liquidity(bars, index, days[21], lookback=21) is False
+
+    # Dollar volume is the restated close times the restated volume (both move with a later split).
+    # A later 40-for-1 split: restated close 2, as-printed close 80, 2,000,000 restated shares: $4M.
+    split = [DailyBar(d, 2.0, 2.0, 2.0, 2.0, 2.0, 2_000_000.0, 80.0) for d in days]
+    assert check_point_in_time_liquidity(split, {b.day: i for i, b in enumerate(split)}, days[25]) is False
+    assert check_point_in_time_liquidity(split, {b.day: i for i, b in enumerate(split)}, days[25], min_median_dollar_vol=4e6) is True
+
+
+def test_portfolio_checks_liquidity_as_of_the_trigger_day_not_the_entry_day() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 40)
+    spy = _flat_bars(days)
+
+    def printed(until_trigger: float, from_entry: float) -> list[DailyBar]:
+        """Liquid bars whose as-printed close changes between the trigger day days[25] and the entry day."""
+        return [
+            DailyBar(d, 100.0, 100.0, 100.0, 100.0, 100.0, 1_000_000.0, until_trigger if i <= 25 else from_entry)
+            for i, d in enumerate(days)
+        ]
+
+    bars = {"RISES": printed(4.0, 6.0), "FALLS": printed(6.0, 4.0)}
+    events = [SignalEvent("RISES", days[25], 1.0), SignalEvent("FALLS", days[25], 1.0)]
+    res = simulate_event_portfolio(events, bars, spy, PortfolioConfig(holding_days=5))
+    # RISES printed $4 on the trigger day: below the $5 floor when the signal was public.
+    # FALLS printed $6 then; its $4 on the entry day was not known yet.
+    assert [(p.symbol, p.entry_day) for p in res.positions] == [("FALLS", days[26])]
+    assert res.skipped_illiquid == 1
+
+
+def test_portfolio_metrics_of_a_known_daily_return_series() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 8)
+    assert (days[0], days[7]) == (date(2024, 1, 2), date(2024, 1, 11))
+    # One slot, no cost, flat benchmark. The stock opens at 100 on days[1] and returns
+    # +2%, +3%, -1%, -4%, +1% on days[1]..days[5]; it is flat before and after.
+    closes = [100.0, 102.0, 105.06, 104.0094, 99.849024, 100.84751424, 100.84751424, 100.84751424]
+    opens = [100.0, *closes[:-1]]
+    stock = [DailyBar(d, o, max(o, c), min(o, c), c, c, 1_000_000.0, c) for d, o, c in zip(days, opens, closes, strict=True)]
+    res = simulate_event_portfolio(
+        [SignalEvent("KNOWN", days[0], 1.0)],
+        {"KNOWN": stock},
+        _flat_bars(days),
+        PortfolioConfig(holding_days=5, max_slots=1, cost_bps=0.0, require_liquidity=False),
+        oos_start=days[3],
+    )
+    expected_daily = [0.0, 0.02, 0.03, -0.01, -0.04, 0.01, 0.0, 0.0]
+    assert len(res.daily_excess_returns) == 8
+    for got, want in zip(res.daily_excess_returns, expected_daily, strict=True):
+        assert math.isclose(got, want, abs_tol=1e-12)
+
+    whole = res.whole
+    assert (whole.days, whole.trades) == (8, 1)
+    # Mean 0.01 / 8 = 0.00125. Sum of squared deviations 0.0031 - 8 * 0.00125^2 = 0.0030875.
+    # Sample variance 0.0030875 / 7; 252 sessions per year.
+    per_obs = 0.00125 / math.sqrt(0.0030875 / 7)
+    assert math.isclose(whole.per_obs_sharpe, per_obs, rel_tol=1e-9)
+    assert math.isclose(whole.sharpe, per_obs * math.sqrt(252), rel_tol=1e-9)
+    assert math.isclose(whole.sharpe, 0.9448346684, abs_tol=1e-9)
+    # Final equity 1.02 * 1.03 * 0.99 * 0.96 * 1.01 = 1.0084751424 over 9 calendar days of 365.25.
+    assert math.isclose(whole.cagr, 1.0084751424 ** (365.25 / 9) - 1.0, rel_tol=1e-9)
+    assert math.isclose(whole.cagr, 0.4084646375, abs_tol=1e-9)
+    # Peak 1.0506 after days[2], trough 1.0506 * 0.99 * 0.96 after days[4].
+    assert math.isclose(whole.max_drawdown, 0.99 * 0.96 - 1.0, abs_tol=1e-12)
+    assert math.isclose(whole.max_drawdown, -0.0496, abs_tol=1e-12)
+    assert math.isclose(whole.exposure, 5 / 8, abs_tol=1e-12)
+    assert whole.win_rate == 1.0 and whole.profit_factor is None
+    assert math.isclose(res.positions[0].gross_excess_return, 0.0084751424, abs_tol=1e-12)
+    assert res.monthly_equity == ({"month": "2024-01", "value": 0.008475, "drawdown": -0.040096},)
+
+    # Out of sample from days[3]: -1%, -4%, +1%, 0, 0 over 6 calendar days.
+    oos = res.oos
+    assert res.oos_days == tuple(days[3:])
+    # The position entered on days[1], before the out-of-sample start: it is not an out-of-sample event.
+    assert (oos.days, oos.trades) == (5, 0)
+    # Mean -0.04 / 5 = -0.008. Sum of squared deviations 0.0018 - 5 * 0.008^2 = 0.00148.
+    oos_per_obs = -0.008 / math.sqrt(0.00148 / 4)
+    assert math.isclose(oos.per_obs_sharpe, oos_per_obs, rel_tol=1e-9)
+    assert math.isclose(oos.sharpe, oos_per_obs * math.sqrt(252), rel_tol=1e-9)
+    assert math.isclose(oos.cagr, (0.99 * 0.96 * 1.01) ** (365.25 / 6) - 1.0, rel_tol=1e-9)
+    assert math.isclose(oos.max_drawdown, 0.99 * 0.96 - 1.0, abs_tol=1e-12)
+    assert math.isclose(oos.exposure, 3 / 5, abs_tol=1e-12)
+    assert oos.win_rate == 0.0 and oos.profit_factor is None
+
+    # A position that enters on the first out-of-sample session is an out-of-sample event.
+    on_start = simulate_event_portfolio(
+        [SignalEvent("KNOWN", days[0], 1.0)],
+        {"KNOWN": stock},
+        _flat_bars(days),
+        PortfolioConfig(holding_days=5, max_slots=1, cost_bps=0.0, require_liquidity=False),
+        oos_start=days[1],
+    )
+    assert (on_start.oos.days, on_start.oos.trades) == (7, 1)
+    assert on_start.oos.win_rate == 1.0
+
+
+def test_portfolio_returns_use_adjusted_prices_and_open_to_close_on_the_entry_day() -> None:
+    days = _make_trading_days(date(2024, 1, 2), 8)
+
+    def bar(i: int, open_: float, close: float, adj_close: float) -> DailyBar:
+        return DailyBar(days[i], open_, max(open_, close), min(open_, close), close, adj_close, 1_000_000.0, close)
+
+    # Stock: adjustment factor 0.5 up to days[3], 0.55 from days[4] (a dividend in between).
+    # days[3] gaps up from 100 to 110 and closes at 112.2: +2% open to close, +12.2% close to close.
+    # days[4] closes at 113.322: +1% on the close, +11.1% on the adjusted close (62.3271 / 56.1).
+    stock = [bar(i, 100.0, 100.0, 50.0) for i in range(3)]
+    stock += [bar(3, 110.0, 112.2, 56.1), bar(4, 112.2, 113.322, 62.3271)]
+    stock += [bar(i, 113.322, 113.322, 62.3271) for i in range(5, 8)]
+    # Benchmark: factor 0.95 up to days[3]. days[3] gaps up from 400 to 404 and closes at 408.04:
+    # +1% open to close, +2.01% close to close. days[4]: flat close, +1% adjusted close.
+    spy = [bar(i, 400.0, 400.0, 380.0) for i in range(3)]
+    spy += [bar(3, 404.0, 408.04, 387.638), bar(4, 408.04, 408.04, 391.51438)]
+    spy += [bar(i, 408.04, 408.04, 391.51438) for i in range(5, 8)]
+
+    res = simulate_event_portfolio(
+        [SignalEvent("DIVD", days[2], 1.0)],
+        {"DIVD": stock},
+        spy,
+        PortfolioConfig(holding_days=2, max_slots=1, cost_bps=0.0, require_liquidity=False),
+    )
+    pos = res.positions[0]
+    assert (pos.entry_day, pos.exit_day) == (days[3], days[4])
+    # Entry day: open to close for both legs, 2% - 1%. Next day: adjusted close to adjusted close, 11.1% - 1%.
+    assert math.isclose(res.daily_excess_returns[3], 0.02 - 0.01, abs_tol=1e-12)
+    assert math.isclose(res.daily_excess_returns[4], 0.111 - 0.01, abs_tol=1e-12)
+    assert math.isclose(pos.gross_excess_return, 1.01 * 1.101 - 1.0, abs_tol=1e-12)
+    assert [r for i, r in enumerate(res.daily_excess_returns) if i not in (3, 4)] == [0.0] * 6
+
+
 def test_monthly_equity_keeps_the_last_value_of_each_month() -> None:
     assert _monthly_equity([], []) == ()
     days = [date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1)]
@@ -1202,6 +1826,10 @@ def test_portfolio_capacity_ranks_by_value_then_symbol() -> None:
     assert two_slots.skipped_capacity == 1
     # Both slots are full on 5 of 40 sessions.
     assert math.isclose(two_slots.whole.exposure, 5 / 40)
+    # Exposure is the filled share of the slots: 2 of 4 slots on 5 of 40 sessions.
+    four_slots = simulate_event_portfolio(events[:2], bars, spy, PortfolioConfig(holding_days=5, max_slots=4))
+    assert len(four_slots.positions) == 2
+    assert math.isclose(four_slots.whole.exposure, (2 / 4) * 5 / 40)
     # A slot is free again after the exit: the same symbol can enter on a later trigger.
     later = [*events, SignalEvent("BBB", days[26], 1.0)]
     res = simulate_event_portfolio(later, bars, spy, PortfolioConfig(holding_days=5, max_slots=1))
@@ -1383,6 +2011,69 @@ def test_portfolio_treats_a_zero_adjusted_price_as_a_zero_return() -> None:
     assert res.positions[0].gross_excess_return == 0.0
 
 
+def test_verdict_gate_boundaries_are_inclusive_and_nan_fails() -> None:
+    at_the_bars: dict[str, Any] = {
+        "oos_sessions": 490,
+        "oos_events": 100,
+        "oos_sharpe": 0.0004,
+        "dsr_probability": 0.95,
+        "stress_oos_sharpe": 0.0004,
+        "n_trials": 12,
+    }
+    assert evaluate_verdict(**at_the_bars) == (
+        "edge",
+        "Passed pre-registered gate over 490 OOS sessions: 100 OOS events, OOS excess Sharpe 0.000 at 10 bps/side "
+        "(20 bps stress 0.000), DSR 0.950 >= 0.95 (N = 12). Research only.",
+    )
+
+    def gate(**changed: Any) -> tuple[str, str]:
+        return evaluate_verdict(**{**at_the_bars, **changed})
+
+    def failed(reasons: str, sharpe: str = "0.000", dsr: str = "0.950") -> tuple[str, str]:
+        return (
+            "no-edge",
+            f"Failed pre-registered gate over 490 OOS sessions: {reasons}. "
+            f"Primary OOS excess Sharpe {sharpe}, DSR {dsr} (N = 12). Research only.",
+        )
+
+    # One step below each bar.
+    assert gate(oos_sessions=489) == (
+        "needs-more-data",
+        "Observed history has 489 OOS sessions (< 490 required for 24-month holdout). "
+        "Rule is frozen (N = 12) for forward out-of-sample collection.",
+    )
+    assert gate(oos_events=99) == failed("OOS events 99 < 100")
+    assert gate(oos_sharpe=0.0) == failed("OOS annualized excess Sharpe 0.000 <= 0")
+    assert gate(oos_sharpe=-0.25) == failed("OOS annualized excess Sharpe -0.250 <= 0", sharpe="-0.250")
+    assert gate(dsr_probability=0.9494) == failed("DSR 0.949 < 0.95 (N = 12)", dsr="0.949")
+    assert gate(dsr_probability=None) == failed("DSR 0.000 < 0.95 (N = 12)", dsr="0.000")
+    assert gate(stress_oos_sharpe=0.0) == failed("20 bps stress OOS Sharpe 0.000 <= 0")
+    assert gate(stress_oos_sharpe=None) == failed("20 bps stress OOS Sharpe was not computed")
+    # Well above the bars is still an edge.
+    assert gate(oos_sessions=900, oos_events=400, oos_sharpe=2.0, dsr_probability=1.0, stress_oos_sharpe=1.5)[0] == "edge"
+
+    # A NaN input fails its bar instead of slipping through a comparison.
+    nan = float("nan")
+    assert gate(oos_sharpe=nan) == failed("OOS annualized excess Sharpe nan <= 0", sharpe="nan")
+    assert gate(dsr_probability=nan) == failed("DSR nan < 0.95 (N = 12)", dsr="nan")
+    assert gate(stress_oos_sharpe=nan) == failed("20 bps stress OOS Sharpe nan <= 0")
+
+    # Every failed bar is named, in a fixed order. A short history comes before all of them.
+    assert gate(oos_events=0, oos_sharpe=-1.0, dsr_probability=0.5, stress_oos_sharpe=-2.0) == failed(
+        "OOS events 0 < 100; OOS annualized excess Sharpe -1.000 <= 0; DSR 0.500 < 0.95 (N = 12); "
+        "20 bps stress OOS Sharpe -2.000 <= 0",
+        sharpe="-1.000",
+        dsr="0.500",
+    )
+    assert gate(oos_sessions=0, oos_events=0, oos_sharpe=-1.0, dsr_probability=None, stress_oos_sharpe=None)[0] == "needs-more-data"
+
+    # The bars can be set by the caller; the defaults are 490 sessions, 100 events and 0.95.
+    assert gate(oos_sessions=10, oos_events=5, dsr_probability=0.5, min_oos_sessions=10, min_oos_events=5, dsr_pass=0.5)[0] == "edge"
+    assert gate(oos_sessions=10, oos_events=5, dsr_probability=0.5, min_oos_sessions=11, min_oos_events=5, dsr_pass=0.5)[0] == "needs-more-data"
+    assert gate(oos_sessions=10, oos_events=5, dsr_probability=0.5, min_oos_sessions=10, min_oos_events=6, dsr_pass=0.5)[0] == "no-edge"
+    assert gate(oos_sessions=10, oos_events=5, dsr_probability=0.5, min_oos_sessions=10, min_oos_events=5, dsr_pass=0.51)[0] == "no-edge"
+
+
 def test_dsr_variance_fallbacks_and_inputs_that_cannot_be_scored() -> None:
     # Mean 0.1% with 1% daily swings: a low per-observation Sharpe, so the probability is not saturated.
     rets = [0.011 if i % 2 == 0 else -0.009 for i in range(120)]
@@ -1542,7 +2233,7 @@ def test_study_document_cuts_text_and_clamps_numbers() -> None:
             rules=[("Item", "Rule text", "Source text")],
             comparison=[{"cagr": float("nan"), "kind": "benchmark", "maxDrawdown": 0.3, "name": "n" * 90, "sharpe": float("inf")}],
             sensitivity=[{"cagr": -7.0, "maxDrawdown": -2.0, "param": "holding", "sharpe": 1.23456789, "trades": -3, "value": 20}],
-            robustness=[{"check": "Check", "pass": None, "result": "r" * 400}],
+            robustness=[{"check": "Check", "pass": None, "result": "r" * 300}],
         )
     )
     # Whitespace is collapsed first; a cut text ends with an ellipsis and never exceeds its limit.
@@ -1565,7 +2256,57 @@ def test_study_document_cuts_text_and_clamps_numbers() -> None:
     assert doc["sensitivity"] == [
         {"cagr": -1.0, "maxDrawdown": -1.0, "param": "holding", "sharpe": 1.234568, "trades": 0, "value": "20"}
     ]
-    assert doc["robustness"] == [{"check": "Check", "pass": None, "result": "r" * 299 + "…"}]
+    assert doc["robustness"] == [{"check": "Check", "pass": None, "result": "r" * 300}]
+
+
+def test_study_document_refuses_disclosure_text_over_the_contract_limit() -> None:
+    study_id = "smart-money-congress-buys"
+
+    def build(**overrides: Any) -> dict[str, Any]:
+        return build_study_document(**_study_kwargs(_portfolio_result(), study_id=study_id, **overrides))
+
+    # Exactly at the limit: unchanged, with no ellipsis.
+    doc = build(
+        gaps=[("g" * 300, "c" * 400)],
+        rules=[("Item", "r" * 400, "Source")],
+        robustness=[{"check": "Check", "pass": True, "result": "o" * 300}],
+        verdict_reason="v" * 1000,
+    )
+    assert doc["gaps"] == [{"choice": "c" * 400, "gap": "g" * 300}]
+    assert doc["rules"] == [{"item": "Item", "rule": "r" * 400, "source": "Source"}]
+    assert doc["robustness"] == [{"check": "Check", "pass": True, "result": "o" * 300}]
+    assert doc["verdictReason"] == "v" * 1000
+
+    # Whitespace is collapsed before the length test: 400 characters after it, many more before.
+    words = ["abcd", *["ab"] * 132]
+    collapsed = " ".join(words)
+    spaced = "  " + "   ".join(words) + " \n"
+    assert len(collapsed) == 400 and len(spaced) > 600
+    assert build(gaps=[("Gap", spaced)])["gaps"] == [{"choice": collapsed, "gap": "Gap"}]
+    assert build(verdict_reason="  Two   words \n")["verdictReason"] == "Two words"
+
+    # One character over: the run stops and the message names the study and the field.
+    too_long: list[tuple[dict[str, Any], str]] = [
+        ({"gaps": [("Gap name", "c" * 401)]}, f"{study_id} gap 'Gap name' text has 401 characters; the study contract allows 400"),
+        ({"gaps": [("g" * 301, "Choice")]}, f"{study_id} gap '{'g' * 301}' name has 301 characters; the study contract allows 300"),
+        ({"rules": [("Item", "r" * 401, "Source")]}, f"{study_id} rule 'Item' has 401 characters; the study contract allows 400"),
+        (
+            {"robustness": [{"check": "Check", "pass": None, "result": "o" * 301}]},
+            f"{study_id} robustness 'Check' result has 301 characters; the study contract allows 300",
+        ),
+        ({"verdict_reason": "v" * 1001}, f"{study_id} verdict reason has 1001 characters; the study contract allows 1000"),
+        ({"gaps": [("Gap", spaced + " ab")]}, f"{study_id} gap 'Gap' text has 403 characters; the study contract allows 400"),
+    ]
+    for overrides, message in too_long:
+        with pytest.raises(ValueError) as raised:
+            build(**overrides)
+        assert str(raised.value) == message
+
+    # Labels are still cut with an ellipsis and never stop the run.
+    doc = build(title="t" * 201, equity_label="e" * 201, rules=[("i" * 61, "Rule", "s" * 201)])
+    assert doc["title"] == "t" * 199 + "…"
+    assert doc["equityLabel"] == "e" * 199 + "…"
+    assert doc["rules"] == [{"item": "i" * 59 + "…", "rule": "Rule", "source": "s" * 199 + "…"}]
 
 
 def test_study_document_equity_always_has_two_months() -> None:
@@ -1790,10 +2531,15 @@ def test_bars_loader_skips_short_rows_and_non_finite_or_non_positive_values(tmp_
 
 
 def test_jsonl_loaders_skip_blank_lines_and_default_optional_fields(tmp_path: Path) -> None:
+    # A missing file and a file without rows stop the run; an empty result is never returned.
     absent = tmp_path / "absent.jsonl"
-    assert load_form4_jsonl(absent) == []
-    assert load_congress_jsonl(absent) == []
-    assert load_premium_jsonl(absent) == []
+    blank = tmp_path / "blank.jsonl"
+    blank.write_text("\n   \n\n", encoding="utf-8")
+    for loader in (load_form4_jsonl, load_congress_jsonl, load_premium_jsonl):
+        with pytest.raises(FileNotFoundError, match="absent.jsonl is missing"):
+            loader(absent)
+        with pytest.raises(ValueError, match="blank.jsonl has no rows"):
+            loader(blank)
 
     def write_lines(name: str, records: list[dict[str, Any]]) -> Path:
         path = tmp_path / name
@@ -1883,6 +2629,27 @@ def test_jsonl_loaders_skip_blank_lines_and_default_optional_fields(tmp_path: Pa
     ]
 
 
+def test_data_hash_covers_file_names_sizes_and_contents(tmp_path: Path) -> None:
+    first, second, missing = tmp_path / "a.jsonl", tmp_path / "b.csv", tmp_path / "missing.csv"
+    first.write_bytes(b"alpha\n")
+    second.write_bytes(b"beta\n")
+
+    def by_hand(*parts: bytes) -> str:
+        return "sha256:" + hashlib.sha256(b"".join(parts)).hexdigest()[:24]
+
+    # Per file, in path order: the name, the size in bytes as text, the bytes.
+    expected = by_hand(b"a.jsonl", b"6", b"alpha\n", b"b.csv", b"5", b"beta\n")
+    assert _hash_files([first, second]) == expected
+    assert _hash_files([second, first]) == expected
+    # A path that does not exist adds only its name.
+    assert _hash_files([first, missing, second]) == by_hand(b"a.jsonl", b"6", b"alpha\n", b"b.csv", b"5", b"beta\n", b"missing.csv")
+    assert _hash_files([]) == by_hand()
+    # Same name and size, other bytes: another hash.
+    second.write_bytes(b"BETA\n")
+    assert _hash_files([first, second]) == by_hand(b"a.jsonl", b"6", b"alpha\n", b"b.csv", b"5", b"BETA\n")
+    assert _hash_files([first, second]) != expected
+
+
 def test_spy_benchmark_stats_need_two_bars_in_the_window() -> None:
     d0, d1, d2 = date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)
     bars = [  # unordered on purpose
@@ -1917,6 +2684,7 @@ def test_module_entry_point_runs_the_cli_and_exits_zero(
     out_dir = tmp_path / "out"
     days = _make_trading_days(date(2024, 1, 2), 60)
     _write_bars_csv(bars_dir / "SPY.csv", _make_bars(days, start_price=200.0, volume=50_000_000.0))
+    _write_event_files(data_dir)
 
     monkeypatch.setattr(
         sys,
@@ -1931,7 +2699,7 @@ def test_module_entry_point_runs_the_cli_and_exits_zero(
 
     summary = json.loads(capsys.readouterr().out)
     assert sorted(summary) == sorted(STUDY_IDS)
-    # 60 sessions and no signal files: every study is short of the holdout window.
+    # 60 sessions and event files without one event: every study is short of the holdout window.
     assert {s["verdict"] for s in summary.values()} == {"needs-more-data"}
     assert json.loads((out_dir / "summary.json").read_text(encoding="utf-8")) == summary
     docs = [json.loads(line) for line in (out_dir / "studies.jsonl").read_text(encoding="utf-8").splitlines()]
@@ -2023,23 +2791,57 @@ def test_congress_coverage_gaps_come_from_the_filing_ledger() -> None:
     assert rows[1][1] == "Filings 2022–2023: 5 more filings were not parsed."
 
 
-def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnostics(tmp_path: Path) -> None:
+def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     data_dir = tmp_path / "data"
     bars_dir = data_dir / "bars"
+    premium_bars_dir = data_dir / "bars_premium"
     bars_dir.mkdir(parents=True)
-    out_dir = tmp_path / "out"
+    premium_bars_dir.mkdir()
     days = _make_trading_days(date(2025, 6, 2), 120)
+    assert (days[32], days[60], days[69], days[-1]) == (date(2025, 7, 16), date(2025, 8, 25), date(2025, 9, 5), date(2025, 11, 14))
+    acme = _make_bars(days, start_price=50.0, volume=2_000_000.0)
     _write_bars_csv(bars_dir / "SPY.csv", _make_bars(days, start_price=200.0, volume=50_000_000.0))
-    _write_bars_csv(bars_dir / "ACME.csv", _make_bars(days, start_price=50.0, volume=2_000_000.0))
+    _write_bars_csv(bars_dir / "ACME.csv", acme)
     _write_bars_csv(bars_dir / "THIN.csv", _make_bars(days, start_price=50.0, volume=10.0))
     # HALT is liquid up to its last bar on days[62] and has no bar on the next session.
     _write_bars_csv(bars_dir / "HALT.csv", _make_bars(days[:63], start_price=50.0, volume=2_000_000.0))
-    (data_dir / "metadata.json").write_text(
-        json.dumps({"universe_requested": 600, "bars_not_found": ["GONE1", "GONE2"], "congress_ledger": _SYNTHETIC_LEDGER}),
-        encoding="utf-8",
-    )
+    # DUP is in both bar directories: liquid in bars/, thin in bars_premium/. The main bars win.
+    _write_bars_csv(bars_dir / "DUP.csv", _make_bars(days, start_price=50.0, volume=2_000_000.0))
+    _write_bars_csv(premium_bars_dir / "DUP.csv", _make_bars(days, start_price=50.0, volume=10.0))
+    # EXTRA has bars only in bars_premium/ (a premium ticker outside the 600-ticker cap).
+    _write_bars_csv(premium_bars_dir / "EXTRA.csv", _make_bars(days, start_price=50.0, volume=2_000_000.0))
+    meta = {"universe_requested": 600, "bars_not_found": ["GONE1", "GONE2"], "congress_ledger": _SYNTHETIC_LEDGER}
+    (data_dir / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
 
-    def congress(doc_id: str, filed_on: date) -> dict[str, Any]:
+    def form4(accession: str, filing: date, ticker: str, issuer: str, owner: str, price: float, **extra: Any) -> dict[str, Any]:
+        return {
+            "accession_number": accession,
+            "filing_date": filing.isoformat(),
+            "transaction_date": None,
+            "issuer_cik": issuer,
+            "ticker": ticker,
+            "owner_group_key": owner,
+            "role_text": "Ten percent owner",
+            "security": "common",
+            "shares": 100,
+            "price": price,
+            **extra,
+        }
+
+    # One cluster in a ticker with bars (three owners on days[30]..days[32]; one row is a 10b5-1 trade).
+    form4_rows = [
+        form4(f"acme-{i}", days[30 + i], "ACME", "1", f"acme-owner-{i}", acme[30 + i].close, is_10b5_1=(i == 1))
+        for i in range(3)
+    ]
+    # Four clusters in a ticker without bars: before the window, in sample, out of sample, after the window.
+    for year, month, day in ((2015, 6, 1), (2023, 5, 10), (2025, 8, 4), (2026, 4, 6)):
+        form4_rows += [
+            form4(f"zzzz-{year}-{i}", date(year, month, day + i), "ZZZZ", "2", f"zzzz-owner-{i}", 10.0) for i in range(3)
+        ]
+
+    def congress(doc_id: str, traded: date, filed_on: date, **extra: Any) -> dict[str, Any]:
         return {
             "chamber": "house",
             "doc_id": doc_id,
@@ -2047,27 +2849,47 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
             "holder": "self",
             "ticker": "ACME",
             "transaction_type": "purchase",
-            "transaction_date": (filed_on - timedelta(days=5)).isoformat(),
+            "transaction_date": traded.isoformat(),
             "filed_on": filed_on.isoformat(),
             "amount_low": 1001,
             "amount_high": 15000,
+            **extra,
         }
 
-    # One purchase enters; the one filed on the last benchmark session has no entry day.
-    congress_rows = [congress("doc-1", days[50]), congress("doc-2", days[-1])]
-    (data_dir / "congress_trades.jsonl").write_text("\n".join(json.dumps(r) for r in congress_rows) + "\n", encoding="utf-8")
+    congress_rows = [
+        congress("doc-1", days[45], days[50]),
+        # The same trade in a later amendment: dropped.
+        congress("doc-4", days[45], days[55], amends=True),
+        # Two lots of one trade in one filing: merged.
+        congress("doc-3", days[75], days[80]),
+        congress("doc-3", days[75], days[80]),
+        # Filed on the last benchmark session: no entry day.
+        congress("doc-2", days[110], days[-1]),
+    ]
 
-    def premium(session: date, ticker: str) -> dict[str, Any]:
-        return {"session_date": session.isoformat(), "ticker": ticker, "bullish_premium": 800_000, "bearish_premium": 0, "trade_count": 5}
+    def premium(session: date, ticker: str, bullish: float = 800_000, **extra: Any) -> dict[str, Any]:
+        return {"session_date": session.isoformat(), "ticker": ticker, "bullish_premium": bullish, "bearish_premium": 0, "trade_count": 5, **extra}
 
-    # ACME qualifies on 10 sessions; the premium window ends on days[69], the last of them.
+    # ACME qualifies on 10 sessions; the premium window ends on days[69], the last complete session.
     premium_rows = [premium(d, "ACME") for d in days[60:70]]
-    premium_rows += [premium(days[60], "NOBAR"), premium(days[61], "NOBAR"), premium(days[60], "THIN"), premium(days[62], "HALT")]
-    (data_dir / "market_premium.jsonl").write_text("\n".join(json.dumps(r) for r in premium_rows) + "\n", encoding="utf-8")
+    premium_rows += [
+        premium(days[60], "NOBAR", 900_000),
+        premium(days[61], "NOBAR", 900_000),
+        premium(days[60], "THIN"),
+        premium(days[62], "HALT"),
+        premium(days[64], "DUP"),
+        premium(days[66], "EXTRA"),
+        premium(days[75], "ACME", session_status="partial"),
+    ]
+    _write_event_files(data_dir, form4=form4_rows, congress=congress_rows, premium=premium_rows)
 
-    result = run_all_studies(data_dir=data_dir, out_dir=out_dir, ran=date(2026, 11, 25), commit="0123abc")
+    gated_calls = _record_calls(monkeypatch, "run_gated_study")
+    simulate_calls = _record_calls(monkeypatch, "simulate_event_portfolio")
+    result = run_all_studies(data_dir=data_dir, out_dir=tmp_path / "out", ran=date(2026, 11, 25), commit="0123abc")
     docs = {d["id"]: d for d in (json.loads(line) for line in Path(result["studies_jsonl"]).read_text(encoding="utf-8").splitlines())}
-    assert sorted(docs) == sorted(STUDY_IDS)
+    assert list(docs) == list(STUDY_IDS)
+    s1, s2, s3 = STUDY_IDS
+    summaries = result["summaries"]
 
     def robustness(study_id: str, check: str) -> dict[str, Any]:
         (row,) = [r for r in docs[study_id]["robustness"] if r["check"] == check]
@@ -2077,58 +2899,810 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
         (row,) = [g for g in docs[study_id]["gaps"] if g["gap"] == name]
         return row["choice"]
 
-    # Study 1 has no events at all: every skip counter is zero, the window counter included.
-    assert robustness("insider-purchase-confirmation", "Slot Overlap & Capacity Skips") == {
-        "check": "Slot Overlap & Capacity Skips",
-        "pass": None,
-        "result": "skipped_overlap=0, skipped_capacity=0, skipped_illiquid=0, missing_bars=0, outside_window=0",
-    }
+    def rule(study_id: str, item: str) -> str:
+        (row,) = [r for r in docs[study_id]["rules"] if r["item"] == item]
+        return row["rule"]
 
-    # Study 2: the purchase filed on the last session is outside the window, not a missing bar.
-    s2 = "smart-money-congress-buys"
+    # ---- pre-registered windows, variants and primary trials ------------------------------------
+    s1_window = StudyWindow(start=date(2016, 1, 1), end=date(2026, 3, 31), oos_start=date(2024, 4, 1))
+    s2_window = StudyWindow(start=date(2022, 1, 1), end=date(2026, 11, 23), oos_start=date(2024, 11, 23))
+    s1_names = ("confirmation-baseline", "cluster-3p-10d", "cluster-3p-10d-100k", "cluster-3p-10d-confirm")
+    s2_names = ("all-buys", "large-50k", "fast-filed-15d", "multi-member-30d")
+    assert [(c["study_id"], c["window"], tuple(c["variant_names"]), c["primary_variant"]) for c in gated_calls] == [
+        (s1, s1_window, s1_names, "cluster-3p-10d"),
+        (s2, s2_window, s2_names, "all-buys"),
+    ]
+    assert all(name in gated_calls[0]["variants"] for name in s1_names)
+    assert all(name in gated_calls[1]["variants"] for name in s2_names)
+
+    trials = json.loads(Path(result["trials_json"]).read_text(encoding="utf-8"))
+    assert [(t["study_id"], t["variant"], t["holding_days"]) for t in trials] == [
+        *[(s1, name, holding) for name in s1_names for holding in (5, 20, 60)],
+        *[(s2, name, holding) for name in s2_names for holding in (5, 20, 60)],
+        (s3, "top10-500k", 20),
+    ]
+    assert {t["cost_bps"] for t in trials} == {10.0}
+    assert [(t["study_id"], t["variant"], t["holding_days"]) for t in trials if t["is_primary"]] == [
+        (s1, "cluster-3p-10d", 20),
+        (s2, "all-buys", 20),
+        (s3, "top10-500k", 20),
+    ]
+
+    # 14 runs per gated study (12 trials and 2 cost stress runs), the 10b5-1 run of study 1, the baseline of study 3.
+    assert len(simulate_calls) == 14 + 1 + 14 + 1
+    no_plan_run = simulate_calls[14]
+    assert no_plan_run["config"] == PortfolioConfig(holding_days=20, cost_bps=10.0)
+    assert (no_plan_run["start_day"], no_plan_run["end_day"], no_plan_run["oos_start"]) == (s1_window.start, s1_window.end, s1_window.oos_start)
+    assert no_plan_run["events"] == []  # without the 10b5-1 row only two owners are left
+    for call in simulate_calls[15:29]:
+        assert (call["start_day"], call["end_day"], call["oos_start"]) == (s2_window.start, s2_window.end, s2_window.oos_start)
+    premium_run = simulate_calls[29]
+    assert premium_run["config"] == PortfolioConfig(holding_days=20, cost_bps=10.0, require_liquidity=False)
+    assert (premium_run["start_day"], premium_run["end_day"], premium_run["oos_start"]) == (days[60], days[69], None)
+    assert len(premium_run["events"]) == 15
+    assert sorted(premium_run["bars_by_symbol"]) == ["ACME", "DUP", "EXTRA", "HALT", "SPY", "THIN"]
+    assert premium_run["bars_by_symbol"]["DUP"][0].volume == 2_000_000.0
+
+    # ---- study 1 ---------------------------------------------------------------------------------
+    short_history = (
+        "Observed history has 120 OOS sessions (< 490 required for 24-month holdout). "
+        "Rule is frozen (N = 12) for forward out-of-sample collection."
+    )
+    assert (summaries[s1]["verdict"], summaries[s1]["reason"]) == ("needs-more-data", short_history)
+    assert (docs[s1]["verdict"], docs[s1]["verdictReason"]) == ("needs-more-data", short_history)
+    assert (summaries[s1]["oos_events"], summaries[s1]["n_trials"]) == (1, 12)
+    assert (summaries[s1]["baseline_oos_events"], summaries[s1]["baseline_oos_sharpe"]) == (0, 0.0)
+    assert robustness(s1, "OOS Event Count (bar >= 100)") == {
+        "check": "OOS Event Count (bar >= 100)",
+        "pass": False,
+        "result": "1 OOS entries over 120 sessions (2024-04-01..2026-03-31)",
+    }
+    assert rule(s1, "Verdict Gate") == (
+        "OOS >= 24m (2024-04-01..2026-03-31), >= 100 OOS events, OOS Sharpe > 0 at 10 & 20 bps, DSR >= 0.95 at N=12."
+    )
+    assert robustness(s1, "Slot Overlap & Capacity Skips")["result"] == (
+        "skipped_overlap=0, skipped_capacity=0, skipped_illiquid=0, missing_bars=0, outside_window=0"
+    )
+    assert robustness(s1, "Post-2023 Rule 10b5-1 Exclusion Sensitivity")["result"] == (
+        "Excluding 1 10b5-1 rows: OOS Sharpe=0.000 (0 OOS events)"
+    )
+    # Of the four clusters without bars, two are in the window (one in sample, one out of sample).
+    assert gap(s1, "Cluster events outside the bar universe") == (
+        "1 of 3 cluster events in the window (1 of 2 tickers) remain after the bar universe and the price guard; "
+        "out of sample 1 of 2. "
+        "The out-of-sample event count therefore also reflects the 600-ticker cap."
+    )
+    assert gap(s1, "Form 4 rows outside the bar universe") == (
+        "12 of 15 code-P Form 4 rows are in tickers without bars and 0 were filed before the first bar of their "
+        "ticker; 0 exits were truncated."
+    )
+    assert gap(s1, "SEC decimal typos / ticker reuse").startswith("Rejected 0 Form 4 rows whose reported price fell outside [0.25x, 4.0x]")
+    assert gap(s1, "Share-volume floor of the confirmation baseline").startswith("The template's 1,000,000-share average-volume floor")
+    assert docs[s1]["notes"] == (
+        "Raw code-P Form 4 purchases loaded: 15; cleaned: 3. "
+        "Primary trial (cluster-3p-10d, H=20): whole trades=1, OOS trades=1. "
+        "Confirmation baseline (H=20): whole trades=0, OOS trades=0."
+    )
+    sensitivity = docs[s1]["sensitivity"]
+    assert [row["param"] for row in sensitivity] == [f"{name} | H={holding}" for name in s1_names for holding in (5, 20, 60)]
+    assert sensitivity[1] == {
+        "cagr": 0.0,
+        "maxDrawdown": 0.0,
+        "param": "confirmation-baseline | H=20",
+        "sharpe": 0.0,
+        "trades": 0,
+        "value": "OOS 0 ev, Sharpe +0.000",
+    }
+    assert sensitivity[4]["trades"] == 1 and sensitivity[4]["value"].startswith("OOS 1 ev, Sharpe ")
+    # Runs: primary, confirmation baseline, $100k floor, price confirmation, 20 bps stress.
+    # The three purchases are worth about $15,000, and the rising price confirms the cluster.
+    assert [run["trades"] for run in docs[s1]["forms"][0]["runs"]] == [1, 0, 0, 1, 1]
+
+    # ---- study 2 ---------------------------------------------------------------------------------
+    assert (summaries[s2]["verdict"], summaries[s2]["reason"]) == ("needs-more-data", short_history)
+    assert (summaries[s2]["oos_events"], summaries[s2]["n_trials"]) == (2, 12)
+    assert robustness(s2, "OOS Event Count (bar >= 100)")["result"] == "2 OOS entries over 120 sessions (2024-11-23..2026-11-23)"
+    assert rule(s2, "Verdict Gate") == (
+        "OOS >= 24m (2024-11-23..2026-11-23), >= 100 OOS events, OOS Sharpe > 0 at 10 & 20 bps, DSR >= 0.95 at N=12."
+    )
+    # The purchase filed on the last session is outside the window, not a missing bar.
     assert robustness(s2, "Deduplication & Capacity Skips")["result"] == (
-        "deduped=2 (removed 0 dupes); overlap=0, capacity=0, illiquid=0, missing_bars=0, outside_window=1"
+        "trades=3 (merged 1 same-filing lots, dropped 1 later filings); "
+        "overlap=0, capacity=0, illiquid=0, missing_bars=0, outside_window=1"
     )
     for name, text in _SYNTHETIC_LEDGER_ROWS:
         assert gap(s2, name) == text
     assert "Unparsed PTRs excluded" not in [g["gap"] for g in docs[s2]["gaps"]]
-    assert gap(s2, "Events outside the bar universe").startswith("0 primary events had no bar on the entry day")
-    assert result["summaries"][s2]["verdict"] == "needs-more-data"
+    assert gap(s2, "Events outside the bar universe") == (
+        "0 primary events had no bar on the entry day (ticker outside the bar universe or not trading); "
+        "0 exits were truncated."
+    )
+    universe_note = _universe_note(meta, dict.fromkeys(("SPY", "ACME", "THIN", "HALT", "DUP"), ()))
+    assert "5 of the 600 pre-registered tickers" in universe_note
+    assert gap(s1, "Universe cap & survivorship") == universe_note
+    assert gap(s2, "Universe cap & survivorship") == universe_note
+    assert docs[s2]["notes"] == (
+        "Raw Congress purchase rows: 5; trades after merging lots and dropping later filings: 3. "
+        "Primary trial (all-buys, H=20): whole trades=2, OOS trades=2."
+    )
 
-    # Study 3: 11 top-10 events (10 ACME, 1 HALT).
+    # ---- no bars_events/ folder: the post-hoc full-universe check is reported as not run ------------
+    not_run = {"check": POST_HOC_CHECK, "pass": None, "result": "Not run: the collector's bars_events folder has no bars."}
+    assert POST_HOC_CHECK == "Post-hoc: full event universe (not in the verdict)"
+    for study_id in (s1, s2):
+        assert robustness(study_id, POST_HOC_CHECK) == not_run
+        assert docs[study_id]["robustness"][-1] == not_run
+        assert summaries[study_id]["post_hoc_full_universe"] is None
+        assert gap(study_id, "Post-hoc full-universe check") == POST_HOC_GAP[1]
+    assert "post_hoc_full_universe" not in summaries[s3]
+    assert POST_HOC_CHECK not in [r["check"] for r in docs[s3]["robustness"]]
+    assert "Post-hoc full-universe check" not in [g["gap"] for g in docs[s3]["gaps"]]
+
+    # ---- study 3 ---------------------------------------------------------------------------------
+    # 15 top-10 events: 10 ACME, 2 NOBAR, HALT, DUP and EXTRA. THIN fails the liquidity test.
     # ACME enters after the first session and is held to the window end: 8 overlaps, and the event
-    # of the last session has its entry day after the window. HALT has no bar on its entry day.
-    s3 = "smart-money-large-bullish-premium"
+    # of the last session has its entry day after the window. NOBAR (twice) and HALT have no bar on
+    # the entry day. DUP and EXTRA enter.
+    assert summaries[s3]["verdict"] == docs[s3]["verdict"] == "needs-more-data"
+    assert summaries[s3]["reason"].startswith(
+        "Insufficient history: 10 complete QuantData sessions (2025-08-25 to 2025-09-05, ~0.4 months < 24-month "
+        "holdout required). Rule top10-500k (H=20) is frozen at N = 1 with zero parameter sweep; full evaluation "
+        "unlocks on 2027-08-25. Descriptive baseline over observed window: 3 entries, excess Sharpe "
+    )
+    assert (summaries[s3]["complete_sessions"], summaries[s3]["baseline_entries"], summaries[s3]["n_trials"]) == (10, 3, 1)
+    assert robustness(s3, "24-Month OOS History Requirement (>= 490 sessions)") == {
+        "check": "24-Month OOS History Requirement (>= 490 sessions)",
+        "pass": False,
+        "result": "10 complete sessions (2025-08-25..2025-09-05); unlocks 2027-08-25.",
+    }
     assert robustness(s3, "Forward Event Collection Baseline")["result"] == (
-        "qualifying_ticker_sessions=11, top10_events=11, entries=1"
+        "qualifying_ticker_sessions=15, top10_events=15, entries=3"
     )
     assert robustness(s3, "Slot Overlap, Capacity & Missing-Bar Skips") == {
         "check": "Slot Overlap, Capacity & Missing-Bar Skips",
         "pass": None,
         "result": (
-            "events: overlap=8, capacity=0, missing_bars=1, outside_window=1; "
+            "events: overlap=8, capacity=0, missing_bars=3, outside_window=1; "
             "ticker-sessions before ranking: without_bars=2, illiquid=1"
         ),
     }
-    universe_note = _universe_note({"universe_requested": 600, "bars_not_found": ["GONE1", "GONE2"]}, dict.fromkeys(("SPY", "ACME", "THIN", "HALT"), ()))
-    assert "4 of the 600 pre-registered tickers" in universe_note
-    assert gap(s3, "Slot capacity") == (
-        "The 10 slots stay full for 20 sessions, so 0 of 11 top-10 events were skipped "
-        "for capacity and 8 because the ticker was already held."
+    assert gap(s3, "Top-10 tickers without bars") == (
+        "2 of 15 top-10 events are in tickers without daily bars (index options and tickers Yahoo Finance has no "
+        "history for). They keep their rank and count as missing-bar events."
     )
-    assert gap(s3, "Universe cap & survivorship") == universe_note
-    assert gap(s2, "Universe cap & survivorship") == universe_note
-    assert result["summaries"][s3]["baseline_entries"] == 1
+    assert gap(s3, "Slot capacity") == (
+        "The 10 slots stay full for 20 sessions, so 0 of 15 top-10 events were skipped for capacity and 8 because "
+        "the ticker was already held."
+    )
+    assert gap(s3, "History below 2-year holdout") == (
+        "QuantData exposes ~1 year of history (2025-08-25..2025-09-05, 10 complete sessions). "
+        "Verdict stays needs-more-data until 2027-08-25."
+    )
+    assert docs[s3]["notes"] == (
+        "Complete sessions: 10 (2025-08-25..2025-09-05). "
+        "Rule frozen at N = 1 (top10-500k, H=20); full evaluation unlocks 2027-08-25."
+    )
+    (s3_run,) = docs[s3]["forms"][0]["runs"]
+    assert (s3_run["from"], s3_run["to"], s3_run["trades"]) == ("2025-08-25", "2025-09-05", 3)
+    assert s3_run["oosCagr"] is None and s3_run["oosSharpe"] is None
+    assert docs[s3]["sensitivity"] == []
 
-    # Without metadata.json the Congress study falls back to the one generic gap row.
+    # ---- data hashes: the event file of the study and every bar file it reads ----------------------
+    main_bar_paths = sorted(bars_dir.glob("*.csv"))
+    premium_bar_paths = sorted(premium_bars_dir.glob("*.csv"))
+    assert len(main_bar_paths) == 5 and len(premium_bar_paths) == 2
+    assert docs[s1]["provenance"]["dataHash"] == _hash_files([data_dir / "form4_purchases.jsonl", *main_bar_paths])
+    assert docs[s2]["provenance"]["dataHash"] == _hash_files([data_dir / "congress_trades.jsonl", *main_bar_paths])
+    assert docs[s3]["provenance"]["dataHash"] == _hash_files(
+        [data_dir / "market_premium.jsonl", *main_bar_paths, *premium_bar_paths]
+    )
+
+    # ---- a second run: no metadata.json, and one changed premium bar file --------------------------
     (data_dir / "metadata.json").unlink()
+    _write_bars_csv(premium_bars_dir / "EXTRA.csv", _make_bars(days, start_price=60.0, volume=2_000_000.0))
     result = run_all_studies(data_dir=data_dir, out_dir=tmp_path / "out-no-meta", ran=date(2026, 11, 25), commit="0123abc")
-    lines = Path(result["studies_jsonl"]).read_text(encoding="utf-8").splitlines()
-    s2_doc = next(d for d in map(json.loads, lines) if d["id"] == s2)
-    gaps = {g["gap"]: g["choice"] for g in s2_doc["gaps"]}
+    again = {d["id"]: d for d in (json.loads(line) for line in Path(result["studies_jsonl"]).read_text(encoding="utf-8").splitlines())}
+    gaps = {g["gap"]: g["choice"] for g in again[s2]["gaps"]}
     assert gaps[_LEDGER_FALLBACK_ROW[0]] == _LEDGER_FALLBACK_ROW[1]
     assert not any(name in gaps for name, _text in _SYNTHETIC_LEDGER_ROWS)
-    assert gaps["Universe cap & survivorship"] == "Daily bars cover 4 tickers (SPY included)."
+    assert gaps["Universe cap & survivorship"] == "Daily bars cover 5 tickers (SPY included)."
+    # The data hash of a study covers its event file and the bars it reads: only study 3 reads bars_premium/.
+    hashes = {study_id: (docs[study_id]["provenance"]["dataHash"], again[study_id]["provenance"]["dataHash"]) for study_id in STUDY_IDS}
+    assert all(old.startswith("sha256:") and len(old) == len("sha256:") + 24 for old, _new in hashes.values())
+    assert len({old for old, _new in hashes.values()}) == 3
+    assert hashes[s1][0] == hashes[s1][1] and hashes[s2][0] == hashes[s2][1]
+    assert hashes[s3][0] != hashes[s3][1]
+
+
+def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verdict_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_dir = tmp_path / "data"
+    bars_dir = data_dir / "bars"
+    event_bars_dir = data_dir / "bars_events"
+    bars_dir.mkdir(parents=True)
+    days = _make_trading_days(date(2024, 1, 2), 320)
+    s1_oos, s2_oos = 64, 234  # first out-of-sample session of study 1 and of study 2
+    assert (days[s1_oos], days[s2_oos]) == (date(2024, 4, 1), date(2024, 11, 25))
+    acme_rate, zzzz_rate = 0.0005, 0.001
+    acme, zzzz = _growing_bars(days, acme_rate), _growing_bars(days, zzzz_rate)
+    spy = _flat_bars(days, price=400.0, volume=50_000_000.0)
+    # The capped universe holds SPY and ACME. ZZZZ has events too, but its bars are outside the cap.
+    _write_bars_csv(bars_dir / "SPY.csv", spy)
+    _write_bars_csv(bars_dir / "ACME.csv", acme)
+
+    def cluster(ticker: str, issuer: str, first: int, bars: list[DailyBar]) -> list[dict[str, Any]]:
+        """Three owners file on three sessions in a row; the cluster triggers on the third one."""
+        return [
+            {
+                "accession_number": f"{ticker}-{first}-{i}",
+                "filing_date": days[first + i].isoformat(),
+                "issuer_cik": issuer,
+                "ticker": ticker,
+                "owner_group_key": f"{ticker}-owner-{i}",
+                "role_text": "Ten percent owner",
+                "security": "common",
+                "shares": 10,
+                "price": bars[first + i].close,
+            }
+            for i in range(3)
+        ]
+
+    def purchase(doc_id: str, ticker: str, filed: int) -> dict[str, Any]:
+        return {
+            "chamber": "house",
+            "doc_id": doc_id,
+            "member": "Hon. Member Alpha",
+            "holder": "self",
+            "ticker": ticker,
+            "transaction_type": "purchase",
+            "transaction_date": (days[filed] - timedelta(days=20)).isoformat(),
+            "filed_on": days[filed].isoformat(),
+            "amount_low": 1001,
+            "amount_high": 15000,
+        }
+
+    _write_event_files(
+        data_dir,
+        # Cluster triggers: ACME on days[22] and days[102], ZZZZ on days[32] and days[152].
+        form4=[*cluster("ACME", "1", 20, acme), *cluster("ACME", "1", 100, acme), *cluster("ZZZZ", "2", 30, zzzz), *cluster("ZZZZ", "2", 150, zzzz)],
+        congress=[purchase("a1", "ACME", 50), purchase("a2", "ACME", 240), purchase("z1", "ZZZZ", 60), purchase("z2", "ZZZZ", 250)],
+    )
+    # Entry sessions (the session after the trigger) and daily rates, per counted variant of each study.
+    # The rising price confirms the second ACME cluster one session later; the first one has no
+    # 50-day average inside its 30 days. The clusters are worth about $3,000.
+    s1_id, s2_id, s3_id = STUDY_IDS
+    capped_trades = {
+        s1_id: [[], [(23, acme_rate), (103, acme_rate)], [], [(104, acme_rate)]],
+        s2_id: [[(51, acme_rate), (241, acme_rate)], [], [], []],
+    }
+    full_trades = {
+        s1_id: [(23, acme_rate), (103, acme_rate), (33, zzzz_rate), (153, zzzz_rate)],
+        s2_id: [(51, acme_rate), (241, acme_rate), (61, zzzz_rate), (251, zzzz_rate)],
+    }
+    oos_from = {s1_id: s1_oos, s2_id: s2_oos}
+
+    dsr_calls = _record_calls(monkeypatch, "compute_study_dsr")
+    simulate_calls = _record_calls(monkeypatch, "simulate_event_portfolio")
+
+    def run(name: str) -> tuple[dict[str, Any], dict[str, Any], str]:
+        dsr_calls.clear()
+        simulate_calls.clear()
+        result = run_all_studies(data_dir=data_dir, out_dir=tmp_path / name, ran=date(2026, 11, 25), commit="0123abc")
+        lines = Path(result["studies_jsonl"]).read_text(encoding="utf-8").splitlines()
+        docs = {doc["id"]: doc for doc in map(json.loads, lines)}
+        return docs, result["summaries"], Path(result["trials_json"]).read_text(encoding="utf-8")
+
+    def post_hoc_row(doc: dict[str, Any]) -> dict[str, Any]:
+        (row,) = [r for r in doc["robustness"] if r["check"] == POST_HOC_CHECK]
+        return row
+
+    def gated_part(doc: dict[str, Any]) -> dict[str, Any]:
+        """The document without the post-hoc row and without the data hash."""
+        kept = dict(doc)
+        kept["robustness"] = [r for r in doc["robustness"] if r["check"] != POST_HOC_CHECK]
+        kept["provenance"] = {k: v for k, v in doc["provenance"].items() if k != "dataHash"}
+        return kept
+
+    not_run = {"check": POST_HOC_CHECK, "pass": None, "result": "Not run: the collector's bars_events folder has no bars."}
+
+    # ---- run 1: no bars_events/ folder -------------------------------------------------------------
+    capped_docs, capped_summaries, capped_trials = run("out-capped")
+    assert len(dsr_calls) == 2 and len(simulate_calls) == 14 + 1 + 14 + 1
+    for study_id, oos_events, oos_sessions in ((s1_id, 1, 256), (s2_id, 1, 86)):
+        assert post_hoc_row(capped_docs[study_id]) == not_run
+        assert capped_summaries[study_id]["post_hoc_full_universe"] is None
+        assert (capped_summaries[study_id]["oos_events"], capped_summaries[study_id]["n_trials"]) == (oos_events, 12)
+        assert capped_summaries[study_id]["reason"].startswith(f"Observed history has {oos_sessions} OOS sessions")
+        # The gated out-of-sample Sharpe is the one of the capped universe, by hand.
+        by_hand = _hand_sharpe(_hand_returns(320, capped_trades[study_id][0 if study_id == s2_id else 1], 20)[oos_from[study_id] :])
+        assert math.isclose(capped_summaries[study_id]["oos_sharpe"], by_hand * math.sqrt(252), abs_tol=1e-4)
+    # The two Congress purchases in ZZZZ have no bar in the capped universe.
+    assert "missing_bars=2" in next(r for r in capped_docs[s2_id]["robustness"] if r["check"] == "Deduplication & Capacity Skips")["result"]
+
+    # ---- run 2: a bars_events/ folder without one usable bar is the same as no folder ----------------
+    event_bars_dir.mkdir()
+    (event_bars_dir / "NOROWS.csv").write_text("date,open,high,low,close,adj_close,volume,raw_close\n", encoding="utf-8")
+    assert run("out-empty-folder") == (capped_docs, capped_summaries, capped_trials)
+    assert len(dsr_calls) == 2
+
+    # ---- run 3: bars_events/ holds ZZZZ, and a thin copy of ACME that must lose against bars/ACME.csv --
+    _write_bars_csv(event_bars_dir / "ZZZZ.csv", zzzz)
+    _write_bars_csv(event_bars_dir / "ACME.csv", _flat_bars(days, volume=10.0))
+    full_docs, full_summaries, full_trials = run("out-full")
+
+    # Nothing of the gated study moves: verdict, reason, events, Sharpe, DSR, trials, every document field.
+    assert full_trials == capped_trials
+    assert full_docs[s3_id] == capped_docs[s3_id]
+    assert full_summaries[s3_id] == capped_summaries[s3_id]
+    for study_id in (s1_id, s2_id):
+        assert gated_part(full_docs[study_id]) == gated_part(capped_docs[study_id])
+        assert {k: v for k, v in full_summaries[study_id].items() if k != "post_hoc_full_universe"} == {
+            k: v for k, v in capped_summaries[study_id].items() if k != "post_hoc_full_universe"
+        }
+        assert full_docs[study_id]["verdict"] == "needs-more-data"
+        assert [g["choice"] for g in full_docs[study_id]["gaps"] if g["gap"] == POST_HOC_GAP[0]] == [POST_HOC_GAP[1]]
+
+    # The post-hoc run: the primary variant at 20 sessions and 10 bps on the bars of both folders.
+    assert len(dsr_calls) == 4 and len(simulate_calls) == 14 + 2 + 14 + 1 + 1
+    post_hoc_runs = {s1_id: simulate_calls[15], s2_id: simulate_calls[30]}
+    # Every other run of studies 1 and 2 still reads the capped universe only.
+    for index, call in enumerate(simulate_calls[:30]):
+        if index != 15:
+            assert sorted(call["bars_by_symbol"]) == ["ACME", "SPY"]
+    windows = {
+        s1_id: (date(2016, 1, 1), date(2026, 3, 31), date(2024, 4, 1)),
+        s2_id: (date(2022, 1, 1), date(2026, 11, 23), date(2024, 11, 23)),
+    }
+    for index, study_id in enumerate((s1_id, s2_id)):
+        gated_call, post_hoc_call = dsr_calls[2 * index], dsr_calls[2 * index + 1]
+        simulated = post_hoc_runs[study_id]
+        assert simulated["config"] == PortfolioConfig(holding_days=20, cost_bps=10.0)
+        assert (simulated["start_day"], simulated["end_day"], simulated["oos_start"]) == windows[study_id]
+        assert sorted(simulated["bars_by_symbol"]) == ["ACME", "SPY", "ZZZZ"]
+        assert simulated["bars_by_symbol"]["ACME"][0].volume == 1_000_000.0  # bars/ wins on a duplicate ticker
+        assert sorted({(e.symbol, e.trigger_day) for e in simulated["events"]}) == sorted(
+            ("ACME" if rate == acme_rate else "ZZZZ", days[entry - 1]) for entry, rate in full_trades[study_id]
+        )
+
+        # By hand: four 20-session trades, two of them out of sample; 12 counted trials plus this run.
+        whole = _hand_returns(320, full_trades[study_id], 20)
+        oos = whole[oos_from[study_id] :]
+        own_sharpe = _hand_sharpe(oos)
+        counted = [_hand_sharpe(_hand_returns(320, trades, holding)[oos_from[study_id] :]) for trades in capped_trades[study_id] for holding in (5, 20, 60)]
+        assert len(counted) == 12
+
+        assert post_hoc_call["n_trials"] == 13 and gated_call["n_trials"] == 12
+        assert len(post_hoc_call["primary_oos_returns"]) == len(oos) == 320 - oos_from[study_id]
+        for got, want in zip(post_hoc_call["primary_oos_returns"], oos, strict=True):
+            assert math.isclose(got, want, abs_tol=1e-12)
+        sharpes = post_hoc_call["all_trial_per_obs_sharpes"]
+        assert len(sharpes) == 13
+        assert sharpes[:12] == list(gated_call["all_trial_per_obs_sharpes"])
+        for got, want in zip(sharpes, [*counted, own_sharpe], strict=True):
+            assert math.isclose(got, want, rel_tol=1e-6, abs_tol=1e-12)
+
+        skew, raw_kurtosis = moments(oos)
+        dsr = deflated_sharpe_ratio(
+            sharpe=own_sharpe,
+            n_trials=13,
+            sharpe_variance=statistics.variance([*counted, own_sharpe]),
+            n_observations=len(oos),
+            skew=skew,
+            kurtosis=raw_kurtosis,
+        )
+        oos_sharpe = own_sharpe * math.sqrt(252)
+        whole_sharpe = _hand_sharpe(whole) * math.sqrt(252)
+        assert not math.isclose(oos_sharpe, whole_sharpe, rel_tol=0.01)
+        assert post_hoc_row(full_docs[study_id]) == {
+            "check": POST_HOC_CHECK,
+            "pass": None,
+            "result": (
+                f"Bars for 3 tickers: 2 OOS events, OOS Sharpe {oos_sharpe:.3f}, DSR {dsr.probability:.3f} at N=13; "
+                f"whole-sample trades 4, Sharpe {whole_sharpe:.3f}. A pass here would need a new holdout."
+            ),
+        }
+        assert full_docs[study_id]["robustness"][-1]["check"] == POST_HOC_CHECK
+        summary = full_summaries[study_id]["post_hoc_full_universe"]
+        assert sorted(summary) == ["dsr", "n_trials", "oos_events", "oos_sharpe", "tickers_with_bars", "whole_sharpe", "whole_trades"]
+        assert (summary["tickers_with_bars"], summary["oos_events"], summary["whole_trades"], summary["n_trials"]) == (3, 2, 4, 13)
+        assert math.isclose(summary["oos_sharpe"], oos_sharpe, abs_tol=1e-4)
+        assert math.isclose(summary["whole_sharpe"], whole_sharpe, abs_tol=1e-4)
+        assert math.isclose(summary["dsr"], dsr.probability, abs_tol=1e-4)
+        # The capped study has one out-of-sample event; the post-hoc run has two.
+        assert full_summaries[study_id]["oos_events"] == 1
+
+    # The data hash of studies 1 and 2 now covers the event bars too; study 3 does not read them.
+    main_paths, event_paths = sorted(bars_dir.glob("*.csv")), sorted(event_bars_dir.glob("*.csv"))
+    assert [p.name for p in event_paths] == ["ACME.csv", "NOROWS.csv", "ZZZZ.csv"]
+    for study_id, event_file in ((s1_id, "form4_purchases.jsonl"), (s2_id, "congress_trades.jsonl")):
+        assert capped_docs[study_id]["provenance"]["dataHash"] == _hash_files([data_dir / event_file, *main_paths])
+        assert full_docs[study_id]["provenance"]["dataHash"] == _hash_files([data_dir / event_file, *main_paths, *event_paths])
+        assert full_docs[study_id]["provenance"]["dataHash"] != capped_docs[study_id]["provenance"]["dataHash"]
+
+    # ---- direct calls: no event list, and a run without one event ------------------------------------
+    window = StudyWindow(start=days[0], end=days[-1], oos_start=days[100])
+    idle = simulate_event_portfolio([], {}, spy, PortfolioConfig(holding_days=20), start_day=days[0], end_day=days[-1], oos_start=days[100])
+    study = GatedStudy("synthetic-study", window, ("alpha",), {("alpha", 20): idle}, (), idle, idle, idle, None, "needs-more-data", "Synthetic.")
+
+    def context(full_bars: dict[str, list[DailyBar]] | None) -> RunContext:
+        return RunContext(
+            data_dir=data_dir,
+            ran=date(2026, 11, 25),
+            commit="0123abc",
+            bars={"SPY": spy},
+            spy_bars=spy,
+            bar_paths=(),
+            meta={},
+            universe_note="",
+            full_bars=full_bars,
+            full_bar_paths=(),
+        )
+
+    assert _post_hoc_full_universe(context(None), study, []) == (not_run, None)
+    assert _post_hoc_full_universe(context({"SPY": spy, "ZZZZ": zzzz}), study, None) == (not_run, None)
+    # No event: constant returns have no DSR. The study has no counted trial here, so N = 0 + 1.
+    row, summary = _post_hoc_full_universe(context({"SPY": spy, "ZZZZ": zzzz}), study, [])
+    assert row == {
+        "check": POST_HOC_CHECK,
+        "pass": None,
+        "result": (
+            "Bars for 2 tickers: 0 OOS events, OOS Sharpe 0.000, DSR unavailable at N=1; "
+            "whole-sample trades 0, Sharpe 0.000. A pass here would need a new holdout."
+        ),
+    }
+    assert summary == {
+        "tickers_with_bars": 2,
+        "oos_events": 0,
+        "oos_sharpe": 0.0,
+        "dsr": None,
+        "n_trials": 1,
+        "whole_trades": 0,
+        "whole_sharpe": 0.0,
+    }
+
+
+def test_runner_stops_on_a_missing_event_file_and_on_premium_rows_without_a_complete_session(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    (data_dir / "bars").mkdir(parents=True)
+    out_dir = tmp_path / "out"
+    days = _make_trading_days(date(2024, 1, 2), 60)
+    _write_bars_csv(data_dir / "bars" / "SPY.csv", _make_bars(days, start_price=200.0, volume=50_000_000.0))
+
+    def run() -> dict[str, Any]:
+        return run_all_studies(data_dir=data_dir, out_dir=out_dir, ran=date(2026, 11, 25), commit="0123abc")
+
+    # Each event file is required; the studies run in the order insider, Congress, premium.
+    for name in ("form4_purchases.jsonl", "congress_trades.jsonl", "market_premium.jsonl"):
+        _write_event_files(data_dir)
+        (data_dir / name).unlink()
+        with pytest.raises(FileNotFoundError, match=f"{name} is missing"):
+            run()
+        _write_event_files(data_dir)
+        (data_dir / name).write_text("\n", encoding="utf-8")
+        with pytest.raises(ValueError, match=f"{name} has no rows"):
+            run()
+
+    # Premium rows of partial sessions only: there is no session to build the frozen baseline on.
+    partial = [{**_IDLE_PREMIUM_ROW, "session_status": "partial"}]
+    _write_event_files(data_dir, premium=partial)
+    with pytest.raises(ValueError, match="market_premium.jsonl has no complete session"):
+        run()
+    # A failed run writes nothing.
+    assert not out_dir.exists()
+
+    _write_event_files(data_dir)
+    summaries = run()["summaries"]
+    assert {summary["verdict"] for summary in summaries.values()} == {"needs-more-data"}
+    assert sorted(p.name for p in out_dir.iterdir()) == sorted(
+        [*(f"{study_id}.json" for study_id in STUDY_IDS), "studies.jsonl", "summary.json", "trials.json"]
+    )
+
+
+def test_gated_study_feeds_the_gate_the_primary_out_of_sample_numbers(monkeypatch: pytest.MonkeyPatch) -> None:
+    days = _make_trading_days(date(2021, 1, 4), 720)
+    # 700 sessions in the window, the last 500 of them out of sample.
+    window = StudyWindow(start=days[10], end=days[709], oos_start=days[210])
+    rates = {"SLOW": 0.00015, "FAST": 0.001}
+
+    def growing(rate: float) -> list[DailyBar]:
+        """The close is ``rate`` above the open on every session, and the open is the previous close."""
+        bars: list[DailyBar] = []
+        price = 100.0
+        for d in days:
+            close = price * (1.0 + rate)
+            bars.append(DailyBar(d, price, close, price, close, close, 1_000_000.0, close))
+            price = close
+        return bars
+
+    bars = {sym: growing(rate) for sym, rate in rates.items()}
+    spy = _flat_bars(days, price=400.0, volume=50_000_000.0)
+    variants = {
+        "alpha": [
+            SignalEvent("SLOW", days[3], 1.0),  # entry day before the window
+            SignalEvent("SLOW", days[49], 1.0),  # in sample: enters on window session 40
+            SignalEvent("SLOW", days[299], 1.0),  # out of sample: enters on window session 290
+            SignalEvent("SLOW", days[712], 1.0),  # entry day after the window
+        ],
+        "beta": [SignalEvent("FAST", days[399], 1.0)],  # out of sample: enters on window session 390
+        "gamma": [],
+        "uncounted": [SignalEvent("FAST", days[100], 1.0)],  # not a pre-registered variant
+    }
+    names = ("alpha", "beta", "gamma")
+    grid = [(name, holding) for name in names for holding in (5, 20, 60)]
+    entries = {"alpha": [(40, rates["SLOW"]), (290, rates["SLOW"])], "beta": [(390, rates["FAST"])], "gamma": []}
+
+    def expected_returns(variant: str, holding: int, cost_bps: float) -> list[float]:
+        """Daily portfolio return by hand: one of 10 equal slots earns the stock's daily rate against a
+        flat benchmark and pays the cost on the entry day and on the exit day."""
+        cost = cost_bps / 10_000.0
+        out = [0.0] * 700
+        for entry, rate in entries[variant]:
+            for k in range(holding):
+                legs = (k == 0) + (k == holding - 1)
+                out[entry + k] += (rate - legs * cost) / 10.0
+        return out
+
+    def per_observation_sharpe(returns: list[float]) -> float:
+        deviation = statistics.stdev(returns)
+        return statistics.fmean(returns) / deviation if deviation > 0 else 0.0
+
+    simulate_calls = _record_calls(monkeypatch, "simulate_event_portfolio")
+    dsr_calls = _record_calls(monkeypatch, "compute_study_dsr")
+    gate_calls = _record_calls(monkeypatch, "evaluate_verdict")
+    study = run_gated_study(
+        study_id="synthetic-study",
+        variants=variants,
+        variant_names=names,
+        primary_variant="alpha",
+        bars=bars,
+        spy_bars=spy,
+        window=window,
+    )
+    assert isinstance(study, GatedStudy)
+    assert (study.study_id, study.window, study.variant_names) == ("synthetic-study", window, names)
+
+    # ---- trials: every counted variant at 5, 20 and 60 sessions and 10 bps; then the two stress runs ----
+    assert list(study.results) == grid
+    assert [(t.study_id, t.variant, t.holding_days, t.cost_bps, t.is_primary) for t in study.trials] == [
+        ("synthetic-study", name, holding, 10.0, (name, holding) == ("alpha", 20)) for name, holding in grid
+    ]
+    expected_runs = [*[(name, holding, 10.0) for name, holding in grid], ("alpha", 20, 0.0), ("alpha", 20, 20.0)]
+    assert len(simulate_calls) == len(expected_runs) == 11
+    for call, (name, holding, cost_bps) in zip(simulate_calls, expected_runs, strict=True):
+        assert call["events"] is variants[name]
+        assert call["bars_by_symbol"] is bars and call["spy_bars"] is spy
+        assert call["config"] == PortfolioConfig(holding_days=holding, max_slots=10, cost_bps=cost_bps, require_liquidity=True)
+        assert (call["start_day"], call["end_day"], call["oos_start"]) == (days[10], days[709], days[210])
+
+    # ---- the primary trial: alpha at 20 sessions ----------------------------------------------------
+    primary = study.primary
+    assert primary is study.results[("alpha", 20)]
+    assert [(p.entry_day, p.exit_day) for p in primary.positions] == [(days[50], days[69]), (days[300], days[319])]
+    assert (primary.whole.days, primary.whole.trades) == (700, 2)
+    assert (primary.oos.days, primary.oos.trades) == (500, 1)
+    assert primary.skipped_outside_window == 2
+    # Out-of-sample sum of one 20-session trade on one of 10 slots: 20 x 0.015% less two cost legs.
+    assert math.isclose(sum(study.stress0.oos_excess_returns), (20 * 0.00015) / 10, abs_tol=1e-12)  # +0.0003
+    assert math.isclose(sum(primary.oos_excess_returns), (20 * 0.00015 - 2 * 0.0010) / 10, abs_tol=1e-12)  # +0.0001
+    assert math.isclose(sum(study.stress20.oos_excess_returns), (20 * 0.00015 - 2 * 0.0020) / 10, abs_tol=1e-12)  # -0.0001
+
+    oos_at = {cost_bps: expected_returns("alpha", 20, cost_bps)[200:] for cost_bps in (0.0, 10.0, 20.0)}
+    sharpe_at = {cost_bps: per_observation_sharpe(returns) * math.sqrt(252) for cost_bps, returns in oos_at.items()}
+    assert sharpe_at[0.0] > sharpe_at[10.0] > 0.0 > sharpe_at[20.0]
+    assert math.isclose(study.stress0.oos.sharpe, sharpe_at[0.0], rel_tol=1e-6)
+    assert math.isclose(primary.oos.sharpe, sharpe_at[10.0], rel_tol=1e-6)
+    assert math.isclose(study.stress20.oos.sharpe, sharpe_at[20.0], rel_tol=1e-6)
+    whole_sharpe = per_observation_sharpe(expected_returns("alpha", 20, 10.0)) * math.sqrt(252)
+    assert math.isclose(primary.whole.sharpe, whole_sharpe, rel_tol=1e-6)
+    assert not math.isclose(whole_sharpe, sharpe_at[10.0], rel_tol=0.05)
+
+    # ---- the deflated Sharpe ratio: out-of-sample returns of the primary, per-observation Sharpes of all 9 trials ----
+    (dsr_call,) = dsr_calls
+    assert len(dsr_call["primary_oos_returns"]) == 500
+    for got, want in zip(dsr_call["primary_oos_returns"], oos_at[10.0], strict=True):
+        assert math.isclose(got, want, abs_tol=1e-12)
+    trial_sharpes = [per_observation_sharpe(expected_returns(name, holding, 10.0)[200:]) for name, holding in grid]
+    assert len(dsr_call["all_trial_per_obs_sharpes"]) == 9
+    for got, want in zip(dsr_call["all_trial_per_obs_sharpes"], trial_sharpes, strict=True):
+        assert math.isclose(got, want, rel_tol=1e-6, abs_tol=1e-12)
+    assert trial_sharpes[6:] == [0.0, 0.0, 0.0]  # gamma has no event
+    assert dsr_call["n_trials"] == 9
+    skew, raw_kurtosis = moments(oos_at[10.0])
+    by_hand = deflated_sharpe_ratio(
+        sharpe=per_observation_sharpe(oos_at[10.0]),
+        n_trials=9,
+        sharpe_variance=statistics.variance(trial_sharpes),
+        n_observations=500,
+        skew=skew,
+        kurtosis=raw_kurtosis,
+    )
+    assert study.dsr is not None
+    assert math.isclose(study.dsr.probability, by_hand.probability, rel_tol=1e-6, abs_tol=1e-12)
+    assert 0.0 < by_hand.probability < 0.95
+
+    # ---- the gate reads the primary trial out of sample, and the 20 bps run for the cost stress --------
+    (gate_call,) = gate_calls
+    assert sorted(gate_call) == ["dsr_probability", "n_trials", "oos_events", "oos_sessions", "oos_sharpe", "stress_oos_sharpe"]
+    assert (gate_call["oos_sessions"], gate_call["oos_events"], gate_call["n_trials"]) == (500, 1, 9)
+    assert math.isclose(gate_call["oos_sharpe"], sharpe_at[10.0], rel_tol=1e-6)
+    assert math.isclose(gate_call["stress_oos_sharpe"], sharpe_at[20.0], rel_tol=1e-6)
+    assert gate_call["dsr_probability"] == study.dsr.probability
+    assert study.verdict == "no-edge"
+    assert study.reason == (
+        "Failed pre-registered gate over 500 OOS sessions: OOS events 1 < 100; "
+        f"DSR {by_hand.probability:.3f} < 0.95 (N = 9); 20 bps stress OOS Sharpe {sharpe_at[20.0]:.3f} <= 0. "
+        f"Primary OOS excess Sharpe {sharpe_at[10.0]:.3f}, DSR {by_hand.probability:.3f} (N = 9). Research only."
+    )
+
+
+def test_gate_robustness_rows_restate_the_three_bars() -> None:
+    window = StudyWindow(start=date(2016, 1, 1), end=date(2026, 3, 31), oos_start=date(2024, 4, 1))
+
+    def result(oos_trades: int, oos_sharpe: float) -> PortfolioResult:
+        return _portfolio_result(oos=PeriodMetrics(500, oos_trades, 0.0, oos_sharpe, 0.0, 0.0, 0.0, 0.0, None))
+
+    def study(dsr: DeflatedSharpe | None, oos_trades: int, stress20_sharpe: float) -> GatedStudy:
+        primary = result(oos_trades, 1.0)
+        trial = TrialRecord("synthetic-study", "alpha", 20, 10.0, True, oos_trades, 500, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
+        return GatedStudy(
+            study_id="synthetic-study",
+            window=window,
+            variant_names=("alpha",),
+            results={("alpha", 20): primary},
+            trials=(trial, trial),
+            primary=primary,
+            stress0=result(oos_trades, 1.5),
+            stress20=result(oos_trades, stress20_sharpe),
+            dsr=dsr,
+            verdict="no-edge",
+            reason="Synthetic.",
+        )
+
+    def dsr(probability: float) -> DeflatedSharpe:
+        return DeflatedSharpe(0.1, 2, 0.01, 500, 0.0, 3.0, 0.03125, 1.6449, probability)
+
+    # Exactly at the bars: DSR 0.95 and 100 events pass; the 20 bps Sharpe must be above zero.
+    assert _gate_robustness_rows(study(dsr(0.95), 100, 0.5)) == [
+        {
+            "check": "Deflated Sharpe Ratio (N=2, bar >= 0.95)",
+            "pass": True,
+            "result": "DSR=0.9500, z=1.645, bench=0.0312",
+        },
+        {
+            "check": "OOS Event Count (bar >= 100)",
+            "pass": True,
+            "result": "100 OOS entries over 500 sessions (2024-04-01..2026-03-31)",
+        },
+        {
+            "check": "Cost Stress (0 / 10 / 20 bps per side)",
+            "pass": True,
+            "result": "OOS Sharpe: 0bps=1.500, 10bps=1.000, 20bps=0.500",
+        },
+    ]
+    # One step below each bar, and no DSR at all.
+    below = _gate_robustness_rows(study(dsr(0.9499), 99, 0.0))
+    assert [row["pass"] for row in below] == [False, False, False]
+    assert below[0]["result"] == "DSR=0.9499, z=1.645, bench=0.0312"
+    assert below[1]["result"] == "99 OOS entries over 500 sessions (2024-04-01..2026-03-31)"
+    assert below[2]["result"] == "OOS Sharpe: 0bps=1.500, 10bps=1.000, 20bps=0.000"
+    missing = _gate_robustness_rows(study(None, 100, -0.25))
+    assert missing[0] == {
+        "check": "Deflated Sharpe Ratio (N=2, bar >= 0.95)",
+        "pass": False,
+        "result": "DSR unavailable (zero variance or insufficient observations)",
+    }
+    assert [row["pass"] for row in missing] == [False, True, False]
+
+
+def test_sensitivity_rows_show_whole_sample_metrics_and_the_oos_result_as_text() -> None:
+    window = StudyWindow(start=date(2016, 1, 1), end=date(2026, 3, 31), oos_start=date(2024, 4, 1))
+    names = ("alpha", "beta")
+    results: dict[tuple[str, int], PortfolioResult] = {}
+    for v, name in enumerate(names):
+        for h, holding in enumerate((5, 20, 60)):
+            n = 3 * v + h + 1  # 1..6
+            results[(name, holding)] = _portfolio_result(
+                whole=PeriodMetrics(700, 10 * n, 0.01 * n, 0.1 * n, 0.0, -0.02 * n, 0.5, 0.5, None),
+                oos=PeriodMetrics(500, n, 0.5, -0.25 * n if v else 0.25 * n, 0.0, -0.9, 0.5, 0.5, None),
+            )
+    primary = results[("alpha", 20)]
+    study = GatedStudy("synthetic-study", window, names, results, (), primary, primary, primary, None, "no-edge", "Synthetic.")
+    rows = _sensitivity_rows(study)
+    assert [row["param"] for row in rows] == ["alpha | H=5", "alpha | H=20", "alpha | H=60", "beta | H=5", "beta | H=20", "beta | H=60"]
+    assert rows[1] == {
+        "param": "alpha | H=20",
+        "value": "OOS 2 ev, Sharpe +0.500",
+        "cagr": 0.01 * 2,
+        "sharpe": 0.1 * 2,
+        "maxDrawdown": -0.02 * 2,
+        "trades": 20,
+    }
+    assert rows[5] == {
+        "param": "beta | H=60",
+        "value": "OOS 6 ev, Sharpe -1.500",
+        "cagr": 0.01 * 6,
+        "sharpe": 0.1 * 6,
+        "maxDrawdown": -0.02 * 6,
+        "trades": 60,
+    }
+
+
+def test_collector_chart_rows_undo_only_later_splits() -> None:
+    script = Path(__file__).resolve().parents[3] / "scripts" / "smart-money-pr7" / "fetch_data.py"
+    if not script.is_file():
+        pytest.skip(f"collector script not found: {script}")
+    spec = importlib.util.spec_from_file_location("smart_money_pr7_fetch_data", script)
+    assert spec is not None and spec.loader is not None
+    fetch_data = importlib.util.module_from_spec(spec)
+    saved_path = list(sys.path)
+    sys.modules[spec.name] = fetch_data
+    try:
+        spec.loader.exec_module(fetch_data)  # the script puts two repository directories on sys.path
+    finally:
+        sys.path[:] = saved_path
+        del sys.modules[spec.name]
+
+    def stamp(day: int) -> int:
+        return int(datetime(2024, 1, day, 14, 30, tzinfo=UTC).timestamp())
+
+    chart = {
+        "timestamp": [stamp(2), stamp(3), stamp(4), stamp(5), stamp(8)],
+        "indicators": {
+            "quote": [
+                {
+                    "open": [79.0, 81.0, 83.0, 85.0, 87.0],
+                    "high": [81.0, 83.0, 85.0, 87.0, 89.0],
+                    "low": [78.0, 80.0, 82.0, 84.0, 86.0],
+                    "close": [80.0, 82.0, 84.0, 86.0, 88.0],
+                    "volume": [1000, 1100, 1200, 1300, 1400],
+                }
+            ],
+            "adjclose": [{"adjclose": [20.0, 20.5, 21.0, 21.5, 22.0]}],
+        },
+        "events": {
+            "splits": {
+                # A 4-for-1 split with ex-day 2024-01-03 and a 1-for-8 reverse split with ex-day 2024-01-05.
+                "forward": {"date": stamp(3), "numerator": 4, "denominator": 1, "splitRatio": "4:1"},
+                "reverse": {"date": stamp(5), "numerator": 1, "denominator": 8, "splitRatio": "1:8"},
+                # A split event without a usable ratio is ignored.
+                "broken": {"date": stamp(4), "numerator": 3, "denominator": 0},
+            }
+        },
+    }
+    # The vendor restates every close for all later splits. As printed:
+    # 2024-01-02 is before both splits: 80 x 4 / 8 = 40.
+    # 2024-01-03 (ex-day of the 4-for-1) and 2024-01-04 are before the reverse split only: 82 / 8 and 84 / 8.
+    # 2024-01-05 (ex-day of the 1-for-8) and 2024-01-08 are after both: unchanged.
+    assert fetch_data._chart_rows(chart) == [
+        ("2024-01-02", 79.0, 81.0, 78.0, 80.0, 20.0, 1000.0, 40.0),
+        ("2024-01-03", 81.0, 83.0, 80.0, 82.0, 20.5, 1100.0, 10.25),
+        ("2024-01-04", 83.0, 85.0, 82.0, 84.0, 21.0, 1200.0, 10.5),
+        ("2024-01-05", 85.0, 87.0, 84.0, 86.0, 21.5, 1300.0, 86.0),
+        ("2024-01-08", 87.0, 89.0, 86.0, 88.0, 22.0, 1400.0, 88.0),
+    ]
+
+    # Without split events the as-printed close is the close. Rows with a missing or non-positive
+    # price and a second row of the same day are dropped; a missing volume is zero.
+    plain = {
+        "timestamp": [stamp(2), stamp(3), stamp(3), stamp(4), stamp(5)],
+        "indicators": {
+            "quote": [
+                {
+                    "open": [10.0, 11.0, 99.0, None, 0.0],
+                    "high": [10.5, 11.5, 99.0, 12.5, 13.5],
+                    "low": [9.5, 10.5, 99.0, 11.5, 12.5],
+                    "close": [10.0, 11.0, 99.0, 12.0, 13.0],
+                    "volume": [500, None, 700, 800, 900],
+                }
+            ]
+        },
+    }
+    assert fetch_data._chart_rows(plain) == [
+        ("2024-01-02", 10.0, 10.5, 9.5, 10.0, 10.0, 500.0, 10.0),
+        ("2024-01-03", 11.0, 11.5, 10.5, 11.0, 11.0, 0.0, 11.0),
+    ]
+    assert fetch_data._chart_rows({}) == []
 
 
 def test_congress_coverage_gaps_count_every_unparsed_filing_once() -> None:

@@ -154,13 +154,11 @@ describe(TAG, () => {
     expect(migration).toContain('ON CONFLICT ("slug") DO NOTHING');
   });
 
-  it("is journaled right after 0094", () => {
+  it("is journaled under its own number, right after the entry before it", () => {
+    const number = Number.parseInt(TAG.slice(0, 4), 10);
     const index = journal.entries.findIndex((entry) => entry.tag === TAG);
-    expect(journal.entries[index]).toMatchObject({ idx: 95 });
-    expect(journal.entries[index - 1]).toMatchObject({
-      idx: 94,
-      tag: "0094_flow_book_snapshots",
-    });
+    expect(journal.entries[index]).toMatchObject({ idx: number });
+    expect(journal.entries[index - 1]).toMatchObject({ idx: number - 1 });
   });
 
   it("rolls back only unedited, unreferenced rows and restores the exact 0031 insider row", () => {
@@ -193,11 +191,20 @@ describe(TAG, () => {
     );
     expect(orig0031?.[1]).toBeTruthy();
     expect(rollback).toContain(`"description" = '${orig0031?.[1]}'`);
+    expect(rollback).toContain(`"status" = 'researching'`);
     expect(rollback).toContain(
       `"source_ref" = 'services/research/strategies/alert_templates.py'`
     );
     expect(rollback).toContain(
       `"tags" = '["freestockalerts","alerts","daily","insider","needs-data"]'::jsonb`
     );
+
+    // The restore runs only on a row that is in the state the forward migration wrote.
+    const restore = rollback.slice(rollback.lastIndexOf("UPDATE"));
+    expect(restore).toContain(`AND "status" = 'backtested'`);
+    expect(restore).toContain(
+      `AND "source_ref" = 'docs/specs/strategies/insider-purchase-confirmation.md'`
+    );
+    expect(restore).toContain(`AND "tags" ? 'backtest-study'`);
   });
 });

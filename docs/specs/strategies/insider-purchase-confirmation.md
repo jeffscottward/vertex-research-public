@@ -15,7 +15,22 @@ Summary: Open-market SEC Form 4 purchases (code `P`) evaluated both under the Fr
 
 Basis codes: S = stated on the FreeStockAlerts template page; I = implied; A = Vertex pre-registered backtest rule from `plan-pr7.md` (method gates decided from the trading knowledge bases before running the data).
 
-## Rules
+## Template rules (`confirmation-baseline`)
+
+The FreeStockAlerts template, restated in Vertex's own words. `services/research/strategies/alert_templates.py` implements rules 2 to 8; the backtest feeds it with the Form 4 filing date as the purchase day.
+
+|#|Rule|Basis|
+|---|---|---|
+|1|Universe: Form 4 transactions with code P in the last 30 days; market cap over $2B, average volume over 1M shares. The backtest does not have point-in-time market cap, so it uses the pre-registered universe and the liquidity filter of the backtest rules below instead.|S / A|
+|2|Only code P on common or ordinary shares. Exercises, awards, gifts, conversions, sales, zero-price or incomplete records do not count.|S|
+|3|Buyer is a director or senior officer (CEO, CFO, COO, president, chair, founder, other chief officer). A 10% owner with no role does not count.|S|
+|4|Purchase value (shares × price) ≥ $100,000.|S|
+|5|Close above the 50-day average; at least one completed session since the purchase.|S|
+|6|Trigger, after the close: close above the highest close since the purchase, or close within 3% of it on volume ≥ 1.5 × the 20-day average.|S|
+|7|Ranking score 0–8: several insiders within 30 days, a top role, $500k+, ≥ 10% of the prior holding. Point weights are not stated; Vertex uses 2 points each. The backtest does not use the score.|S / A|
+|8|Cooldown: one alert per company per 14 days; one alert per filing.|S|
+
+## Backtest rules (`plan-pr7.md`)
 
 |#|Rule|Basis|
 |---|---|---|
@@ -23,7 +38,7 @@ Basis codes: S = stated on the FreeStockAlerts template page; I = implied; A = V
 |2|Filing-date alignment (zero look-ahead): Form 4 is due within 2 business days; every signal uses `FILING_DATE` as public-at time and enters at the next trading day open (`d > FILING_DATE`).|A|
 |3|Decimal typo / ticker reuse guard: drop any Form 4 row whose reported price falls outside `[0.25x, 4.0x]` of the as-printed close on `FILING_DATE` (the close before any later split is applied).|A|
 |4|Liquidity filter: entry requires an as-printed close `>= $5.00` on the trigger day and a trailing 20-day median dollar volume `>= $10,000,000`.|A|
-|5|Primary variant (`cluster-3p-10d`): at least 3 distinct reporting-owner groups (joint filers sharing an accession count once) purchase the same issuer within 10 calendar days by `FILING_DATE`.|A|
+|5|Primary variant (`cluster-3p-10d`): at least 3 distinct reporting-owner groups purchase the same issuer within 10 calendar days by `FILING_DATE`; 14-day per-issuer cooldown after a trigger. Owners that file together are one group, and an owner who also files alone or with others joins those filings into the same group (the rule of the live cluster list, `packages/api/src/insider-clusters.ts`). Unlike the template rule, a 10% owner without a role counts, and there is no value floor.|A|
 |6|Counted variants (`N = 12` total trials across 4 variants x 3 horizons `H in {5, 20, 60}`): `confirmation-baseline` (existing `alert_templates.insider_purchase_confirmation` rule), `cluster-3p-10d` (primary), `cluster-3p-10d-100k` (cluster total `>= $100,000`), `cluster-3p-10d-confirm` (cluster plus confirmation close).|S / A|
 |7|Portfolio accounting: equal-weight 10-slot event portfolio (`w = 0.10` per slot, idle slots earn `0` excess return), no overlapping position in the same ticker, exit at the close of the `H`-th trading day held, measured in excess of SPY (split/dividend adjusted).|A|
 |8|Costs: `10 bps` per side base cost (`20 bps` round trip), plus `0 bps` and `20 bps` per side stress tests on the primary trial.|A|
@@ -45,29 +60,30 @@ Basis codes: S = stated on the FreeStockAlerts template page; I = implied; A = V
 
 ## Backtest (2026-11-25, real data)
 
-Verdict: **`no-edge`**. Over `502` OOS sessions (`2024-04-01` to `2026-03-31`), the pre-registered primary trial `cluster-3p-10d (H=20)` generated `79` OOS events (below the `100`-event bar) and a Deflated Sharpe Ratio of `0.351` at `N = 12` (below the `0.95` bar).
+Verdict: **`no-edge`**. Over `502` OOS sessions (`2024-04-01` to `2026-03-31`), the pre-registered primary trial `cluster-3p-10d (H=20)` generated `78` OOS events (below the `100`-event bar) and a Deflated Sharpe Ratio of `0.334` at `N = 12` (below the `0.95` bar).
 
 |Variant (`H = 20`, excess vs SPY)|Trades (Full)|Full CAGR|Full Sharpe|Max DD|Win Rate|OOS Events|OOS CAGR|OOS Sharpe|
 |---|---|---|---|---|---|---|---|---|
-|Cluster 3p/10d (Primary, 10 bps/side)|468|+0.31%|+0.083|-40.78%|49.1%|79|+7.33%|+0.977|
+|Cluster 3p/10d (Primary, 10 bps/side)|465|-0.34%|+0.020|-40.78%|48.6%|78|+7.07%|+0.956|
 |Confirmation Baseline (10 bps/side)|680|-1.27%|-0.105|-33.48%|48.7%|139|-7.62%|-0.823|
-|Cluster 3p/10d `$100k+` (10 bps/side)|318|-0.35%|+0.028|-44.33%|52.8%|73|+7.05%|+0.971|
-|Cluster + Confirm (10 bps/side)|280|-1.19%|-0.196|-20.71%|44.6%|51|-3.74%|-0.690|
-|Cluster 3p/10d (Stress 20 bps/side)|468|-0.60%|-0.005|-42.71%|47.6%|79|+6.45%|+0.868|
+|Cluster 3p/10d `$100k+` (10 bps/side)|315|-0.99%|-0.029|-44.33%|52.1%|72|+6.80%|+0.950|
+|Cluster + Confirm (10 bps/side)|276|-1.49%|-0.258|-23.15%|43.8%|50|-3.87%|-0.720|
+|Cluster 3p/10d (Stress 20 bps/side)|465|-1.24%|-0.067|-42.71%|47.1%|78|+6.21%|+0.846|
 
 Robustness checks on the primary trial (`cluster-3p-10d`, `H = 20`):
 
-- **Deflated Sharpe Ratio (`N = 12`, bar `>= 0.95`):** **FAIL** — `DSR = 0.3509`, `z = -0.383`, per-observation benchmark `0.0788`.
-- **OOS event count (bar `>= 100`):** **FAIL** — `79` OOS entries over `502` sessions (`2024-04-01`..`2026-03-31`).
-- **Cost stress (`0 / 10 / 20 bps` per side):** **PASS** — OOS Sharpe `1.086` (`0 bps`), `0.977` (`10 bps`), `0.868` (`20 bps`).
+- **Deflated Sharpe Ratio (`N = 12`, bar `>= 0.95`):** **FAIL** — `DSR = 0.3335`, `z = -0.430`, per-observation benchmark `0.0795`.
+- **OOS event count (bar `>= 100`):** **FAIL** — `78` OOS entries over `502` sessions (`2024-04-01`..`2026-03-31`).
+- **Cost stress (`0 / 10 / 20 bps` per side):** **PASS** — OOS Sharpe `1.065` (`0 bps`), `0.956` (`10 bps`), `0.846` (`20 bps`).
 - **Post-2023 Rule 10b5-1 exclusion sensitivity (diagnostic):** excluding `3,026` flagged `10b5-1` rows yields OOS Sharpe `0.823` across `75` OOS events.
-- **Skips:** `56` overlap, `32` capacity, `2,354` illiquid, `6` truncated exits at window end.
+- **Skips:** `56` overlap, `32` capacity, `2,350` illiquid, `6` truncated exits at window end.
 - **Benchmark:** SPY buy-and-hold over the full window had `+14.01%` CAGR, Sharpe `+0.823`, max drawdown `-33.72%`.
 
 ## Limits
 
 - Research only. A backtest never authorizes a trade; any future live strategy requires an explicit defined-risk options specification and human approval (no new share positions; hard 2% NLV max-loss cap).
-- **Universe cap and survivorship bias:** the study covers `468` tickers. `189,879` of the `284,580` Form 4 rows are in tickers without bars: tickers outside the 600-ticker cap, and `132` capped tickers for which Yahoo Finance has no history (delisted, acquired or renamed issuers). Insider cluster buys are frequent in small issuers, so a wider universe can give a different result.
+- **Universe cap and survivorship bias:** the study covers `468` tickers. `189,879` of the `284,580` Form 4 rows are in tickers without bars: tickers outside the 600-ticker cap, and `132` capped tickers for which Yahoo Finance has no history (delisted, acquired or renamed issuers). Insider cluster buys are frequent in small issuers: `2,903` of `9,196` cluster events in the window (`295` of `3,296` tickers; out of sample `461` of `1,303`) are in tickers with bars. The failed event-count bar therefore also reflects the 600-ticker cap, and a wider universe can give a different result. The deflated Sharpe bar fails on the tested universe in any case.
 - **SEC filing anomalies:** `618` rows failed the `[0.25x, 4.0x]` price guard against the as-printed close (decimal typos or reused tickers).
+- **Share-volume floor of the confirmation baseline:** the template's floor of 1,000,000 shares of average volume reads Yahoo volumes that are restated for later splits. A point-in-time evaluation (measured 2026-11-25) changes `32` of `966` baseline events (`6` exist only because of a later split, `26` are missing); the out-of-sample numbers of the baseline do not change. The cluster variants do not use this floor.
 - **Rule 10b5-1 regime break:** the `AFF10B5ONE` checkbox did not exist before Q2 2023.
 - **Reporting delay:** Form 4 filings are due within 2 business days of execution; backtest entries strictly follow `FILING_DATE`.
