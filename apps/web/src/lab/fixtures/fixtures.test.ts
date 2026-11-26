@@ -3,6 +3,7 @@ import {
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
   FlowLiveDomSchema,
+  FlowOffExchangeLevelsSchema,
   FlowOptionBubblesSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
@@ -13,6 +14,7 @@ import {
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OFF_EXCHANGE_LEVELS_RULES,
   OPTION_BUBBLES_RULES,
   OpenbbIvHistoryOutputSchema,
   OpenbbMacroOutputSchema,
@@ -37,6 +39,7 @@ import {
   labFlowHedgingPressure,
   labFlowLiveDom,
   labFlowLiveDomStream,
+  labFlowOffExchangeLevels,
   labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowStrikeHeatmap,
@@ -563,6 +566,22 @@ describe("lab flow option bubbles", () => {
     expect(response.totals.unplottedBubbles).toBe(0);
     expect(response.gaps).toHaveLength(0);
   });
+});
+
+describe("lab flow off-exchange levels", () => {
+  it.each(["1d", "5d", "14d"] as const)(
+    "SPY (%s): schema-valid bars, clustered levels, prints, and FINRA weekly context",
+    (range) => {
+      const response = labFlowOffExchangeLevels(range);
+      expect(FlowOffExchangeLevelsSchema.parse(response)).toEqual(response);
+      expect(response.rules).toEqual(OFF_EXCHANGE_LEVELS_RULES);
+      expect(response.symbol).toBe("SPY");
+      expect(response.range).toBe(range);
+      expect(response.bars.length).toBeGreaterThan(0);
+      expect(response.levels.length).toBeGreaterThan(0);
+      expect(response.finraWeekly).toHaveLength(6);
+    }
+  );
 });
 
 describe("lab IV rank / percentile history", () => {

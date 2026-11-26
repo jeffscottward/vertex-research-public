@@ -347,6 +347,26 @@ export type FlowOptionBubblesSymbol =
 export type FlowOptionBubblesMinPremiumUsd =
   (typeof FLOW_OPTION_BUBBLES_MIN_PREMIUMS)[number];
 
+// Off-exchange (dark pool) print levels (flow.offExchangeLevels): SPY sampled IBKR FINRA TRF
+// prints (>= 10,000 shares) clustered into horizontal price levels on the price chart, paired
+// with FINRA weekly OTC (ATS and non-ATS) context. Research input only.
+export const FLOW_OFF_EXCHANGE_SYMBOLS = ["SPY"] as const;
+export const FLOW_OFF_EXCHANGE_RANGES = ["1d", "5d", "14d"] as const;
+export const FLOW_OFF_EXCHANGE_BUCKETS = [1, 5, 15] as const;
+export const FLOW_OFF_EXCHANGE_LEVELS_VERSION =
+  "flow-off-exchange-levels.v1" as const;
+export const FLOW_OFF_EXCHANGE_RULES_VERSION =
+  "flow-off-exchange-levels-rules.v1" as const;
+export const FLOW_OFF_EXCHANGE_MAX_BARS = 420;
+export const FLOW_OFF_EXCHANGE_MAX_PRINTS = 500;
+export const FLOW_OFF_EXCHANGE_MAX_LEVELS = 10;
+export const FLOW_OFF_EXCHANGE_MAX_SESSIONS = 14;
+export const FLOW_OFF_EXCHANGE_MAX_FINRA_WEEKS = 8;
+export type FlowOffExchangeSymbol = (typeof FLOW_OFF_EXCHANGE_SYMBOLS)[number];
+export type FlowOffExchangeRange = (typeof FLOW_OFF_EXCHANGE_RANGES)[number];
+export type FlowOffExchangeBucketMinutes =
+  (typeof FLOW_OFF_EXCHANGE_BUCKETS)[number];
+
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
 const nonNegative = finite.nonnegative();
@@ -2211,6 +2231,168 @@ const optionPrints = flow
   .input(FlowOptionPrintsInputSchema)
   .output(FlowOptionPrintsSchema);
 
+const offExchangeBucketMinutesOutput = z.union([
+  z.literal(1),
+  z.literal(5),
+  z.literal(15),
+]);
+
+export const FlowOffExchangeLevelsInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_OFF_EXCHANGE_SYMBOLS),
+    range: z.enum(FLOW_OFF_EXCHANGE_RANGES).default("5d"),
+  })
+  .strict();
+
+export const FlowOffExchangeBarSchema = z
+  .object({
+    start: timestamp,
+    session: isoDate,
+    open: finite.positive(),
+    high: finite.positive(),
+    low: finite.positive(),
+    close: finite.positive(),
+    vwap: finite.positive(),
+    volume: nonNegative,
+    offExchangeVolume: nonNegative,
+    offExchangeShare: finite.min(0).max(1).nullable(),
+    coveredSeconds: count,
+    possibleSeconds: z.number().int().positive(),
+  })
+  .strict();
+
+export const FlowOffExchangePrintSchema = z
+  .object({
+    key: z.string().min(1).max(160),
+    at: timestamp,
+    session: isoDate,
+    price: finite.positive(),
+    size: finite.positive(),
+    notional: finite.positive(),
+    direction: z.enum(FLOW_DIRECTIONS),
+    levelIndex: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_OFF_EXCHANGE_MAX_LEVELS - 1)
+      .nullable(),
+  })
+  .strict();
+
+export const FlowOffExchangeLevelSchema = z
+  .object({
+    rank: z.number().int().min(1).max(FLOW_OFF_EXCHANGE_MAX_LEVELS),
+    bandLow: nonNegative,
+    bandHigh: finite.positive(),
+    price: finite.positive(),
+    minPrice: finite.positive(),
+    maxPrice: finite.positive(),
+    totalShares: finite.positive(),
+    totalNotional: finite.positive(),
+    prints: z.number().int().positive(),
+    buyShares: nonNegative,
+    sellShares: nonNegative,
+    neutralShares: nonNegative,
+    dominantDirection: z.enum(FLOW_DIRECTIONS),
+    firstAt: timestamp,
+    lastAt: timestamp,
+    distanceFromSpot: finite.nullable(),
+    distancePct: finite.nullable(),
+  })
+  .strict();
+
+export const FlowOffExchangeTotalsSchema = z
+  .object({
+    prints: count,
+    totalShares: nonNegative,
+    totalNotional: nonNegative,
+    buyShares: nonNegative,
+    sellShares: nonNegative,
+    neutralShares: nonNegative,
+    totalClusterCount: count,
+    omittedLevels: count,
+    omittedPrints: count,
+    truncated: z.boolean(),
+    sampledVolume: nonNegative,
+    sampledOffExchangeVolume: nonNegative,
+    sampledOffExchangeShare: finite.min(0).max(1).nullable(),
+    coveredSeconds: count,
+    barsCount: count,
+  })
+  .strict();
+
+export const FlowOffExchangeFinraWeekSchema = z
+  .object({
+    weekStart: isoDate,
+    atsShares: nonNegative,
+    atsTrades: count,
+    nonAtsShares: nonNegative,
+    nonAtsTrades: count,
+    totalShares: nonNegative,
+    atsShare: finite.min(0).max(1).nullable(),
+    avgAtsTradeSize: finite.positive().nullable(),
+    tier: text(20).nullable(),
+    lastUpdated: isoDate.nullable(),
+  })
+  .strict();
+
+export const FlowOffExchangeLevelsRulesSchema = z
+  .object({
+    version: z.literal(FLOW_OFF_EXCHANGE_RULES_VERSION),
+    clusterStep: finite.positive(),
+    minPrintShares: z.number().int().positive(),
+    maxLevels: z.number().int().min(1).max(FLOW_OFF_EXCHANGE_MAX_LEVELS),
+    maxPrints: z.number().int().min(1).max(FLOW_OFF_EXCHANGE_MAX_PRINTS),
+    readCap: z.number().int().positive(),
+    finraMaxWeeks: z
+      .number()
+      .int()
+      .min(1)
+      .max(FLOW_OFF_EXCHANGE_MAX_FINRA_WEEKS),
+    capture: z.literal("sampled"),
+  })
+  .strict();
+
+export const FlowOffExchangeLevelsSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_OFF_EXCHANGE_LEVELS_VERSION),
+    symbol: z.enum(FLOW_OFF_EXCHANGE_SYMBOLS),
+    range: z.enum(FLOW_OFF_EXCHANGE_RANGES),
+    bucketMinutes: offExchangeBucketMinutesOutput,
+    anchorSession: isoDate.nullable(),
+    sessions: z.array(isoDate).max(FLOW_OFF_EXCHANGE_MAX_SESSIONS),
+    windowStart: timestamp.nullable(),
+    windowEnd: timestamp.nullable(),
+    latestPrice: finite.positive().nullable(),
+    latestPriceAt: timestamp.nullable(),
+    bars: z.array(FlowOffExchangeBarSchema).max(FLOW_OFF_EXCHANGE_MAX_BARS),
+    prints: z
+      .array(FlowOffExchangePrintSchema)
+      .max(FLOW_OFF_EXCHANGE_MAX_PRINTS),
+    levels: z
+      .array(FlowOffExchangeLevelSchema)
+      .max(FLOW_OFF_EXCHANGE_MAX_LEVELS),
+    totals: FlowOffExchangeTotalsSchema,
+    finraWeekly: z
+      .array(FlowOffExchangeFinraWeekSchema)
+      .max(FLOW_OFF_EXCHANGE_MAX_FINRA_WEEKS),
+    ticks: FlowFreshnessSchema,
+    rules: FlowOffExchangeLevelsRulesSchema,
+  })
+  .strict();
+
+const offExchangeLevels = flow
+  .route({
+    method: "GET",
+    operationId: "flow.offExchangeLevels",
+    path: "/flow/off-exchange-levels",
+    summary:
+      "SPY: off-exchange (FINRA TRF) print levels on the price chart with FINRA weekly OTC context (research input)",
+    tags,
+  })
+  .input(FlowOffExchangeLevelsInputSchema)
+  .output(FlowOffExchangeLevelsSchema);
+
 export const flowContract = {
   collect,
   control,
@@ -2219,6 +2401,7 @@ export const flowContract = {
   liquidityHeatmap,
   liveDom,
   liveDomStream,
+  offExchangeLevels,
   optionBubbles,
   optionPrints,
   putCallRatio,
@@ -2339,6 +2522,23 @@ export type FlowLiquidityHeatmapWall = z.infer<
 >;
 export type FlowLiquidityHeatmapRules = z.infer<
   typeof FlowLiquidityHeatmapRulesSchema
+>;
+export type FlowOffExchangeLevelsInput = z.input<
+  typeof FlowOffExchangeLevelsInputSchema
+>;
+export type FlowOffExchangeLevelsParsedInput = z.output<
+  typeof FlowOffExchangeLevelsInputSchema
+>;
+export type FlowOffExchangeLevels = z.infer<typeof FlowOffExchangeLevelsSchema>;
+export type FlowOffExchangeBar = z.infer<typeof FlowOffExchangeBarSchema>;
+export type FlowOffExchangePrint = z.infer<typeof FlowOffExchangePrintSchema>;
+export type FlowOffExchangeLevel = z.infer<typeof FlowOffExchangeLevelSchema>;
+export type FlowOffExchangeTotals = z.infer<typeof FlowOffExchangeTotalsSchema>;
+export type FlowOffExchangeFinraWeek = z.infer<
+  typeof FlowOffExchangeFinraWeekSchema
+>;
+export type FlowOffExchangeLevelsRules = z.infer<
+  typeof FlowOffExchangeLevelsRulesSchema
 >;
 export type FlowLiveDomInput = z.input<typeof FlowLiveDomInputSchema>;
 export type FlowLiveDomParsedInput = z.output<typeof FlowLiveDomInputSchema>;
