@@ -192,9 +192,12 @@ const labGexContext = (
   spot: number,
   atm: number,
   strikeStep: number,
-  iv: number
+  iv: number,
+  totalGex: number
 ): OptionsAnalyticsOutput["context"] => {
   const dailyMove = (spot * iv) / Math.sqrt(252);
+  const flip = atm - strikeStep;
+  const profileScale = totalGex / (((spot - flip) / spot) * 1.25);
   const moves = (level: number) => roundTo((level - spot) / dailyMove, 2);
   const factor = (
     key: OptionsAnalyticsOutput["context"]["factors"][number]["key"],
@@ -272,6 +275,15 @@ const labGexContext = (
       putWall: atm - 2 * strikeStep,
       putWallMoves: moves(atm - 2 * strikeStep),
     },
+    profile: Array.from({ length: 121 }, (_, index) => {
+      const at = roundTo(spot * (0.7 + (0.6 * index) / 120), 4);
+      const offset = (at - flip) / spot;
+      const envelope = Math.exp(-(((at - spot) / (spot * 0.22)) ** 2));
+      return {
+        gex: roundTo(offset * profileScale * (0.25 + envelope), 0),
+        spot: at,
+      };
+    }),
     regime: "positive",
     session: "midday",
   };
@@ -362,15 +374,16 @@ export const labOptionsAnalytics = (
   const painRow = profileRows.reduce((best, row) =>
     row.holderPayout < best.holderPayout ? row : best
   );
+  const totalGex = strikes.reduce((sum, row) => sum + row.gex, 0);
   return {
-    context: labGexContext(spot, atm, strikeStep, baseIv),
+    context: labGexContext(spot, atm, strikeStep, baseIv, totalGex),
     exposure: {
       gexExpiry: labDaysAgo(-EXPIRY_DAYS[0]),
       maxPain: painRow.strike,
       message: null,
       status: "ok",
       strikes,
-      totalGex: strikes.reduce((sum, row) => sum + row.gex, 0),
+      totalGex,
     },
     flow: {
       buckets: Array.from({ length: 6 }, (_, index) => {
