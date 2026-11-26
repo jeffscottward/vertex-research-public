@@ -305,6 +305,30 @@ describe("Today data-first decision inbox", () => {
     ]) {
       expect(stale).toContain(text);
     }
+    const unavailableContinuity = visibleMarkup({
+      ...inbox,
+      agents: [],
+      continuity: {
+        status: "available",
+        continuity: {
+          ...continuity,
+          state: "unavailable",
+          freshness: {
+            ...continuity.freshness,
+            observedAt: null,
+            status: "unknown",
+          },
+        },
+      },
+    });
+    expect(unavailableContinuity).toContain(
+      "Continuity: source reported no data"
+    );
+    expect(unavailableContinuity).toContain(
+      "Freshness not evaluated by source"
+    );
+    expect(unavailableContinuity).not.toContain("Continuity: unavailable");
+    expect(unavailableContinuity).not.toContain("Freshness unknown");
   });
 
   it("does not turn an empty inbox or a completed run into readiness or permission", () => {

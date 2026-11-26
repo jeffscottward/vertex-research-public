@@ -48,7 +48,8 @@ export const VERTEX_EXPERIENCE_ERRORS = {
   NOT_FOUND: { message: "Vertex record not found", status: 404 },
   SERVICE_UNAVAILABLE: {
     data: VertexUnavailableDataSchema,
-    message: "Vertex capability unavailable",
+    message:
+      "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },

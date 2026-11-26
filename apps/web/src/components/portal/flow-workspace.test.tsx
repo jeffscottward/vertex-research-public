@@ -5,10 +5,16 @@ import type {
   FlowControlInput,
   FlowHedgingPressure,
   FlowLiquidityHeatmap,
+  FlowLiveDom,
+  FlowLiveDomStreamEvent,
+  FlowLiveDomWindowSeconds,
+  FlowOptionBubbles,
   FlowPutCallRatio,
   FlowSnapshot,
   FlowStrikeHeatmap,
   FlowTapeSpeed,
+  FlowTapeSymbol,
+  FlowTradeBubbles,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -29,18 +35,24 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
 import type { LiquidityHeatmapRequest } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import type { OptionBubblesRequest } from "../../features/flow/option-bubbles-view-model.ts";
 import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
 import type { StrikeHeatmapRequest } from "../../features/flow/strike-heatmap-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
+import type { TradeBubblesRequest } from "../../features/flow/trade-bubbles-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
 import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
+  labFlowLiveDom,
+  labFlowLiveDomStream,
+  labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
+  labFlowTradeBubbles,
 } from "../../lab/fixtures/flow.ts";
 import {
   createBrowserFlowGateway,
@@ -98,6 +110,83 @@ const compactStrikeHeatmap = (
   return compact;
 };
 
+const compactOptionBubblesCache = new Map<string, FlowOptionBubbles>();
+const compactOptionBubbles = (
+  symbol: OptionBubblesRequest["symbol"],
+  minPremiumUsd: NonNullable<OptionBubblesRequest["minPremiumUsd"]> = 250_000
+): FlowOptionBubbles => {
+  const key = `${symbol}:${minPremiumUsd}`;
+  const cached = compactOptionBubblesCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowOptionBubbles(symbol, minPremiumUsd);
+  const compact: FlowOptionBubbles = {
+    ...full,
+    bubbles: full.bubbles.slice(0, 2),
+    pricePoints: full.pricePoints.slice(0, 2),
+  };
+  compactOptionBubblesCache.set(key, compact);
+  return compact;
+};
+
+const compactLiquidityHeatmapCache = new Map<string, FlowLiquidityHeatmap>();
+const compactLiquidityHeatmap = (
+  symbol: LiquidityHeatmapRequest["symbol"],
+  minutes: LiquidityHeatmapRequest["minutes"]
+): FlowLiquidityHeatmap => {
+  const key = `${symbol}:${minutes}`;
+  const cached = compactLiquidityHeatmapCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowLiquidityHeatmap(symbol, minutes);
+  const compact: FlowLiquidityHeatmap = {
+    ...full,
+    columns: full.columns.slice(0, 2),
+    currentDom: full.currentDom.slice(0, 2),
+    trades: full.trades.slice(0, 2),
+    walls: full.walls.slice(0, 2),
+  };
+  compactLiquidityHeatmapCache.set(key, compact);
+  return compact;
+};
+
+const compactLiveDomCache = new Map<string, FlowLiveDom>();
+const compactLiveDom = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null
+): FlowLiveDom => {
+  const key = `${symbol}:${windowSeconds}:${since ?? ""}`;
+  const cached = compactLiveDomCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowLiveDom(symbol, windowSeconds, since);
+  const compact: FlowLiveDom = {
+    ...full,
+    rows: full.rows.slice(0, 2),
+  };
+  compactLiveDomCache.set(key, compact);
+  return compact;
+};
+
+const compactLiveDomStream = (
+  symbol: FlowTapeSymbol,
+  windowSeconds: FlowLiveDomWindowSeconds = 900,
+  since: number | null = null,
+  signal?: AbortSignal
+): AsyncIterable<FlowLiveDomStreamEvent> => ({
+  async *[Symbol.asyncIterator]() {
+    yield {
+      frame: compactLiveDom(symbol, windowSeconds, since),
+      type: "frame",
+    };
+    await new Promise<void>((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      signal?.addEventListener("abort", () => resolve(), { once: true });
+    });
+  },
+});
+
 const fixed = (
   snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
   control: (input: FlowControlInput) => FlowControl | Promise<FlowControl> = ({
@@ -120,13 +209,23 @@ const fixed = (
   ) => FlowLiquidityHeatmap | Promise<FlowLiquidityHeatmap> = ({
     minutes,
     symbol,
-  }) => labFlowLiquidityHeatmap(symbol, minutes),
+  }) => compactLiquidityHeatmap(symbol, minutes),
   strikeHeatmap: (
     request: StrikeHeatmapRequest
   ) => FlowStrikeHeatmap | Promise<FlowStrikeHeatmap> = ({
     bucketMinutes,
     symbol,
-  }) => compactStrikeHeatmap(symbol, bucketMinutes)
+  }) => compactStrikeHeatmap(symbol, bucketMinutes),
+  optionBubbles: (
+    request: OptionBubblesRequest
+  ) => FlowOptionBubbles | Promise<FlowOptionBubbles> = ({
+    minPremiumUsd,
+    symbol,
+  }) => compactOptionBubbles(symbol, minPremiumUsd),
+  tradeBubbles: (
+    request: TradeBubblesRequest
+  ) => FlowTradeBubbles | Promise<FlowTradeBubbles> = ({ minutes, symbol }) =>
+    labFlowTradeBubbles(symbol, minutes)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
@@ -135,6 +234,8 @@ const fixed = (
   const putCallCalls: PutCallRatioRequest[] = [];
   const heatmapCalls: LiquidityHeatmapRequest[] = [];
   const strikeHeatmapCalls: StrikeHeatmapRequest[] = [];
+  const optionBubblesCalls: OptionBubblesRequest[] = [];
+  const tradeBubblesCalls: TradeBubblesRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -147,6 +248,17 @@ const fixed = (
     liquidityHeatmap: async (request) => {
       heatmapCalls.push(request);
       return await liquidityHeatmap(request);
+    },
+    liveDomStream: async ({ since, symbol, windowSeconds }, options) =>
+      compactLiveDomStream(
+        symbol,
+        windowSeconds,
+        since ?? null,
+        options?.signal
+      ),
+    optionBubbles: async (request) => {
+      optionBubblesCalls.push(request);
+      return await optionBubbles(request);
     },
     putCallRatio: async (request) => {
       putCallCalls.push(request);
@@ -164,6 +276,10 @@ const fixed = (
       tapeCalls.push(request);
       return await tapeSpeed(request);
     },
+    tradeBubbles: async (request) => {
+      tradeBubblesCalls.push(request);
+      return await tradeBubbles(request);
+    },
   };
   return {
     calls,
@@ -171,9 +287,11 @@ const fixed = (
     gateway,
     heatmapCalls,
     hedgingCalls,
+    optionBubblesCalls,
     putCallCalls,
     strikeHeatmapCalls,
     tapeCalls,
+    tradeBubblesCalls,
   };
 };
 
@@ -224,16 +342,27 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("NQ", 60)
     );
+    const liveDomStream = vi.fn(
+      async (_input: unknown, options?: { signal?: AbortSignal }) =>
+        labFlowLiveDomStream("ES", 900, null, options?.signal)
+    );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
+    const optionBubbles = vi.fn(async () =>
+      labFlowOptionBubbles("ES", 500_000)
+    );
+    const tradeBubbles = vi.fn(async () => labFlowTradeBubbles("ES", 60));
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        liveDomStream,
+        optionBubbles,
         putCallRatio,
         snapshot,
         strikeHeatmap,
         tapeSpeed,
+        tradeBubbles,
       },
     } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
@@ -271,6 +400,30 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
+    const ac = new AbortController();
+    ac.abort();
+    await gateway.liveDomStream(
+      { cadenceMs: 500, symbol: "ES", windowSeconds: 900 },
+      { signal: ac.signal }
+    );
+    expect(liveDomStream).toHaveBeenCalledWith(
+      { cadenceMs: 500, symbol: "ES", windowSeconds: 900 },
+      { signal: ac.signal }
+    );
+    await expect(
+      gateway.optionBubbles({ minPremiumUsd: 500_000, symbol: "ES" })
+    ).resolves.toMatchObject({ minPremiumUsd: 500_000, ticker: "SPX" });
+    expect(optionBubbles).toHaveBeenCalledWith({
+      minPremiumUsd: 500_000,
+      symbol: "ES",
+    });
+    await expect(
+      gateway.tradeBubbles({ minutes: 60, symbol: "ES" })
+    ).resolves.toMatchObject({ symbol: "ES" });
+    expect(tradeBubbles).toHaveBeenCalledWith({
+      minutes: 60,
+      symbol: "ES",
+    });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -283,16 +436,27 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("ES", 120)
     );
+    const liveDomStream = vi.fn(
+      async (_input: unknown, options?: { signal?: AbortSignal }) =>
+        labFlowLiveDomStream("ES", 900, null, options?.signal)
+    );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
+    const optionBubbles = vi.fn(async () =>
+      labFlowOptionBubbles("SPY", 250_000)
+    );
+    const tradeBubbles = vi.fn(async () => labFlowTradeBubbles("ES", 120));
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        liveDomStream,
+        optionBubbles,
         putCallRatio,
         snapshot,
         strikeHeatmap,
         tapeSpeed,
+        tradeBubbles,
       },
     } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
@@ -311,6 +475,14 @@ describe("createBrowserFlowGateway", () => {
     expect(strikeHeatmap).toHaveBeenCalledWith({
       bucketMinutes: 15,
       symbol: "SPY",
+    });
+    expect(optionBubbles).toHaveBeenCalledWith({
+      minPremiumUsd: 250_000,
+      symbol: "SPY",
+    });
+    expect(tradeBubbles).toHaveBeenCalledWith({
+      minutes: 120,
+      symbol: "ES",
     });
   });
 });
@@ -341,7 +513,7 @@ describe("FlowWorkspace", () => {
       "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes with tape; shaded minutes have none."
     );
     expect(text).toContain(
-      "Read-only research view. ES and NQ depth is recorded (streamed at 5 s when active, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
+      "Read-only research view. ES and NQ live DOM streams from active CME L2 depth and tape (recorded fallback when offline), while historical depth is recorded (5 s streamed, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
     );
     expect(
       container.querySelector('[data-metric="Tape coverage"]')
@@ -758,10 +930,11 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-not-collected]")?.textContent
     ).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+      "Not collected for QQQ: trades. The IBKR budget goes to ES, NQ and SPY."
     );
     await click(button(container, "NQ"));
     await idle(container);
+    expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
     await click(button(container, "ES"));
     await idle(container);
     expect(controlCalls.map((call) => call.group)).toEqual([
@@ -867,6 +1040,55 @@ describe("FlowWorkspace control panel", () => {
     expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(4);
     await click(button(container, "Hide sources"));
     expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(0);
+  });
+
+  it("never hides an unavailable/401 source under All sources fresh even when closed or fresh", async () => {
+    const lab = labFlowSnapshot("SPY", 120);
+    const authBroken = {
+      ...lab,
+      freshness: lab.freshness.map((row) =>
+        row.source === "options"
+          ? {
+              ...row,
+              lastStatus: "unavailable" as const,
+              message:
+                "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+              state: "closed" as const,
+            }
+          : { ...row, lastStatus: "ok" as const, state: "fresh" as const }
+      ),
+    };
+    const { gateway } = fixed(() => authBroken);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await idle(container);
+    expect(container.querySelector("[data-flow-all-fresh]")).toBeNull();
+    expect(container.querySelector("[data-flow-auth-alert]")).not.toBeNull();
+    expect(
+      container.querySelector("[data-flow-source-alert]")?.textContent
+    ).toContain("owner credential rotation required");
+    expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(4);
+
+    const nonAuthBroken = {
+      ...lab,
+      freshness: lab.freshness.map((row) =>
+        row.source === "ticks"
+          ? {
+              ...row,
+              lastStatus: "unavailable" as const,
+              message: null,
+              state: "fresh" as const,
+            }
+          : { ...row, lastStatus: "ok" as const, state: "fresh" as const }
+      ),
+    };
+    const { gateway: nonAuthGateway } = fixed(() => nonAuthBroken);
+    const container2 = await render(<FlowWorkspace gateway={nonAuthGateway} />);
+    await idle(container2);
+    expect(container2.querySelector("[data-flow-all-fresh]")).toBeNull();
+    expect(container2.querySelector("[data-flow-auth-alert]")).toBeNull();
+    expect(
+      container2.querySelector("[data-flow-source-alert]")?.textContent
+    ).toContain("Collector recorded no error message");
   });
 
   it("uses the word agree only in the control panel", async () => {
@@ -1196,9 +1418,13 @@ describe("FlowWorkspace hedging pressure panel", () => {
         expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
       );
       expect(panel(container)).toBeNull();
-      expect(
-        container.querySelector("[data-flow-not-collected]")?.textContent
-      ).toContain("option prints");
+      if (symbol === "QQQ") {
+        expect(
+          container.querySelector("[data-flow-not-collected]")?.textContent
+        ).toContain("trades");
+      } else {
+        expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
+      }
     }
     expect(hedgingCalls).toEqual([
       { symbol: "SPY" },
@@ -1442,7 +1668,7 @@ describe("FlowWorkspace put/call ratio panel", () => {
     ]);
   });
 
-  it("shows loading, failure with retry, keeps the last response, and ignores stale answers", async () => {
+  it("shows loading and failure with retry recovery", async () => {
     let fail = true;
     const { gateway } = fixed(
       snapshots,
@@ -1463,8 +1689,9 @@ describe("FlowWorkspace put/call ratio panel", () => {
     await click(button(container, "Refresh"));
     await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
     expect(container.querySelector("[data-flow-pcr-error]")).toBeNull();
+  });
 
-    // A stale rejection and stale resolution from SPY are ignored after switching to ES.
+  it("ignores stale put/call resolutions after switching symbols", async () => {
     const pending: Array<{
       resolve: (value: FlowPutCallRatio) => void;
       reject: (reason: unknown) => void;
@@ -1487,8 +1714,13 @@ describe("FlowWorkspace put/call ratio panel", () => {
     await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
     await act(async () => pending[0]?.resolve(labFlowPutCallRatio("SPY")));
     expect(panel(slowContainer)?.getAttribute("data-flow-pcr")).toBe("ES");
+  });
 
-    // Stale rejection ignored too
+  it("ignores stale put/call rejections after switching symbols", async () => {
+    const pending: Array<{
+      resolve: (value: FlowPutCallRatio) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
     const { gateway: rejectGateway } = fixed(
       snapshots,
       undefined,
@@ -1504,10 +1736,10 @@ describe("FlowWorkspace put/call ratio panel", () => {
     const rejectContainer = await render(
       <FlowWorkspace gateway={rejectGateway} />
     );
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
     await click(button(rejectContainer, "ES"));
     await vi.waitFor(() => expect(stateOf(rejectContainer)).toBe("response"));
-    await act(async () => pending[1]?.reject(new Error("late failure")));
+    await act(async () => pending[0]?.reject(new Error("late failure")));
     expect(rejectContainer.querySelector("[data-flow-pcr-error]")).toBeNull();
   });
 
@@ -1695,7 +1927,7 @@ describe("FlowWorkspace strike heatmap", () => {
     expect(strikeHeatmapCalls).toHaveLength(3);
   });
 
-  it("retries independently, keeps last response on transient bucket error, and ignores stale answers", async () => {
+  it("retries independently without refetching other panels", async () => {
     let fail = true;
     const { calls, gateway, strikeHeatmapCalls } = fixed(
       snapshots,
@@ -1705,7 +1937,7 @@ describe("FlowWorkspace strike heatmap", () => {
       undefined,
       undefined,
       ({ bucketMinutes, symbol }) =>
-        fail ? storageDown() : labFlowStrikeHeatmap(symbol, bucketMinutes)
+        fail ? storageDown() : compactStrikeHeatmap(symbol, bucketMinutes)
     );
     const container = await render(<FlowWorkspace gateway={gateway} />);
     await vi.waitFor(() => expect(stateOf(container)).toBe("failed"));
@@ -1727,8 +1959,9 @@ describe("FlowWorkspace strike heatmap", () => {
     ).toBeNull();
     expect(calls).toHaveLength(callsBeforeRetry);
     expect(strikeHeatmapCalls).toHaveLength(2);
+  });
 
-    // Stale resolution and stale rejection from a slow 5m request are ignored after switching to 30m.
+  it("ignores stale resolutions and rejections after switching bucket width", async () => {
     const pending: Array<{
       resolve: (value: FlowStrikeHeatmap) => void;
       reject: (reason: unknown) => void;
@@ -1745,7 +1978,7 @@ describe("FlowWorkspace strike heatmap", () => {
           ? new Promise<FlowStrikeHeatmap>((resolve, reject) => {
               pending.push({ reject, resolve });
             })
-          : labFlowStrikeHeatmap(symbol, bucketMinutes)
+          : compactStrikeHeatmap(symbol, bucketMinutes)
     );
     const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
     await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
@@ -1766,7 +1999,7 @@ describe("FlowWorkspace strike heatmap", () => {
           ?.textContent
       ).toContain("30m slots")
     );
-    await act(async () => pending[0]?.resolve(labFlowStrikeHeatmap("SPY", 5)));
+    await act(async () => pending[0]?.resolve(compactStrikeHeatmap("SPY", 5)));
     expect(
       slowContainer.querySelector("[data-flow-strike-heatmap-header]")
         ?.textContent
@@ -1800,7 +2033,7 @@ describe("FlowWorkspace strike heatmap", () => {
       undefined,
       undefined,
       ({ bucketMinutes, symbol }) =>
-        forbid ? denied() : labFlowStrikeHeatmap(symbol, bucketMinutes)
+        forbid ? denied() : compactStrikeHeatmap(symbol, bucketMinutes)
     );
     const container = await render(
       <FlowWorkspace gateway={gateway} refreshMs={5000} />
@@ -1837,14 +2070,329 @@ describe("FlowWorkspace strike heatmap", () => {
     await vi.waitFor(() => expect(resolveSpy).not.toBeNull());
     await click(button(container, "ES"));
     await vi.waitFor(() => expect(resolveEs).not.toBeNull());
-    await act(async () => resolveSpy?.(labFlowStrikeHeatmap("SPY", 15)));
+    await act(async () => resolveSpy?.(compactStrikeHeatmap("SPY", 15)));
     expect(stateOf(container)).toBe("loading");
     expect(panel(container)?.textContent).not.toContain("SPY strike");
-    await act(async () => resolveEs?.(labFlowStrikeHeatmap("ES", 15)));
+    await act(async () => resolveEs?.(compactStrikeHeatmap("ES", 15)));
     await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
     expect(panel(container)?.getAttribute("data-flow-strike-heatmap")).toBe(
       "ES"
     );
     expect(panel(container)?.textContent).toContain("SPX strike");
+  });
+});
+
+describe("FlowWorkspace option print bubbles", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const panel = (container: HTMLElement) =>
+    container.querySelector("[data-flow-option-bubbles]");
+  const stateOf = (container: HTMLElement) =>
+    panel(container)?.getAttribute("data-flow-option-bubbles-state");
+  const storageDown = () =>
+    Promise.reject(
+      Object.assign(new Error("down"), { code: "STORAGE_ERROR", status: 503 })
+    );
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("no"), { code: "FORBIDDEN", status: 403 })
+    );
+
+  it("loads SPY and ES, skips QQQ and NQ, and switches premium floor without refetching other panels", async () => {
+    const { calls, gateway, optionBubblesCalls, putCallCalls } =
+      fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(panel(container)?.getAttribute("data-flow-option-bubbles")).toBe(
+      "SPY"
+    );
+    expect(optionBubblesCalls).toEqual([
+      { minPremiumUsd: 250_000, symbol: "SPY" },
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(putCallCalls).toHaveLength(1);
+
+    // Switching premium floor to $500K refetches ONLY flow.optionBubbles.
+    const btn500k = container.querySelector<HTMLButtonElement>(
+      '[data-flow-option-bubbles-floor="500000"]'
+    );
+    if (btn500k === null) throw new Error("Missing $500K floor button");
+    await click(btn500k);
+    await vi.waitFor(() => expect(optionBubblesCalls).toHaveLength(2));
+    expect(optionBubblesCalls[1]).toEqual({
+      minPremiumUsd: 500_000,
+      symbol: "SPY",
+    });
+    expect(calls).toHaveLength(1);
+    expect(putCallCalls).toHaveLength(1);
+
+    // Switching to ES retains the chosen $500K floor.
+    await click(button(container, "ES"));
+    await vi.waitFor(() =>
+      expect(panel(container)?.getAttribute("data-flow-option-bubbles")).toBe(
+        "ES"
+      )
+    );
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(optionBubblesCalls[2]).toEqual({
+      minPremiumUsd: 500_000,
+      symbol: "ES",
+    });
+
+    // QQQ and NQ have no option prints: panel hides and no call is made.
+    await click(button(container, "QQQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    await click(button(container, "NQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    expect(optionBubblesCalls).toHaveLength(3);
+  });
+
+  it("retries independently, ignores stale answers and rejections, holds forbidden access, and discards late SPY answers on ES", async () => {
+    let fail = true;
+    const { calls, gateway, optionBubblesCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minPremiumUsd, symbol }) =>
+        fail ? storageDown() : compactOptionBubbles(symbol, minPremiumUsd)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("failed"));
+    expect(
+      container.querySelector("[data-flow-option-bubbles-error]")?.textContent
+    ).toContain("STORAGE_ERROR");
+    const callsBeforeRetry = calls.length;
+
+    fail = false;
+    const retryBtn = container.querySelector<HTMLButtonElement>(
+      "[data-flow-option-bubbles-retry]"
+    );
+    if (retryBtn === null) throw new Error("Missing bubbles Retry button");
+    await click(retryBtn);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(
+      container.querySelector("[data-flow-option-bubbles-error]")
+    ).toBeNull();
+    expect(calls).toHaveLength(callsBeforeRetry);
+    expect(optionBubblesCalls).toHaveLength(2);
+
+    // Stale resolution and rejection ignored when a newer floor request succeeds
+    const pending: {
+      resolve: (value: FlowOptionBubbles) => void;
+      reject: (reason: unknown) => void;
+    }[] = [];
+    const { gateway: slowGateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minPremiumUsd, symbol }) =>
+        minPremiumUsd === 100_000
+          ? new Promise<FlowOptionBubbles>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : compactOptionBubbles(symbol, minPremiumUsd)
+    );
+    const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    const btn100k = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-option-bubbles-floor="100000"]'
+    );
+    const btn1m = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-option-bubbles-floor="1000000"]'
+    );
+    if (btn100k === null || btn1m === null)
+      throw new Error("Missing floor buttons");
+    await click(btn100k);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await click(btn1m);
+    await vi.waitFor(() =>
+      expect(panel(slowContainer)?.textContent).toContain("floor >= $1M")
+    );
+    await act(async () =>
+      pending[0]?.resolve(compactOptionBubbles("SPY", 100_000))
+    );
+    expect(panel(slowContainer)?.textContent).toContain("floor >= $1M");
+
+    await click(btn100k);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await click(btn1m);
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    expect(
+      slowContainer.querySelector("[data-flow-option-bubbles-error]")
+    ).toBeNull();
+  });
+
+  it("holds the operator access screen across a later snapshot resolution and clears on a non-forbidden bubbles answer", async () => {
+    vi.useFakeTimers();
+    let forbid = true;
+    let resolveSnapshot: ((value: FlowSnapshot) => void) | null = null;
+    const { gateway, optionBubblesCalls } = fixed(
+      ({ minutes, symbol }) =>
+        resolveSnapshot === null && forbid
+          ? new Promise<FlowSnapshot>((resolve) => {
+              resolveSnapshot = resolve;
+            })
+          : labFlowSnapshot(symbol, minutes),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minPremiumUsd, symbol }) =>
+        forbid ? denied() : compactOptionBubbles(symbol, minPremiumUsd)
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await act(async () => void (await Promise.resolve()));
+    expect(container.textContent).toContain("Operator access");
+    await act(async () => resolveSnapshot?.(labFlowSnapshot("SPY", 120)));
+    expect(container.textContent).toContain("Operator access");
+    expect(panel(container)).toBeNull();
+
+    forbid = false;
+    await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
+    expect(optionBubblesCalls).toHaveLength(2);
+    expect(stateOf(container)).toBe("response");
+  });
+});
+
+describe("FlowWorkspace trade bubbles", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const storageDown = () =>
+    Promise.reject(
+      Object.assign(new Error("down"), { code: "STORAGE_ERROR", status: 503 })
+    );
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("no"), { code: "FORBIDDEN", status: 403 })
+    );
+
+  it("loads ES for SPY, isolates errors, ignores stale responses, and honors forbidden holds", async () => {
+    const { gateway, tradeBubblesCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minutes, symbol }) => labFlowTradeBubbles(symbol, minutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-flow-trade-bubbles-svg]")
+      ).not.toBeNull()
+    );
+    expect(tradeBubblesCalls).toEqual([{ minutes: 120, symbol: "ES" }]);
+
+    // Error isolation: a tradeBubbles error does not break other panels.
+    const broken = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => storageDown()
+    );
+    const errContainer = await render(
+      <FlowWorkspace gateway={broken.gateway} />
+    );
+    await vi.waitFor(() =>
+      expect(
+        errContainer.querySelector("[data-flow-trade-bubbles-error]")
+      ).not.toBeNull()
+    );
+    expect(errContainer.querySelector("[data-flow-snapshot]")).not.toBeNull();
+
+    // Stale response and stale rejection ignored after switching symbols.
+    const pending: Array<{
+      resolve: (value: FlowTradeBubbles) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
+    const slow = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minutes, symbol }) =>
+        symbol === "ES"
+          ? new Promise<FlowTradeBubbles>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : labFlowTradeBubbles(symbol, minutes)
+    );
+    const slowContainer = await render(
+      <FlowWorkspace gateway={slow.gateway} />
+    );
+    await click(button(slowContainer, "NQ"));
+    await vi.waitFor(() =>
+      expect(
+        slowContainer.querySelector("[data-flow-trade-bubbles]")?.textContent
+      ).toContain("Big futures trades (NQ)")
+    );
+    await act(async () => pending[0]?.resolve(labFlowTradeBubbles("ES", 120)));
+    await flush();
+    expect(
+      slowContainer.querySelector("[data-flow-trade-bubbles]")?.textContent
+    ).toContain("Big futures trades (NQ)");
+
+    await click(button(slowContainer, "ES"));
+    await click(button(slowContainer, "NQ"));
+    await vi.waitFor(() =>
+      expect(
+        slowContainer.querySelector("[data-flow-trade-bubbles]")?.textContent
+      ).toContain("Big futures trades (NQ)")
+    );
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    await flush();
+    expect(
+      slowContainer.querySelector("[data-flow-trade-bubbles-error]")
+    ).toBeNull();
+
+    // Forbidden hold keeps operator access screen even when snapshot resolves after it.
+    let resolveSnap: ((value: FlowSnapshot) => void) | null = null;
+    const forbidden = fixed(
+      () =>
+        new Promise<FlowSnapshot>((resolve) => {
+          resolveSnap = resolve;
+        }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () => denied()
+    );
+    const forbContainer = await render(
+      <FlowWorkspace gateway={forbidden.gateway} />
+    );
+    await vi.waitFor(() =>
+      expect(forbContainer.textContent).toContain("Operator access")
+    );
+    await act(async () => resolveSnap?.(labFlowSnapshot("SPY", 120)));
+    expect(forbContainer.textContent).toContain("Operator access");
   });
 });

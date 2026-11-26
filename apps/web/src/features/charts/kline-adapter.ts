@@ -1,4 +1,3 @@
-import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
 import {
   SCRIPT_BARS_MAX,
   SCRIPT_PLOTS_MAX,
@@ -6,12 +5,24 @@ import {
   type ScriptPlot,
   type ScriptSignal,
 } from "@darkfactory/scripting";
+import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
+import {
+  barSpacing,
+  EXPECTED_MOVE_GROUP_ID,
+  EXPECTED_MOVE_OVERLAY,
+  expectedMoveConeFigures,
+  expectedMoveOverlayData,
+  expectedMoveTargetIndex,
+  sameExpectedMoveCone,
+  validExpectedMoveCone,
+} from "./expected-move-overlay.ts";
 import type {
   CandleRendererFactory,
   ChartMarker,
   ChartPalette,
   ChartStudies,
   DisplayCandle,
+  ExpectedMoveCone,
   ScriptLayer,
   SeriesPane,
 } from "./types.ts";
@@ -23,6 +34,7 @@ import {
   VERTEX_STUDY_IDS,
   type VertexStudyId,
 } from "./vertex-studies.ts";
+import { NO_VOLUME_LABEL, volumeField } from "./volume.ts";
 import {
   type ChartType,
   type Drawing,
@@ -62,7 +74,7 @@ export const validDisplayCandles = (
       bar.id.length <= 160 &&
       Number.isSafeInteger(bar.timestamp) &&
       Math.abs(bar.timestamp) <= 8_640_000_000_000_000 &&
-      [bar.open, bar.high, bar.low, bar.close, bar.volume].every(
+      [bar.open, bar.high, bar.low, bar.close, bar.volume ?? 0].every(
         (value) =>
           Number.isFinite(value) && value >= 0 && value <= 1_000_000_000_000
       ) &&
@@ -127,7 +139,6 @@ type OverlayLike = Readonly<{
   }>[];
   extendData: unknown;
 }>;
-const DAY_MS = 86_400_000;
 /**
  * Bar time for a chart data index. Past the last bar (KLineCharts gives a dataIndex but
  * no timestamp there) it extends the last bar spacing; one bar uses one day.
@@ -143,24 +154,7 @@ export const timestampAtIndex = (
   if (last === undefined) return undefined;
   return last + (index - (timestamps.length - 1)) * barSpacing(timestamps);
 };
-const SPACING_BARS = 20;
-/**
- * Typical bar spacing: the median gap of the last 20 bars (lower median), so one weekend or
- * holiday gap does not move points after the last bar. Fewer than two bars use one day.
- */
-export const barSpacing = (timestamps: readonly number[]): number => {
-  const gaps: number[] = [];
-  let prior: number | null = null;
-  for (const timestamp of timestamps.slice(-(SPACING_BARS + 1))) {
-    if (prior !== null) gaps.push(timestamp - prior);
-    prior = timestamp;
-  }
-  const middle = Math.floor((gaps.length - 1) / 2);
-  return gaps
-    .sort((left, right) => left - right)
-    .slice(middle, middle + 1)
-    .reduce((_, gap) => gap, DAY_MS);
-};
+
 /**
  * Overlay point for a stored drawing point. KLineCharts 9.8.12 snaps every timestamp to
  * the nearest bar, so a point after the last bar is passed as a data index without a time.
@@ -728,15 +722,25 @@ export const createKLineRenderer: CandleRendererFactory = async (
     needDefaultYAxisFigure: false,
     totalStep: 2,
   });
+  library.registerOverlay({
+    createPointFigures: ({ bounding, coordinates, overlay }) => [
+      ...expectedMoveConeFigures(coordinates, overlay.extendData, bounding),
+    ],
+    name: EXPECTED_MOVE_OVERLAY,
+    needDefaultPointFigure: false,
+    needDefaultXAxisFigure: false,
+    needDefaultYAxisFigure: false,
+    totalStep: 6,
+  });
   for (const id of VERTEX_STUDY_IDS)
     library.registerIndicator(
       indicatorTemplate(VERTEX_STUDIES[id], options.pricePrecision)
     );
   const palette = options.palette;
   const chart = library.init(element, {
-    locale: "en-US",
     // Volume axis and tooltip as 1.2K / 3.4M / 5.6B.
     customApi: { formatBigNumber },
+    locale: "en-US",
     styles: {
       candle: {
         bar: {
@@ -751,6 +755,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
           upWickColor: palette.rising,
         },
         priceMark: { show: false },
+        // Only volume can be missing from a bar (forex, non-USD stocks).
+        tooltip: { defaultValue: NO_VOLUME_LABEL },
         type: library.CandleType.CandleUpStroke,
       },
       grid: {
@@ -763,6 +769,10 @@ export const createKLineRenderer: CandleRendererFactory = async (
     timezone: "UTC",
   });
   if (!chart) throw new Error("KLineCharts did not create a chart");
+  const defaultOffsetRight =
+    typeof chart.getOffsetRightDistance === "function"
+      ? chart.getOffsetRightDistance()
+      : 50;
   let disposed = false;
   let previous: readonly DisplayCandle[] = [];
   const dispose = () => {
@@ -810,12 +820,78 @@ export const createKLineRenderer: CandleRendererFactory = async (
   };
   // Keeps the shown bars. Drawing points after the last bar are data indexes counted from
   // the first bar, so they are placed again when the bar count or the last bar changes.
-  const remember = (values: readonly DisplayCandle[], newLast: number) => {
+  let activeCone: ExpectedMoveCone | null = null;
+  let activeConeSpan: number | null = null;
+  const syncExpectedMoveOffset = (nextSpan: number | null) => {
+    activeConeSpan = nextSpan;
+    if (typeof chart.setOffsetRightDistance !== "function") return;
+    if (nextSpan === null) {
+      chart.setOffsetRightDistance(defaultOffsetRight);
+      return;
+    }
+    const barSpace =
+      typeof chart.getBarSpace === "function" ? chart.getBarSpace() : 8;
+    const maxOffsetRight =
+      element.clientWidth > 0
+        ? Math.max(260, Math.min(480, Math.floor(element.clientWidth * 0.45)))
+        : 260;
+    chart.setOffsetRightDistance(
+      Math.max(
+        defaultOffsetRight,
+        Math.min(maxOffsetRight, (nextSpan + 6) * barSpace)
+      )
+    );
+  };
+  const applyExpectedMove = (
+    cone: ExpectedMoveCone | null,
+    updateOffset: boolean
+  ) => {
+    chart.removeOverlay({ groupId: EXPECTED_MOVE_GROUP_ID });
+    const times = previous.map((bar) => bar.timestamp);
+    const target =
+      cone === null
+        ? null
+        : expectedMoveTargetIndex(times, cone.expiryCloseMs, barSpacing(times));
+    const nextSpan = target?.span ?? null;
+    if (updateOffset || nextSpan !== activeConeSpan)
+      syncExpectedMoveOffset(nextSpan);
+    if (cone === null || target === null) return;
+    chart.createOverlay({
+      extendData: expectedMoveOverlayData(
+        cone,
+        palette,
+        options.pricePrecision
+      ),
+      groupId: EXPECTED_MOVE_GROUP_ID,
+      lock: true,
+      name: EXPECTED_MOVE_OVERLAY,
+      points: [
+        { dataIndex: target.anchorIndex, value: cone.spot },
+        { dataIndex: target.targetIndex, value: cone.upperBand },
+        { dataIndex: target.targetIndex, value: cone.lowerBand },
+        {
+          dataIndex: target.targetIndex,
+          value: cone.straddleUpper ?? cone.upperBand,
+        },
+        {
+          dataIndex: target.targetIndex,
+          value: cone.straddleLower ?? cone.lowerBand,
+        },
+      ],
+    });
+  };
+  const remember = (
+    values: readonly DisplayCandle[],
+    newLast: number,
+    reapplied: boolean
+  ) => {
     const oldLast = previous.at(-1)?.timestamp ?? Number.NEGATIVE_INFINITY;
     const oldCount = previous.length;
     previous = values.map((bar) => Object.freeze({ ...bar }));
-    if (newLast !== oldLast || values.length !== oldCount)
+    if (reapplied || newLast !== oldLast || values.length !== oldCount) {
       redrawAfter(Math.min(oldLast, newLast));
+      if (activeCone !== null) applyExpectedMove(activeCone, false);
+    }
   };
   const replace = (values: readonly DisplayCandle[]) => {
     if (disposed) return;
@@ -830,6 +906,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     if (last === undefined) {
       chart.clearData();
       previous = [];
+      applyExpectedMove(null, false);
       return;
     }
     const samePrefix =
@@ -842,14 +919,15 @@ export const createKLineRenderer: CandleRendererFactory = async (
       (values.length === previous.length
         ? last.timestamp === previousLast.timestamp
         : last.timestamp > previousLast.timestamp);
-    if (samePrefix && tailCompatible) {
+    const tailUpdate = samePrefix && tailCompatible;
+    if (tailUpdate) {
       chart.updateData({
         close: last.close,
         high: last.high,
         low: last.low,
         open: last.open,
         timestamp: last.timestamp,
-        volume: last.volume,
+        ...volumeField(last.volume),
       });
     } else {
       chart.applyNewData(
@@ -859,12 +937,12 @@ export const createKLineRenderer: CandleRendererFactory = async (
           low: bar.low,
           open: bar.open,
           timestamp: bar.timestamp,
-          volume: bar.volume,
+          ...volumeField(bar.volume),
         })),
         false
       );
     }
-    remember(values, last.timestamp);
+    remember(values, last.timestamp, !tailUpdate);
   };
   let volumeShown = false;
   let smaKey = "";
@@ -923,7 +1001,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     for (const id of BUILTIN_PANE_IDS) {
       const paneId = `vx_${id.toLowerCase()}_builtin_pane`;
       if (wanted.includes(id) && !shownPanes.has(id)) {
-        chart.createIndicator({ name: id }, false, { id: paneId, height: 96 });
+        chart.createIndicator({ name: id }, false, { height: 96, id: paneId });
         shownPanes.add(id);
       } else if (!wanted.includes(id) && shownPanes.has(id)) {
         chart.removeIndicator(paneId, id);
@@ -1194,6 +1272,13 @@ export const createKLineRenderer: CandleRendererFactory = async (
     });
     return;
   };
+  const setExpectedMove = (cone: ExpectedMoveCone | null) => {
+    if (cone !== null && !validExpectedMoveCone(cone))
+      throw new TypeError("Invalid expected move cone");
+    if (disposed || sameExpectedMoveCone(activeCone, cone)) return;
+    activeCone = cone;
+    applyExpectedMove(cone, true);
+  };
   const setChartType = (type: ChartType) => {
     if (disposed) return;
     chart.setStyles({
@@ -1223,6 +1308,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     },
     setChartType,
     setDrawings,
+    setExpectedMove,
     setMarkers,
     setScriptPlots,
     setSeriesPane,

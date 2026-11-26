@@ -1,0 +1,421 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 560"
+  width="1120"
+  height="560"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">Vertex Regime View: Before vs After</title>
+  <desc id="desc">
+    Comparison of five disconnected market endpoints joined manually before
+    versus one read-only marketRegime.get API and unified Markets regime section
+    after.
+  </desc>
+  <defs>
+    <style>
+    .bg {
+      fill: #0b0e14;
+    }
+    .panel {
+      fill: #121722;
+      stroke: #263042;
+      stroke-width: 1.5;
+      rx: 14;
+    }
+    .panel-after {
+      fill: #121a1e;
+      stroke: #2b5b4e;
+      stroke-width: 1.8;
+      rx: 14;
+    }
+    .node {
+      fill: #192131;
+      stroke: #33415a;
+      stroke-width: 1.2;
+      rx: 8;
+    }
+    .node-warn {
+      fill: #241b16;
+      stroke: #b45309;
+      stroke-width: 1.2;
+      rx: 8;
+    }
+    .node-ok {
+      fill: #132620;
+      stroke: #10b981;
+      stroke-width: 1.4;
+      rx: 8;
+    }
+    .hub {
+      fill: #1b2436;
+      stroke: #eab308;
+      stroke-width: 2;
+      rx: 12;
+    }
+    .h1 {
+      font:
+        700 22px system-ui,
+        -apple-system,
+        sans-serif;
+      fill: #f8fafc;
+    }
+    .h2 {
+      font:
+        700 15px system-ui,
+        -apple-system,
+        sans-serif;
+      fill: #e2e8f0;
+    }
+    .sub {
+      font:
+        500 12px system-ui,
+        -apple-system,
+        sans-serif;
+      fill: #94a3b8;
+    }
+    .mono {
+      font:
+        600 12px ui-monospace,
+        SFMono-Regular,
+        monospace;
+      fill: #f1f5f9;
+    }
+    .mono-gold {
+      font:
+        700 13px ui-monospace,
+        SFMono-Regular,
+        monospace;
+      fill: #facc15;
+    }
+    .mono-dim {
+      font:
+        500 11px ui-monospace,
+        SFMono-Regular,
+        monospace;
+      fill: #94a3b8;
+    }
+    .tag-before {
+      fill: #7f1d1d;
+    }
+    .tag-after {
+      fill: #064e3b;
+    }
+    .tag-text {
+      font:
+        700 11px system-ui,
+        sans-serif;
+      fill: #f8fafc;
+      letter-spacing: 0.08em;
+    }
+    .badge-ok {
+      fill: #065f46;
+      rx: 5;
+    }
+    .badge-mix {
+      fill: #78350f;
+      rx: 5;
+    }
+    .badge-stale {
+      fill: #7c2d12;
+      stroke: #f97316;
+      stroke-width: 1;
+      rx: 5;
+    }
+    .badge-na {
+      fill: #1e293b;
+      rx: 5;
+    }
+    .btxt {
+      font:
+        700 10px ui-monospace,
+        monospace;
+      fill: #f8fafc;
+    }
+    .arrow-dash {
+      stroke: #ef4444;
+      stroke-width: 1.6;
+      stroke-dasharray: 5 4;
+      fill: none;
+    }
+    .arrow-ok {
+      stroke: #eab308;
+      stroke-width: 2;
+      fill: none;
+    }
+    .arrow-out {
+      stroke: #10b981;
+      stroke-width: 2;
+      fill: none;
+    }
+    </style>
+    <marker
+      id="arr-red"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#ef4444" />
+    </marker>
+    <marker
+      id="arr-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="arr-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#10b981" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1120" height="560" />
+
+  <!-- Header -->
+  <text x="32" y="40" class="h1">Vertex Regime View — Before vs After</text>
+  <text x="32" y="62" class="sub">
+    Research context only · QQQ · SPY · IWM · DIA · Trend + Breadth-90 + Dealer
+    Gamma + Credit + Volatility
+  </text>
+
+  <!-- LEFT PANEL: BEFORE -->
+  <rect x="28" y="84" width="496" height="448" class="panel" />
+  <rect x="46" y="102" width="76" height="22" rx="11" class="tag-before" />
+  <text x="84" y="117" text-anchor="middle" class="tag-text">BEFORE</text>
+  <text x="134" y="118" class="h2">5 separate endpoints · manual join</text>
+
+  <!-- 5 scattered sources -->
+  <g transform="translate(46, 142)">
+    <rect width="196" height="48" class="node" />
+    <path
+      d="M16 32 L24 22 L32 26 L42 14"
+      stroke="#60a5fa"
+      stroke-width="2"
+      fill="none"
+    />
+    <text x="54" y="21" class="mono">marketData.bars</text>
+    <text x="54" y="37" class="mono-dim">4 calls · DIY SMA 50/200</text>
+  </g>
+  <g transform="translate(46, 202)">
+    <rect width="196" height="48" class="node" />
+    <rect x="16" y="26" width="5" height="10" fill="#34d399" />
+    <rect x="24" y="18" width="5" height="18" fill="#34d399" />
+    <rect x="32" y="12" width="5" height="24" fill="#34d399" />
+    <text x="54" y="21" class="mono">breadth90.get</text>
+    <text x="54" y="37" class="mono-dim">Separate card on /markets</text>
+  </g>
+  <g transform="translate(46, 262)">
+    <rect width="196" height="48" class="node" />
+    <circle
+      cx="28"
+      cy="24"
+      r="10"
+      stroke="#c084fc"
+      stroke-width="2"
+      fill="none"
+    />
+    <line x1="18" y1="24" x2="38" y2="24" stroke="#c084fc" stroke-width="1.5" />
+    <text x="54" y="21" class="mono">marketContext.get</text>
+    <text x="54" y="37" class="mono-dim">GEX (SPY/QQQ) only</text>
+  </g>
+  <g transform="translate(46, 322)">
+    <rect width="196" height="48" class="node" />
+    <path
+      d="M16 30 Q28 12 40 28"
+      stroke="#f59e0b"
+      stroke-width="2"
+      fill="none"
+    />
+    <text x="54" y="21" class="mono">openbb.macro</text>
+    <text x="54" y="37" class="mono-dim">HY_OAS buried in table</text>
+  </g>
+  <g transform="translate(46, 382)">
+    <rect width="196" height="48" class="node" />
+    <path
+      d="M15 28 L22 14 L29 31 L36 18 L43 24"
+      stroke="#f472b6"
+      stroke-width="2"
+      fill="none"
+    />
+    <text x="54" y="21" class="mono">volContext + ibkr</text>
+    <text x="54" y="37" class="mono-dim">2 split vol APIs</text>
+  </g>
+
+  <!-- Tangled red dashed arrows -->
+  <path
+    d="M242 166 C285 166, 285 266, 324 274"
+    class="arrow-dash"
+    marker-end="url(#arr-red)"
+  />
+  <path
+    d="M242 226 C285 226, 285 276, 324 282"
+    class="arrow-dash"
+    marker-end="url(#arr-red)"
+  />
+  <path d="M242 286 L324 286" class="arrow-dash" marker-end="url(#arr-red)" />
+  <path
+    d="M242 346 C285 346, 285 296, 324 294"
+    class="arrow-dash"
+    marker-end="url(#arr-red)"
+  />
+  <path
+    d="M242 406 C285 406, 285 304, 324 302"
+    class="arrow-dash"
+    marker-end="url(#arr-red)"
+  />
+
+  <!-- Manual consult box -->
+  <g transform="translate(332, 234)">
+    <rect width="172" height="110" class="node-warn" />
+    <text x="86" y="30" text-anchor="middle" class="h2">Hand-joined</text>
+    <text x="86" y="52" text-anchor="middle" class="sub">
+      8+ calls per consult
+    </text>
+    <text x="86" y="72" text-anchor="middle" class="sub">
+      No shared stale rule
+    </text>
+    <text x="86" y="92" text-anchor="middle" class="sub">
+      No ETF regime table
+    </text>
+  </g>
+
+  <!-- Bottom note before -->
+  <text x="46" y="468" class="mono-dim">
+    Gap 1 of short-market consult: inputs scattered across /markets cards
+  </text>
+  <text x="46" y="488" class="mono-dim">
+    and APIs; stale series easy to mistake for live readings.
+  </text>
+
+  <!-- Divider arrow -->
+  <path d="M532 308 L566 308" class="arrow-ok" marker-end="url(#arr-gold)" />
+
+  <!-- RIGHT PANEL: AFTER -->
+  <rect x="574" y="84" width="518" height="448" class="panel-after" />
+  <rect x="592" y="102" width="70" height="22" rx="11" class="tag-after" />
+  <text x="627" y="117" text-anchor="middle" class="tag-text">AFTER</text>
+  <text x="674" y="118" class="h2">1 read API · 1 Markets regime section</text>
+
+  <!-- Hub: marketRegime.get -->
+  <g transform="translate(592, 140)">
+    <rect width="482" height="72" class="hub" />
+    <text x="18" y="28" class="mono-gold">
+      GET /api/openapi/market-regime (marketRegime.get)
+    </text>
+    <text x="18" y="48" class="sub">
+      Reuses existing readers in parallel · fault-isolated · agent read-key
+      allowed
+    </text>
+    <rect x="380" y="14" width="88" height="22" class="badge-ok" />
+    <text x="424" y="29" text-anchor="middle" class="btxt">READ-ONLY</text>
+  </g>
+
+  <path d="M833 212 L833 238" class="arrow-out" marker-end="url(#arr-green)" />
+
+  <!-- Unified Matrix Preview (MOCK visual) -->
+  <g transform="translate(592, 244)">
+    <rect width="482" height="216" class="node" />
+    <text x="16" y="24" class="h2">/markets — Market Regime</text>
+    <rect x="410" y="10" width="56" height="18" class="badge-na" />
+    <text x="438" y="23" text-anchor="middle" class="btxt">MOCK</text>
+
+    <!-- Table header -->
+    <text x="16" y="48" class="mono-dim">ETF</text>
+    <text x="72" y="48" class="mono-dim">REGIME</text>
+    <text x="148" y="48" class="mono-dim">TREND</text>
+    <text x="220" y="48" class="mono-dim">B90</text>
+    <text x="284" y="48" class="mono-dim">GAMMA</text>
+    <text x="356" y="48" class="mono-dim">CREDIT</text>
+    <text x="420" y="48" class="mono-dim">VOL</text>
+    <line x1="14" y1="56" x2="468" y2="56" stroke="#263042" />
+
+    <!-- Row QQQ -->
+    <text x="16" y="80" class="mono">QQQ</text>
+    <rect x="68" y="66" width="66" height="18" class="badge-mix" />
+    <text x="101" y="79" text-anchor="middle" class="btxt">MIXED</text>
+    <rect x="146" y="66" width="60" height="18" class="badge-ok" />
+    <text x="176" y="79" text-anchor="middle" class="btxt">UP</text>
+    <rect x="218" y="66" width="54" height="18" class="badge-na" />
+    <text x="245" y="79" text-anchor="middle" class="btxt">IDLE</text>
+    <rect x="282" y="66" width="62" height="18" class="badge-mix" />
+    <text x="313" y="79" text-anchor="middle" class="btxt">-GEX</text>
+    <rect x="354" y="66" width="54" height="18" class="badge-ok" />
+    <text x="381" y="79" text-anchor="middle" class="btxt">CALM</text>
+    <rect x="418" y="66" width="50" height="18" class="badge-ok" />
+    <text x="443" y="79" text-anchor="middle" class="btxt">CALM</text>
+
+    <!-- Row SPY -->
+    <text x="16" y="114" class="mono">SPY</text>
+    <rect x="68" y="100" width="66" height="18" class="badge-ok" />
+    <text x="101" y="113" text-anchor="middle" class="btxt">RISK ON</text>
+    <rect x="146" y="100" width="60" height="18" class="badge-ok" />
+    <text x="176" y="113" text-anchor="middle" class="btxt">UP</text>
+    <rect x="218" y="100" width="54" height="18" class="badge-na" />
+    <text x="245" y="113" text-anchor="middle" class="btxt">IDLE</text>
+    <rect x="282" y="100" width="62" height="18" class="badge-ok" />
+    <text x="313" y="113" text-anchor="middle" class="btxt">+GEX</text>
+    <rect x="354" y="100" width="54" height="18" class="badge-ok" />
+    <text x="381" y="113" text-anchor="middle" class="btxt">CALM</text>
+    <rect x="418" y="100" width="50" height="18" class="badge-ok" />
+    <text x="443" y="113" text-anchor="middle" class="btxt">CALM</text>
+
+    <!-- Row IWM -->
+    <text x="16" y="148" class="mono">IWM</text>
+    <rect x="68" y="134" width="66" height="18" class="badge-mix" />
+    <text x="101" y="147" text-anchor="middle" class="btxt">MIXED</text>
+    <rect x="146" y="134" width="60" height="18" class="badge-stale" />
+    <text x="176" y="147" text-anchor="middle" class="btxt">STALE</text>
+    <rect x="218" y="134" width="54" height="18" class="badge-na" />
+    <text x="245" y="147" text-anchor="middle" class="btxt">IDLE</text>
+    <rect x="282" y="134" width="62" height="18" class="badge-na" />
+    <text x="313" y="147" text-anchor="middle" class="btxt">NO FEED</text>
+    <rect x="354" y="134" width="54" height="18" class="badge-ok" />
+    <text x="381" y="147" text-anchor="middle" class="btxt">CALM</text>
+    <rect x="418" y="134" width="50" height="18" class="badge-ok" />
+    <text x="443" y="147" text-anchor="middle" class="btxt">CALM</text>
+
+    <!-- Row DIA -->
+    <text x="16" y="182" class="mono">DIA</text>
+    <rect x="68" y="168" width="66" height="18" class="badge-ok" />
+    <text x="101" y="181" text-anchor="middle" class="btxt">RISK ON</text>
+    <rect x="146" y="168" width="60" height="18" class="badge-ok" />
+    <text x="176" y="181" text-anchor="middle" class="btxt">UP</text>
+    <rect x="218" y="168" width="54" height="18" class="badge-na" />
+    <text x="245" y="181" text-anchor="middle" class="btxt">IDLE</text>
+    <rect x="282" y="168" width="62" height="18" class="badge-na" />
+    <text x="313" y="181" text-anchor="middle" class="btxt">NO FEED</text>
+    <rect x="354" y="168" width="54" height="18" class="badge-ok" />
+    <text x="381" y="181" text-anchor="middle" class="btxt">CALM</text>
+    <rect x="418" y="168" width="50" height="18" class="badge-ok" />
+    <text x="443" y="181" text-anchor="middle" class="btxt">CALM</text>
+
+    <text x="16" y="206" class="mono-dim">
+      Every cell carries value · asOf · source · stale flag (never hides stale
+      data)
+    </text>
+  </g>
+
+  <text x="592" y="484" class="mono-dim">
+    One call for agent consults (AGENT_API_KEY_READ_PROCEDURES) · zero trade
+    paths
+  </text>
+  <text x="592" y="504" class="mono-dim">
+    Thresholds grounded in bundled _master-rules (C058, C006, C146, C033, C230,
+    C806)
+  </text>
+</svg>

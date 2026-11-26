@@ -54,6 +54,7 @@ import {
   timeZoneLabel,
 } from "../../features/order-flow/time-and-sales.ts";
 import type { TpoProfile, TpoSession } from "../../features/order-flow/tpo.ts";
+import { DepthCurveChart } from "./depth-curve-chart.tsx";
 
 // Missing values name their cause; a dash would read as zero or "nothing happened".
 const NOT_REPORTED_BY_FEED = "not reported by feed";
@@ -410,6 +411,13 @@ export const OrderBookView = ({
             bid {formatSize(ladder.totalBid)} / ask{" "}
             {formatSize(ladder.totalAsk)} {unit} shown
           </p>
+          <DepthCurveChart
+            digits={digits}
+            ladder={ladder}
+            minTick={data.minTick}
+            symbol={data.request.symbol}
+            unit={unit}
+          />
           <div className="overflow-x-auto rounded-md border border-border">
             <Table
               className="w-full whitespace-nowrap text-xs"

@@ -24,10 +24,12 @@ import type {
   ChartMarker,
   ChartStudies,
   DisplayCandle,
+  ExpectedMoveCone,
   ScriptLayer,
   SeriesPane,
 } from "./types.ts";
 import { VERTEX_STUDIES } from "./vertex-studies.ts";
+import { studiesForVolume, VOLUME_NOTES, volumeCoverage } from "./volume.ts";
 import {
   CHART_TYPES,
   type ChartType,
@@ -49,6 +51,8 @@ export type ChartWorkstationProps = Readonly<{
   pricePrecision: number;
   studies: ChartStudies;
   markers: readonly ChartMarker[];
+  // Optional forward ±1σ expected move cone overlay; null clears it.
+  expectedMove?: ExpectedMoveCone | null;
   // One histogram pane under the candles; missing or null means none.
   seriesPane?: SeriesPane | null;
   factory: CandleRendererFactory;
@@ -129,8 +133,9 @@ export const ChartWorkstation = ({
   symbol,
   label,
   pricePrecision,
-  studies,
+  studies: requestedStudies,
   markers,
+  expectedMove,
   seriesPane,
   factory,
   captions,
@@ -156,6 +161,12 @@ export const ChartWorkstation = ({
   const values = useMemo(
     () => displayValues(candles, chartType),
     [candles, chartType]
+  );
+  // No volume (forex, non-USD stocks): keep the volume pane and volume studies off.
+  const coverage = volumeCoverage(candles);
+  const studies = useMemo(
+    () => studiesForVolume(requestedStudies, coverage),
+    [coverage, requestedStudies]
   );
   const series = useRef({ key, values });
   series.current = { key, values };
@@ -234,6 +245,14 @@ export const ChartWorkstation = ({
     }
     return;
   }, [renderer, seriesPane]);
+  useEffect(() => {
+    try {
+      renderer?.setExpectedMove?.(expectedMove ?? null);
+    } catch {
+      setStatus("Expected move cone could not be drawn on the chart.");
+    }
+    return;
+  }, [renderer, expectedMove]);
   // A script from the Quant assistant: the stored copy first, then the command's own.
   const requests = useRef(0);
   const takePendingScript = useCallback(
@@ -450,6 +469,14 @@ export const ChartWorkstation = ({
                 </div>
               ))}
             </dl>
+            {coverage === "all" ? null : (
+              <p
+                className="mt-2 text-muted-foreground text-xs"
+                data-no-volume={coverage}
+              >
+                {VOLUME_NOTES[coverage]}
+              </p>
+            )}
           </section>
           <section aria-labelledby="vx-object-tree" data-object-tree="">
             <h3 className="font-semibold" id="vx-object-tree">
@@ -463,9 +490,15 @@ export const ChartWorkstation = ({
                 studies.volume ? "Volume" : null,
                 ...studies.sma.map((period) => `SMA ${period}`),
                 ...studies.ema.map((period) => `EMA ${period}`),
-                ...(studies.extra ?? []).map((id) => VERTEX_STUDIES[id].label),
+                ...(studies.extra ?? []).map((id) =>
+                  // AlphaTrend needs volume on every bar for MFI; else it uses RSI.
+                  coverage === "all"
+                    ? VERTEX_STUDIES[id].label
+                    : VERTEX_STUDIES[id].label.replace("(MFI)", "(RSI)")
+                ),
                 ...(studies.panes ?? []),
                 markers.length > 0 ? `Trade markers (${markers.length})` : null,
+                expectedMove ? `Expected move (${expectedMove.expiry})` : null,
               ]
                 .filter((entry): entry is string => entry !== null)
                 .map((entry) => (

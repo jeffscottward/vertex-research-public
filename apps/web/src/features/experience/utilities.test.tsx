@@ -255,6 +255,20 @@ describe("gateway observations never become recovery or trading authority", () =
     expect(html).toContain("completed");
     expect(html).toContain("Trading disabled");
     expect(html).toContain("Readiness not reported — source sent no");
+    const vague = markup(
+      <GatewayObservation
+        status={gateway({
+          brokerHandshake: "unavailable",
+          infrastructure: "unavailable",
+          recovery: "unknown",
+        })}
+      />
+    );
+    expect(vague).toContain("not reachable by status probe");
+    expect(vague).toContain("handshake probe could not reach broker");
+    expect(vague).toContain("not reported by status probe");
+    expect(vague).not.toContain(">unavailable<");
+    expect(vague).not.toContain(">unknown<");
     return expect(html).not.toContain("<button");
   });
 

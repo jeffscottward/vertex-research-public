@@ -14,6 +14,7 @@ const SCRIPTS = [
   "history/install-history.sh",
   "portfolio/install-portfolio.sh",
   "recovery/install-recovery.sh",
+  "status/deploy-status-v2-alert.sh",
   "status/install-tailnet.sh",
 ] as const;
 const rigLine = (value: string): string => `VERTEX_RIG_IPS=${value}\n`;

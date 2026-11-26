@@ -1,0 +1,750 @@
+<svg
+  aria-label="PR 4 QuantData budget bar chart and live option-print ticker flow before versus after"
+  height="620"
+  role="img"
+  viewBox="0 0 1120 620"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <marker
+      id="arrowGold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowSlate"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <rect fill="url(#bg)" height="620" rx="14" width="1120" />
+
+  <!-- Header -->
+  <text
+    fill="#f8fafc"
+    font-family="Manrope, system-ui, sans-serif"
+    font-size="22"
+    font-weight="700"
+    x="40"
+    y="46"
+  >
+    PR 4: QuantData Budget and Live Option-Print Tickers
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    x="40"
+    y="70"
+  >
+    Measured 10 trading days (2026-11-10 to 2026-11-23) · Account cap 240 req /
+    60 s · Zero IBKR calls added
+  </text>
+
+  <!-- TOP CHART: 240 req / 60 s Account Budget Breakdown -->
+  <rect
+    fill="#131b2b"
+    height="172"
+    rx="12"
+    stroke="#1e293b"
+    stroke-width="1.5"
+    width="1040"
+    x="40"
+    y="92"
+  />
+  <text
+    fill="#e2e8f0"
+    font-family="Manrope, system-ui, sans-serif"
+    font-size="15"
+    font-weight="700"
+    x="64"
+    y="120"
+  >
+    QuantData 60 s Account Budget (Open Peak)
+  </text>
+  <text
+    fill="#eab308"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    text-anchor="end"
+    x="1056"
+    y="120"
+  >
+    Spare = 240 − 122 − 60 = 58 req / 60 s
+  </text>
+
+  <!-- Scale ticks (0 to 240 across x=64..1024 => 960px => 4px per req) -->
+  <line stroke="#334155" stroke-width="1" x1="64" x2="1024" y1="196" y2="196" />
+  <g
+    fill="#94a3b8"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+  >
+    <line stroke="#475569" x1="64" x2="64" y1="192" y2="202" />
+    <text x="64" y="216">0</text>
+    <line stroke="#475569" x1="304" x2="304" y1="192" y2="202" />
+    <text x="304" y="216">60</text>
+    <line
+      stroke="#f59e0b"
+      stroke-dasharray="3 3"
+      x1="552"
+      x2="552"
+      y1="140"
+      y2="202"
+    />
+    <text fill="#fbbf24" x="552" y="216">122</text>
+    <line
+      stroke="#34d399"
+      stroke-dasharray="3 3"
+      x1="768"
+      x2="768"
+      y1="140"
+      y2="202"
+    />
+    <text fill="#34d399" x="768" y="216">176</text>
+    <line
+      stroke="#f87171"
+      stroke-width="1.5"
+      x1="784"
+      x2="784"
+      y1="134"
+      y2="204"
+    />
+    <text fill="#fca5a5" font-weight="600" x="784" y="229">
+      180 (75% ceiling)
+    </text>
+    <line stroke="#475569" x1="1024" x2="1024" y1="192" y2="202" />
+    <text x="1024" y="216">240</text>
+  </g>
+
+  <!-- Stacked Bar (height 44, y=144) -->
+  <!-- market-watch-gex open peak: 122 * 4 = 488px -->
+  <rect fill="#b45309" height="44" rx="6" width="488" x="64" y="144" />
+  <text
+    fill="#fef3c7"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="308"
+    y="170"
+  >
+    market-watch-gex peak: 122
+  </text>
+
+  <!-- vertex-web collector: 48 * 4 = 192px -->
+  <rect fill="#059669" height="44" width="192" x="552" y="144" />
+  <text
+    fill="#ecfdf5"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="648"
+    y="170"
+  >
+    Collector: 48
+  </text>
+
+  <!-- /charts reserve: 6 * 4 = 24px -->
+  <rect fill="#38bdf8" height="44" width="24" x="744" y="144" />
+
+  <!-- Safety margin: 64 * 4 = 256px -->
+  <rect
+    fill="#1e293b"
+    height="44"
+    rx="6"
+    stroke="#475569"
+    stroke-dasharray="4 3"
+    width="256"
+    x="768"
+    y="144"
+  />
+  <text
+    fill="#cbd5e1"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    text-anchor="middle"
+    x="896"
+    y="170"
+  >
+    Safety margin: 64 (26.7%)
+  </text>
+
+  <!-- Legend -->
+  <g
+    fill="#cbd5e1"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+  >
+    <rect fill="#b45309" height="12" rx="3" width="12" x="64" y="242" />
+    <text x="82" y="252">
+      market-watch-gex (open 122; close 49; wheel 32 staggered)
+    </text>
+    <rect fill="#059669" height="12" rx="3" width="12" x="442" y="242" />
+    <text x="460" y="252">vertex-flow cap: 48 (was 24)</text>
+    <rect fill="#38bdf8" height="12" rx="3" width="12" x="668" y="242" />
+    <text x="686" y="252">/charts reserve: 6</text>
+    <rect
+      fill="#1e293b"
+      height="12"
+      rx="3"
+      stroke="#64748b"
+      width="12"
+      x="836"
+      y="242"
+    />
+    <text x="854" y="252">Margin: 64 (&gt;= 25%)</text>
+  </g>
+
+  <!-- BOTTOM LEFT: BEFORE -->
+  <rect
+    fill="#131b2b"
+    height="296"
+    rx="12"
+    stroke="#334155"
+    stroke-width="1.5"
+    width="380"
+    x="40"
+    y="286"
+  />
+  <text
+    fill="#94a3b8"
+    font-family="Manrope, system-ui, sans-serif"
+    font-size="15"
+    font-weight="700"
+    x="64"
+    y="316"
+  >
+    BEFORE (Cap 30 / 60 s)
+  </text>
+
+  <!-- Even clock icon -->
+  <circle
+    cx="88"
+    cy="368"
+    fill="#1e293b"
+    r="18"
+    stroke="#64748b"
+    stroke-width="1.5"
+  />
+  <path
+    d="M 88 358 L 88 368 L 95 372"
+    fill="none"
+    stroke="#94a3b8"
+    stroke-linecap="round"
+    stroke-width="2"
+  />
+  <text
+    fill="#e2e8f0"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="116"
+    y="364"
+  >
+    Even min (2 active)
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    x="116"
+    y="382"
+  >
+    SPY · SPX (up to 16 pages)
+  </text>
+
+  <!-- Odd clock icon (idle) -->
+  <circle
+    cx="88"
+    cy="436"
+    fill="#1e293b"
+    r="18"
+    stroke="#475569"
+    stroke-dasharray="3 2"
+    stroke-width="1.5"
+  />
+  <path
+    d="M 88 426 L 88 436 L 82 440"
+    fill="none"
+    stroke="#64748b"
+    stroke-linecap="round"
+    stroke-width="2"
+  />
+  <text
+    fill="#64748b"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="116"
+    y="432"
+  >
+    Odd min (0 active)
+  </text>
+  <text
+    fill="#64748b"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    x="116"
+    y="450"
+  >
+    QQQ · NDX uncollected (0 rows)
+  </text>
+
+  <!-- Arrow down to DB -->
+  <line
+    marker-end="url(#arrowSlate)"
+    stroke="#64748b"
+    stroke-width="2"
+    x1="230"
+    x2="230"
+    y1="470"
+    y2="504"
+  />
+
+  <!-- DB cylinder icon -->
+  <ellipse
+    cx="230"
+    cy="516"
+    fill="#1e293b"
+    rx="56"
+    ry="10"
+    stroke="#64748b"
+    stroke-width="1.5"
+  />
+  <path
+    d="M 174 516 L 174 548 A 56 10 0 0 0 286 548 L 286 516"
+    fill="#1e293b"
+    stroke="#64748b"
+    stroke-width="1.5"
+  />
+  <text
+    fill="#cbd5e1"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+    x="230"
+    y="541"
+  >
+    SPY, SPX only
+  </text>
+
+  <!-- Transition Arrow -->
+  <line
+    marker-end="url(#arrowGold)"
+    stroke="#eab308"
+    stroke-width="3"
+    x1="432"
+    x2="478"
+    y1="434"
+    y2="434"
+  />
+
+  <!-- BOTTOM RIGHT: AFTER -->
+  <rect
+    fill="#131b2b"
+    height="296"
+    rx="12"
+    stroke="#059669"
+    stroke-width="1.8"
+    width="588"
+    x="492"
+    y="286"
+  />
+  <text
+    fill="#34d399"
+    font-family="Manrope, system-ui, sans-serif"
+    font-size="15"
+    font-weight="700"
+    x="516"
+    y="316"
+  >
+    AFTER (Cap 54 / 60 s · 6 Active · N = 2 Added)
+  </text>
+
+  <!-- Parity lanes -->
+  <!-- Even lane -->
+  <circle
+    cx="540"
+    cy="370"
+    fill="#064e3b"
+    r="18"
+    stroke="#34d399"
+    stroke-width="1.5"
+  />
+  <path
+    d="M 540 360 L 540 370 L 548 370"
+    fill="none"
+    stroke="#34d399"
+    stroke-linecap="round"
+    stroke-width="2"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="568"
+    y="362"
+  >
+    Even min (&lt;= 32 reqs)
+  </text>
+  <!-- Ticker pills -->
+  <rect
+    fill="#1e293b"
+    height="22"
+    rx="11"
+    stroke="#64748b"
+    width="48"
+    x="568"
+    y="372"
+  />
+  <text
+    fill="#e2e8f0"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+    x="592"
+    y="387"
+  >
+    SPY
+  </text>
+  <rect
+    fill="#1e293b"
+    height="22"
+    rx="11"
+    stroke="#64748b"
+    width="48"
+    x="622"
+    y="372"
+  />
+  <text
+    fill="#e2e8f0"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+    x="646"
+    y="387"
+  >
+    SPX
+  </text>
+  <rect
+    fill="#78350f"
+    height="22"
+    rx="11"
+    stroke="#eab308"
+    width="56"
+    x="676"
+    y="372"
+  />
+  <text
+    fill="#fef08a"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="704"
+    y="387"
+  >
+    +IWM
+  </text>
+
+  <!-- Odd lane -->
+  <circle
+    cx="540"
+    cy="442"
+    fill="#064e3b"
+    r="18"
+    stroke="#34d399"
+    stroke-width="1.5"
+  />
+  <path
+    d="M 540 432 L 540 442 L 533 447"
+    fill="none"
+    stroke="#34d399"
+    stroke-linecap="round"
+    stroke-width="2"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="568"
+    y="434"
+  >
+    Odd min (&lt;= 32 reqs)
+  </text>
+  <rect
+    fill="#065f46"
+    height="22"
+    rx="11"
+    stroke="#34d399"
+    width="52"
+    x="568"
+    y="444"
+  />
+  <text
+    fill="#d1fae5"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="594"
+    y="459"
+  >
+    QQQ
+  </text>
+  <rect
+    fill="#065f46"
+    height="22"
+    rx="11"
+    stroke="#34d399"
+    width="52"
+    x="626"
+    y="444"
+  />
+  <text
+    fill="#d1fae5"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="652"
+    y="459"
+  >
+    NDX
+  </text>
+  <rect
+    fill="#78350f"
+    height="22"
+    rx="11"
+    stroke="#eab308"
+    width="60"
+    x="684"
+    y="444"
+  />
+  <text
+    fill="#fef08a"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="714"
+    y="459"
+  >
+    +NVDA
+  </text>
+
+  <!-- Arrows to DB -->
+  <path
+    d="M 744 383 L 796 410"
+    fill="none"
+    marker-end="url(#arrowGreen)"
+    stroke="#34d399"
+    stroke-width="2"
+  />
+  <path
+    d="M 754 455 L 796 428"
+    fill="none"
+    marker-end="url(#arrowGreen)"
+    stroke="#34d399"
+    stroke-width="2"
+  />
+
+  <!-- DB Cylinder -->
+  <ellipse
+    cx="862"
+    cy="400"
+    fill="#0f172a"
+    rx="58"
+    ry="11"
+    stroke="#34d399"
+    stroke-width="1.6"
+  />
+  <path
+    d="M 804 400 L 804 440 A 58 11 0 0 0 920 440 L 920 400"
+    fill="#0f172a"
+    stroke="#34d399"
+    stroke-width="1.6"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="862"
+    y="423"
+  >
+    0095 CHECKs
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="10"
+    text-anchor="middle"
+    x="862"
+    y="438"
+  >
+    guarded down
+  </text>
+
+  <!-- Arrows to Readers -->
+  <path
+    d="M 920 412 L 958 386"
+    fill="none"
+    marker-end="url(#arrowGold)"
+    stroke="#eab308"
+    stroke-width="2"
+  />
+  <path
+    d="M 920 428 L 958 454"
+    fill="none"
+    marker-end="url(#arrowGold)"
+    stroke="#eab308"
+    stroke-width="2"
+  />
+
+  <!-- Reader 1: /flow UI -->
+  <rect
+    fill="#1e293b"
+    height="52"
+    rx="8"
+    stroke="#eab308"
+    stroke-width="1.4"
+    width="96"
+    x="966"
+    y="356"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1014"
+    y="379"
+  >
+    /flow
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="10"
+    text-anchor="middle"
+    x="1014"
+    y="396"
+  >
+    6-ticker tape
+  </text>
+
+  <!-- Reader 2: MCP -->
+  <rect
+    fill="#1e293b"
+    height="52"
+    rx="8"
+    stroke="#eab308"
+    stroke-width="1.4"
+    width="96"
+    x="966"
+    y="432"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1014"
+    y="455"
+  >
+    MCP tool
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="10"
+    text-anchor="middle"
+    x="1014"
+    y="472"
+  >
+    source + delay
+  </text>
+
+  <!-- Bottom note strip inside After -->
+  <rect
+    fill="#0f172a"
+    height="46"
+    rx="8"
+    stroke="#1e293b"
+    width="540"
+    x="516"
+    y="514"
+  />
+  <text
+    fill="#eab308"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="532"
+    y="534"
+  >
+    Guardrails:
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+    x="608"
+    y="534"
+  >
+    FLOW_SYMBOLS unchanged (no IBKR calls) · Timer paused for 0095
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="11"
+    x="532"
+    y="551"
+  >
+    Down migration refuses while IWM/NVDA rows exist · Live check needs QuantVPS
+    key fix (card filed)
+  </text>
+</svg>

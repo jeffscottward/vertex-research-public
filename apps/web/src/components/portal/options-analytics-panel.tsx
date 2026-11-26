@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  classifyConnectivityMessage,
   type ExposureSection,
   type FlowSection,
   type GexContext,
@@ -122,23 +123,43 @@ const SectionShell = ({
   readonly status: string;
   readonly message: string | null;
   readonly children?: ReactNode;
-}) => (
-  <section
-    aria-labelledby={id}
-    className="space-y-2 rounded-md border border-border p-4"
-    data-section-status={status}
-  >
-    <h3 className="font-medium text-sm" id={id}>
-      {title}
-    </h3>
-    {message === null ? null : (
-      <p className="text-muted-foreground text-xs" role="status">
-        {message}
-      </p>
-    )}
-    {status === "ok" ? children : null}
-  </section>
-);
+}) => {
+  const unavailable = status === "unavailable" && message !== null;
+  const authFailed =
+    unavailable &&
+    classifyConnectivityMessage(message).category === "auth_failed";
+  return (
+    <section
+      aria-labelledby={id}
+      className="space-y-2 rounded-md border border-border p-4"
+      data-section-status={status}
+    >
+      <h3 className="font-medium text-sm" id={id}>
+        {title}
+      </h3>
+      {message === null ? null : unavailable ? (
+        <div
+          className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs"
+          data-auth-error={authFailed ? "" : undefined}
+          role="alert"
+        >
+          <p className="font-medium text-destructive">{message}</p>
+          {authFailed ? (
+            <p className="mt-1 text-muted-foreground">
+              Owner action required: rotate the upstream provider credential
+              (never auto-rotated).
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-xs" role="status">
+          {message}
+        </p>
+      )}
+      {status === "ok" ? children : null}
+    </section>
+  );
+};
 
 const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
   const id = useId();

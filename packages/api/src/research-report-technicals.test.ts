@@ -6,8 +6,11 @@ import {
   candidatePivots,
   compareWithStored,
   completedBars,
+  computeFullIndicators,
   type DossierBar,
+  evaluateDossierFreshness,
   fibonacciLevels,
+  marketBarColumnsToDossierBars,
   readStoredTechnicals,
   recomputeIndicators,
   swingPivots,
@@ -683,6 +686,7 @@ describe("buildResearchReportTechnicals", () => {
     const result = buildResearchReportTechnicals({
       assetType: "equity",
       market: { collectedAt: "2026-01-02T21:30:00Z", history: HISTORY },
+      now: new Date("2026-01-03T15:00:00Z"),
       technicals: STORED_BODY,
     });
     expect(result.check.status).toBe("match");
@@ -691,7 +695,22 @@ describe("buildResearchReportTechnicals", () => {
       count: 260,
       firstDate: "2025-01-06",
       lastDate: "2026-01-02",
+      source: "revision",
     });
+    expect(result.dataDate).toBe("2026-01-02");
+    expect(result.freshness).toMatchObject({
+      asOf: "2026-01-02",
+      isStale: false,
+      maxSessionsBehind: 2,
+      sessionsBehind: 0,
+      status: "fresh",
+    });
+    expect(result.weinstein).toMatchObject({
+      asOf: "2026-01-02",
+      isStale: false,
+      staleReason: null,
+    });
+    expect(result.current?.asOf).toBe("2026-01-02");
     expect(result.pivots).toMatchObject({
       candidateResistance: GOLDEN_PIVOTS[3],
       candidateSupport: GOLDEN_PIVOTS[6],
@@ -765,6 +784,7 @@ describe("buildResearchReportTechnicals", () => {
           volume: null,
         })),
       },
+      now: new Date("2025-01-31T15:00:00Z"),
       technicals: {},
     });
     expect(result.weinstein).toBeNull();
@@ -796,5 +816,221 @@ describe("buildResearchReportTechnicals", () => {
     });
     expect(result.stored.rsi14).toBe(47.127_871_237_110_13);
     expect(result.warnings).toHaveLength(1);
+  });
+});
+
+describe("evaluateDossierFreshness", () => {
+  it("marks data fresh within 2 NYSE sessions and stale past 2 sessions", () => {
+    // Monday 2026-11-23 at 15:00 UTC (10:00 ET): expectedSession is Friday 2026-11-20.
+    const monday = new Date("2026-11-23T15:00:00Z");
+    expect(evaluateDossierFreshness("2026-11-20", monday)).toEqual({
+      asOf: "2026-11-20",
+      expectedSession: "2026-11-20",
+      isStale: false,
+      maxSessionsBehind: 2,
+      sessionsBehind: 0,
+      status: "fresh",
+    });
+    expect(evaluateDossierFreshness("2026-11-18", monday)).toMatchObject({
+      isStale: false,
+      sessionsBehind: 2,
+      status: "fresh",
+    });
+    expect(evaluateDossierFreshness("2026-11-17", monday)).toMatchObject({
+      isStale: true,
+      sessionsBehind: 3,
+      status: "stale",
+    });
+    expect(evaluateDossierFreshness("2026-09-10", monday)).toMatchObject({
+      asOf: "2026-09-10",
+      expectedSession: "2026-11-20",
+      isStale: true,
+      status: "stale",
+    });
+  });
+
+  it("returns no_date for null or invalid calendar dates", () => {
+    const monday = new Date("2026-11-23T15:00:00Z");
+    for (const bad of [null, "not-a-date", "2026-02-31"]) {
+      expect(evaluateDossierFreshness(bad, monday)).toEqual({
+        asOf: null,
+        expectedSession: "2026-11-20",
+        isStale: false,
+        maxSessionsBehind: 2,
+        sessionsBehind: null,
+        status: "no_date",
+      });
+    }
+  });
+});
+
+describe("marketBarColumnsToDossierBars", () => {
+  it("converts valid columns, skips non-finite rows and duplicates, and handles absent volume", () => {
+    const t0 = Date.UTC(2026, 10, 19);
+    const t1 = Date.UTC(2026, 10, 20);
+    const bars = marketBarColumnsToDossierBars({
+      c: new Float64Array([100, 101, Number.NaN, 102]),
+      h: new Float64Array([102, 103, 104, 105]),
+      l: new Float64Array([99, 100, 101, 101]),
+      o: new Float64Array([100, 100, 101, 102]),
+      t: new Float64Array([t0, t0, t1, t1]),
+    });
+    expect(bars).toEqual([
+      {
+        close: 100,
+        date: "2026-11-19",
+        high: 102,
+        low: 99,
+        volume: Number.NaN,
+      },
+      {
+        close: 102,
+        date: "2026-11-20",
+        high: 105,
+        low: 101,
+        volume: Number.NaN,
+      },
+    ]);
+  });
+});
+
+describe("computeFullIndicators", () => {
+  it("returns null for empty bars and computes full indicators and trend checks for 260 bars", () => {
+    expect(computeFullIndicators([])).toBeNull();
+    const bars = completedBars(HISTORY);
+    const full = computeFullIndicators(bars);
+    expect(full).not.toBeNull();
+    expect(full?.asOf).toBe("2026-01-02");
+    expect(full?.sampleCount).toBe(260);
+    expect(full?.sma200Slope).not.toBeNull();
+    expect(full?.range52Week?.sampleCount).toBe(252);
+    expect(full?.maximumObservedHigh?.price).toBeGreaterThan(0);
+    expect(full?.trendChecks).toHaveLength(8);
+    expect(
+      full?.trendChecks.every((check) => typeof check.passed === "boolean")
+    ).toBe(true);
+  });
+
+  it("handles short series, missing high/low, and non-positive highs cleanly", () => {
+    const short: DossierBar[] = [
+      {
+        close: 0,
+        date: "2026-11-19",
+        high: Number.NaN,
+        low: Number.NaN,
+        volume: 0,
+      },
+      {
+        close: 0,
+        date: "2026-11-20",
+        high: Number.NaN,
+        low: Number.NaN,
+        volume: 0,
+      },
+    ];
+    const full = computeFullIndicators(short);
+    expect(full?.sma200Slope).toBeNull();
+    expect(full?.maximumObservedHigh).toEqual({
+      date: "2026-11-19",
+      drawdownPct: null,
+      price: 0,
+    });
+    expect(full?.trendChecks.every((check) => check.passed === null)).toBe(
+      true
+    );
+    // Cover zero earlierSma200 branch (changePct null)
+    const zeros: DossierBar[] = Array.from({ length: 221 }, (_, index) => ({
+      close: index < 210 ? 0 : 10,
+      date: new Date(Date.UTC(2025, 0, 1) + index * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+      high: index < 210 ? 0 : 11,
+      low: index < 210 ? 0 : 9,
+      volume: 100,
+    }));
+    const zeroSlope = computeFullIndicators(zeros);
+    expect(zeroSlope?.sma200Slope?.changePct).toBeNull();
+  });
+});
+
+describe("buildResearchReportTechnicals freshness and liveBars", () => {
+  it("marks an old Weinstein stage as stale in both fields and label and emits a staleness warning", () => {
+    const result = buildResearchReportTechnicals({
+      assetType: "etf",
+      market: { collectedAt: "2026-01-02T21:30:00Z", history: HISTORY },
+      now: new Date("2026-03-02T15:00:00Z"),
+      technicals: STORED_BODY,
+    });
+    expect(result.freshness.status).toBe("stale");
+    expect(result.freshness.isStale).toBe(true);
+    expect(result.weinstein?.isStale).toBe(true);
+    expect(result.weinstein?.asOf).toBe("2026-01-02");
+    expect(result.weinstein?.label).toContain("(stale; data as of 2026-01-02)");
+    expect(result.weinstein?.staleReason).toContain("2026-01-02");
+    expect(result.warnings.some((w) => w.includes("Price data is stale"))).toBe(
+      true
+    );
+  });
+
+  it("prefers newer liveBars from market_bars while keeping stored check parity intact", () => {
+    const storedBars = completedBars(HISTORY.slice(0, 240));
+    const liveBars = completedBars(HISTORY);
+    const result = buildResearchReportTechnicals({
+      assetType: "etf",
+      liveBars,
+      liveBarsCollectedAt: "2026-01-03T05:00:00Z",
+      market: {
+        collectedAt: "2025-12-05T21:30:00Z",
+        history: HISTORY.slice(0, 240),
+      },
+      now: new Date("2026-01-03T15:00:00Z"),
+      technicals: { ...STORED_BODY, ...recomputeIndicators(storedBars) },
+    });
+    expect(result.bars).toEqual({
+      collectedAt: "2026-01-03T05:00:00.000Z",
+      count: 260,
+      firstDate: "2025-01-06",
+      lastDate: "2026-01-02",
+      source: "market_bars",
+    });
+    expect(result.check.status).toBe("match");
+    expect(result.recomputed?.sampleCount).toBe(240);
+    expect(result.current?.sampleCount).toBe(260);
+    expect(result.current?.asOf).toBe("2026-01-02");
+    expect(result.dataDate).toBe("2026-01-02");
+    expect(result.freshness.status).toBe("fresh");
+    expect(result.weinstein?.isStale).toBe(false);
+  });
+
+  it("uses liveBars directly for a bar-backed dossier without a stored revision snapshot", () => {
+    const liveBars = completedBars(HISTORY);
+    const result = buildResearchReportTechnicals({
+      assetType: "etf",
+      liveBars,
+      liveBarsCollectedAt: null,
+      market: null,
+      now: new Date("2026-01-03T15:00:00Z"),
+      technicals: null,
+    });
+    expect(result.bars?.source).toBe("market_bars");
+    expect(result.bars?.collectedAt).toBeNull();
+    expect(result.check.status).toBe("unavailable");
+    expect(result.recomputed).toBeNull();
+    expect(result.current?.asOf).toBe("2026-01-02");
+    expect(result.weinstein?.asOf).toBe("2026-01-02");
+    expect(result.weinstein?.isStale).toBe(false);
+  });
+
+  it("keeps revision bars when liveBars is empty or not newer than stored bars", () => {
+    const olderLive = completedBars(HISTORY.slice(0, 200));
+    const result = buildResearchReportTechnicals({
+      assetType: "etf",
+      liveBars: olderLive,
+      market: { collectedAt: "2026-01-02T21:30:00Z", history: HISTORY },
+      now: new Date("2026-01-03T15:00:00Z"),
+      technicals: STORED_BODY,
+    });
+    expect(result.bars?.source).toBe("revision");
+    expect(result.bars?.count).toBe(260);
   });
 });

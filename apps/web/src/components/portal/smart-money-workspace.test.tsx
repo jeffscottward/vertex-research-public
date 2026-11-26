@@ -1,5 +1,17 @@
 // @vitest-environment jsdom
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
 import type {
+  CongressTradesFeedOutput,
+  OpenbbChanges13fOutput,
+  OpenbbInsiderClustersOutput,
+  OpenbbStatusOutput,
   SmartMoneyRankingOutput,
   SmartMoneyRankingRow,
 } from "@darkfactory/api";
@@ -559,4 +571,502 @@ describe("smart money text", () => {
         weekdays: 5,
       })
     ).toBe("History: 2 of 5 weekdays stored, 0 without data, 3 pending"));
+});
+
+describe("SmartMoneyWorkspace unified multi-source panels and freshness strip", () => {
+  const sampleStatus = (overdue = false): OpenbbStatusOutput => ({
+    checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+    overdueCount: overdue ? 2 : 0,
+    runs: [],
+    sources: [
+      {
+        kind: "flow",
+        label: "Large options premium (QuantData)",
+        lastOkAt: new Date("2026-11-23T15:50:00.000Z"),
+        lastRunAt: new Date("2026-11-23T15:50:00.000Z"),
+        lastStatus: "partial",
+        maxAgeSeconds: 1800,
+        overdue,
+        overdueSince: overdue ? new Date("2026-11-23T15:30:00.000Z") : null,
+        reason: overdue ? "stale" : null,
+        retired: false,
+        smartMoney: true,
+        source: "market_premium",
+      },
+      {
+        kind: "openbb",
+        label: "SEC Form 4",
+        lastOkAt: null,
+        lastRunAt: null,
+        lastStatus: null,
+        maxAgeSeconds: 108_000,
+        overdue,
+        overdueSince: null,
+        reason: overdue ? "no usable run" : null,
+        retired: false,
+        smartMoney: true,
+        source: "sec-form4",
+      },
+      {
+        kind: "openbb",
+        label: "Congress (House)",
+        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastRunAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastStatus: "ok",
+        maxAgeSeconds: 108_000,
+        overdue: false,
+        overdueSince: null,
+        reason: null,
+        retired: false,
+        smartMoney: true,
+        source: "congress-house",
+      },
+      {
+        kind: "openbb",
+        label: "Congress (Senate)",
+        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastRunAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastStatus: "ok",
+        maxAgeSeconds: 108_000,
+        overdue,
+        overdueSince: null,
+        reason: overdue ? "No complete index day in last 7 days" : null,
+        retired: false,
+        smartMoney: true,
+        source: "congress-senate",
+      },
+      {
+        kind: "openbb",
+        label: "SEC 13F",
+        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastRunAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastStatus: "ok",
+        maxAgeSeconds: 259_200,
+        overdue,
+        overdueSince: null,
+        reason: null,
+        retired: false,
+        smartMoney: true,
+        source: "sec-13f",
+      },
+    ],
+    tables: [],
+  });
+
+  const sampleInsiders = (
+    overrides: Partial<OpenbbInsiderClustersOutput> = {}
+  ): OpenbbInsiderClustersOutput => ({
+    clusters: [
+      {
+        filings: [
+          {
+            acceptedAt: "2026-11-20T21:00:00.000Z",
+            accessionNumber: "0001193125-26-000001",
+            owners: [{ cik: "1", name: "Alex Doe", title: "CEO" }],
+            plan10b51: false,
+            shares: 1000,
+            url: "https://www.sec.gov/Archives/edgar/data/1/1.xml",
+            value: 150_000,
+            valueIncomplete: false,
+          },
+        ],
+        firstAcceptedAt: "2026-11-18T21:00:00.000Z",
+        issuerCik: "0000320193",
+        issuerName: "Example Wind Corp",
+        issuerSymbol: "EXWD",
+        lastAcceptedAt: "2026-11-20T21:00:00.000Z",
+        persons: 3,
+        shares: 3000,
+        value: 450_000,
+        valueIncomplete: false,
+      },
+      {
+        filings: [],
+        firstAcceptedAt: "2026-11-18T21:00:00.000Z",
+        issuerCik: "0000999999",
+        issuerName: null,
+        issuerSymbol: null,
+        lastAcceptedAt: "2026-11-20T21:00:00.000Z",
+        persons: 4,
+        shares: 5000,
+        value: 200_000,
+        valueIncomplete: true,
+      },
+    ],
+    coverage: {
+      incompleteDays: [],
+      lastOkAt: "2026-11-23T12:00:00.000Z",
+      lastRunAt: "2026-11-23T12:00:00.000Z",
+      lastStatus: "ok",
+      newestCompleteDay: "2026-11-20",
+      overdue: false,
+    },
+    days: 7,
+    delay: "Previous business day",
+    receivedAt: "2026-11-23T15:00:00.000Z",
+    source: "SEC Form 4",
+    ...overrides,
+  });
+
+  const sampleCongress = (
+    overrides: Partial<CongressTradesFeedOutput> = {}
+  ): CongressTradesFeedOutput => ({
+    coverage: [
+      {
+        chamber: "house",
+        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastRunAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastStatus: "ok",
+        overdue: false,
+      },
+      {
+        chamber: "senate",
+        lastOkAt: null,
+        lastRunAt: null,
+        lastStatus: null,
+        overdue: true,
+      },
+    ],
+    filings: [],
+    members: ["Jane Example"],
+    receivedAt: new Date("2026-11-23T15:00:00.000Z"),
+    source: "House Clerk and Senate eFD",
+    trades: [
+      {
+        amends: false,
+        amountHigh: 50_000,
+        amountLabel: "$15,001 - $50,000",
+        amountLow: 15_001,
+        asset: "Example Wind Corp",
+        assetType: "Stock",
+        chamber: "house",
+        delayDays: 10,
+        docId: "20012345",
+        filedOn: "2026-11-20",
+        holder: "self",
+        member: "Jane Example",
+        rowNumber: 1,
+        ticker: "EXWD",
+        transactionDate: "2026-11-10",
+        transactionType: "purchase",
+        url: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20012345.pdf",
+      },
+      {
+        amends: false,
+        amountHigh: 15_000,
+        amountLabel: "$1,001 - $15,000",
+        amountLow: 1001,
+        asset: "Other Bond",
+        assetType: "Bond",
+        chamber: "senate",
+        delayDays: null,
+        docId: "11111111-1111-1111-1111-111111111111",
+        filedOn: "2026-11-19",
+        holder: "spouse",
+        member: "John Sample",
+        rowNumber: 2,
+        ticker: null,
+        transactionDate: null,
+        transactionType: "sale_partial",
+        url: "javascript:alert(1)",
+      },
+    ],
+    unparsed: {
+      byReason: { layout_unknown: 0, no_transactions: 1, scanned_image: 1 },
+      total: 2,
+    },
+    ...overrides,
+  });
+
+  const sample13f = (
+    overrides: Partial<OpenbbChanges13fOutput> = {}
+  ): OpenbbChanges13fOutput => ({
+    changes: [
+      {
+        accessionNumber: "0001193125-26-000001",
+        change: "new",
+        cusip: "037833100",
+        delayDays: 42,
+        filedOn: "2026-11-11",
+        filerCik: "1067983",
+        filerName: "Example Fund LP",
+        issuer: "Example Wind Corp",
+        optionType: "",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: null,
+        previousValue: null,
+        shares: 5000,
+        symbol: "EXWD",
+        value: 1_000_000,
+      },
+      {
+        accessionNumber: "0001193125-26-000002",
+        change: "sold",
+        cusip: "999999100",
+        delayDays: 41,
+        filedOn: "2026-11-10",
+        filerCik: "1350694",
+        filerName: "Second Fund LP",
+        issuer: "Private Trust",
+        optionType: "call",
+        period: "2026-09-30",
+        previousPeriod: "2026-06-30",
+        previousShares: 2000,
+        previousValue: 400_000,
+        shares: null,
+        symbol: null,
+        value: null,
+      },
+    ],
+    coverage: {
+      filersWithTwoBooks: 12,
+      lastOkAt: "2026-11-23T12:00:00.000Z",
+      lastRunAt: "2026-11-23T12:00:00.000Z",
+      lastStatus: "ok",
+      overdue: false,
+      overdueSince: null,
+      totalFilers: 23,
+    },
+    delay: "SEC Form 13F-HR, due 45 days after quarter end",
+    receivedAt: "2026-11-23T15:00:00.000Z",
+    source: "SEC Form 13F-HR",
+    ...overrides,
+  });
+
+  const mountFull = async (
+    gateway: SmartMoneyGateway,
+    initial?: Partial<SmartMoneySettings>
+  ) => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () => {
+      root.render(
+        <SmartMoneyWorkspace
+          gateway={gateway}
+          {...(initial === undefined
+            ? {}
+            : { initial: parseSmartMoneyParams({ ticker: initial.ticker }) })}
+        />
+      );
+      await flush();
+    });
+    return container;
+  };
+
+  it("renders freshness strip, all 4 source panels, Congress Purchases/All toggle, and Refresh", async () => {
+    const gw: SmartMoneyGateway = {
+      changes13f: vi.fn(async () => sample13f()),
+      congressFeed: vi.fn(async () => sampleCongress()),
+      insiderClusters: vi.fn(async () => sampleInsiders()),
+      ranking: vi.fn(async () => rankingOf([row()])),
+      status: vi.fn(async () => sampleStatus(true)),
+    };
+    const container = await mountFull(gw);
+    expect(container.textContent).toContain("overdue since");
+    expect(container.textContent).toContain("overdue (no usable run yet)");
+    expect(container.textContent).toContain("Congress (House): current");
+    expect(container.textContent).toContain(
+      "Congress (Senate): overdue (No complete index day in last 7 days)"
+    );
+    expect(container.textContent).toContain("SEC 13F: overdue");
+    expect(container.textContent).toContain("Example Wind Corp");
+    expect(container.textContent).toContain("CIK 0000999999");
+    expect(container.textContent).toContain("Example Fund LP");
+    expect(container.textContent).toContain("Second Fund LP");
+    expect(container.textContent).toContain("No ticker");
+
+    // Default Congress filter is Purchases only (Jane Example shown, John Sample sale hidden)
+    expect(container.textContent).toContain("Jane Example");
+    expect(container.textContent).not.toContain("John Sample");
+
+    // Switch to All trades -> John Sample appears with safe No link guard
+    const allBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === "All trades"
+    ) as HTMLButtonElement;
+    await act(async () => {
+      allBtn.click();
+      await flush();
+    });
+    expect(container.textContent).toContain("John Sample");
+    expect(container.textContent).toContain("Partial sale");
+    expect(container.textContent).toContain("Purchase");
+    expect(container.textContent).not.toContain("sale_partial");
+    expect(container.textContent).toContain("No link");
+    expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
+
+    // Switch back to Purchases
+    const purchBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === "Purchases"
+    ) as HTMLButtonElement;
+    await act(async () => {
+      purchBtn.click();
+      await flush();
+    });
+    expect(container.textContent).not.toContain("John Sample");
+
+    // Refresh reloads all 5 loaders
+    const refreshBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("Refresh")
+    ) as HTMLButtonElement;
+    await act(async () => {
+      refreshBtn.click();
+      await flush();
+    });
+    expect(gw.status).toHaveBeenCalledTimes(2);
+    expect(gw.insiderClusters).toHaveBeenCalledTimes(2);
+    expect(gw.congressFeed).toHaveBeenCalledTimes(2);
+    expect(gw.changes13f).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders empty states (all and ticker-filtered), overdue badges, and isolated errors with retry", async () => {
+    const emptyGw: SmartMoneyGateway = {
+      changes13f: vi.fn(async () =>
+        sample13f({
+          changes: [],
+          coverage: { ...sample13f().coverage, overdue: true },
+        })
+      ),
+      congressFeed: vi.fn(async () => sampleCongress({ trades: [] })),
+      insiderClusters: vi.fn(async () =>
+        sampleInsiders({
+          clusters: [],
+          coverage: {
+            ...sampleInsiders().coverage,
+            newestCompleteDay: null,
+            overdue: true,
+          },
+        })
+      ),
+      ranking: vi.fn(async () => rankingOf([])),
+      status: vi.fn(async () => ({ ...sampleStatus(false), sources: [] })),
+    };
+    const emptyAll = await mountFull(emptyGw);
+    expect(emptyAll.textContent).toContain(
+      "No insider cluster buys in the last 7 days."
+    );
+    expect(emptyAll.textContent).toContain(
+      "No Congress purchases filed in the last 30 days."
+    );
+    expect(emptyAll.textContent).toContain(
+      "No 13F quarter-over-quarter changes stored"
+    );
+    expect(emptyAll.textContent).toContain("SEC 13F: overdue");
+    expect(emptyAll.textContent).toContain("Form 4 index overdue");
+
+    // Toggle All trades on empty Congress panel
+    const allEmpty = Array.from(emptyAll.querySelectorAll("button")).find(
+      (b) => b.textContent === "All trades"
+    ) as HTMLButtonElement;
+    await act(async () => {
+      allEmpty.click();
+      await flush();
+    });
+    expect(emptyAll.textContent).toContain(
+      "No Congress trades filed in the last 30 days."
+    );
+
+    // Ticker-filtered empty states + non-overdue null newestCompleteDay
+    const emptyTicker = await mountFull(
+      {
+        ...emptyGw,
+        insiderClusters: vi.fn(async () =>
+          sampleInsiders({
+            clusters: [],
+            coverage: {
+              ...sampleInsiders().coverage,
+              newestCompleteDay: null,
+              overdue: false,
+            },
+          })
+        ),
+      },
+      { ticker: "EXWD" }
+    );
+    expect(emptyTicker.textContent).toContain("Form 4 index current");
+    expect(emptyTicker.textContent).toContain(
+      "No insider cluster buys for EXWD"
+    );
+    expect(emptyTicker.textContent).toContain("No Congress purchases for EXWD");
+    expect(emptyTicker.textContent).toContain(
+      "No tracked 13F quarter-over-quarter changes for EXWD"
+    );
+    const allTickerEmpty = Array.from(
+      emptyTicker.querySelectorAll("button")
+    ).find((b) => b.textContent === "All trades") as HTMLButtonElement;
+    await act(async () => {
+      allTickerEmpty.click();
+      await flush();
+    });
+    expect(emptyTicker.textContent).toContain("No Congress trades for EXWD");
+
+    // Isolated errors + Retry on all 4 optional loaders
+    const errGw: SmartMoneyGateway = {
+      changes13f: vi
+        .fn<NonNullable<SmartMoneyGateway["changes13f"]>>()
+        .mockRejectedValueOnce(new Error("13f boom"))
+        .mockResolvedValueOnce(sample13f()),
+      congressFeed: vi
+        .fn<NonNullable<SmartMoneyGateway["congressFeed"]>>()
+        .mockRejectedValueOnce(new Error("congress boom"))
+        .mockResolvedValueOnce(sampleCongress()),
+      insiderClusters: vi
+        .fn<NonNullable<SmartMoneyGateway["insiderClusters"]>>()
+        .mockRejectedValueOnce(new Error("insiders boom"))
+        .mockResolvedValueOnce(sampleInsiders()),
+      ranking: vi.fn(async () => rankingOf([row()])),
+      status: vi.fn(async () => {
+        throw new Error("status boom");
+      }),
+    };
+    const errored = await mountFull(errGw);
+    expect(errored.textContent).toContain("status boom");
+    expect(errored.textContent).toContain("insiders boom");
+    expect(errored.textContent).toContain("congress boom");
+    expect(errored.textContent).toContain("13f boom");
+    const retries = Array.from(errored.querySelectorAll("button")).filter((b) =>
+      b.textContent?.includes("Try again")
+    );
+    expect(retries).toHaveLength(3);
+    for (const btn of retries) {
+      await act(async () => {
+        btn.click();
+        await flush();
+      });
+    }
+    expect(errored.textContent).toContain("Example Fund LP");
+    expect(errored.textContent).toContain("Jane Example");
+  });
+
+  it("ignores stale section responses when refreshed before completion", async () => {
+    const first = deferred<OpenbbStatusOutput>();
+    const second = deferred<OpenbbStatusOutput>();
+    const status = vi
+      .fn<NonNullable<SmartMoneyGateway["status"]>>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const container = await mountFull({
+      ranking: vi.fn(async () => rankingOf([row()])),
+      status,
+    });
+    expect(container.textContent).toContain("Checking per-source freshness");
+    const refreshBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("Refresh")
+    ) as HTMLButtonElement;
+    await act(async () => {
+      refreshBtn.click();
+      await flush();
+    });
+    await act(async () => {
+      second.resolve(sampleStatus(false));
+      await flush();
+    });
+    await act(async () => {
+      first.resolve(sampleStatus(true));
+      await flush();
+    });
+    expect(container.textContent).not.toContain("overdue since");
+  });
 });

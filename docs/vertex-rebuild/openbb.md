@@ -415,9 +415,23 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
 
 Reads (operator, read-only):
 
-- `openbb.status`: per job last run and status, per table newest date and row count. The newest run
-  of a job in a blocked streak has `blocked: { since, attempts, nextRetryAt }` (start of the streak,
-  recorded runs in it, earliest next timer attempt); every other run has `blocked: null`.
+- `openbb.status`: per job last run and status, per-source overdue evaluation (`checkedAt`,
+  `overdueCount`, `sources[]` covering all 23 `OPENBB_JOBS` via `OPENBB_JOB_METADATA` plus QuantVPS
+  flow sources via `FLOW_SOURCE_METADATA`, with `market_premium` read from
+  `flow_market_premium_sessions` and the remaining 5 flow sources read from SPY `flow_samples`), and
+  per table newest date and row count. The newest run of a job in a blocked streak has
+  `blocked: { since, attempts, nextRetryAt }`; every other run has `blocked: null`.
+- `openbb.changes13f` `{ change?, limit?, ticker? }`: market-wide quarter-over-quarter 13F changes
+  (new, added, reduced or sold; unchanged omitted) across tracked filers' two newest consecutive
+  full 13F-HR books, ordered by max(value, previousValue) desc, with matched `symbol` from the
+  holding or newest `openbb_cusip_symbols` entry and `sec-13f` coverage (`overdue`, `overdueSince`,
+  `filersWithTwoBooks`, `totalFilers`).
+- `openbb.checkSourceOverdue` `{ dryRun? }` and `openbb.recordSourceOverdueChat`
+  `{ eventId, delivery }` (scheduler, agent write key): QuantVPS 15-minute overdue alert check
+  (`infra/openbb-overdue/quantvps/vertex-openbb-overdue.timer`, `scripts/openbb-overdue/tick.ts`)
+  monitoring the 22 non-retired OpenBB jobs + `flow:market_premium` via `price_freshness_state`
+  (`monitor = "openbb-overdue"`), sending one alert per incident via `sendPriceAlertsNtfy` (with
+  `#omp-alerts` fallback outbox) and one recovery notice when all overdue sources catch up.
 - `openbb.volContext` `{ asOf? }`: latest vol index closes (within 30 calendar days of `asOf`) with
   VIX9D/VIX, VIX/VIX3M, VIX3M/VIX6M ratios (null unless both closes are from the same session, like
   the DSL's `termRatioSeries`), VX curve (latest and 5 sessions earlier), Core 7 IV daily rows
@@ -487,6 +501,10 @@ the same name with the caller's agent key (read keys allowed; `openbb.*` is an a
 | `openbb_shorts` | `openbb.shorts` |
 | `openbb_sec` | `openbb.sec` |
 | `openbb_factors` | `openbb.factors` |
+| `openbb_congress_trades` | `congressTrades.feed` (bounded to newest 50 trades) |
+| `openbb_smart_money_ranking` | `smartMoney.ranking` (bounded to 50 rows) |
+| `openbb_insider_clusters` | `openbb.insiderClusters` (optional `symbol`, bounded to 50 clusters) |
+| `openbb_13f_changes` | `openbb.changes13f` (bounded to 50 rows, text capped at 300 chars) |
 
 Descriptions name the sources and say the data is research input, not a trade signal. No tool
 writes, and no tool places or changes orders.
@@ -511,7 +529,8 @@ writes, and no tool places or changes orders.
   mixes the two methods across the boundary.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
-- `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, FTD and FINRA short data.
+- `/smart-money`: per-source freshness strip (Options premium, Form 4, Congress House, Congress Senate, SEC 13F — no blended score), shared ticker filter, and four independent source panels: large options trades (QuantData), insider cluster buys (SEC Form 4, 7 days), Congress trades (House and Senate PTRs, 30 days, Purchases/All toggle), and 13F quarter-over-quarter changes (SEC Form 13F-HR).
+- `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, 13F quarter-over-quarter changes, FTD and FINRA short data, plus three isolated smart-money sections for the symbol (large options premium 5 sessions, insider cluster buys 30 days, Congress trades 90 days).
 - `/charts`: pane "OI change" under the daily candles of ES and NQ (continuous or dated contract at
   CME): one bar per trading day from `CME_ES_OI` or `CME_NQ_OI`, read with `openbb.macro` and an id
   list. The page computes the change against the trading day before; it draws no bar after a

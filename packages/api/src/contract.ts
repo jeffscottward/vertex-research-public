@@ -31,6 +31,7 @@ import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchScreenContract } from "./contracts/research-screen.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
+import { connectivityContract } from "./contracts/connectivity.ts";
 import { semanticTermsContract } from "./contracts/semantic-terms.ts";
 import { masterRulesContract } from "./contracts/master-rules.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
@@ -45,6 +46,7 @@ import { playsContract } from "./contracts/plays.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
 import { openbbContract } from "./contracts/openbb.ts";
+import { openbbOverdueContract } from "./contracts/openbb-overdue.ts";
 import { openbbPriceFreshnessContract } from "./contracts/price-freshness.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { breadth90Contract } from "./contracts/breadth-90.ts";
@@ -61,6 +63,7 @@ import { enginesContract } from "./contracts/engines.ts";
 import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
 import { marketContextContract } from "./contracts/market-context.ts";
 import { marketNotesContract } from "./contracts/market-notes.ts";
+import { marketRegimeContract } from "./contracts/market-regime.ts";
 import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
 import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
 import { vertexOrdersContract } from "./contracts/vertex-orders.ts";
@@ -319,6 +322,7 @@ export const appContract = {
   researchScreen: researchScreenContract,
   researchStudies: researchStudiesContract,
   flow: flowContract,
+  connectivity: connectivityContract,
   semanticTerms: semanticTermsContract,
   masterRules: masterRulesContract,
   clickLog: clickLogContract,
@@ -338,7 +342,11 @@ export const appContract = {
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
   researchLenses: researchLensesContract,
-  openbb: { ...openbbContract, ...openbbPriceFreshnessContract },
+  openbb: {
+    ...openbbContract,
+    ...openbbOverdueContract,
+    ...openbbPriceFreshnessContract,
+  },
   sectorRotation: sectorRotationContract,
   breadth90: breadth90Contract,
   goLiveDrafts: goLiveDraftsContract,
@@ -350,6 +358,7 @@ export const appContract = {
   engines: enginesContract,
   marketContext: marketContextContract,
   marketNotes: marketNotesContract,
+  marketRegime: marketRegimeContract,
   ibkrRecovery: ibkrRecoveryContract,
   nautilusArm: nautilusArmContract,
   vertexOrders: vertexOrdersContract,

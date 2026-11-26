@@ -1,0 +1,437 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 340"
+  width="1120"
+  height="340"
+  role="img"
+  aria-label="Data flow from Postgres flow_option_prints to FlowOptionBubblesPanel"
+>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#eab308" />
+    </marker>
+  </defs>
+  <rect width="1120" height="340" fill="#0d1117" />
+  <text
+    x="32"
+    y="38"
+    fill="#f3f4f6"
+    font-family="system-ui, sans-serif"
+    font-size="18"
+    font-weight="700"
+  >
+    Data Flow: flow_option_prints → flow.optionBubbles → FlowOptionBubblesPanel
+  </text>
+  <text
+    x="32"
+    y="58"
+    fill="#9ca3af"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+  >
+    Read-only research path · Zero new DB tables or migrations · SPY &amp; ES
+    (SPX)
+  </text>
+
+  <!-- Step 1: Postgres -->
+  <g transform="translate(32, 90)">
+    <rect
+      width="210"
+      height="196"
+      rx="10"
+      fill="#131922"
+      stroke="#334155"
+      stroke-width="1.4"
+    />
+    <text
+      x="16"
+      y="28"
+      fill="#60a5fa"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+    >
+      1. POSTGRES
+    </text>
+    <rect
+      x="14"
+      y="44"
+      width="182"
+      height="42"
+      rx="6"
+      fill="#1b2432"
+      stroke="#334155"
+    />
+    <text
+      x="24"
+      y="63"
+      fill="#f3f4f6"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      flow_option_prints
+    </text>
+    <text
+      x="24"
+      y="79"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      premium, right, side, price
+    </text>
+
+    <rect
+      x="14"
+      y="96"
+      width="182"
+      height="38"
+      rx="6"
+      fill="#1b2432"
+      stroke="#334155"
+    />
+    <text
+      x="24"
+      y="114"
+      fill="#f3f4f6"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      flow_option_gaps
+    </text>
+    <text
+      x="24"
+      y="128"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      open collector ranges
+    </text>
+
+    <rect
+      x="14"
+      y="144"
+      width="182"
+      height="38"
+      rx="6"
+      fill="#1b2432"
+      stroke="#334155"
+    />
+    <text
+      x="24"
+      y="162"
+      fill="#f3f4f6"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      flow_samples
+    </text>
+    <text
+      x="24"
+      y="176"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      options source freshness
+    </text>
+  </g>
+
+  <line
+    x1="242"
+    y1="188"
+    x2="286"
+    y2="188"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Step 2: Repository -->
+  <g transform="translate(292, 90)">
+    <rect
+      width="230"
+      height="196"
+      rx="10"
+      fill="#131922"
+      stroke="#334155"
+      stroke-width="1.4"
+    />
+    <text
+      x="16"
+      y="28"
+      fill="#a78bfa"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+    >
+      2. REPOSITORY (Drizzle)
+    </text>
+    <text
+      x="16"
+      y="54"
+      fill="#e5e7eb"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      newestOptionPrintAt()
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      → NY session [09:30, 16:15)
+    </text>
+    <text
+      x="16"
+      y="102"
+      fill="#e5e7eb"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      readOptionPrintMinutes()
+    </text>
+    <text
+      x="16"
+      y="120"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      → 1m underlying price &amp; totals
+    </text>
+    <text
+      x="16"
+      y="150"
+      fill="#4ade80"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      readLargeOptionPrints()
+    </text>
+    <text
+      x="16"
+      y="168"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      → top 120+1 ≥ minPremiumUsd
+    </text>
+  </g>
+
+  <line
+    x1="522"
+    y1="188"
+    x2="566"
+    y2="188"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Step 3: API Contract & Pure Rules -->
+  <g transform="translate(572, 90)">
+    <rect
+      width="234"
+      height="196"
+      rx="10"
+      fill="#131922"
+      stroke="#334155"
+      stroke-width="1.4"
+    />
+    <text
+      x="16"
+      y="28"
+      fill="#fbbf24"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+    >
+      3. oRPC + PURE RULES
+    </text>
+    <text
+      x="16"
+      y="54"
+      fill="#f3f4f6"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      GET /flow/option-bubbles
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      flow-option-bubbles.v1
+    </text>
+    <text
+      x="16"
+      y="102"
+      fill="#e5e7eb"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      foldOptionBubbles()
+    </text>
+    <text
+      x="16"
+      y="120"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      • OPTION_SIDE_SIGN direction
+    </text>
+    <text
+      x="16"
+      y="138"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      • Unplotted &amp; gap accounting
+    </text>
+    <text
+      x="16"
+      y="156"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      • Chronological sort &amp; cap
+    </text>
+    <text
+      x="16"
+      y="178"
+      fill="#4ade80"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      requireOperator (GET viewer ok)
+    </text>
+  </g>
+
+  <line
+    x1="806"
+    y1="188"
+    x2="850"
+    y2="188"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Step 4: Portal UI -->
+  <g transform="translate(856, 90)">
+    <rect
+      width="232"
+      height="196"
+      rx="10"
+      fill="#131922"
+      stroke="#22c55e"
+      stroke-width="1.4"
+    />
+    <text
+      x="16"
+      y="28"
+      fill="#4ade80"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+    >
+      4. /flow PORTAL UI
+    </text>
+    <text
+      x="16"
+      y="54"
+      fill="#f3f4f6"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      FlowOptionBubblesPanel
+    </text>
+    <text
+      x="16"
+      y="76"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Price line + √premium bubbles
+    </text>
+    <text
+      x="16"
+      y="96"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Call/Put colour + C/P glyph
+    </text>
+    <text
+      x="16"
+      y="116"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Ask fill / Bid ring / Mid dash
+    </text>
+    <text
+      x="16"
+      y="136"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Keyboard &amp; pinned inspector
+    </text>
+    <text
+      x="16"
+      y="156"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Synced accessible print table
+    </text>
+    <text
+      x="16"
+      y="178"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      Dark + light · 375–1440 px
+    </text>
+  </g>
+
+  <!-- Footer note -->
+  <text
+    x="32"
+    y="316"
+    fill="#6b7280"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Research view only: no orders, no arming, no risk settings, no live broker
+    writes.
+  </text>
+</svg>

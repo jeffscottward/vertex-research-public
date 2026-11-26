@@ -100,10 +100,18 @@ const FAILURES: Readonly<Record<MarketDataErrorCode, Failure>> = {
   ],
   UPSTREAM_ERROR: ["UPSTREAM_ERROR", "IBKR option quotes request failed"],
 };
-// HTTP statuses with their own meaning here. 403: the service's option quotes switch is off.
-// 404: unknown symbol or expiry, or a service before 1.4.0. The status is read from the response
-// itself: the transport's error message can repeat upstream body text, so it is never parsed.
+// HTTP statuses with their own meaning here. 401: upstream bearer token rejected.
+// 403: the service's option quotes switch is off. 404: unknown symbol or expiry, or a service
+// before 1.4.0. The status is read from the response itself: the transport's error message can
+// repeat upstream body text, so it is never parsed.
 const HTTP_FAILURES: ReadonlyMap<number | null, Failure> = new Map([
+  [
+    401,
+    [
+      "UPSTREAM_ERROR",
+      "IBKR history service returned HTTP 401 (authentication failed — check VERTEX_DEPLOY_STATUS_TOKEN)",
+    ],
+  ],
   [403, ["off", "IBKR option quotes are switched off on the history service"]],
   [404, FAILURES.NOT_FOUND],
 ]);

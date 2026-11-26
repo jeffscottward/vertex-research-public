@@ -1,0 +1,765 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 660"
+  width="1200"
+  height="660"
+  role="img"
+  aria-label="Before and after comparison of /flow option print bubbles on the price chart (MOCK)"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#090c10" />
+    </linearGradient>
+    <pattern
+      id="gapHatch"
+      width="8"
+      height="8"
+      patternUnits="userSpaceOnUse"
+      patternTransform="rotate(45)"
+    >
+      <line
+        x1="0"
+        y1="0"
+        x2="0"
+        y2="8"
+        stroke="#9ca3af"
+        stroke-width="1.5"
+        stroke-opacity="0.22"
+      />
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="660" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="36"
+    y="42"
+    fill="#f3f4f6"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    Big Option Prints as Bubbles on the Price Chart (O13)
+  </text>
+  <text
+    x="36"
+    y="64"
+    fill="#9ca3af"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    /flow · SPY &amp; SPX (ES) · Stored flow_option_prints · Research view only
+  </text>
+  <rect
+    x="1084"
+    y="22"
+    width="80"
+    height="28"
+    rx="6"
+    fill="#2d1f0b"
+    stroke="#d97706"
+    stroke-width="1.5"
+  />
+  <text
+    x="1124"
+    y="41"
+    text-anchor="middle"
+    fill="#fbbf24"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    MOCK
+  </text>
+
+  <!-- LEFT: BEFORE -->
+  <rect
+    x="36"
+    y="88"
+    width="410"
+    height="536"
+    rx="12"
+    fill="#131922"
+    stroke="#263040"
+    stroke-width="1.2"
+  />
+  <rect
+    x="54"
+    y="106"
+    width="82"
+    height="24"
+    rx="5"
+    fill="#1f2937"
+    stroke="#374151"
+  />
+  <text
+    x="95"
+    y="122"
+    text-anchor="middle"
+    fill="#9ca3af"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="148"
+    y="123"
+    fill="#e5e7eb"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    Top prints table only
+  </text>
+
+  <!-- Abstract table illustration -->
+  <g transform="translate(54, 150)">
+    <rect width="374" height="32" rx="4" fill="#1b2330" />
+    <text
+      x="12"
+      y="20"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      TIME
+    </text>
+    <text
+      x="72"
+      y="20"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      CONTRACT
+    </text>
+    <text
+      x="200"
+      y="20"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      PREMIUM
+    </text>
+    <text
+      x="292"
+      y="20"
+      fill="#9ca3af"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      SIDE
+    </text>
+
+    <g font-family="ui-monospace, monospace" font-size="11">
+      <rect y="38" width="374" height="30" rx="3" fill="#161d28" />
+      <text x="12" y="57" fill="#d1d5db">10:14</text>
+      <text x="72" y="57" fill="#4ade80">685C</text>
+      <text x="200" y="57" fill="#f3f4f6">$1.42M</text>
+      <text x="292" y="57" fill="#9ca3af">Above ask</text>
+
+      <rect y="74" width="374" height="30" rx="3" fill="#161d28" />
+      <text x="12" y="93" fill="#d1d5db">11:08</text>
+      <text x="72" y="93" fill="#f87171">680P</text>
+      <text x="200" y="93" fill="#f3f4f6">$980K</text>
+      <text x="292" y="93" fill="#9ca3af">Ask</text>
+
+      <rect y="110" width="374" height="30" rx="3" fill="#161d28" />
+      <text x="12" y="129" fill="#d1d5db">12:41</text>
+      <text x="72" y="129" fill="#4ade80">688C</text>
+      <text x="200" y="129" fill="#f3f4f6">$610K</text>
+      <text x="292" y="129" fill="#9ca3af">Bid</text>
+
+      <rect y="146" width="374" height="30" rx="3" fill="#161d28" />
+      <text x="12" y="165" fill="#d1d5db">14:15</text>
+      <text x="72" y="165" fill="#f87171">682P</text>
+      <text x="200" y="165" fill="#f3f4f6">$1.85M</text>
+      <text x="292" y="165" fill="#9ca3af">Above ask</text>
+
+      <rect y="182" width="374" height="30" rx="3" fill="#161d28" />
+      <text x="12" y="201" fill="#d1d5db">15:10</text>
+      <text x="72" y="201" fill="#4ade80">684C</text>
+      <text x="200" y="201" fill="#f3f4f6">$440K</text>
+      <text x="292" y="201" fill="#9ca3af">Mid</text>
+    </g>
+
+    <!-- Visual gap indicator: flat empty chart space -->
+    <rect
+      y="236"
+      width="374"
+      height="148"
+      rx="8"
+      fill="#0f141c"
+      stroke="#263040"
+      stroke-dasharray="5 5"
+    />
+    <polyline
+      points="24,335 90,320 155,342 225,295 295,310 350,278"
+      fill="none"
+      stroke="#4b5563"
+      stroke-width="1.5"
+      stroke-dasharray="4 4"
+    />
+    <text
+      x="187"
+      y="308"
+      text-anchor="middle"
+      fill="#6b7280"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+    >
+      No price-path placement
+    </text>
+    <text
+      x="187"
+      y="328"
+      text-anchor="middle"
+      fill="#6b7280"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      Hard to see whether prints hit highs, lows, or reversals
+    </text>
+  </g>
+
+  <!-- Arrow between Before and After -->
+  <g transform="translate(454, 344)">
+    <line x1="0" y1="0" x2="26" y2="0" stroke="#eab308" stroke-width="2.5" />
+    <polygon points="24,-7 38,0 24,7" fill="#eab308" />
+  </g>
+
+  <!-- RIGHT: AFTER -->
+  <rect
+    x="502"
+    y="88"
+    width="662"
+    height="536"
+    rx="12"
+    fill="#131922"
+    stroke="#334155"
+    stroke-width="1.4"
+  />
+  <rect
+    x="522"
+    y="106"
+    width="76"
+    height="24"
+    rx="5"
+    fill="#0f291e"
+    stroke="#22c55e"
+  />
+  <text
+    x="560"
+    y="122"
+    text-anchor="middle"
+    fill="#4ade80"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="610"
+    y="123"
+    fill="#f3f4f6"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    SPY option print bubbles · 2026-11-24
+  </text>
+
+  <!-- Controls pills -->
+  <g
+    transform="translate(888, 105)"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    <rect
+      x="0"
+      y="0"
+      width="46"
+      height="24"
+      rx="4"
+      fill="#1b2330"
+      stroke="#334155"
+    />
+    <text x="23" y="16" text-anchor="middle" fill="#9ca3af">$100K</text>
+    <rect
+      x="50"
+      y="0"
+      width="46"
+      height="24"
+      rx="4"
+      fill="#253245"
+      stroke="#eab308"
+    />
+    <text x="73" y="16" text-anchor="middle" fill="#fde047" font-weight="700">
+      $250K
+    </text>
+    <rect
+      x="100"
+      y="0"
+      width="46"
+      height="24"
+      rx="4"
+      fill="#1b2330"
+      stroke="#334155"
+    />
+    <text x="123" y="16" text-anchor="middle" fill="#9ca3af">$500K</text>
+    <rect
+      x="150"
+      y="0"
+      width="40"
+      height="24"
+      rx="4"
+      fill="#1b2330"
+      stroke="#334155"
+    />
+    <text x="170" y="16" text-anchor="middle" fill="#9ca3af">$1M</text>
+  </g>
+
+  <!-- Legend bar -->
+  <g
+    transform="translate(522, 146)"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    fill="#cbd5e1"
+  >
+    <!-- Call ask (filled green) -->
+    <circle
+      cx="8"
+      cy="8"
+      r="6"
+      fill="#22c55e"
+      fill-opacity="0.78"
+      stroke="#22c55e"
+      stroke-width="1.5"
+    />
+    <text x="20" y="12">Call</text>
+    <!-- Put ask (filled red) -->
+    <circle
+      cx="62"
+      cy="8"
+      r="6"
+      fill="#ef4444"
+      fill-opacity="0.78"
+      stroke="#ef4444"
+      stroke-width="1.5"
+    />
+    <text x="74" y="12">Put</text>
+    <!-- Ask filled -->
+    <circle
+      cx="118"
+      cy="8"
+      r="6"
+      fill="#94a3b8"
+      fill-opacity="0.78"
+      stroke="#cbd5e1"
+      stroke-width="1.5"
+    />
+    <text x="130" y="12">Ask / Above ask</text>
+    <!-- Bid hollow -->
+    <circle
+      cx="236"
+      cy="8"
+      r="6"
+      fill="#94a3b8"
+      fill-opacity="0.14"
+      stroke="#cbd5e1"
+      stroke-width="2.2"
+    />
+    <text x="248" y="12">Bid / Below bid</text>
+    <!-- Mid dashed -->
+    <circle
+      cx="354"
+      cy="8"
+      r="6"
+      fill="#94a3b8"
+      fill-opacity="0.18"
+      stroke="#cbd5e1"
+      stroke-width="1.6"
+      stroke-dasharray="3 2"
+    />
+    <text x="366" y="12">Mid / Unclassified</text>
+    <!-- Size scale -->
+    <circle
+      cx="496"
+      cy="10"
+      r="4"
+      fill="none"
+      stroke="#94a3b8"
+      stroke-width="1.2"
+    />
+    <circle
+      cx="512"
+      cy="8"
+      r="7"
+      fill="none"
+      stroke="#94a3b8"
+      stroke-width="1.2"
+    />
+    <circle
+      cx="534"
+      cy="6"
+      r="10"
+      fill="none"
+      stroke="#94a3b8"
+      stroke-width="1.2"
+    />
+    <text x="550" y="12" fill="#9ca3af">Size = premium</text>
+  </g>
+
+  <!-- Main Price Chart Plot Area -->
+  <g transform="translate(522, 174)">
+    <rect width="622" height="316" rx="8" fill="#0b1017" stroke="#1e293b" />
+
+    <!-- Horizontal gridlines & Y price ticks -->
+    <g stroke="#1e293b" stroke-dasharray="3 3" stroke-width="1">
+      <line x1="56" y1="32" x2="604" y2="32" />
+      <line x1="56" y1="92" x2="604" y2="92" />
+      <line x1="56" y1="152" x2="604" y2="152" />
+      <line x1="56" y1="212" x2="604" y2="212" />
+      <line x1="56" y1="272" x2="604" y2="272" />
+    </g>
+    <g
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      text-anchor="end"
+    >
+      <text x="48" y="36">686.00</text>
+      <text x="48" y="96">684.50</text>
+      <text x="48" y="156">683.00</text>
+      <text x="48" y="216">681.50</text>
+      <text x="48" y="276">680.00</text>
+    </g>
+
+    <!-- Open collector gap hatch -->
+    <rect
+      x="332"
+      y="20"
+      width="44"
+      height="264"
+      fill="url(#gapHatch)"
+      stroke="#475569"
+      stroke-opacity="0.35"
+    />
+    <text
+      x="354"
+      y="36"
+      text-anchor="middle"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+    >
+      GAP
+    </text>
+
+    <!-- Latest spot reference line -->
+    <line
+      x1="56"
+      y1="78"
+      x2="604"
+      y2="78"
+      stroke="#eab308"
+      stroke-dasharray="4 4"
+      stroke-opacity="0.65"
+      stroke-width="1.2"
+    />
+    <rect
+      x="550"
+      y="68"
+      width="52"
+      height="18"
+      rx="3"
+      fill="#2d1f0b"
+      stroke="#eab308"
+      stroke-width="0.8"
+    />
+    <text
+      x="576"
+      y="80"
+      text-anchor="middle"
+      fill="#fde047"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+    >
+      684.85
+    </text>
+
+    <!-- Underlying price line (segmented around gap) -->
+    <polyline
+      points="68,224 102,212 136,184 170,156 204,174 238,142 272,118 306,130 330,124"
+      fill="none"
+      stroke="#e2e8f0"
+      stroke-width="2"
+      stroke-linejoin="round"
+    />
+    <polyline
+      points="378,136 412,158 446,182 480,126 514,98 548,88 588,78"
+      fill="none"
+      stroke="#e2e8f0"
+      stroke-width="2"
+      stroke-linejoin="round"
+    />
+
+    <!-- Option print bubbles (drawn large-to-small; size = sqrt(premium)) -->
+    <!-- Huge Put Above Ask ($1.85M) at 14:15 near 682.2 -->
+    <circle
+      cx="446"
+      cy="182"
+      r="24"
+      fill="none"
+      stroke="#ef4444"
+      stroke-opacity="0.45"
+      stroke-width="1.5"
+    />
+    <circle
+      cx="446"
+      cy="182"
+      r="20"
+      fill="#ef4444"
+      fill-opacity="0.72"
+      stroke="#fca5a5"
+      stroke-width="1.8"
+    />
+    <text
+      x="446"
+      y="186"
+      text-anchor="middle"
+      fill="#090c10"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      P
+    </text>
+
+    <!-- Big Call Above Ask ($1.42M) at 10:14 near 683.4 (selected) -->
+    <circle
+      cx="136"
+      cy="184"
+      r="22"
+      fill="none"
+      stroke="#facc15"
+      stroke-width="2"
+    />
+    <circle
+      cx="136"
+      cy="184"
+      r="18"
+      fill="#22c55e"
+      fill-opacity="0.76"
+      stroke="#86efac"
+      stroke-width="1.6"
+    />
+    <text
+      x="136"
+      y="188"
+      text-anchor="middle"
+      fill="#090c10"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      C
+    </text>
+
+    <!-- Call Ask ($1.15M) at 15:02 near 684.4 -->
+    <circle
+      cx="514"
+      cy="98"
+      r="16"
+      fill="#22c55e"
+      fill-opacity="0.74"
+      stroke="#86efac"
+      stroke-width="1.5"
+    />
+    <text
+      x="514"
+      y="102"
+      text-anchor="middle"
+      fill="#090c10"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+    >
+      C
+    </text>
+
+    <!-- Put Ask ($980K) at 11:08 near 683.8 -->
+    <circle
+      cx="204"
+      cy="174"
+      r="14"
+      fill="#ef4444"
+      fill-opacity="0.74"
+      stroke="#fca5a5"
+      stroke-width="1.5"
+    />
+    <text
+      x="204"
+      y="178"
+      text-anchor="middle"
+      fill="#090c10"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+    >
+      P
+    </text>
+
+    <!-- Call Bid ($610K) hollow ring at 12:04 near 684.1 -->
+    <circle
+      cx="272"
+      cy="118"
+      r="12"
+      fill="#22c55e"
+      fill-opacity="0.14"
+      stroke="#4ade80"
+      stroke-width="2.4"
+    />
+    <text
+      x="272"
+      y="122"
+      text-anchor="middle"
+      fill="#e2e8f0"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+      font-weight="700"
+    >
+      C
+    </text>
+
+    <!-- Put Bid ($520K) hollow ring at 14:40 near 683.7 -->
+    <circle
+      cx="480"
+      cy="126"
+      r="11"
+      fill="#ef4444"
+      fill-opacity="0.14"
+      stroke="#f87171"
+      stroke-width="2.4"
+    />
+    <text
+      x="480"
+      y="130"
+      text-anchor="middle"
+      fill="#e2e8f0"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+      font-weight="700"
+    >
+      P
+    </text>
+
+    <!-- Call Mid ($440K) dashed ring at 15:30 near 684.6 -->
+    <circle
+      cx="548"
+      cy="88"
+      r="10"
+      fill="#22c55e"
+      fill-opacity="0.18"
+      stroke="#4ade80"
+      stroke-width="1.8"
+      stroke-dasharray="3 2"
+    />
+    <text
+      x="548"
+      y="92"
+      text-anchor="middle"
+      fill="#e2e8f0"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+      font-weight="700"
+    >
+      C
+    </text>
+
+    <!-- Smaller Call Ask ($280K) at 09:48 -->
+    <circle
+      cx="102"
+      cy="212"
+      r="7"
+      fill="#22c55e"
+      fill-opacity="0.78"
+      stroke="#86efac"
+      stroke-width="1.2"
+    />
+
+    <!-- X-axis time ticks -->
+    <g
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      text-anchor="middle"
+    >
+      <text x="68" y="302">09:30</text>
+      <text x="176" y="302">11:00</text>
+      <text x="284" y="302">12:30</text>
+      <text x="392" y="302">14:00</text>
+      <text x="500" y="302">15:30</text>
+      <text x="592" y="302">16:15 ET</text>
+    </g>
+  </g>
+
+  <!-- Pinned Inspector Strip -->
+  <g transform="translate(522, 504)">
+    <rect
+      width="622"
+      height="44"
+      rx="7"
+      fill="#18202c"
+      stroke="#eab308"
+      stroke-opacity="0.55"
+    />
+    <text
+      x="14"
+      y="20"
+      fill="#fde047"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+    >
+      SELECTED: SPY 2026-11-28 685C · 10:14:22 ET
+    </text>
+    <text
+      x="14"
+      y="36"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      $1.42M · 4,200 @ $3.38 · Above ask (Bullish) · Underlying 682.20 · Golden
+      sweep
+    </text>
+  </g>
+
+  <!-- Totals Strip -->
+  <g
+    transform="translate(522, 560)"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    <rect width="622" height="44" rx="7" fill="#111722" stroke="#1e293b" />
+    <text x="14" y="26" fill="#9ca3af">
+      Bubbles:
+      <tspan fill="#f3f4f6" font-weight="700">8</tspan>
+      · Calls
+      <tspan fill="#4ade80" font-weight="700">$3.90M</tspan>
+      · Puts
+      <tspan fill="#f87171" font-weight="700">$3.35M</tspan>
+      · Ask-side
+      <tspan fill="#f3f4f6">$5.68M</tspan>
+      · Bid-side
+      <tspan fill="#f3f4f6">$1.13M</tspan>
+    </text>
+  </g>
+</svg>

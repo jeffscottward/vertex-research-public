@@ -1532,9 +1532,9 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_7_1(self):
+    def test_health_reports_1_8_0(self):
         svc, _gw, _c = make_service()
-        self.assertEqual(svc.health()[1]["version"], "1.7.1")
+        self.assertEqual(svc.health()[1]["version"], "1.8.0")
 
 
 class IbapiPinTest(unittest.TestCase):
@@ -1741,7 +1741,7 @@ class OptionChainTest(unittest.TestCase):
             self.assertIn("VERTEX_HISTORY_OPTION_QUOTES", body["message"])
         self.assertEqual((gw._client.calls, connects, svc.logs), ([], [], []))
         health = make_service()[0].health()[1]
-        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.7.1"))
+        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.8.0"))
         self.assertEqual(make_service(option_quotes=True)[0].health()[1]["optionQuotes"], True)
 
     def test_happy_path_shape_order_and_nearest_strikes(self):
@@ -2305,7 +2305,7 @@ class OptionChainTest(unittest.TestCase):
                     self.assertEqual(gw.calls, [])
                 self.assertEqual(call("/option-chain?symbol=SPY", token=None)[0], 401)
                 self.assertEqual(call("/health")[1]["optionQuotes"], enabled)
-                self.assertEqual(call("/health")[1]["version"], "1.7.1")
+                self.assertEqual(call("/health")[1]["version"], "1.8.0")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -4395,6 +4395,161 @@ class DepthStreamAndHistoryTest(unittest.TestCase):
         self.assertEqual(warm_body["error"], "unavailable")
         self.assertEqual(len(gw.calls), 0)
         self.assertEqual(bad_status, 400)
+
+
+
+class LiveDomTest(unittest.TestCase):
+    """Tests for 1.8.0 uncached GET /dom (live CME L2 + unsettled signed tape volume)."""
+
+    def test_validate_dom_defaults_bounds_and_rejections(self):
+        self.assertEqual(
+            vh.validate_dom(q(symbol="es")),
+            {"symbol": "ES", "rows": 10, "windowSeconds": 900, "since": None},
+        )
+        self.assertEqual(
+            vh.validate_dom(q(symbol="NQ", rows="5", windowSeconds="3600", since="1763900000")),
+            {"symbol": "NQ", "rows": 5, "windowSeconds": 3600, "since": 1763900000},
+        )
+        for bad in (
+            q(symbol="SPY"),
+            q(symbol="ES", rows="0"),
+            q(symbol="ES", rows="11"),
+            q(symbol="ES", windowSeconds="60"),
+            q(symbol="ES", windowSeconds="abc"),
+            q(symbol="ES", since="0"),
+            q(symbol="ES", since="-5"),
+            q(symbol="ES", extra="1"),
+        ):
+            with self.assertRaises(vh.BadRequest):
+                vh.validate_dom(bad)
+
+    def test_depth_feed_live_dom_book_filters_and_aggregates_before_slicing(self):
+        feed = vh.DepthFeed("ES")
+        info = {"conId": 42, "localSymbol": "ESZ6", "exchange": "CME", "currency": "USD"}
+        feed.attach(info, 0.25, 901, 1000.0)
+        # Unsettled before DEPTH_SETTLE_SECONDS -> empty book, starting state
+        feed.update(1000.2, 0, 0, 1, 6000.0, 10.0)
+        early = feed.live_dom_book(10, 1000.5)
+        self.assertEqual(early["bids"], [])
+        self.assertEqual(early["depthStream"]["state"], "starting")
+        # Duplicate bid price + zero-size invalid ask level that must not crowd out valid levels
+        feed.update(1001.5, 0, 1, 1, 6000.0, 15.0)
+        feed.update(1001.5, 1, 0, 1, 6000.0, 25.0)
+        feed.update(1001.5, 2, 0, 1, 5999.75, 10.0)
+        feed.update(1001.5, 0, 0, 0, 6000.25, 0.0)
+        feed.update(1001.5, 1, 0, 0, 6000.50, 30.0)
+        feed.update(1001.5, 2, 0, 0, 6000.75, 40.0)
+        live = feed.live_dom_book(2, 1002.0)
+        self.assertEqual(live["depthStream"]["state"], "live")
+        self.assertEqual(live["bids"], [[6000.0, 40.0], [5999.75, 10.0]])
+        self.assertEqual(live["asks"], [[6000.50, 30.0], [6000.75, 40.0]])
+        # Halted / off states suppress live book and report exact state
+        off = feed.live_dom_book(10, 1002.0, halted="switched off")
+        self.assertEqual(off["bids"], [])
+        self.assertEqual(off["depthStream"]["state"], "off")
+        halted = feed.live_dom_book(10, 1002.0, halted="account U1234567 cap")
+        self.assertEqual(halted["depthStream"]["state"], "halted")
+        self.assertNotIn("U1234567", halted["depthStream"]["error"])
+
+    def test_tape_feed_rollover_clears_ring_and_live_volume_signs_caches_and_caps(self):
+        feed = vh.TapeFeed("ES")
+        old_info = {"conId": 100, "localSymbol": "ESU6", "exchange": "CME", "currency": "USD"}
+        new_info = {"conId": 200, "localSymbol": "ESZ6", "exchange": "CME", "currency": "USD"}
+        feed.attach(old_info, 0.25, 1, 1000.0)
+        feed.trades_on(2, 1016.0)
+        feed.quote(1017.0, 5900.0, 5900.25)
+        feed.trade(1018.0, 1018, 5900.25, 50)
+        self.assertEqual(len(feed.prints), 1)
+        # Contract rollover clears old contract prints
+        feed.attach(new_info, 0.25, 3, 2000.0)
+        self.assertEqual(len(feed.prints), 0)
+        feed.trades_on(4, 2016.0)
+        # Pre-cutoff seeds for zero-tick rule: 6000.00 -> 6000.25 (uptick)
+        feed.trade(2020.0, 2020, 6000.0, 1)
+        feed.trade(2021.0, 2021, 6000.25, 1)
+        feed.trade(2022.0, 2022, 6000.25, 1)
+        # In-window prints (now=3000, window=900 -> cutoff=2100):
+        # 1) No quote -> tick rule zero-tick uses seed (6000.25 > 6000.0 -> buy)
+        feed.trade(2500.0, 2500, 6000.25, 10)
+        # 2) With valid quote -> quote rule (buy at ask, sell at bid)
+        feed.quote(2505.0, 6000.25, 6000.50)
+        feed.trade(2506.0, 2506, 6000.50, 25)
+        feed.trade(2507.0, 2507, 6000.25, 15)
+        # 3) Unsettled print at now (zero settle delay!)
+        feed.trade(3000.0, 3000, 6000.50, 5)
+        vol = feed.live_volume(900, 3000.0)
+        self.assertEqual(vol["tapeStream"]["state"], "live")
+        self.assertEqual(vol["tapeSeq"], 8)
+        self.assertEqual(vol["lastTrade"], {"t": 3000, "price": 6000.5, "size": 5, "side": "buy"})
+        by_price = {row[0]: row[1:] for row in vol["volumeByPrice"]}
+        self.assertEqual(by_price[6000.5], [30.0, 0.0, 0.0, 2])
+        self.assertEqual(by_price[6000.25], [10.0, 15.0, 0.0, 2])
+        # Second call at same (tapeSeq, cutoff) hits cache
+        vol2 = feed.live_volume(900, 3000.0)
+        self.assertEqual(vol2["volumeByPrice"], vol["volumeByPrice"])
+        # Exact server-side `since` reset filters out earlier prints cleanly
+        reset_vol = feed.live_volume(900, 3000.0, since=2999)
+        self.assertEqual(reset_vol["since"], 2999)
+        self.assertEqual(reset_vol["volumeByPrice"], [[6000.5, 5.0, 0.0, 0.0, 1]])
+        # Level capping at DOM_MAX_VOLUME_LEVELS retains POC even when far from anchor
+        feed_cap = vh.TapeFeed("NQ")
+        feed_cap.attach(new_info, 0.25, 10, 4000.0)
+        feed_cap.trades_on(11, 4016.0)
+        feed_cap.trade(4020.0, 4020, 20000.0, 5000)  # far POC
+        for i in range(1, vh.DOM_MAX_VOLUME_LEVELS + 30):
+            feed_cap.trade(4020.0 + i * 0.01, 4020 + i, 20000.0 + i * 0.25, 1)
+        capped = feed_cap.live_volume(900, 4300.0)
+        self.assertEqual(len(capped["volumeByPrice"]), vh.DOM_MAX_VOLUME_LEVELS)
+        prices = [r[0] for r in capped["volumeByPrice"]]
+        self.assertIn(20000.0, prices)
+
+    def test_service_dom_and_http_routing(self):
+        svc, gw, clock = make_service()
+        t0 = clock()
+        info = {"conId": 42, "localSymbol": "ESZ6", "exchange": "CME", "currency": "USD"}
+        es_depth = svc.depth_stream.feeds["ES"]
+        es_depth.attach(info, 0.25, 801, t0)
+        es_depth.update(t0 + 0.1, 0, 0, 1, 6012.25, 68.0)
+        es_depth.update(t0 + 0.1, 0, 0, 0, 6012.50, 52.0)
+        es_tape = svc.tape_stream.feeds["ES"]
+        es_tape.attach(info, 0.25, 802, t0)
+        es_tape.trades_on(803, t0 + 0.2)
+        es_tape.quote(t0 + 0.3, 6012.25, 6012.50)
+        es_tape.trade(t0 + 0.5, int(t0), 6012.50, 6)
+        clock.sleep(2.0)
+        status, body = svc.dom(q(symbol="ES", rows="10", windowSeconds="900"))
+        self.assertEqual(status, 200)
+        self.assertEqual(len(gw.calls), 0)
+        self.assertEqual(body["schema"], vh.DOM_SCHEMA)
+        self.assertEqual(body["bids"], [[6012.25, 68.0]])
+        self.assertEqual(body["asks"], [[6012.50, 52.0]])
+        self.assertEqual(body["lastTrade"]["side"], "buy")
+        self.assertEqual(body["volumeByPrice"], [[6012.50, 6.0, 0.0, 0.0, 1]])
+        self.assertEqual(body["depthStream"]["state"], "live")
+        self.assertEqual(body["tapeStream"]["state"], "live")
+        # Invalid request returns 400
+        bad_status, _ = svc.dom(q(symbol="SPY"))
+        self.assertEqual(bad_status, 400)
+        # HTTP server routes /dom with bearer auth
+        token = "t" * 40
+        server = vh.ThreadingHTTPServer(("127.0.0.1", 0), vh.make_handler(svc, token))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_address[1]
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}{vh.PREFIX}/dom?symbol=ES&rows=10&windowSeconds=900",
+                headers={"Authorization": "Bearer " + token},
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                self.assertEqual(resp.status, 200)
+                parsed = json.loads(resp.read().decode())
+                self.assertEqual(parsed["schema"], vh.DOM_SCHEMA)
+                self.assertEqual(parsed["symbol"], "ES")
+        finally:
+            server.shutdown()
+            server.server_close()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

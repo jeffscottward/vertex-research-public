@@ -18,10 +18,13 @@ import {
   OPENBB_INSIDER_CLUSTER_SPAN_DAYS,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
+  OPENBB_JOB_METADATA,
   OPENBB_PRICE_SERIES_IDS,
   OPENBB_PRICE_SERIES_KINDS,
   OPENBB_VOL_INDEX_IDS,
   type Openbb13fChange,
+  type OpenbbMacroOutput,
+  type OpenbbVolContextOutput,
   openbbBlockedRetryAt,
   openbbIsPriceSeriesId,
   SEC_FORM4_DEFAULT_DAYS,
@@ -33,7 +36,9 @@ import {
   openbbIvOneYear,
   openbbVolIndexProxy,
 } from "../openbb-iv-standing.ts";
+import { evaluateForm4Overdue } from "../openbb-overdue.ts";
 import type { ApiContext } from "./context.ts";
+import { loadOpenbbSourceEvaluation } from "./openbb-overdue.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
@@ -83,8 +88,8 @@ const NY_DATE = new Intl.DateTimeFormat("en-CA", {
 });
 
 /** Calendar date in New York (`YYYY-MM-DD`) shifted by `days`. */
-const nyDate = (days = 0, from?: string): string => {
-  const base = from ?? NY_DATE.format(clock());
+const nyDate = (days = 0, from?: string, now: Date = clock()): string => {
+  const base = from ?? NY_DATE.format(now);
   return new Date(Date.parse(`${base}T00:00:00Z`) + days * DAY_MS)
     .toISOString()
     .slice(0, 10);
@@ -399,13 +404,23 @@ const status = api.openbb.status
   .use(requireOperator)
   .handler(async ({ context, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
+    const now = clock();
     const [runs, streaks, tables] = await Promise.all([
       openbb.latestRuns(),
       openbb.blockedStreaks(),
       openbb.tableStats(),
     ]);
+    const evaluated = await loadOpenbbSourceEvaluation({
+      flow: context.repositories.flow,
+      includeFlowSamples: true,
+      now,
+      openbb,
+      tables,
+    });
     const streakOf = new Map(streaks.map((streak) => [streak.job, streak]));
     return {
+      checkedAt: now,
+      overdueCount: evaluated.sources.filter((source) => source.overdue).length,
       runs: runs.map((run) => {
         const streak = streakOf.get(run.job);
         // A run recorded between the two reads can leave a streak without its blocked newest run.
@@ -420,82 +435,116 @@ const status = api.openbb.status
           },
         };
       }),
+      sources: evaluated.sources,
       tables,
     };
   });
 
+/** Reads OpenBB vol context from Postgres; shared by openbb.volContext and marketRegime.get. */
+export const readOpenbbVolContext = async (
+  openbb: OpenbbRepository,
+  series: MarketDailySeriesRepository,
+  asOf: string | null = null,
+  now: Date = clock()
+): Promise<OpenbbVolContextOutput> => {
+  const [loaded, curveDates, ivRows, term] = await Promise.all([
+    series.loadSeries(OPENBB_VOL_INDEX_IDS, {
+      from: nyDate(-VOL_INDEX_LOOKBACK_DAYS, asOf ?? undefined, now),
+      ...(asOf === null ? {} : { to: asOf }),
+    }),
+    openbb.vxCurveDates(asOf, VX_EARLIER_SESSIONS + 1),
+    openbb.optionIvDaily(OPENBB_CORE7, asOf, OPENBB_IV_PERCENTILE_SESSIONS),
+    openbb.optionIvTermLatest(asOf),
+  ]);
+  const closesCutoff = nyDate(-CLOSES_LOOKBACK_DAYS, asOf ?? undefined, now);
+  const indices = OPENBB_VOL_INDEX_IDS.flatMap((id) => {
+    const columns = loaded.get(id);
+    const date = columns?.dates.at(-1);
+    return columns === undefined || date === undefined || date < closesCutoff
+      ? []
+      : [{ close: columns.close.at(-1) as number, date, id }];
+  });
+  const close = (id: string) => indices.find((index) => index.id === id);
+  const latestDate = curveDates[0];
+  const earlierDate = curveDates[VX_EARLIER_SESSIONS];
+  const curveRows = await openbb.vxCurve(
+    [latestDate, earlierDate].filter((day) => day !== undefined)
+  );
+  const curve = (day: string | undefined) =>
+    day === undefined
+      ? null
+      : {
+          asOf: day,
+          points: curveRows
+            .filter((row) => row.asOf === day)
+            .map(({ contractMonth, price }) => ({ contractMonth, price })),
+        };
+  const ivOneYear = openbbIvOneYear(OPENBB_CORE7, ivRows, loaded);
+  const ivDaily = OPENBB_CORE7.flatMap((underlying) => {
+    const rows = ivRows.filter((row) => row.underlying === underlying);
+    const latest = rows.at(-1);
+    return latest === undefined
+      ? []
+      : [
+          {
+            ...latest,
+            ivPercentile: openbbIvPercentile(rows),
+            sessions: rows.length,
+          },
+        ];
+  });
+  const dates = [
+    ...indices.map((index) => index.date),
+    ...ivDaily.map((row) => row.asOf),
+    ...curveDates.slice(0, 1),
+  ].sort();
+  return {
+    asOf: dates.at(-1) ?? null,
+    indices,
+    ivDaily,
+    ivOneYear,
+    ratios: {
+      vix3mVix6m: ratio(close("VIX3M"), close("VIX6M")),
+      vix9dVix: ratio(close("VIX9D"), close("VIX")),
+      vixVix3m: ratio(close("VIX"), close("VIX3M")),
+    },
+    term,
+    vxCurve: { earlier: curve(earlierDate), latest: curve(latestDate) },
+  };
+};
+
+/** Reads OpenBB macro series and points from Postgres; shared by openbb.macro and marketRegime.get. */
+export const readOpenbbMacro = async (
+  openbb: OpenbbRepository,
+  ids: readonly string[] | null = null,
+  fromInput?: string,
+  now: Date = clock()
+): Promise<OpenbbMacroOutput> => {
+  const from = fromInput ?? nyDate(-DEFAULT_HISTORY_DAYS, undefined, now);
+  const series = await openbb.macroSeries(ids);
+  const points = await openbb.macroPoints(
+    series.map((row) => row.id),
+    from
+  );
+  return {
+    from,
+    series: series.map((row) => ({
+      ...row,
+      points: points
+        .filter((point) => point.seriesId === row.id)
+        .map(({ date, value }) => ({ date, value })),
+    })),
+  };
+};
+
 const volContext = api.openbb.volContext
   .use(requireOperator)
-  .handler(async ({ context, input, errors }) => {
+  .handler(({ context, input, errors }) => {
     const { openbb, series } = repositoriesFor(
       context,
       errors as unknown as Failures
     );
-    const asOf = input.asOf ?? null;
-    const [loaded, curveDates, ivRows, term] = await Promise.all([
-      series.loadSeries(OPENBB_VOL_INDEX_IDS, {
-        from: nyDate(-VOL_INDEX_LOOKBACK_DAYS, asOf ?? undefined),
-        ...(asOf === null ? {} : { to: asOf }),
-      }),
-      openbb.vxCurveDates(asOf, VX_EARLIER_SESSIONS + 1),
-      openbb.optionIvDaily(OPENBB_CORE7, asOf, OPENBB_IV_PERCENTILE_SESSIONS),
-      openbb.optionIvTermLatest(asOf),
-    ]);
-    const closesCutoff = nyDate(-CLOSES_LOOKBACK_DAYS, asOf ?? undefined);
-    const indices = OPENBB_VOL_INDEX_IDS.flatMap((id) => {
-      const columns = loaded.get(id);
-      const date = columns?.dates.at(-1);
-      return columns === undefined || date === undefined || date < closesCutoff
-        ? []
-        : [{ close: columns.close.at(-1) as number, date, id }];
-    });
-    const close = (id: string) => indices.find((index) => index.id === id);
-    const latestDate = curveDates[0];
-    const earlierDate = curveDates[VX_EARLIER_SESSIONS];
-    const curveRows = await openbb.vxCurve(
-      [latestDate, earlierDate].filter((day) => day !== undefined)
-    );
-    const curve = (day: string | undefined) =>
-      day === undefined
-        ? null
-        : {
-            asOf: day,
-            points: curveRows
-              .filter((row) => row.asOf === day)
-              .map(({ contractMonth, price }) => ({ contractMonth, price })),
-          };
-    const ivOneYear = openbbIvOneYear(OPENBB_CORE7, ivRows, loaded);
-    const ivDaily = OPENBB_CORE7.flatMap((underlying) => {
-      const rows = ivRows.filter((row) => row.underlying === underlying);
-      const latest = rows.at(-1);
-      return latest === undefined
-        ? []
-        : [
-            {
-              ...latest,
-              ivPercentile: openbbIvPercentile(rows),
-              sessions: rows.length,
-            },
-          ];
-    });
-    const dates = [
-      ...indices.map((index) => index.date),
-      ...ivDaily.map((row) => row.asOf),
-      ...curveDates.slice(0, 1),
-    ].sort();
-    return {
-      asOf: dates.at(-1) ?? null,
-      indices,
-      ivDaily,
-      ivOneYear,
-      ratios: {
-        vix3mVix6m: ratio(close("VIX3M"), close("VIX6M")),
-        vix9dVix: ratio(close("VIX9D"), close("VIX")),
-        vixVix3m: ratio(close("VIX"), close("VIX3M")),
-      },
-      term,
-      vxCurve: { earlier: curve(earlierDate), latest: curve(latestDate) },
-    };
+    return readOpenbbVolContext(openbb, series, input.asOf ?? null);
   });
 
 const ivHistory = api.openbb.ivHistory
@@ -553,23 +602,9 @@ const cot = api.openbb.cot
 
 const macro = api.openbb.macro
   .use(requireOperator)
-  .handler(async ({ context, input, errors }) => {
+  .handler(({ context, input, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
-    const from = input.from ?? nyDate(-DEFAULT_HISTORY_DAYS);
-    const series = await openbb.macroSeries(input.ids ?? null);
-    const points = await openbb.macroPoints(
-      series.map((row) => row.id),
-      from
-    );
-    return {
-      from,
-      series: series.map((row) => ({
-        ...row,
-        points: points
-          .filter((point) => point.seriesId === row.id)
-          .map(({ date, value }) => ({ date, value })),
-      })),
-    };
+    return readOpenbbMacro(openbb, input.ids ?? null, input.from);
   });
 
 const events = api.openbb.events
@@ -717,14 +752,59 @@ const form4State = api.openbb.form4State
     }
   });
 
-/** A usable sec-form4 run must be newer than this, and yesterday's index complete by 10:00 ET. */
-const FORM4_MAX_AGE_MS = 30 * 3_600_000;
-const FORM4_DUE_HOUR = 10;
-const NY_HOUR = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  hourCycle: "h23",
-  timeZone: "America/New_York",
-});
+const SEC_13F_MAX_AGE_MS =
+  OPENBB_JOB_METADATA["sec-13f"].maxAgeHours * 3_600_000;
+
+const changes13f = api.openbb.changes13f
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const { openbb } = repositoriesFor(context, errors as unknown as Failures);
+    const now = clock();
+    const [rows, ledger, [runs]] = await Promise.all([
+      openbb.changes13fMarket({
+        change: input.change,
+        limit: input.limit,
+        ticker: input.ticker ?? null,
+      }),
+      openbb.sec13fFilings(),
+      openbb.lastRunsFor(["sec-13f"]),
+    ]);
+    const books = openbbNewest13fBooks(ledger);
+    let filersWithTwoBooks = 0;
+    for (const [current, previous] of books.values()) {
+      if (
+        current !== undefined &&
+        previous !== undefined &&
+        previous.periodEnding === openbbQuarterBefore(current.periodEnding)
+      )
+        filersWithTwoBooks += 1;
+    }
+    const lastOk = runs?.latestUsable?.finishedAt ?? null;
+    const overdueSince =
+      lastOk !== null && now.getTime() - lastOk.getTime() > SEC_13F_MAX_AGE_MS
+        ? new Date(lastOk.getTime() + SEC_13F_MAX_AGE_MS)
+        : null;
+    return {
+      changes: rows.map((row) => ({
+        ...row,
+        delayDays: daysBetween(row.period, row.filedOn),
+      })),
+      coverage: {
+        filersWithTwoBooks,
+        lastOkAt: lastOk?.toISOString() ?? null,
+        lastRunAt: runs?.latest?.finishedAt.toISOString() ?? null,
+        lastStatus: runs?.latest?.status ?? null,
+        overdue: lastOk === null || overdueSince !== null,
+        overdueSince: overdueSince?.toISOString() ?? null,
+        totalFilers: books.size,
+      },
+      delay:
+        "SEC Form 13F-HR, due 45 days after quarter end; delay is filing date minus quarter end.",
+      receivedAt: now.toISOString(),
+      source:
+        "SEC EDGAR Form 13F-HR full quarterly holdings across tracked filers (sec-13f)",
+    };
+  });
 
 const insiderClustersProcedure = api.openbb.insiderClusters
   .use(requireOperator)
@@ -740,34 +820,17 @@ const insiderClustersProcedure = api.openbb.insiderClusters
       openbb.lastRunsFor(["sec-form4"]),
       openbb.form4IndexDays(nyDate(-SEC_FORM4_DEFAULT_DAYS)),
     ]);
-    const today = nyDate(0);
-    const yesterday = nyDate(-1);
-    const incompleteDays = days
-      .filter((day) => !day.complete)
-      .map((day) => day.indexDay);
     const lastOk = runs?.latestUsable?.finishedAt ?? null;
-    const overdue =
-      lastOk === null ||
-      now.getTime() - lastOk.getTime() > FORM4_MAX_AGE_MS ||
-      incompleteDays.some(
-        (day) =>
-          day < yesterday ||
-          (day === yesterday && Number(NY_HOUR.format(now)) >= FORM4_DUE_HOUR)
-      ) ||
-      // A day whose index keeps failing has no row: no complete day in the last week is overdue
-      // (a holiday never covers a whole week).
-      !days.some((day) => day.complete && day.indexDay >= nyDate(-7));
+    const form4 = evaluateForm4Overdue({ days, lastOkAt: lastOk, now });
     return {
-      clusters: insiderClusters(purchases, owners, since),
+      clusters: insiderClusters(purchases, owners, since, input.symbol),
       coverage: {
-        incompleteDays,
+        incompleteDays: form4.incompleteDays,
         lastOkAt: lastOk?.toISOString() ?? null,
         lastRunAt: runs?.latest?.finishedAt.toISOString() ?? null,
         lastStatus: runs?.latest?.status ?? null,
-        newestCompleteDay:
-          days.find((day) => day.complete && day.indexDay <= today)?.indexDay ??
-          null,
-        overdue,
+        newestCompleteDay: form4.newestCompleteDay,
+        overdue: form4.overdue,
       },
       days: input.days,
       delay:
@@ -778,6 +841,7 @@ const insiderClustersProcedure = api.openbb.insiderClusters
   });
 
 export const openbbRouter = {
+  changes13f,
   cot,
   dailyPricesState,
   events,

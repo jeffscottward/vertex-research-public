@@ -182,10 +182,15 @@ describe("flow-tape-speed.v1", () => {
       "events",
       "hedgingPressure",
       "liquidityHeatmap",
+      "liveDom",
+      "liveDomStream",
+      "optionBubbles",
+      "optionPrints",
       "putCallRatio",
       "snapshot",
       "strikeHeatmap",
       "tapeSpeed",
+      "tradeBubbles",
     ]);
   });
 });

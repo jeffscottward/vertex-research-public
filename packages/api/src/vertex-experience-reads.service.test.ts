@@ -721,7 +721,8 @@ describe("experience read capability and authorization gates", () => {
     h.listArtifacts.mockRejectedValueOnce(new Error("private provider secret"));
     await expect(h.service.agents(principal, pageInput)).rejects.toMatchObject({
       code: "SERVICE_UNAVAILABLE",
-      message: "Vertex capability unavailable",
+      message:
+        "Vertex capability request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
     });
     const controller = new AbortController();
     h.getPortfolioRead.mockImplementationOnce(async () => {

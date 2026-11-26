@@ -1211,6 +1211,33 @@ describe("root layout request composition", () => {
     ).not.toContain("nonce=");
   });
 
+  it("passes server-resolved UI feature flags into RootDocument and blocks overrides on non-local origins", async () => {
+    vi.stubEnv("APP_ENV", "development");
+    vi.stubEnv("APP_URL", "https://darkfactory.localhost");
+    vi.stubEnv("VERTEX_UI_FLAGS", "ui-experiments-panel=on");
+
+    const localResult = await RootLayout({ children: "flagged-local" });
+    expect(localResult.props.initialFeatureFlags).toEqual({
+      allowClientOverrides: true,
+      envOverrides: { "ui-experiments-panel": true },
+      flags: {
+        "research-prototype-slot": false,
+        "ui-experiments-panel": true,
+      },
+    });
+
+    vi.stubEnv("APP_URL", "https://darkfactory.example");
+    const deployedResult = await RootLayout({ children: "flagged-deployed" });
+    expect(deployedResult.props.initialFeatureFlags).toEqual({
+      allowClientOverrides: false,
+      envOverrides: { "ui-experiments-panel": true },
+      flags: {
+        "research-prototype-slot": false,
+        "ui-experiments-panel": true,
+      },
+    });
+  });
+
   return it("uses the canonical origin for blank configuration and rejects HTTP", async () => {
     vi.stubEnv("APP_URL", "   ");
     const canonical = await RootLayout({ children: "canonical" });

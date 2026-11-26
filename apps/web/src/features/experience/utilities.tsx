@@ -27,6 +27,11 @@ import {
 import { VertexReadError } from "../../components/research/vertex-client.ts";
 import type { AuditProjection, ExperienceScope } from "./ports.ts";
 import {
+  brokerHandshakeLabel,
+  gatewayInfrastructureLabel,
+  gatewayRecoveryLabel,
+} from "./status-labels.ts";
+import {
   ExperienceFrame,
   ResourcePanel,
   ScopeLabel,
@@ -90,9 +95,9 @@ export const GatewayObservation = ({
           `${status.gatewayId} / ${status.environment}`,
         ],
         ["Source observed at", status.observedAt],
-        ["Infrastructure", status.infrastructure],
-        ["Broker handshake", status.brokerHandshake],
-        ["Recovery", status.recovery],
+        ["Infrastructure", gatewayInfrastructureLabel(status.infrastructure)],
+        ["Broker handshake", brokerHandshakeLabel(status.brokerHandshake)],
+        ["Recovery", gatewayRecoveryLabel(status.recovery)],
         ["Read-only readiness", gatewayReadiness(status)],
         ["Trading", "disabled"],
         ["Reason codes (source)", status.reasonCodes.join(", ")],

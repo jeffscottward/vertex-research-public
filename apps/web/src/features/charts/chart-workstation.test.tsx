@@ -15,6 +15,7 @@ import type {
   CandleRenderer,
   CandleRendererFactory,
   DisplayCandle,
+  ExpectedMoveCone,
   SeriesPane,
 } from "./types.ts";
 import type { Drawing } from "./workstation.ts";
@@ -172,6 +173,7 @@ describe("chart workstation", () => {
     const window = host.querySelector("[data-data-window]");
     expect(window?.textContent).toContain("12.00");
     expect(window?.textContent).toContain("+1.00 (+9.09%)");
+    expect(host.querySelector("[data-no-volume]")).toBeNull();
     await act(async () => fake.hover(1000));
     expect(window?.textContent).toContain("1970-01-01T00:00:01.000Z");
     await act(async () => fake.hover(null));
@@ -420,6 +422,115 @@ describe("chart workstation", () => {
       host.querySelector("[data-object-tree]")?.textContent
     ).toContain("Candles");
   });
+  it("shows No volume and keeps the volume pane and volume studies off for bars without volume", async () => {
+    const renderer = {
+      dispose: vi.fn(),
+      replace: vi.fn(),
+      resize: vi.fn(),
+      setStudies: vi.fn(),
+    };
+    const factory: CandleRendererFactory = async () => renderer;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const forex = candles.map(({ volume: _, ...bar }) => bar);
+    await act(async () =>
+      root.render(
+        <ChartWorkstation
+          candles={forex}
+          captions={captions}
+          factory={factory}
+          label="EUR.USD 1 day bars"
+          markers={[]}
+          pricePrecision={5}
+          storage={null}
+          studies={{
+            ema: [],
+            extra: ["vwap", "rvol", "alphatrend", "macd"],
+            panes: ["OBV", "RSI"],
+            sma: [],
+            volume: true,
+          }}
+          symbol="EUR.USD"
+        />
+      )
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(renderer.setStudies).toHaveBeenLastCalledWith({
+      ema: [],
+      extra: ["alphatrend", "macd"],
+      panes: ["RSI"],
+      sma: [],
+      volume: false,
+    });
+    expect(host.querySelector("[data-data-window] dl")?.textContent).toContain(
+      "VolumeNo volume"
+    );
+    expect(host.querySelector("[data-no-volume]")?.textContent).toContain(
+      "No volume for this instrument"
+    );
+    const tree = host.querySelector("[data-object-tree]")?.textContent ?? "";
+    expect(tree).toContain("AlphaTrend 14, 1 (RSI)");
+    expect(tree).not.toContain("VWAP");
+    expect(tree).not.toContain("OBV");
+    return expect(tree).not.toMatch(/Volume/);
+  });
+  it("keeps the volume pane but turns off VWAP and RVOL when only some bars have volume", async () => {
+    const renderer = {
+      dispose: vi.fn(),
+      replace: vi.fn(),
+      resize: vi.fn(),
+      setStudies: vi.fn(),
+    };
+    const factory: CandleRendererFactory = async () => renderer;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const [first, second] = candles;
+    if (first === undefined || second === undefined) throw new Error("bars");
+    const { volume: _, ...noVolume } = first;
+    await act(async () =>
+      root.render(
+        <ChartWorkstation
+          candles={[noVolume, second]}
+          captions={captions}
+          factory={factory}
+          label="Mixed 1 day bars"
+          markers={[]}
+          pricePrecision={2}
+          storage={null}
+          studies={{
+            ema: [],
+            extra: ["vwap", "rvol", "alphatrend"],
+            panes: ["OBV"],
+            sma: [],
+            volume: true,
+          }}
+          symbol="MIX"
+        />
+      )
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(renderer.setStudies).toHaveBeenLastCalledWith({
+      ema: [],
+      extra: ["alphatrend"],
+      panes: ["OBV"],
+      sma: [],
+      volume: true,
+    });
+    expect(
+      host.querySelector("[data-no-volume='some']")?.textContent
+    ).toContain("Some bars have no volume");
+    return expect(
+      host.querySelector("[data-object-tree]")?.textContent
+    ).toContain("AlphaTrend 14, 1 (RSI)");
+  });
 });
 
 describe("chart workstation series pane", () => {
@@ -428,10 +539,14 @@ describe("chart workstation series pane", () => {
     precision: 0,
     title: "OI change",
   };
-  const seriesRenderer = (setSeriesPane = vi.fn()) => ({
+  const seriesRenderer = (
+    setSeriesPane = vi.fn(),
+    setExpectedMove = vi.fn()
+  ) => ({
     dispose: vi.fn(),
     replace: vi.fn(),
     resize: vi.fn(),
+    setExpectedMove,
     setSeriesPane,
   });
   // Each factory call takes the next renderer; the last one is used again.
@@ -449,7 +564,10 @@ describe("chart workstation series pane", () => {
     document.body.append(host);
     const root = createRoot(host);
     roots.push(root);
-    const render = async (props: { seriesPane?: SeriesPane | null }) => {
+    const render = async (props: {
+      expectedMove?: ExpectedMoveCone | null;
+      seriesPane?: SeriesPane | null;
+    }) => {
       await act(async () =>
         root.render(
           <ChartWorkstation
@@ -524,6 +642,48 @@ describe("chart workstation series pane", () => {
     await render({ seriesPane: pane });
     expect(host.textContent).toContain(
       "A data pane could not be drawn on the chart."
+    );
+  });
+
+  it("applies expected move cone, lists it in the object tree, and handles renderer errors", async () => {
+    const cone: ExpectedMoveCone = {
+      basis: "atm_straddle_mid",
+      dte: 10,
+      expectedMove: 12,
+      expectedMovePct: 0.02,
+      expiry: "2026-11-20",
+      expiryCloseMs: Date.parse("2026-11-20T21:00:00.000Z"),
+      lowerBand: 588,
+      spot: 600,
+      straddleLower: 590,
+      straddlePrice: 10,
+      straddleUpper: 610,
+      upperBand: 612,
+    };
+    const failing = seriesRenderer(
+      vi.fn(),
+      vi.fn((next: ExpectedMoveCone | null) => {
+        if (next !== null) throw new TypeError("Bad cone");
+      })
+    );
+    const ok = seriesRenderer();
+    const { host, render } = await mountSeries([ok]);
+    await render({ expectedMove: cone });
+    expect(ok.setExpectedMove).toHaveBeenLastCalledWith(cone);
+    const inspectorBtn = Array.from(host.querySelectorAll("button")).find(
+      (btn) =>
+        btn.textContent?.includes("Object tree") ||
+        btn.textContent?.includes("Inspector")
+    );
+    if (inspectorBtn) {
+      await act(async () => inspectorBtn.click());
+    }
+    expect(host.textContent).toContain("Expected move (2026-11-20)");
+
+    const { host: errHost, render: renderErr } = await mountSeries([failing]);
+    await renderErr({ expectedMove: cone });
+    expect(errHost.textContent).toContain(
+      "Expected move cone could not be drawn on the chart."
     );
   });
 });

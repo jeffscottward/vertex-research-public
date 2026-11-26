@@ -2,13 +2,16 @@
 // events (large prints, off-exchange prints, absorption, stacked imbalances, exhaustion), and one depth
 // snapshot into book pressure. Pure; the collector (server/flow-collect.ts) stores the result.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
-import type {
-  FlowDirection,
-  FlowEventKind,
-  FlowGroupId,
-  FlowOptionTicker,
-  FlowSource,
-  FlowSymbol,
+import {
+  FLOW_SYMBOLS,
+  type FlowDirection,
+  type FlowEventKind,
+  type FlowGroupId,
+  type FlowIndexOptionTicker,
+  type FlowOptionPrintSymbol,
+  type FlowOptionTicker,
+  type FlowSource,
+  type FlowSymbol,
 } from "./contracts/flow.ts";
 import { findExhaustion } from "./flow-exhaustion.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
@@ -36,7 +39,7 @@ export type FlowInstrument = Readonly<{
   offExchange: boolean;
   /** One sentence for the snapshot notes. */
   note: string;
-  optionsTicker: FlowOptionTicker;
+  optionsTicker: FlowIndexOptionTicker;
   /** Prints at or above this size are large prints (shares for SPY, contracts for ES). */
   largePrint: number;
   /** Options prints at or above this premium become events. */
@@ -84,7 +87,7 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     optionsTicker: "NDX",
     secType: "CONTFUT",
     session: "globex",
-    sources: ["ticks", "depth", "gex", "net_drift"],
+    sources: ["ticks", "depth", "options", "gex", "net_drift"],
     symbol: "NQ",
     ticks: "stream",
   },
@@ -101,7 +104,7 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     optionsTicker: "QQQ",
     secType: "STK",
     session: "stock",
-    sources: ["depth", "gex", "net_drift"],
+    sources: ["depth", "options", "gex", "net_drift"],
     symbol: "QQQ",
     ticks: "none",
   },
@@ -137,8 +140,8 @@ export type FlowGroup = Readonly<{
   id: FlowGroupId;
   label: string;
   future: FlowSymbol;
-  primaryTicker: FlowOptionTicker;
-  checkTicker: FlowOptionTicker;
+  primaryTicker: FlowIndexOptionTicker;
+  checkTicker: FlowIndexOptionTicker;
 }>;
 
 export const FLOW_GROUPS: Readonly<Record<FlowGroupId, FlowGroup>> = {
@@ -159,14 +162,100 @@ export const FLOW_GROUPS: Readonly<Record<FlowGroupId, FlowGroup>> = {
 };
 
 /** The one flow symbol whose options ticker is the ticker (SPX: ES, NDX: NQ). */
-const SYMBOL_OF_TICKER: Readonly<Record<FlowOptionTicker, FlowSymbol>> = {
+const SYMBOL_OF_TICKER: Readonly<Record<FlowIndexOptionTicker, FlowSymbol>> = {
   NDX: "NQ",
   QQQ: "QQQ",
   SPX: "ES",
   SPY: "SPY",
 };
-export const flowSymbolForTicker = (ticker: FlowOptionTicker): FlowSymbol =>
-  SYMBOL_OF_TICKER[ticker];
+export const flowSymbolForTicker = (
+  ticker: FlowIndexOptionTicker
+): FlowSymbol => SYMBOL_OF_TICKER[ticker];
+
+export type FlowOptionParity = "even" | "odd";
+/**
+ * One live QuantData option-print stream. Separate from FLOW_INSTRUMENTS so option-only tickers
+ * (IWM, NVDA) add zero IBKR requests and carry their own close hour (16:15 ET for index/broad-ETF
+ * options, 16:00 ET for single-stock equity options).
+ */
+export type FlowOptionStream = Readonly<{
+  symbol: FlowOptionPrintSymbol;
+  optionsTicker: FlowOptionTicker;
+  parity: FlowOptionParity;
+  optionEventPremium: number;
+  closeMinuteEt: number;
+}>;
+
+export const FLOW_OPTION_STREAMS: Readonly<
+  Record<FlowOptionPrintSymbol, FlowOptionStream>
+> = {
+  ES: {
+    closeMinuteEt: 16 * 60 + 15,
+    optionEventPremium: 1_000_000,
+    optionsTicker: "SPX",
+    parity: "even",
+    symbol: "ES",
+  },
+  IWM: {
+    closeMinuteEt: 16 * 60 + 15,
+    optionEventPremium: 500_000,
+    optionsTicker: "IWM",
+    parity: "even",
+    symbol: "IWM",
+  },
+  NQ: {
+    closeMinuteEt: 16 * 60 + 15,
+    optionEventPremium: 1_000_000,
+    optionsTicker: "NDX",
+    parity: "odd",
+    symbol: "NQ",
+  },
+  NVDA: {
+    closeMinuteEt: 16 * 60,
+    optionEventPremium: 500_000,
+    optionsTicker: "NVDA",
+    parity: "odd",
+    symbol: "NVDA",
+  },
+  QQQ: {
+    closeMinuteEt: 16 * 60 + 15,
+    optionEventPremium: 500_000,
+    optionsTicker: "QQQ",
+    parity: "odd",
+    symbol: "QQQ",
+  },
+  SPY: {
+    closeMinuteEt: 16 * 60 + 15,
+    optionEventPremium: 500_000,
+    optionsTicker: "SPY",
+    parity: "even",
+    symbol: "SPY",
+  },
+};
+
+const OPTION_SYMBOL_OF_TICKER: Readonly<
+  Record<FlowOptionTicker, FlowOptionPrintSymbol>
+> = {
+  IWM: "IWM",
+  NDX: "NQ",
+  NVDA: "NVDA",
+  QQQ: "QQQ",
+  SPX: "ES",
+  SPY: "SPY",
+};
+
+export const flowOptionSymbolForTicker = (
+  ticker: FlowOptionTicker
+): FlowOptionPrintSymbol => OPTION_SYMBOL_OF_TICKER[ticker];
+
+export const flowOptionStreamForSymbol = (
+  symbol: FlowOptionPrintSymbol
+): FlowOptionStream => FLOW_OPTION_STREAMS[symbol];
+
+const FLOW_SYMBOL_SET = new Set<string>(FLOW_SYMBOLS);
+export const isFlowSymbol = (
+  symbol: FlowOptionPrintSymbol
+): symbol is FlowSymbol => FLOW_SYMBOL_SET.has(symbol);
 
 export type FlowMinuteRow = Readonly<{
   symbol: FlowSymbol;
@@ -191,7 +280,7 @@ export type FlowMinuteRow = Readonly<{
 }>;
 
 export type FlowEventRow = Readonly<{
-  symbol: FlowSymbol;
+  symbol: FlowOptionPrintSymbol;
   key: string;
   at: Date;
   kind: FlowEventKind;
