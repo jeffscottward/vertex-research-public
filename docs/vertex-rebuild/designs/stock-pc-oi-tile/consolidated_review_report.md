@@ -36,3 +36,14 @@ The standing EGM resolve decision requires automatic acceptance of every PROPOSE
 ## Remaining work
 
 Obtain fresh-context review at the final SHA, then follow the PR, CI, and merge procedure in `plan.md`. No PR or merge is claimed yet.
+
+## Revision of 2026-11-25
+
+The text above records the review of 2026-11-21. The plan changed after it, and these statements replace the matching ones above:
+
+- The value for every state without a ratio is `No ratio`, not a bare dash. The status language rule (owner rule 2026-11-11) does not accept a bare dash or the word "unavailable" as a status, and the first version needed two new allow-list entries. The revision adds none.
+- The detail texts are shorter, for example `OI reported for C of N calls and P of M puts in the returned chain`.
+- The stock-detail browser test also counts the `no OI` cells of the table (25 for the partial fixture) and checks that the value stays on one line at each width.
+- The required check for the base is `ci-gate` (the plan no longer lists eight checks); `scripts/merge-pr` reads the live rules.
+- A live trace compared the table with the chain response: no cell differed (plan section "Chain OI cells: display or data").
+- The review rubrics were not run again for this revision. The revision is covered by the drift report of 2026-11-25 and by the fresh-context code review of the full diff.

@@ -6,11 +6,11 @@
   role="img"
   aria-labelledby="title desc"
 >
-  <title id="title">Put/call OI KPI before and proposed after</title>
+  <title id="title">Put/call OI KPI before and after</title>
   <desc id="desc">
-    A dark mock infographic compares the long KPI sentence with a short dash and
-    muted coverage detail. It also shows that unreported open interest remains
-    missing and the merged chain labels it as no OI.
+    A dark mock infographic compares the long KPI sentence with the short value
+    "No ratio" and a muted coverage detail. It also shows that unreported open
+    interest remains missing and the merged chain labels it as no OI.
   </desc>
   <rect width="1080" height="640" fill="#0b0f14" />
   <text
@@ -87,7 +87,7 @@
     font-size="25"
     font-weight="700"
   >
-    call OI reported for
+    call open interest reported
   </text>
   <text
     x="58"
@@ -97,7 +97,7 @@
     font-size="25"
     font-weight="700"
   >
-    149 of 172 contracts;
+    for 149 of 172 contracts;
   </text>
   <text
     x="58"
@@ -107,7 +107,7 @@
     font-size="25"
     font-weight="700"
   >
-    put OI reported for
+    put open interest reported
   </text>
   <text
     x="58"
@@ -117,7 +117,7 @@
     font-size="25"
     font-weight="700"
   >
-    139 of 158 contracts
+    for 139 of 158 contracts
   </text>
   <text x="58" y="387" fill="#8b949e" font-family="sans-serif" font-size="14">
     Value uses the StatCard text-2xl slot.
@@ -161,19 +161,19 @@
     y="235"
     fill="#f0f3f6"
     font-family="sans-serif"
-    font-size="68"
+    font-size="60"
     font-weight="700"
   >
-    —
+    No ratio
   </text>
   <text x="604" y="290" fill="#9da7b3" font-family="sans-serif" font-size="18">
-    Ratio unavailable · calls 149/172
+    OI reported for 149 of 172 calls and
   </text>
   <text x="604" y="319" fill="#9da7b3" font-family="sans-serif" font-size="18">
-    and puts 139/158 OI reported
+    139 of 158 puts in the returned chain
   </text>
   <text x="604" y="371" fill="#8b949e" font-family="sans-serif" font-size="14">
-    Short value; muted detail preserves the reason.
+    Short value; the muted detail gives the reason.
   </text>
 
   <rect
