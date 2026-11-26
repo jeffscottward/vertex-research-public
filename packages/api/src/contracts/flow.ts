@@ -530,8 +530,10 @@ export const FlowOptionPrintViewSchema = z
     moneyness: z.enum(FLOW_MONEYNESS),
     unusual: z.boolean(),
     goldenSweep: z.boolean(),
-    volumeOverOi: z.boolean(),
-    opening: z.boolean(),
+    /** Null: not reported (the print reports open interest 0, so Quant Data's flag is not usable). */
+    volumeOverOi: z.boolean().nullable(),
+    /** Null: not reported (the print reports open interest 0, so Quant Data's flag is not usable). */
+    opening: z.boolean().nullable(),
   })
   .strict();
 
@@ -552,11 +554,13 @@ export const FlowOptionsSummarySchema = z
     blocks: count,
     blockPremium: nonNegative,
     unusual: count,
-    /** Prints with Vol > OI; prints that report open interest 0 never count (flag not known). */
+    /** Prints with Vol > OI; prints whose flag is not reported never count. */
     volumeOverOi: count,
+    /** Prints whose Opening and Vol > OI flags are not reported (the print reports open interest 0). */
+    oiFlagsNotReported: count,
     otmPremiumShare: finite.nullable(),
     zeroDtePremiumShare: finite.nullable(),
-    /** Opening premium ÷ premium of prints whose open interest is not 0; null without any. */
+    /** Opening premium ÷ premium of prints that report the Opening flag; null without any. */
     openingPremiumShare: finite.nullable(),
     topPrints: z.array(FlowOptionPrintViewSchema).max(FLOW_SNAPSHOT_MAX_PRINTS),
   })
@@ -1403,8 +1407,10 @@ export const FlowOptionBubblesItemSchema = z
     moneyness: z.enum(FLOW_MONEYNESS),
     unusual: z.boolean(),
     goldenSweep: z.boolean(),
-    opening: z.boolean(),
-    volumeOverOi: z.boolean(),
+    /** Null: not reported (the print reports open interest 0, so Quant Data's flag is not usable). */
+    opening: z.boolean().nullable(),
+    /** Null: not reported (the print reports open interest 0, so Quant Data's flag is not usable). */
+    volumeOverOi: z.boolean().nullable(),
     iv: finite.nullable(),
   })
   .strict();

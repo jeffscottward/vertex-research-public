@@ -369,8 +369,12 @@ export const describeSelectedBubble = (
   const flags: string[] = [];
   if (bubble.goldenSweep) flags.push("Golden sweep");
   if (bubble.unusual) flags.push("Unusual");
-  if (bubble.volumeOverOi) flags.push("Vol > OI");
-  if (bubble.opening) flags.push("Opening");
+  if (bubble.opening === null || bubble.volumeOverOi === null) {
+    flags.push("Opening and Vol > OI not reported");
+  } else {
+    if (bubble.volumeOverOi) flags.push("Vol > OI");
+    if (bubble.opening) flags.push("Opening");
+  }
 
   return {
     contextLine: `${underlyingText} · ${OPTION_BUBBLES_CONSOLIDATION_LABELS[bubble.consolidation]} · ${OPTION_BUBBLES_MONEYNESS_LABELS[bubble.moneyness]} · ${dteText} · ${ivText}`,

@@ -518,3 +518,60 @@ describe("0095_flow_option_tickers migration", () => {
     );
   });
 });
+
+describe("0098_flow_option_prints_oi_flags migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read(
+    "../../migrations/0098_flow_option_prints_oi_flags.sql"
+  );
+  const rollback = read(
+    "../../rollback/0098_flow_option_prints_oi_flags.down.sql"
+  );
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: Array<{ tag: string }>;
+  };
+
+  it("drops NOT NULL on opening and volume_over_oi, enforces paired OI-0 nullability, and updates no rows", () => {
+    expect(migration).toContain('DROP CONSTRAINT "flow_option_prints_check";');
+    expect(migration).toContain(
+      'ALTER TABLE "flow_option_prints" ALTER COLUMN "opening" DROP NOT NULL;'
+    );
+    expect(migration).toContain(
+      'ALTER TABLE "flow_option_prints" ALTER COLUMN "volume_over_oi" DROP NOT NULL;'
+    );
+    expect(migration).toContain(
+      'ADD CONSTRAINT "flow_option_prints_check" CHECK'
+    );
+    expect(migration).toContain(
+      '("flow_option_prints"."opening" is null) = ("flow_option_prints"."volume_over_oi" is null)'
+    );
+    expect(migration).toContain(
+      '("flow_option_prints"."opening" is not null or "flow_option_prints"."open_interest" = 0)'
+    );
+    expect(migration).not.toMatch(/UPDATE |DELETE |TRUNCATE /u);
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0098_flow_option_prints_oi_flags"
+    );
+  });
+
+  it("the rollback refuses while NULL flags exist, mutates no rows, and restores pre-0098 check and NOT NULL", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DELETE |UPDATE /u);
+    expect(rollback).toContain("RAISE EXCEPTION");
+    expect(rollback).toContain('"opening" IS NULL OR "volume_over_oi" IS NULL');
+    expect(rollback).toContain('DROP CONSTRAINT "flow_option_prints_check";');
+    expect(rollback).toContain(
+      'ALTER TABLE "public"."flow_option_prints" ALTER COLUMN "opening" SET NOT NULL;'
+    );
+    expect(rollback).toContain(
+      'ALTER TABLE "public"."flow_option_prints" ALTER COLUMN "volume_over_oi" SET NOT NULL;'
+    );
+    expect(rollback).toContain(
+      "ADD CONSTRAINT \"flow_option_prints_check\" CHECK (\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA')"
+    );
+    expect(rollback).not.toContain('"opening" is null');
+  });
+});

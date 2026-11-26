@@ -187,7 +187,10 @@ export const flowOptionPrints = pgTable(
     moneyness: text("moneyness").$type<FlowMoneynessValue>().notNull(),
     moneynessPct: num("moneyness_pct"),
     openInterest: num("open_interest"),
-    opening: boolean("opening").notNull(),
+    // Opening and Vol > OI: null = not reported. Quant Data sets both on every print that reports
+    // open interest 0, so the collector stores them as null (card
+    // vertex-flow-print-flags-oi-zero-third-state; doc: docs/vertex-rebuild/flow-pipeline.md).
+    opening: boolean("opening"),
     premium: num("premium").notNull(),
     price: num("price"),
     right: text("right").$type<"call" | "put">().notNull(),
@@ -201,7 +204,7 @@ export const flowOptionPrints = pgTable(
     underlyingPrice: num("underlying_price"),
     unusual: boolean("unusual").notNull(),
     volume: num("volume"),
-    volumeOverOi: boolean("volume_over_oi").notNull(),
+    volumeOverOi: boolean("volume_over_oi"),
   },
   (table) => [
     index("flow_option_prints_symbol_time_idx").on(
@@ -210,7 +213,7 @@ export const flowOptionPrints = pgTable(
     ),
     check(
       "flow_option_prints_check",
-      sql`${optionPrintSymbolCheck(table.symbol)} and ${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and ${table.right} in ('call', 'put') and ${table.premium} >= 0 and length(${table.id}) <= 64`
+      sql`${optionPrintSymbolCheck(table.symbol)} and ${table.ticker} in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and ${table.right} in ('call', 'put') and ${table.premium} >= 0 and length(${table.id}) <= 64 and (${table.opening} is null) = (${table.volumeOverOi} is null) and (${table.opening} is not null or ${table.openInterest} = 0)`
     ),
   ]
 );

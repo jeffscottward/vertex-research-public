@@ -556,9 +556,11 @@ export const buildOptionsSummary = (
     blocks: countWhere((print) => print.consolidation === "block"),
     bullishPremium: where((print) => print.sentiment === "bullish"),
     callPremium: call,
-    // Share of the premium whose Opening flag is known (open interest not 0); null without any.
+    // Prints whose Opening and Vol > OI flags are not reported (open interest 0).
+    oiFlagsNotReported: countWhere((print) => !oiFlagsKnown(print)),
+    // Share of the premium whose Opening flag is reported; null without any.
     openingPremiumShare: ratio(
-      where((print) => oiFlags(print).opening),
+      where((print) => oiFlags(print).opening === true),
       where(oiFlagsKnown)
     ),
     otmPremiumShare: ratio(
@@ -576,7 +578,7 @@ export const buildOptionsSummary = (
       .map(printView),
     trades: prints.length,
     unusual: countWhere((print) => print.unusual),
-    volumeOverOi: countWhere((print) => oiFlags(print).volumeOverOi),
+    volumeOverOi: countWhere((print) => oiFlags(print).volumeOverOi === true),
     zeroDtePremiumShare: ratio(
       where((print) => print.dte !== null && print.dte < 1),
       total

@@ -114050,7 +114050,14 @@
                             "type": "string"
                           },
                           "opening": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "premium": {
                             "minimum": 0,
@@ -114116,7 +114123,14 @@
                             "type": "boolean"
                           },
                           "volumeOverOi": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -114999,7 +115013,14 @@
                             "type": "string"
                           },
                           "opening": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "premium": {
                             "minimum": 0,
@@ -115053,7 +115074,14 @@
                             "type": "boolean"
                           },
                           "volumeOverOi": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -116966,6 +116994,11 @@
                           "minimum": 0,
                           "type": "number"
                         },
+                        "oiFlagsNotReported": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
                         "openingPremiumShare": {
                           "anyOf": [
                             {
@@ -117058,7 +117091,14 @@
                                 "type": "string"
                               },
                               "opening": {
-                                "type": "boolean"
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               },
                               "premium": {
                                 "minimum": 0,
@@ -117112,7 +117152,14 @@
                                 "type": "boolean"
                               },
                               "volumeOverOi": {
-                                "type": "boolean"
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -117180,6 +117227,7 @@
                         "blockPremium",
                         "unusual",
                         "volumeOverOi",
+                        "oiFlagsNotReported",
                         "otmPremiumShare",
                         "zeroDtePremiumShare",
                         "openingPremiumShare",

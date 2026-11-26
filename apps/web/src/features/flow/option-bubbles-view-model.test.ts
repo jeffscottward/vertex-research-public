@@ -317,6 +317,27 @@ describe("option-bubbles-view-model visual encoding and filtering", () => {
       "underlying price not reported"
     );
 
+    const noOiFlags = describeSelectedBubble(
+      makeBubble("u-2", { opening: null, volumeOverOi: null }),
+      "SPY"
+    );
+    expect(noOiFlags.flags).toEqual(["Opening and Vol > OI not reported"]);
+
+    const sweepNoOiFlags = describeSelectedBubble(
+      makeBubble("u-3", {
+        goldenSweep: true,
+        opening: null,
+        unusual: true,
+        volumeOverOi: null,
+      }),
+      "SPY"
+    );
+    expect(sweepNoOiFlags.flags).toEqual([
+      "Golden sweep",
+      "Unusual",
+      "Opening and Vol > OI not reported",
+    ]);
+
     expect(optionBubblesChartAriaLabel(response, 1)).toContain(
       "1 big option print"
     );
