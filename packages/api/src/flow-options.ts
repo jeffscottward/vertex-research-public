@@ -6,8 +6,8 @@ import { z } from "zod";
 import type {
   FlowConsolidation,
   FlowMoneyness,
-  FlowOptionPrintSymbol,
   FlowOptionSentiment,
+  FlowOptionPrintSymbol,
   FlowOptionSide,
   FlowOptionTicker,
 } from "./contracts/flow.ts";
