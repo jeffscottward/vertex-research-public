@@ -615,7 +615,14 @@ market_window() {
   local cal_res cal_status cal_arg cal_rest close_hm close_fmt cal_warn cal_detail
   MARKET_ALLOWED_LINE=""
   MARKET_REFUSE_WHEN=""
-  ny_line="$(ny_now)"
+  if ! ny_line="$(ny_now)"; then
+    MARKET_REFUSE_WHEN="New York time unknown (clock command failed)"
+    return 1
+  fi
+  if [[ "$ny_line" == *$'\n'* ]]; then
+    MARKET_REFUSE_WHEN="New York time unknown (multiline output)"
+    return 1
+  fi
   IFS=$' \t' read -r a b c d extra <<<"$ny_line" || true
   if [ -z "${extra:-}" ] && [ -n "${d:-}" ]; then
     if valid_ny_date "$a" "$b" && [[ "$c" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "$d" =~ ^E[SD]T$ ]]; then

@@ -2497,6 +2497,37 @@ if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 2 ]; then echo "2026-11-27 5 
       expect(result.stdout).toContain("New York time unknown");
       expect(result.calls).toEqual([]);
     }
+    // Executable clock hook that exits non-zero or prints multiple lines fails closed.
+    setup({});
+    const exitErrClock = join(dir, "clock-exit-err.sh");
+    writeFileSync(
+      exitErrClock,
+      '#!/usr/bin/env bash\necho "2026-11-26 4 1200 EST"\nexit 1\n'
+    );
+    chmodSync(exitErrClock, 0o755);
+    const exitErr = run([], at(exitErrClock));
+    expect(exitErr.status).toBe(14);
+    expect(exitErr.stdout).toContain("New York time unknown");
+    expect(exitErr.calls).toEqual([]);
+
+    for (const payload of [
+      'printf "2026-11-26 4 1200 EST\\nextra\\n"',
+      'printf "bad1\\nbad2\\n"',
+    ]) {
+      setup({});
+      const multiClock = join(dir, "clock-multi.sh");
+      writeFileSync(multiClock, `#!/usr/bin/env bash\n${payload}\n`);
+      chmodSync(multiClock, 0o755);
+      const multi = run([], at(multiClock));
+      expect(multi.status).toBe(14);
+      expect(multi.stdout).toContain("New York time unknown");
+      expect(multi.calls).toEqual([]);
+      const dryMulti = run(["--dry-run"], at(multiClock));
+      expect(dryMulti.status).toBe(0);
+      expect(dryMulti.stdout).toContain(
+        "market hours guard would refuse: New York time unknown (multiline output)"
+      );
+    }
   });
 
   it("fails closed on missing, unreadable, malformed or out-of-range NYSE calendars during weekday hours", () => {
@@ -2522,7 +2553,7 @@ if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 2 ]; then echo "2026-11-27 5 
     expect(missingAfter.status).toBe(0);
     expect(missingAfter.stdout).toContain("WARNING: NYSE calendar error:");
 
-    // Directory path fails closed on weekday daytime.
+    // Directory path and broken symlink fail closed on weekday daytime.
     setup({});
     const dirCal = run([], {
       VERTEX_DEPLOY_NY_TIME: "2026-11-26 4 1200 EST",
@@ -2531,6 +2562,54 @@ if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 2 ]; then echo "2026-11-27 5 
     expect(dirCal.status).toBe(14);
     expect(dirCal.stdout).toContain("NYSE calendar error:");
 
+    setup({});
+    const brokenLink = join(dir, "broken-cal.txt");
+    symlinkSync(join(dir, "does-not-exist.txt"), brokenLink);
+    const brokenCal = run([], {
+      VERTEX_DEPLOY_NY_TIME: "2026-11-26 4 1200 EST",
+      VERTEX_DEPLOY_NYSE_CALENDAR: brokenLink,
+    });
+    expect(brokenCal.status).toBe(14);
+    expect(brokenCal.stdout).toContain("NYSE calendar error:");
+
+    // Unreadable regular file fails closed on weekday daytime (when running non-root).
+    if (process.getuid?.() !== 0) {
+      setup({});
+      const unreadable = join(dir, "unreadable-cal.txt");
+      writeFileSync(unreadable, "years 2025-2028\n2026-11-26 closed\n");
+      chmodSync(unreadable, 0o000);
+      try {
+        const unreadableRes = run([], {
+          VERTEX_DEPLOY_NY_TIME: "2026-11-26 4 1200 EST",
+          VERTEX_DEPLOY_NYSE_CALENDAR: unreadable,
+        });
+        expect(unreadableRes.status).toBe(14);
+        expect(unreadableRes.stdout).toContain("NYSE calendar error:");
+        expect(unreadableRes.calls).toEqual([]);
+      } finally {
+        chmodSync(unreadable, 0o600);
+      }
+    }
+
+    // Dry run and --allow-market-hours behave cleanly when calendar is missing or uncovered.
+    setup({});
+    const missingDry = run(["--dry-run"], {
+      VERTEX_DEPLOY_NY_TIME: "2026-11-26 4 1200 EST",
+      VERTEX_DEPLOY_NYSE_CALENDAR: missingPath,
+    });
+    expect(missingDry.status).toBe(0);
+    expect(missingDry.stdout).toContain("market hours guard would refuse:");
+    expect(missingDry.stdout).toContain("NYSE calendar error:");
+    expect(missingDry.alerts).toEqual([]);
+
+    setup({});
+    const missingOverride = run(["--allow-market-hours", "owner decision"], {
+      VERTEX_DEPLOY_NY_TIME: "2026-11-26 4 1200 EST",
+      VERTEX_DEPLOY_NYSE_CALENDAR: missingPath,
+    });
+    expect(missingOverride.status).toBe(0);
+    expect(missingOverride.alerts).toHaveLength(1);
+    expect(missingOverride.stdout).toContain("NYSE calendar error:");
     // Malformed calendars: even when 2026-11-26 closed is present, any bad line rejects the whole file.
     const malformedCases = [
       "2026-11-26 closed\n",
@@ -2650,6 +2729,11 @@ if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 2 ]; then echo "2026-11-27 5 
       (d) => d >= "2025-01-01" && d <= "2028-12-31"
     );
     expect(holidays).toEqual(openbbHolidays);
+    // 2028 early closes (July 3 before Tue July 4; Fri after Thanksgiving; Dec 24 is Sunday).
+    expect(earlyCloses.filter((d) => d >= "2028-01-01")).toEqual([
+      "2028-07-03",
+      "2028-11-24",
+    ]);
   });
 });
 
