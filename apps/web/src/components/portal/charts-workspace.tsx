@@ -111,10 +111,13 @@ import {
 import { ExpectedMoveBar } from "./expected-move-bar.tsx";
 import {
   createBrowserFlowEventsGateway,
+  createBrowserFlowSnapshotGateway,
   type FlowEventsGateway,
+  type FlowSnapshotGateway,
   isFlowInstrument,
 } from "./flow-events-client.ts";
 import { FuturesOiPanel } from "./futures-oi-panel.tsx";
+import { GammaLevelsBar } from "./gamma-levels-bar.tsx";
 import { IvRankHistoryPanel } from "./iv-rank-history-panel.tsx";
 import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
@@ -133,6 +136,10 @@ import {
 import { OrderFlowPanel } from "./order-flow-panel.tsx";
 import { useExpectedMoveView } from "./use-expected-move.ts";
 import { useFuturesOi } from "./use-futures-oi.ts";
+import {
+  type OptionsAnalyticsReport,
+  useGammaLevelsView,
+} from "./use-gamma-levels.ts";
 
 // Fetch time for a title. A text that is not an ISO time with a zone is shown as sent,
 // the same text the Fetched cell shows.
@@ -779,6 +786,7 @@ export interface ChartsWorkspaceProps {
   readonly autoLoad?: boolean;
   readonly backtests?: BacktestsGateway;
   readonly flowEvents?: FlowEventsGateway;
+  readonly flowSnapshot?: FlowSnapshotGateway;
   readonly ivHistory?: IvHistoryGateway;
   readonly jevVerdict?: JevVerdictGateway;
   readonly marketData?: MarketDataGateway;
@@ -797,6 +805,7 @@ export const ChartsWorkspace = ({
   ivHistory,
   orderFlow,
   flowEvents: suppliedFlowEvents,
+  flowSnapshot: suppliedFlowSnapshot,
   backtests: suppliedBacktests,
   openbb: suppliedOpenbb,
   autoLoad = true,
@@ -813,6 +822,9 @@ export const ChartsWorkspace = ({
   );
   const [flowEvents] = useState(
     () => suppliedFlowEvents ?? createBrowserFlowEventsGateway()
+  );
+  const [flowSnapshot] = useState(
+    () => suppliedFlowSnapshot ?? createBrowserFlowSnapshotGateway()
   );
   const [optionsChain] = useState(
     () => suppliedOptionsChain ?? createBrowserOptionsChainGateway()
@@ -831,6 +843,8 @@ export const ChartsWorkspace = ({
   const [flowEventsState, setFlowEventsState] = useState<FlowEventsLoadState>({
     type: "idle",
   });
+  const [analyticsReport, setAnalyticsReport] =
+    useState<OptionsAnalyticsReport | null>(null);
   const [backtestList, setBacktestList] = useState<BacktestListState>({
     type: "loading",
   });
@@ -1074,6 +1088,21 @@ export const ChartsWorkspace = ({
     secType: data?.request.secType ?? null,
     symbol: data?.request.symbol ?? null,
   });
+  const analyticsEligible =
+    data !== null &&
+    data.request.secType === "STK" &&
+    data.request.currency === "USD";
+  useEffect(() => {
+    if (!analyticsEligible) setAnalyticsReport(null);
+  }, [analyticsEligible]);
+  const gammaLevels = useGammaLevelsView({
+    analyticsReport,
+    currency: data?.request.currency ?? null,
+    flowSnapshot,
+    replayActive: replay.active,
+    secType: data?.request.secType ?? null,
+    symbol: data?.request.symbol ?? null,
+  });
 
   const shown = marketLabel(data?.request ?? form);
   const stockLink =
@@ -1178,6 +1207,20 @@ export const ChartsWorkspace = ({
                 Expected move
               </label>
             ) : null}
+            {gammaLevels.eligible ? (
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+                <input
+                  checked={gammaLevels.enabled}
+                  className="size-4"
+                  data-gamma-levels-toggle=""
+                  onChange={(event) =>
+                    gammaLevels.setEnabled(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                Gamma levels
+              </label>
+            ) : null}
           </ChartToolbar>
           <OrderFlowMarksBar
             enabled={showFlowMarks}
@@ -1196,6 +1239,15 @@ export const ChartsWorkspace = ({
               replayActive={replay.active}
               selectedExpiry={expectedMove.selectedExpiry}
               state={expectedMove.state}
+            />
+          ) : null}
+          {gammaLevels.eligible && data !== null ? (
+            <GammaLevelsBar
+              enabled={gammaLevels.enabled}
+              onRetry={gammaLevels.onRetry}
+              priceDigits={pricePrecisionFor(data)}
+              replayActive={replay.active}
+              state={gammaLevels.state}
             />
           ) : null}
           {trades.type === "loading" ? (
@@ -1259,6 +1311,7 @@ export const ChartsWorkspace = ({
                     <LazyMarketBarsChart
                       candles={replayCandles}
                       expectedMove={expectedMove.cone}
+                      gammaLevels={gammaLevels.overlay}
                       label={`${data.contract.localSymbol} ${interval ?? data.request.barSize} bars`}
                       markers={markers}
                       pricePrecision={pricePrecisionFor(data)}
@@ -1324,6 +1377,7 @@ export const ChartsWorkspace = ({
           />
           <OptionsAnalyticsPanel
             gateway={optionsAnalytics}
+            onReport={setAnalyticsReport}
             symbol={data.request.symbol}
           />
         </>

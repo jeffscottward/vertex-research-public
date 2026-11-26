@@ -300,6 +300,7 @@ describe("flow view model", () => {
       "Call wall",
       "Put wall",
       "Max pain",
+      "King node",
     ]);
     expect(rows[0]).toMatchObject({
       symbolPrice: "6,858.50",
@@ -308,6 +309,7 @@ describe("flow view model", () => {
     expect(
       gexLevelRows({ ...gex, symbolLevels: null }).map((row) => row.symbolPrice)
     ).toEqual([
+      "basis not computed",
       "basis not computed",
       "basis not computed",
       "basis not computed",

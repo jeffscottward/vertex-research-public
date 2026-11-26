@@ -208,6 +208,8 @@ export const GexContextSchema = z
         // Strikes with the largest positive and the most negative estimated GEX.
         callWall: finite.nullable(),
         putWall: finite.nullable(),
+        // Strike with the largest absolute estimated net GEX (dealer gamma magnet).
+        kingNode: finite.nullable(),
         // One-day implied move in dollars: spot x front ATM IV / sqrt(252).
         dailyMove: finite.nullable(),
         // Signed distance from spot to each level, in daily implied moves.
