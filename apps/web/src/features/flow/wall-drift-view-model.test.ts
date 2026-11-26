@@ -188,6 +188,30 @@ describe("flowWallDriftView", () => {
     });
   });
 
+  it("names both-walls and inverted-wall no-reads on the context line", () => {
+    const control = ready(controlWith("SPY", risingCallPoints));
+    expect(
+      flowWallDriftView(
+        snapshotAt({
+          levels: { callWall: 601, flip: 590, maxPain: null, putWall: 600 },
+        }),
+        null,
+        control,
+        LAB_NOW
+      ).context
+    ).toBe("Both walls in band");
+    expect(
+      flowWallDriftView(
+        snapshotAt({
+          levels: { callWall: 600, flip: 590, maxPain: null, putWall: 601 },
+        }),
+        null,
+        control,
+        LAB_NOW
+      ).context
+    ).toBe("Call wall not above put wall");
+  });
+
   it("shows no data while the snapshot loads or has no GEX", () => {
     const loading = flowWallDriftView(null, null, { kind: "loading" }, LAB_NOW);
     expect(loading).toMatchObject({

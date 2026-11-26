@@ -113,7 +113,8 @@ answers are kept with the job report on the rig (`~/Documents/reports/web/vertex
 Inputs:
 
 - `levels`: `{ kind: "levels", ticker, source: "flow_gex" | "options_analytics", at, spot, callWall, putWall, flip }`
-  in the options ticker's own price, or `{ kind: "missing", code: "gex_missing", detail }`.
+  in the options ticker's own price, or `{ kind: "missing", code: "gex_missing" | "ticker_mismatch", detail }` (a page
+  that already knows the levels do not fit passes `ticker_mismatch`, which then decides first).
 - `drift`: `{ kind: "series", ticker, points }` (settled cumulative points with `underlyingPrice`), or
   `{ kind: "missing", code: "drift_missing", detail }`.
 - `now`: the clock of the page (the `/flow` load time; on `/stock` the time of the last `flow.control` answer or the
@@ -156,18 +157,21 @@ span, buckets, changes, gross, price), the two shares, a descriptive reason and 
 | `/flow` (route is operator-only) | operators | `flow.snapshot` `gex.levels` of `gex.ticker` | `flow.control` series of `gex.ticker` | load time of the last refresh |
 | `/stock/[symbol]`, Options analytics tab | operators on SPY, SPX, QQQ, NDX | `optionsAnalytics.snapshot` `context.levels`, `spot`, `receivedAt` | `flow.control` of the symbol's group | last answer or 60 s re-check |
 
-- `/flow` (`flow-workspace.tsx`): the badge sits above the control panel. A failed snapshot gives "flow snapshot not
-  loaded: <error>"; a failed `flow.control` gives "net drift not loaded: <error>". A net drift freshness row that is
+- `/flow` (`flow-workspace.tsx`): the badge sits above the control panel. Before the first snapshot or `flow.control`
+  answer (or after a symbol or group change), a failure gives "flow snapshot not loaded: <error>" or "net drift not
+  loaded: <error>"; after a failed refresh the badge keeps grading the last answers until `gex_stale` or `drift_stale`
+  applies. A net drift freshness row that is
   `stale` or `never` is passed through as the reason with its collector message.
 - `/stock` (`page.tsx` → `StockDetailWorkspace` → `OptionsAnalyticsPanel` → `StockWallDrift` in
   `wall-drift-badge.tsx`): the page reads the session with `getRequestPortalSession` and passes `operator`. Each
-  options analytics answer loads `flow.control` once (no request while analytics loads or failed), and the last
-  answer stays on screen during the reload. Analytics for another symbol than the page gives `gex_missing`. A gateway
+  options analytics answer loads `flow.control` once (no request while analytics loads, failed or is rate limited; one request per new `receivedAt`), and the last
+  answer stays on screen during the reload. Analytics for another symbol than the page gives `ticker_mismatch`. A
+  `closed` net drift freshness row only adds its collector message to a no-data read. A gateway
   without `flowControl` gives "net drift not loaded: this page does not load flow.control".
 - Badge (`WallDriftBadge`): a heading (`h2` on `/flow`, `h3` inside the `/stock` panel) that labels the section, a
   status pill (Hold success, Break risk warning, No read neutral, No data info), "Unvalidated: study accruing ·
-  research only" on its own line, a context line that is always present ("Put wall 600 · above flip 590", "No wall in band" or "Wall
-  not read"), a reason clamped to two lines, and an "About this read" disclosure (44 px summary) with the full reason,
+  research only" on its own line, a context line that is always present ("Put wall 600 · above flip 590", "No wall in band",
+  "Both walls in band", "Call wall not above put wall" or "Wall not read"), a reason clamped to two lines, and an "About this read" disclosure (44 px summary) with the full reason,
   the help text and the input times in New York time. The box reserves 160 px so loading, no-data and graded states do
   not move the page. On `/stock`, a stale read adds "press Refresh to reload".
 
@@ -228,7 +232,8 @@ span, buckets, changes, gross, price), the two shares, a descriptive reason and 
 
 ### Performance
 
-- No extra request on `/flow`. On `/stock`, one `flow.control` request per analytics answer, operators on four
+- No extra request on `/flow`. On `/stock`, one `flow.control` request per new analytics answer (none while it loads,
+  failed or is rate limited), operators on four
   tickers only. The rule is a pure function over at most a session of minute points.
 
 ### Accessibility and layout

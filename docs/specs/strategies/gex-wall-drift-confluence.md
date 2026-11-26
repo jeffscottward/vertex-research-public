@@ -61,15 +61,17 @@ Rules version `gex-wall-drift-rules.v1` (the rules object, exactly):
 ```
 
 - Read time: the end of a settled one-minute net drift bucket `m`.
-- Levels: the newest `flow_gex` row of the ticker at or before `m`, at most 30 minutes old.
+- Levels: the newest `flow_gex` row of the ticker at or before `m`; older than 30 minutes at the read time: `no-data`
+  (`gex_stale`). Net drift whose minute `m` ended more than 5 minutes before the read time: `no-data` (`drift_stale`).
+  In the study the read time is the end of `m`.
 - Window: the baseline is the newest settled minute at or before `m - 15`. No baseline: `no-data` (`window_short`).
   A baseline older than `m - 18`: `no-data` (`window_gap`). Fewer than 10 settled minutes after the baseline:
   `no-data` (`thin_window`).
 - Changes: call change and put change are the changes of the cumulative net call and net put premium from the
   baseline to `m`. Gross is the sum of the absolute per-minute changes of both lines. Zero gross: `no-data`.
 - Shares: call share = call change / gross; put share = put change / gross. A side is rising at share >= 0.30.
-- Price: the underlying price of the newest minute `m` (none: `no_price`); it must be within 2% of the GEX spot
-  (`price_scale_mismatch`). The vendor `stockPrice` of a bucket is taken as that minute's last price; this is not
+- Price: the underlying price of the newest minute `m` (none: `no_price`); |price - GEX spot| must be at most 2% of
+  the price (`price_scale_mismatch`). The vendor `stockPrice` of a bucket is taken as that minute's last price; this is not
   verified against a consolidated tape.
 - Walls: a GEX row with neither a call nor a put wall gives `no-data` (`gex_no_walls`).
 - Wall: the call wall must be above the put wall (`wall_geometry`). Price is at a wall when |price - wall| <= 0.25% of

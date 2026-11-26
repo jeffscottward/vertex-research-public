@@ -64,6 +64,12 @@ const LABELS: Readonly<
   "no-read": { label: "No read", tone: "neutral" },
 };
 
+/** The context line of the two wall no-reads that are not "no wall in band". */
+const WALL_CONTEXT: Readonly<Record<string, string>> = {
+  both_walls_near: "Both walls in band",
+  wall_geometry: "Call wall not above put wall",
+};
+
 const OPTION_TICKERS: ReadonlySet<string> = new Set(FLOW_OPTION_TICKERS);
 
 /** The four tickers with net drift (SPY, SPX, QQQ, NDX). */
@@ -142,9 +148,8 @@ const viewOf = (read: GexWallDriftRead, note: string | null): WallDriftView => {
     collectorNote: read.read === "no-data" ? note : null,
     context:
       read.wall === "none"
-        ? read.read === "no-data"
-          ? "Wall not read"
-          : "No wall in band"
+        ? (WALL_CONTEXT[String(read.code)] ??
+          (read.read === "no-data" ? "Wall not read" : "No wall in band"))
         : `${read.wall === "call" ? "Call" : "Put"} wall ${read.wallStrike} · ${flip}`,
     inputs: [
       read.levelsAt === null

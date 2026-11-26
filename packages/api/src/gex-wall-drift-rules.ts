@@ -387,7 +387,7 @@ const locateWall = (
   };
 };
 
-/** The touch stage: the wall, then the drift (truth table in the design document). */
+/** The touch stage: the wall, then the drift (truth table in the spec's Rules section). */
 const gradeTouch = (
   { draft: inputs, levels, price, window }: Ready,
   rules: GexWallDriftRules
