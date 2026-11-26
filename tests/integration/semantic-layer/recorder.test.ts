@@ -403,6 +403,14 @@ describe("recordRun with the stale selection", () => {
           )[0] ?? { question: id, trial: 0 }
       );
 
+    // The replay judges this file as the recorder does: every trial needs a witness.
+    const before = await replayRecording(backend, EVAL_QUESTIONS, read());
+    expect(
+      [...before.values()].filter(
+        (verdict) => verdict.tool?.state !== "needs-witness"
+      )
+    ).toEqual([]);
+
     const finished = await run({ selection: { kind: "stale" } });
 
     const selected = messages[0];
@@ -411,8 +419,13 @@ describe("recordRun with the stale selection", () => {
       EVAL_QUESTIONS.map((entry) => oldestOf(entry.id))
     );
     expect(selected.keys).toHaveLength(EVAL_QUESTIONS.length);
-    expect(selected.reasons[selected.keys[0] ?? ""]).toBe(
-      "witness trial: the tool list changed (market_bars) and no trial of Q1 was recorded with the current list"
+    expect(selected.reasons).toEqual(
+      Object.fromEntries(
+        EVAL_QUESTIONS.map((entry) => [
+          oldestOf(entry.id),
+          `witness trial: the tool list changed (market_bars) and no trial of ${entry.id} was recorded with the current list`,
+        ])
+      )
     );
     expect(finished.failed).toEqual({});
     // After the run every trial is valid: the witnesses saw the current list, the others drifted.
@@ -436,6 +449,36 @@ describe("recordRun with the stale selection", () => {
     messages = [];
     await run({ selection: { kind: "stale" } });
     expect(messages[0]).toEqual({ keys: [], reasons: {}, type: "selected" });
+  }, 120_000);
+
+  it("writes a search that the replay of the selection froze, also when the run records nothing", async () => {
+    // The backend of a recording answers a search that is not frozen from the live index and adds
+    // it. This stand-in adds one during the replay of the stale selection.
+    const masterRules = {
+      note: backend.masterRules.note,
+      searches: { ...backend.masterRules.searches },
+    };
+
+    const finished = await run({
+      backend: {
+        ...backend,
+        callProcedure: (procedure, input) => {
+          masterRules.searches["frozen by the replay"] = [];
+          return backend.callProcedure(procedure, input);
+        },
+        masterRules,
+      },
+      selection: { kind: "stale" },
+    });
+
+    expect(finished.recorded).toEqual([]);
+    expect(
+      (
+        JSON.parse(readFileSync(files.masterRules, "utf8")) as {
+          searches: Record<string, unknown>;
+        }
+      ).searches
+    ).toHaveProperty("frozen by the replay");
   }, 120_000);
 
   it("selects a trial that was asked with another prompt format of the bridge or by another model", async () => {
@@ -613,6 +656,19 @@ describe("parseBridgeLine", () => {
       fault: "no reply",
       key: "Q1.1#0",
     });
+  });
+
+  it("takes a call with no arguments and refuses arguments that are no object and no text", () => {
+    expect(
+      parseBridgeLine(
+        '{"key":"k","content":"","toolCalls":[{"name":"terms_list"}],"model":"m"}'
+      )
+    ).toMatchObject({ toolCalls: [{ name: "terms_list" }] });
+    expect(() =>
+      parseBridgeLine(
+        '{"key":"k","content":"","toolCalls":[{"name":"terms_list","arguments":[1]}],"model":"m"}'
+      )
+    ).toThrow("bridge line is not {key, content");
   });
 
   it("refuses a line that is not JSON, a reply with no model and a reply with no key", () => {

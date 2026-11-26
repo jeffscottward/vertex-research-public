@@ -12,6 +12,7 @@ import {
   type Completion,
   modelOf,
   parseModelReply,
+  REPLY_SCHEMA,
   type RecorderProcess,
   runBridge,
 } from "./bridge.ts";
@@ -86,18 +87,21 @@ describe("parseModelReply", () => {
     }
   });
 
-  it("reads no arguments and empty arguments as an empty object, and keeps an object", () => {
+  it("reads no arguments and an empty text as an empty object, and keeps blank text and an object", () => {
+    // The earlier bridge did the same (Python: `args or {}`); the turn reads blank text as no arguments.
     expect(
       parseModelReply({
         content: "",
         toolCalls: [
           { name: "a" },
+          { arguments: "", name: "a2" },
           { arguments: " ", name: "b" },
           { arguments: { c: 1 }, name: "c" },
         ],
       }).toolCalls
     ).toEqual([
       { arguments: {}, name: "a" },
+      { arguments: {}, name: "a2" },
       { arguments: " ", name: "b" },
       { arguments: { c: 1 }, name: "c" },
     ]);
@@ -119,6 +123,15 @@ describe("parseModelReply", () => {
     ).toThrow();
     expect(() => parseModelReply({ content: "", toolCalls: "none" })).toThrow(
       "toolCalls is not a list"
+    );
+  });
+});
+
+describe("REPLY_SCHEMA", () => {
+  it("is the schema of the earlier bridge, key order included", () => {
+    // The JSON text of REPLY_SCHEMA of the Python bridge (json.dumps with compact separators).
+    expect(JSON.stringify(REPLY_SCHEMA)).toBe(
+      '{"type":"object","properties":{"content":{"type":"string"},"toolCalls":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"arguments":{"type":"string","description":"JSON object text with the tool arguments"}},"required":["name","arguments"]}}},"required":["content","toolCalls"]}'
     );
   });
 });
@@ -318,7 +331,7 @@ describe("runBridge", () => {
       model: "default",
       system: buildPrompt(PROBE).system,
     });
-    expect(calls[1]?.options.schema).toBeDefined();
+    expect(calls[1]?.options.schema).toBe(REPLY_SCHEMA);
     expect(stats).toMatchObject({
       errors: 0,
       faults: 0,
@@ -399,6 +412,21 @@ describe("runBridge", () => {
     );
   });
 
+  it("asks the model no more for a request when the recorder is gone", async () => {
+    // Every reply is unusable, so a live recorder would get four tries.
+    const { calls, completion } = completionOf(["OK", "I cannot answer"]);
+
+    const { recorder } = await runWith(completion, async (process) => {
+      process.print(REQUEST);
+      process.print("@@EVAL {broken");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // The check call and the one try that was running.
+    expect(calls).toHaveLength(2);
+    expect(recorder.written).toEqual([]);
+  });
+
   it("kills the recorder at the deadline", async () => {
     const { completion } = completionOf(["OK"]);
 
@@ -454,6 +482,15 @@ describe("the recording session", () => {
     expect(recorderArgsOf(options)).toEqual(["--expect=30", "3", "4", "stale"]);
     expect(parseSessionArgs([], NOW).log).toBe(
       join(tmpdir(), "semantic-eval-record-2026-11-26T08-00-00-000Z.log")
+    );
+  });
+
+  it("keeps a log path with an equals sign and makes a relative one absolute", () => {
+    expect(parseSessionArgs(["--log=/tmp/a=b.log"], NOW).log).toBe(
+      "/tmp/a=b.log"
+    );
+    expect(parseSessionArgs(["--log=run.log"], NOW).log).toBe(
+      join(process.cwd(), "run.log")
     );
   });
 

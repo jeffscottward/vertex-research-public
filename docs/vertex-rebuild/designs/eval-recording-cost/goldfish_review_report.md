@@ -58,7 +58,7 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 |C4|comprehension (stage 6)|Major|"Eval" has two meanings; the kernel API is undefined.|PROPOSE FIX|Terms (eval tool, eval kernel); "Interfaces".|
 |C5|comprehension (stage 6)|Major|The frozen `master_rules_search` results are not explained.|PROPOSE FIX|Terms (master-rules freeze).|
 |C6|comprehension (stage 6)|Major|The grading lifecycle is assumed.|PROPOSE FIX|Terms (rubric grade, audit grade, pass thresholds).|
-|C7|comprehension (stage 6)|Major|A risk row names a test that the test plan does not list; G2 says trials, CUJ 1 says questions.|PROPOSE FIX|Risk row and test plan aligned; G2 names both.|
+|C7|comprehension (stage 6)|Major|A risk row names a test that the test plan does not list; G2 says trials, CUJ 1 says questions.|PROPOSE FIX|Risk row and test plan aligned; G2 names the trials.|
 |C8|comprehension (stage 6)|Major|"Card", "job", "job folder" are not defined; unlinked references.|PROPOSE FIX|Terms (card, job); references named.|
 |D1|design critic (stage 7)|Major|The pass thresholds mean less after a tool change; no measurement; added tools get the same rule.|PROPOSE FIX|Limit stated in Goals and "What the eval proves"; measurement of the two tool-only recordings added. Two witnesses for an added tool: Alternative D (rejected with that measurement).|
 |D2|design critic (stage 7)|Major|With the quota used up, no tool work can be pushed; two version 3 branches are not handled.|PROPOSE FIX|Z1 and K1.|
@@ -66,7 +66,7 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 |D4|design critic (stage 7)|Major|A grader that writes the whole file deletes trials of the run.|PROPOSE FIX|Report at the end of the run plus the rule for jobs. No lock file: the grading scripts are not in the repository.|
 |D5|design critic (stage 7)|Major|Exit code through the launch chain, the model as launcher, trials in flight, no dry run for `--expect`.|PROPOSE FIX|"The bridge", risk table, CUJ 3, `--expect=0`.|
 |S1|structural (stage 7)|Major|The state table is not the full rule.|PROPOSE FIX|With C2.|
-|S2|structural (stage 7)|Major|"Witness" and the states are used before their definition.|PROPOSE FIX|Terms; figures after Terms.|
+|S2|structural (stage 7)|Major|"Witness" and the states are used before their definition.|PROPOSE FIX|Terms extended; each figure stands in the section that it shows.|
 |Y1|style (stage 7)|Major|"Three ways" has no basis.|PROPOSE FIX|Overview names them.|
 |Y2|style (stage 7)|Major|"Rejected by author:" carries no information.|CONTEST|Kept: `egm-draft` step 4 requires this form for author decisions.|
 |Y3|style (stage 7)|Major|One bullet holds four facts; "proved" for a hand count.|PROPOSE FIX|Split; "stated".|
@@ -75,11 +75,11 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 |Y6|style (stage 7)|Major|The age bound holds only with a run after each change.|PROPOSE FIX|Precondition stated.|
 |Y7|style (stage 7)|Major|Terms used before or without a definition.|PROPOSE FIX|Terms.|
 |Y8|style (stage 7)|Major|An instruction for the operator inside an architecture bullet.|PROPOSE FIX|One statement in "Another writer"; the step is in the eval document.|
-|R3|implementation readiness (stage 9)|Major|The digest byte recipe is missing.|PROPOSE FIX|"What a trial stores".|
+|R3|implementation readiness (stage 9)|Major|The digest byte recipe is missing.|PROPOSE FIX|"What a trial stores": tool digest, list id and the text that the message digest hashes.|
 |R4|implementation readiness (stage 9)|Major|The prompt pin cannot be written from the plan.|PROPOSE FIX|Request, hash, concatenation and escaping rule given.|
 |R5|implementation readiness (stage 9)|Major|Commit 1 is not self-contained; tests are not assigned to commits.|PROPOSE FIX|One commit (Alternative O).|
 |R6|implementation readiness (stage 9)|Major|Edge behavior is left open (trials in flight, `assertCurrentFormat`, `upgrade`, model name).|PROPOSE FIX|"The recorder", "Commands and literal values", file table.|
-|R7|implementation readiness (stage 9)|Major|Test plan gaps.|PROPOSE FIX|Tool-list test and replay checks listed; cases written out.|
+|R7|implementation readiness (stage 9)|Major|Test plan gaps.|PROPOSE FIX|Replay checks listed; cases written out. (The tool-list test was removed later, see E1.)|
 |B1|codebase details (stage 9)|Major|`runTrial` returns a type that arrives in a later commit.|PROPOSE FIX|One commit.|
 |B2|codebase details (stage 9)|Major|Test cases cannot pass in commit 1.|PROPOSE FIX|One commit.|
 |B3|codebase details (stage 9)|Major|Symbols with no stated fate (`staleReason`, `toCompletion`, model name, reason strings).|PROPOSE FIX|File table.|
@@ -93,7 +93,7 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 |T3|style (stage 9)|Major|The package script text is not given.|PROPOSE FIX|Given.|
 |T4|style (stage 9)|Major|"The review report" has no name.|PROPOSE FIX|`goldfish_review_report.md`.|
 |T5|style (stage 9)|Major|Counts and names with no content.|PROPOSE FIX|Cases written out.|
-|T6|style (stage 9)|Major|Semicolon chains in the test plan.|PROPOSE FIX|One clause for each case.|
+|T6|style (stage 9)|Major|Semicolon chains in the test plan.|PROPOSE FIX|One clause for each case; several cases still share a bullet.|
 |T7|style (stage 9)|Major|"Drops the others" has no referent.|PROPOSE FIX|Reworded.|
 |T8|style (stage 9)|Major|Acceptance 4, 5, 6 are not runnable as written.|PROPOSE FIX|Full commands; the script and the restore step named.|
 |Z4|zoom-out (stage 5)|Nit|`upgrade` is code for one transition; the merge order is not weighed.|PROPOSE FIX|Alternative N covers both merge orders and the removal condition.|
@@ -164,3 +164,11 @@ Stage 8 (intermediate zoom-out) ran on the revised plan with one reviewer in a n
 |E5|Nit|The review report and its figure are not in the file table.|PROPOSE FIX|File table.|
 
 Total of both rounds: 110 findings; 106 fixed in the plan, 1 contested, 3 declined, none escalated. The text of every reviewer report is kept in the job folder of the card (not in the repository).
+
+## After the implementation
+
+A drift report (this plan against the code) and a code review, each by a new agent with no history of the job, ran on the first commit `4d4e5d2a6`.
+
+- Code review: 1 major finding, 4 minor findings, 4 nits; verdict "changes needed". The major one: a `stale` run did not write a search that the replay of its own selection froze.
+- Drift report: 19 differences between the plan and the code, and 7 rows of this report whose text did not match the plan.
+- All were fixed in the second commit, in the code or in the text. Code fixes: the freeze is written before the first trial; a missing trial counts as the witness of its question; `upgrade` writes a file in which it upgraded no trial; the reply schema keeps the key order of the Python bridge and a test compares it; an empty arguments text is read as no arguments; the command refuses a log file that exists; the bridge makes no model call for a recorder that is gone.

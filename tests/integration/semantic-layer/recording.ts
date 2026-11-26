@@ -145,9 +145,9 @@ type ToolRuleTrial = Pick<
  *   tool is gone), or when the recording does not say which tool list it saw.
  * - Else, when the current list differs, the trial is drifted. It stays valid only while a witness
  *   exists: a trial of the same question that was recorded with the current list, that `isWitness`
- *   accepts (the replay passes "replays unchanged"), and that calls none of the tools that differ for
- *   the drifted trial. When a trial of the current list calls one of them, the model uses a changed tool
- *   for this question, so the drifted trial is stale.
+ *   accepts (the replay passes "valid in every other check"), and that calls none of the tools that
+ *   differ for the drifted trial. When every trial of the question that saw the current list calls one
+ *   of them, the model uses a changed tool for this question, so the drifted trial is stale.
  */
 export const toolVerdicts = (
   recording: Readonly<{
@@ -224,8 +224,8 @@ export const toolVerdicts = (
 
 /**
  * The witness trials of a `stale` run: for each question that has trials in state `needs-witness` and
- * no trial that the run records anyway (`selected`), the one with the oldest `recordedAt` (then the
- * lowest trial number). Oldest first, so that three changes of the tool list record all three trials
+ * no trial that the run records anyway (`selected`: trial keys, also of trials that the file does not
+ * hold yet), the one with the oldest `recordedAt` (then the lowest trial number). Oldest first, so that three changes of the tool list record all three trials
  * of a question again and no trial is more than three tool lists old.
  */
 export const selectWitnesses = (
@@ -233,10 +233,9 @@ export const selectWitnesses = (
   verdicts: ReadonlyMap<string, ToolVerdict>,
   selected: ReadonlySet<string>
 ): string[] => {
+  // The question of a trial key `<question>.<trial>`.
   const busy = new Set(
-    trials
-      .filter((trial) => selected.has(trialKey(trial)))
-      .map((trial) => trial.question)
+    [...selected].map((key) => key.slice(0, key.lastIndexOf(".")))
   );
   const oldest = new Map<string, (typeof trials)[number]>();
   for (const trial of trials) {

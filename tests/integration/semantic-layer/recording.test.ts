@@ -306,6 +306,13 @@ describe("selectWitnesses", () => {
       "Q2.1",
     ]);
   });
+
+  it("takes none for a question of which the run records a trial that the file does not hold yet", () => {
+    // Q2.3 is a missing trial: the run records it, and it becomes the witness of Q2.
+    expect(selectWitnesses(trials, verdicts, new Set(["Q2.3"]))).toEqual([
+      "Q1.2",
+    ]);
+  });
 });
 
 describe("mergeRecording", () => {

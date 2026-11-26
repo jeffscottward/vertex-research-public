@@ -45,27 +45,13 @@ export type BridgeRequest = Readonly<{
   tools?: readonly unknown[];
 }>;
 
-const REPLY_SCHEMA = {
-  properties: {
-    content: { type: "string" },
-    toolCalls: {
-      items: {
-        properties: {
-          arguments: {
-            description: "JSON object text with the tool arguments",
-            type: "string",
-          },
-          name: { type: "string" },
-        },
-        required: ["name", "arguments"],
-        type: "object",
-      },
-      type: "array",
-    },
-  },
-  required: ["content", "toolCalls"],
-  type: "object",
-};
+/**
+ * The schema of the reply object that `completion()` is asked for. JSON text, so that the key order
+ * is the order of the earlier bridge: the schema goes to the model provider as it is written here.
+ */
+export const REPLY_SCHEMA: object = JSON.parse(
+  '{"type":"object","properties":{"content":{"type":"string"},"toolCalls":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"arguments":{"type":"string","description":"JSON object text with the tool arguments"}},"required":["name","arguments"]}}},"required":["content","toolCalls"]}'
+);
 
 const BRIDGE_NOTE =
   "\n\n---\nBridge note (transport only): you are called through a text bridge without native tool calling. " +
@@ -173,12 +159,14 @@ export const parseModelReply = (output: unknown): ModelReply => {
       ) {
         throw new Error("a tool call has no name");
       }
-      const text = "arguments" in call ? call.arguments : undefined;
+      const text: unknown = "arguments" in call ? call.arguments : undefined;
       return {
+        // As the earlier bridge: JSON text is parsed; nothing, an empty text and every other empty
+        // value are no arguments; a blank text and an object are passed on.
         arguments:
           typeof text === "string" && text.trim() !== ""
             ? (JSON.parse(text) as unknown)
-            : (text ?? {}),
+            : text || {},
         name: call.name,
       };
     }),
@@ -373,29 +361,44 @@ export const runBridge = async (
 
   const recorder = (options.start ?? startRecorder)(options.recorderArgs);
   let stop: BridgeStats["outcome"] | null = null;
+  // Set when the recorder was killed or ended.
+  let over = false;
   const abort = (outcome: BridgeStats["outcome"], why: string): void => {
     if (stop !== null) return;
     stop = outcome;
+    over = true;
     log(`ABORT ${why}`);
     recorder.kill();
   };
+  // One try for one request: the line for the recorder. Throws when the call fails or its output is
+  // not the reply object.
+  const ask = async (
+    request: BridgeRequest,
+    prompt: Readonly<{ system: string; prompt: string }>,
+    attempt: number
+  ): Promise<string> => {
+    const handle = await options.completion(prompt.prompt, {
+      model: "default",
+      system: prompt.system,
+      ...(attempt === 0 ? { schema: REPLY_SCHEMA } : {}),
+    });
+    const reply = parseModelReply(await handle.wait());
+    const model = await modelOf(handle);
+    if (model === null) throw new Error("the reply names no model");
+    models.add(model);
+    return JSON.stringify({ key: request.key, ...reply, model });
+  };
   const answer = async (request: BridgeRequest): Promise<void> => {
-    const { prompt, system } = buildPrompt(request);
+    const prompt = buildPrompt(request);
     let lastError = "";
-    for (let attempt = 0; attempt < TRIES; attempt += 1) {
+    // `over`: the recorder is gone (killed or ended), so no further model call is made for it.
+    for (let attempt = 0; attempt < TRIES && !over; attempt += 1) {
       try {
-        const handle = await options.completion(prompt, {
-          model: "default",
-          system,
-          ...(attempt === 0 ? { schema: REPLY_SCHEMA } : {}),
-        });
-        const reply = parseModelReply(await handle.wait());
-        const model = await modelOf(handle);
-        if (model === null) throw new Error("the reply names no model");
-        models.add(model);
-        const line = JSON.stringify({ key: request.key, ...reply, model });
-        log(`REPLY ${line}`);
-        recorder.write(line);
+        const line = await ask(request, prompt, attempt);
+        if (!over) {
+          log(`REPLY ${line}`);
+          recorder.write(line);
+        }
         return;
       } catch (error) {
         counts.errors += 1;
@@ -403,6 +406,7 @@ export const runBridge = async (
         log(`ERROR ${request.key} attempt ${attempt}: ${lastError}`);
       }
     }
+    if (over) return;
     counts.faults += 1;
     const fault = JSON.stringify({
       fault: `no model reply after ${TRIES} tries; last error: ${lastError}`,
@@ -455,6 +459,7 @@ export const runBridge = async (
     (options.deadlineSeconds ?? 3000) * 1000
   );
   const rc = await recorder.exit;
+  over = true;
   clearTimeout(deadline);
   if (stop !== null) return stats(stop, null);
   return stats(last === null ? "recorder-ended-early" : "finished", rc);

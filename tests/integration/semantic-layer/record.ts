@@ -38,7 +38,7 @@
 // failed, the run stopped (a reply from another model, or a selection of another size than
 // --expect), or the upgrade kept a version 2 trial; 2 wrong arguments.
 
-import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
@@ -51,6 +51,7 @@ import {
   replyToCompletion,
   type TrialModel,
   upgradeRecording,
+  writeRecording,
 } from "./recorder.ts";
 import {
   parseCount,
@@ -103,18 +104,17 @@ try {
 if (selection.kind === "upgrade") {
   const backend = await startEvalBackend();
   try {
+    const before = readFileSync(RECORDING, "utf8");
     const result = await upgradeRecording(
       backend,
       EVAL_QUESTIONS,
-      JSON.parse(readFileSync(RECORDING, "utf8")) as Recording,
+      JSON.parse(before) as Recording,
       NOTE
     );
-    if (result.upgraded.length > 0) {
-      writeFileSync(
-        `${RECORDING}.tmp`,
-        `${JSON.stringify(result.recording, null, 2)}\n`
-      );
-      renameSync(`${RECORDING}.tmp`, RECORDING);
+    // Also written when no trial was upgraded: the file then gets schemaVersion 3, and `stale`
+    // records its trials. A file that is in the current format already is left as it is.
+    if (result.upgraded.length > 0 || Object.keys(result.kept).length > 0) {
+      writeRecording(RECORDING, result.recording);
     }
     send({
       kept: result.kept,

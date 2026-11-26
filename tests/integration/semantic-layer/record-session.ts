@@ -19,7 +19,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { EVAL_QUESTIONS } from "./questions.ts";
@@ -91,11 +91,14 @@ export const parseSessionArgs = (
     `semantic-eval-record-${now.toISOString().replaceAll(/[:.]/gu, "-")}.log`
   );
   for (const flag of flags) {
-    const [name, value] = flag.split("=", 2);
+    const cut = flag.indexOf("=");
+    const name = cut === -1 ? flag : flag.slice(0, cut);
+    const value = cut === -1 ? undefined : flag.slice(cut + 1);
     if (name === "--expect" && value !== undefined && /^\d+$/u.test(value)) {
       expectSelected = Number(value);
     } else if (name === "--log" && value !== undefined && value !== "") {
-      log = value;
+      // Absolute: the session, which writes the log, starts in another directory.
+      log = resolve(value);
     } else {
       throw new Error(
         `Unknown option ${flag}. Usage: [--expect=<n>] [--log=<file>] [trials] [concurrency] [stale | upgrade | ids...]`
@@ -157,9 +160,20 @@ if (import.meta.main) {
         fileURLToPath(new URL("./record.ts", import.meta.url)),
         ...recorderArgsOf(options),
       ],
-      { stdio: "inherit" }
+      {
+        cwd: fileURLToPath(new URL("../../../", import.meta.url)),
+        stdio: "inherit",
+      }
     );
     process.exit(recorder.status ?? 1);
+  }
+  // The bridge refuses a log that exists; without this check the verdict below would be the one
+  // of the earlier run.
+  if (existsSync(options.log)) {
+    console.error(
+      `The log file ${options.log} exists: one log file for each run.`
+    );
+    process.exit(2);
   }
   console.info(`bridge log: ${options.log}`);
   // The session starts in the temporary directory, so it loads no project context.

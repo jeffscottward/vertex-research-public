@@ -198,7 +198,7 @@ One command records: `bun run eval:semantic:record -- [--expect=<n>] [--log=<fil
 
 - `-- 3 4 stale` first replays every recorded trial without a model, prints the selected trials with the reason for each, and asks the model only for those. It selects every stale trial, every missing trial, and one witness trial for each question whose trials all saw an older tool list. With nothing to record it writes nothing. `--expect=<n>` stops the run before the first model request when the selection has another size; state the number you planned. To see the selection with no model call, use `--expect=0`: `bun run eval:semantic:record -- --expect=0 3 4 stale` prints what a recording would cost and stops.
 - `-- 3 4 <ids>` records the named questions. `-- 3 8` records every question; when it stored every trial it drops all other trials.
-- Every run keeps the `audit` header and every trial that it did not record. Each trial holds its own `model`, `promptFormat`, `recordedAt` and `toolList`.
+- Every run keeps the `audit` header. A run with ids or `stale` keeps every trial that it did not record. Each trial holds its own `model`, `promptFormat`, `recordedAt` and `toolList`.
 - `trials` is the number of trials for each question (3). `concurrency` is the number of trials that run at the same time.
 
 The tool rule (`toolVerdicts` in `recording.ts`): the header `toolLists` holds, for each tool list that a trial names, the digest of each tool definition.

@@ -41,7 +41,13 @@ const BridgeReplySchema = z.object({
   key: z.string().min(1),
   model: z.string().min(1),
   toolCalls: z.array(
-    z.object({ arguments: z.unknown().optional(), name: z.string().min(1) })
+    z.object({
+      // The arguments object, or its JSON text. Absent means no arguments.
+      arguments: z
+        .union([z.string(), z.record(z.string(), z.unknown())])
+        .optional(),
+      name: z.string().min(1),
+    })
   ),
 });
 /** The bridge got no model reply for this request. The trial of the request is not recorded. */
@@ -126,7 +132,10 @@ export type RunMessage =
       recorded: readonly string[];
       /** Trials that this run did not store, with the reason. */
       failed: Readonly<Record<string, string>>;
-      /** Trials that the run did not start because it stopped at a reply from another model. */
+      /**
+       * Trials that the run did not start: it stopped at a reply from another model, or its
+       * selection had another size than `expectSelected`.
+       */
       notStarted: readonly string[];
     }>;
 
@@ -159,8 +168,8 @@ const readRecording = (path: string): Recording | undefined =>
     ? (JSON.parse(readFileSync(path, "utf8")) as Recording)
     : undefined;
 
-// Write whole: temporary file, then rename.
-const writeRecording = (path: string, recording: Recording): void => {
+/** Writes the recording whole: temporary file, then rename. */
+export const writeRecording = (path: string, recording: Recording): void => {
   writeFileSync(`${path}.tmp`, `${JSON.stringify(recording, null, 2)}\n`);
   renameSync(`${path}.tmp`, path);
 };
@@ -301,6 +310,17 @@ export const recordRun = async (
   if (atStart !== undefined && selection.kind !== "all") {
     assertCurrentFormat(atStart);
   }
+  // Counted before the selection: its replay can freeze a search too (the backend of a recording
+  // answers a master_rules_search that is not frozen from the live index).
+  let frozen = Object.keys(backend.masterRules.searches).length;
+  // The freeze is written before a recording that names a new search, and never later: a recording
+  // must not name a search that the freeze does not hold.
+  const writeFreeze = (): void => {
+    const searches = Object.keys(backend.masterRules.searches).length;
+    if (searches === frozen) return;
+    writeFrozenMasterRules(backend.masterRules, files.masterRules);
+    frozen = searches;
+  };
   const { jobs, reasons } = await selectJobs(options, atStart);
   emit({ keys: Object.keys(reasons), reasons, type: "selected" });
 
@@ -312,15 +332,10 @@ export const recordRun = async (
     options.expectSelected !== jobs.length;
   let next = 0;
   const storedAt = new Map<string, string>();
-  let frozen = Object.keys(backend.masterRules.searches).length;
+  // A search that the replay of the selection froze belongs to a trial that is in the file already.
+  if (!stopped) writeFreeze();
   const store = (trial: RecordedTrial, toolList: IdentifiedToolList): void => {
-    // The freeze first: a recording must never name a search that the freeze does not hold. The
-    // file is written only when a trial froze a new search.
-    const searches = Object.keys(backend.masterRules.searches).length;
-    if (searches !== frozen) {
-      writeFrozenMasterRules(backend.masterRules, files.masterRules);
-      frozen = searches;
-    }
+    writeFreeze();
     // Read again for each trial: the file changes while the model answers.
     writeRecording(
       files.recording,
@@ -487,7 +502,6 @@ export const upgradeRecording = async (
     }
     const { toolList, messageDigests } = replayed;
     lists.set(toolList.id, toolList);
-    // The new field goes before `tools`, where the recorder writes it; `audit` stays last.
     // The new fields go where the recorder writes them; `audit` stays last. The prompt format is
     // the one of today: the bridge of the version 2 recordings built the same prompt
     // (bridge.test.ts pins the hash of its output).
