@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   type FlowOptionPrintRow,
+  oiFlags,
+  oiFlagsKnown,
   oldestRowTime,
   optionEvents,
   parseOptionPrints,
@@ -263,6 +265,41 @@ describe("optionEvents", () => {
     expect(event?.detail).toBe(
       "SPY 2026-11-09 605C 12x @ 2.05 (side not classified, moneyness not classified), unusual, vol > OI"
     );
+  });
+
+  it("leaves out vol > OI when the print reports open interest 0", () => {
+    const [event] = optionEvents([print({ openInterest: 0 })], 0);
+    expect(event?.detail).toBe(
+      "SPY 2026-11-09 605C 12x @ 2.05 (ask, otm), unusual"
+    );
+  });
+});
+
+describe("oiFlags", () => {
+  const flags = { opening: true, volumeOverOi: true };
+
+  it("keeps the flags as sent when open interest is above 0", () => {
+    expect(oiFlags({ ...flags, openInterest: 1 })).toEqual(flags);
+    expect(
+      oiFlags({ openInterest: 500, opening: false, volumeOverOi: false })
+    ).toEqual({ opening: false, volumeOverOi: false });
+  });
+
+  it("keeps the flags as sent when open interest is not reported", () => {
+    expect(oiFlags({ ...flags, openInterest: null })).toEqual(flags);
+  });
+
+  it("reads both flags as not set when open interest is 0", () => {
+    expect(oiFlags({ ...flags, openInterest: 0 })).toEqual({
+      opening: false,
+      volumeOverOi: false,
+    });
+  });
+
+  it("knows the flags only when open interest is not 0", () => {
+    expect(oiFlagsKnown({ openInterest: 0 })).toBe(false);
+    expect(oiFlagsKnown({ openInterest: null })).toBe(true);
+    expect(oiFlagsKnown({ openInterest: 3 })).toBe(true);
   });
 });
 

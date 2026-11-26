@@ -552,9 +552,11 @@ export const FlowOptionsSummarySchema = z
     blocks: count,
     blockPremium: nonNegative,
     unusual: count,
+    /** Prints with Vol > OI; prints that report open interest 0 never count (flag not known). */
     volumeOverOi: count,
     otmPremiumShare: finite.nullable(),
     zeroDtePremiumShare: finite.nullable(),
+    /** Opening premium ÷ premium of prints whose open interest is not 0; null without any. */
     openingPremiumShare: finite.nullable(),
     topPrints: z.array(FlowOptionPrintViewSchema).max(FLOW_SNAPSHOT_MAX_PRINTS),
   })

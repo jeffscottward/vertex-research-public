@@ -156,6 +156,30 @@ export const oldestRowTime = (
   return oldest;
 };
 
+type OiFlagFields = Pick<
+  FlowOptionPrintRow,
+  "opening" | "openInterest" | "volumeOverOi"
+>;
+
+/**
+ * Quant Data's Opening and Vol > OI flags compare a print with the contract's open interest. A
+ * print that reports open interest 0 has both flags set on every print, also for contracts that
+ * other feeds show with thousands of open contracts (card vertex-flow-print-flags-oi-zero,
+ * 2026-11-25 SPY prints), so the flags of such a print are not known. Null open interest (not
+ * sent) keeps the flags as sent. The stored row keeps Quant Data's values; readers use this.
+ */
+export const oiFlagsKnown = (
+  print: Pick<FlowOptionPrintRow, "openInterest">
+): boolean => print.openInterest !== 0;
+
+/** The Opening and Vol > OI flags to show and count: not set when they are not known. */
+export const oiFlags = (
+  print: OiFlagFields
+): Readonly<{ opening: boolean; volumeOverOi: boolean }> =>
+  oiFlagsKnown(print)
+    ? { opening: print.opening, volumeOverOi: print.volumeOverOi }
+    : { opening: false, volumeOverOi: false };
+
 const optionKind = (print: FlowOptionPrintRow): FlowEventRow["kind"] => {
   if (print.goldenSweep) return "option_golden_sweep";
   if (print.consolidation === "sweep") return "option_sweep";
@@ -226,7 +250,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not classified" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not classified" : print.moneyness})${print.unusual ? ", unusual" : ""}${oiFlags(print).volumeOverOi ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),
