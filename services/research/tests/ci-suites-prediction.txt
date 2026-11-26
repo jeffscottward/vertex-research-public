@@ -1,0 +1,7 @@
+# Suites that need duckdb 2.0.1 and pycryptodome 4.6.0 (prediction run of scripts/ci/research-python.sh,
+# separate venv from requirements-prediction-linux-py312.lock, VERTEX_REQUIRE_PREDICTION=1).
+# One path per line, relative to services/research. Remove a line only when its file is removed.
+tests/test_polymarket_chain.py
+tests/test_polymarket_chain_sample.py
+tests/test_prediction_market_parquet.py
+tests/test_prediction_markets.py
