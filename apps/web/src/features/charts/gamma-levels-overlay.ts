@@ -557,6 +557,140 @@ const pillStyle = (
   style: "stroke_fill" as const,
 });
 
+/** The level line, its king accent, the pill and, when the pill moved off the line, a leader. */
+const levelFigures = (
+  spec: GammaLevelLineSpec,
+  y: number,
+  labelY: number,
+  width: number,
+  narrow: boolean,
+  data: GammaLevelsOverlayData
+): readonly GammaLevelsFigure[] => {
+  const across = [
+    { x: 0, y },
+    { x: width, y },
+  ];
+  const figures: GammaLevelsFigure[] = [
+    {
+      attrs: { coordinates: across },
+      ignoreEvent: true,
+      styles:
+        spec.strokeStyle === "dashed"
+          ? {
+              color: spec.color,
+              dashedValue: spec.dashedValue,
+              size: spec.strokeWidth,
+              style: "dashed",
+            }
+          : {
+              color: spec.color,
+              size: spec.strokeWidth,
+              style: "solid",
+            },
+      type: "line",
+    },
+  ];
+  if (spec.isMergedWithKing) {
+    figures.push({
+      attrs: { coordinates: across },
+      ignoreEvent: true,
+      styles: {
+        color: spec.accentColor,
+        dashedValue: [4, 14],
+        size: 2.5,
+        style: "dashed",
+      },
+      type: "line",
+    });
+  }
+  if (Math.abs(labelY - y) > 2) {
+    figures.push({
+      attrs: {
+        coordinates: [
+          { x: 0, y },
+          { x: PILL_EDGE_X_PX, y: labelY },
+        ],
+      },
+      ignoreEvent: true,
+      styles: { color: spec.color, size: 1, style: "solid" },
+      type: "line",
+    });
+  }
+  figures.push({
+    attrs: {
+      align: "left",
+      baseline: "middle",
+      text: narrow ? `${spec.glyphs} ${spec.priceText}` : spec.pillText,
+      x: PILL_EDGE_X_PX,
+      y: labelY,
+    },
+    ignoreEvent: true,
+    styles: pillStyle(
+      data.background,
+      data.foreground,
+      spec.hasKingNode ? data.kingColor : spec.color,
+      11
+    ),
+    type: "text",
+  });
+  return figures;
+};
+
+/** One summary pill per side for the levels above and below the visible price range. */
+const edgeSummaryFigures = (
+  above: readonly GammaLevelLineSpec[],
+  below: readonly GammaLevelLineSpec[],
+  width: number,
+  height: number,
+  narrow: boolean,
+  data: GammaLevelsOverlayData
+): readonly GammaLevelsFigure[] => {
+  const edgeX = Math.max(8, width - 6);
+  const summary = (
+    items: readonly GammaLevelLineSpec[],
+    direction: "↑ Above" | "↓ Below"
+  ): string => {
+    const full = `${direction}: ${items
+      .map((line) => `${line.glyphs} ${line.shortLabel} ${line.priceText}`)
+      .join(" · ")}`;
+    if (items.length > 1 && (narrow || full.length * 6.4 + 18 > width - 12)) {
+      const first = items[0] as GammaLevelLineSpec;
+      return `${direction}: ${items.length} (${first.glyphs} ${first.priceText}…)`;
+    }
+    return full;
+  };
+  const figures: GammaLevelsFigure[] = [];
+  if (above.length > 0) {
+    figures.push({
+      attrs: {
+        align: "right",
+        baseline: "top",
+        text: summary(above, "↑ Above"),
+        x: edgeX,
+        y: 4,
+      },
+      ignoreEvent: true,
+      styles: pillStyle(data.background, data.foreground, data.grid, 10),
+      type: "text",
+    });
+  }
+  if (below.length > 0) {
+    figures.push({
+      attrs: {
+        align: "right",
+        baseline: "bottom",
+        text: summary(below, "↓ Below"),
+        x: edgeX,
+        y: Math.max(14, height - 4),
+      },
+      ignoreEvent: true,
+      styles: pillStyle(data.background, data.foreground, data.grid, 10),
+      type: "text",
+    });
+  }
+  return figures;
+};
+
 /**
  * Generates KLineCharts overlay figures for horizontal gamma levels.
  * `coordinates[i]` maps 1:1 to `data.lines[i]`. In-bounds lines draw full-width with
@@ -570,18 +704,8 @@ export const gammaLevelsFigures = (
   bounding?: OverlayBounding
 ): readonly GammaLevelsFigure[] => {
   if (!isOverlayData(data) || data.lines.length === 0) return [];
-  const width =
-    bounding !== undefined &&
-    Number.isFinite(bounding.width) &&
-    bounding.width > 0
-      ? bounding.width
-      : 600;
-  const height =
-    bounding !== undefined &&
-    Number.isFinite(bounding.height) &&
-    bounding.height > 0
-      ? bounding.height
-      : 360;
+  const width = positiveFiniteOrNull(bounding?.width) ?? 600;
+  const height = positiveFiniteOrNull(bounding?.height) ?? 360;
 
   const visible: { spec: GammaLevelLineSpec; y: number }[] = [];
   const above: GammaLevelLineSpec[] = [];
@@ -596,9 +720,7 @@ export const gammaLevelsFigures = (
     else visible.push({ spec, y: coord.y });
   }
 
-  const figures: GammaLevelsFigure[] = [];
   const narrow = width < 420;
-  const pillX = PILL_EDGE_X_PX;
   const bottomReserve =
     below.length > 0
       ? height - PILL_PADDING_Y_PX - 20
@@ -619,124 +741,10 @@ export const gammaLevelsFigures = (
     PILL_MIN_GAP_PX
   );
 
-  for (const { spec, y } of visible) {
-    figures.push({
-      attrs: {
-        coordinates: [
-          { x: 0, y },
-          { x: width, y },
-        ],
-      },
-      ignoreEvent: true,
-      styles:
-        spec.strokeStyle === "dashed"
-          ? {
-              color: spec.color,
-              dashedValue: spec.dashedValue,
-              size: spec.strokeWidth,
-              style: "dashed",
-            }
-          : {
-              color: spec.color,
-              size: spec.strokeWidth,
-              style: "solid",
-            },
-      type: "line",
-    });
-
-    if (spec.isMergedWithKing) {
-      figures.push({
-        attrs: {
-          coordinates: [
-            { x: 0, y },
-            { x: width, y },
-          ],
-        },
-        ignoreEvent: true,
-        styles: {
-          color: spec.accentColor,
-          dashedValue: [4, 14],
-          size: 2.5,
-          style: "dashed",
-        },
-        type: "line",
-      });
-    }
-
-    const labelY = placedY[spec.key] as number;
-    if (Math.abs(labelY - y) > 2) {
-      figures.push({
-        attrs: {
-          coordinates: [
-            { x: 0, y },
-            { x: pillX, y: labelY },
-          ],
-        },
-        ignoreEvent: true,
-        styles: { color: spec.color, size: 1, style: "solid" },
-        type: "line",
-      });
-    }
-    figures.push({
-      attrs: {
-        align: "left",
-        baseline: "middle",
-        text: narrow ? `${spec.glyphs} ${spec.priceText}` : spec.pillText,
-        x: pillX,
-        y: labelY,
-      },
-      ignoreEvent: true,
-      styles: pillStyle(
-        data.background,
-        data.foreground,
-        spec.hasKingNode ? data.kingColor : spec.color,
-        11
-      ),
-      type: "text",
-    });
-  }
-
-  const edgeX = Math.max(8, width - 6);
-  const formatEdgeSummary = (
-    items: readonly GammaLevelLineSpec[],
-    direction: "↑ Above" | "↓ Below"
-  ): string => {
-    const full = `${direction}: ${items
-      .map((line) => `${line.glyphs} ${line.shortLabel} ${line.priceText}`)
-      .join(" · ")}`;
-    if (items.length > 1 && (narrow || full.length * 6.4 + 18 > width - 12)) {
-      const first = items[0] as GammaLevelLineSpec;
-      return `${direction}: ${items.length} (${first.glyphs} ${first.priceText}…)`;
-    }
-    return full;
-  };
-  if (above.length > 0) {
-    figures.push({
-      attrs: {
-        align: "right",
-        baseline: "top",
-        text: formatEdgeSummary(above, "↑ Above"),
-        x: edgeX,
-        y: 4,
-      },
-      ignoreEvent: true,
-      styles: pillStyle(data.background, data.foreground, data.grid, 10),
-      type: "text",
-    });
-  }
-  if (below.length > 0) {
-    figures.push({
-      attrs: {
-        align: "right",
-        baseline: "bottom",
-        text: formatEdgeSummary(below, "↓ Below"),
-        x: edgeX,
-        y: Math.max(14, height - 4),
-      },
-      ignoreEvent: true,
-      styles: pillStyle(data.background, data.foreground, data.grid, 10),
-      type: "text",
-    });
-  }
-  return figures;
+  return [
+    ...visible.flatMap(({ spec, y }) =>
+      levelFigures(spec, y, placedY[spec.key] as number, width, narrow, data)
+    ),
+    ...edgeSummaryFigures(above, below, width, height, narrow, data),
+  ];
 };
