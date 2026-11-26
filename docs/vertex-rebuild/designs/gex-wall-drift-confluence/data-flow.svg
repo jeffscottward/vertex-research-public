@@ -1,0 +1,275 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="520"
+  viewBox="0 0 1200 520"
+  font-family="Manrope, Public Sans, sans-serif"
+  role="img"
+>
+  <title>Data flow of the GEX wall x net drift read</title>
+  <rect width="1200" height="520" fill="#0f1115" />
+  <text x="40" y="50" fill="#e8e6df" font-size="26" font-weight="700">
+    Data flow: where each input comes from
+  </text>
+  <text x="40" y="78" fill="#9a9aa2" font-size="15">
+    Computed in the browser. No new API field, table or collector. The study
+    reads the same stored rows.
+  </text>
+  <defs>
+    <marker
+      id="a"
+      markerWidth="10"
+      markerHeight="10"
+      refX="8"
+      refY="5"
+      orient="auto"
+    >
+      <path d="M0,0 L10,5 L0,10 Z" fill="#c9a227" />
+    </marker>
+  </defs>
+  <!-- sources -->
+  <g font-size="14">
+    <rect
+      x="40"
+      y="120"
+      width="250"
+      height="64"
+      rx="10"
+      fill="#1f232c"
+      stroke="#2a2e38"
+    />
+    <text x="56" y="146" fill="#e8e6df" font-weight="700">
+      flow_gex (every ~14 min)
+    </text>
+    <text x="56" y="168" fill="#9a9aa2">walls, flip, spot · /flow + study</text>
+    <rect
+      x="40"
+      y="210"
+      width="250"
+      height="64"
+      rx="10"
+      fill="#1f232c"
+      stroke="#2a2e38"
+    />
+    <text x="56" y="236" fill="#e8e6df" font-weight="700">
+      flow_net_drift (every 2 min)
+    </text>
+    <text x="56" y="258" fill="#9a9aa2">
+      call/put premium, price per minute
+    </text>
+    <rect
+      x="40"
+      y="300"
+      width="250"
+      height="64"
+      rx="10"
+      fill="#1f232c"
+      stroke="#2a2e38"
+    />
+    <text x="56" y="326" fill="#e8e6df" font-weight="700">
+      optionsAnalytics (on demand)
+    </text>
+    <text x="56" y="348" fill="#9a9aa2">walls, flip, spot · /stock only</text>
+  </g>
+  <!-- api docs -->
+  <g font-size="14">
+    <rect
+      x="360"
+      y="120"
+      width="200"
+      height="64"
+      rx="10"
+      fill="#171a21"
+      stroke="#3a4050"
+    />
+    <text x="376" y="146" fill="#e8e6df" font-weight="700">flow.snapshot</text>
+    <text x="376" y="168" fill="#9a9aa2">gex (unchanged)</text>
+    <rect
+      x="360"
+      y="210"
+      width="200"
+      height="64"
+      rx="10"
+      fill="#171a21"
+      stroke="#3a4050"
+    />
+    <text x="376" y="236" fill="#e8e6df" font-weight="700">flow.control</text>
+    <text x="376" y="258" fill="#9a9aa2">netDrift points · operators</text>
+    <rect
+      x="360"
+      y="300"
+      width="200"
+      height="64"
+      rx="10"
+      fill="#171a21"
+      stroke="#3a4050"
+    />
+    <text x="376" y="326" fill="#e8e6df" font-weight="700">
+      optionsAnalytics.snapshot
+    </text>
+    <text x="376" y="348" fill="#9a9aa2">context.levels</text>
+  </g>
+  <path
+    d="M290 152 L356 152"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <path
+    d="M290 242 L356 242"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <path
+    d="M290 332 L356 332"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <!-- rule -->
+  <circle
+    cx="720"
+    cy="242"
+    r="78"
+    fill="#1c2a22"
+    stroke="#4caf7a"
+    stroke-width="3"
+  />
+  <text
+    x="720"
+    y="232"
+    fill="#e8e6df"
+    font-size="15"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    gradeGexWallDrift
+  </text>
+  <text x="720" y="254" fill="#9a9aa2" font-size="13" text-anchor="middle">
+    pure · v1 · typed codes
+  </text>
+  <path
+    d="M560 152 L650 205"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <path
+    d="M560 242 L638 242"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <path
+    d="M560 332 L650 280"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <!-- outputs -->
+  <g font-size="14">
+    <rect
+      x="880"
+      y="140"
+      width="280"
+      height="64"
+      rx="10"
+      fill="#1f232c"
+      stroke="#2a2e38"
+    />
+    <text x="896" y="166" fill="#e8e6df" font-weight="700">/flow badge</text>
+    <text x="896" y="188" fill="#9a9aa2">ticker of the selected view</text>
+    <rect
+      x="880"
+      y="230"
+      width="280"
+      height="64"
+      rx="10"
+      fill="#1f232c"
+      stroke="#2a2e38"
+    />
+    <text x="896" y="256" fill="#e8e6df" font-weight="700">/stock badge</text>
+    <text x="896" y="278" fill="#9a9aa2">operators · SPY SPX QQQ NDX</text>
+    <rect
+      x="880"
+      y="320"
+      width="280"
+      height="64"
+      rx="10"
+      fill="#1f232c"
+      stroke="#c9a227"
+      stroke-dasharray="6 5"
+    />
+    <text x="896" y="346" fill="#e8e6df" font-weight="700">
+      study (accruing)
+    </text>
+    <text x="896" y="368" fill="#9a9aa2">same rows · runner not written</text>
+  </g>
+  <path
+    d="M798 220 L876 172"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <path
+    d="M798 242 L876 262"
+    stroke="#c9a227"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <path
+    d="M780 292 L876 350"
+    stroke="#c9a227"
+    stroke-width="2"
+    stroke-dasharray="6 5"
+    marker-end="url(#a)"
+  />
+  <!-- legend reads -->
+  <g font-size="13">
+    <rect
+      x="40"
+      y="420"
+      width="120"
+      height="30"
+      rx="15"
+      fill="#163a27"
+      stroke="#2f7d52"
+    />
+    <text x="100" y="440" fill="#7fd6a3" text-anchor="middle">Hold (A)</text>
+    <rect
+      x="176"
+      y="420"
+      width="120"
+      height="30"
+      rx="15"
+      fill="#3a2f12"
+      stroke="#8a6d1f"
+    />
+    <text x="236" y="440" fill="#f0c75e" text-anchor="middle">Break risk</text>
+    <rect
+      x="312"
+      y="420"
+      width="120"
+      height="30"
+      rx="15"
+      fill="#1f232c"
+      stroke="#3a4050"
+    />
+    <text x="372" y="440" fill="#e8e6df" text-anchor="middle">No read</text>
+    <rect
+      x="448"
+      y="420"
+      width="120"
+      height="30"
+      rx="15"
+      fill="#13263a"
+      stroke="#2e5d8a"
+    />
+    <text x="508" y="440" fill="#8cc4f5" text-anchor="middle">No data</text>
+    <text x="590" y="440" fill="#9a9aa2">
+      Every missing or stale input names its code: gex_stale, drift_stale,
+      window_gap, zero_premium …
+    </text>
+  </g>
+</svg>
