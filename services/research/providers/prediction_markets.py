@@ -27,13 +27,15 @@ Research only. The module reads only the rows that the caller passes in. It does
 not download the dataset, contact a venue, read an account, place or simulate
 orders, or grant trading authority. Prices are implied probabilities in whole
 cents (1..99). Dataset rights: the code is MIT; the pre-collected dataset has no
-separate license statement (see docs/vertex-rebuild/upstream-candidates-20261030.md).
+separate license statement and is not used (see docs/vertex-rebuild/upstream-candidates-20261030.md).
 
 Unit: one trade gives two positions (both sides), so ``total_trades`` (the
 upstream column name) counts positions. Each position has weight 1; contract
-count and notional are not used. Test status: synthetic rows only; the same
-synthetic rows gave the same buckets and scores as the upstream code at the
-commit above (differential run, 2026-11-15). No run on the real dataset yet.
+count and notional are not used. Test status: the same synthetic rows gave the
+same buckets and scores as the upstream code at the commit above (differential
+run, 2026-11-15). First real-row run: Polymarket fills and resolutions from
+public Polygon logs, read through providers.prediction_market_parquet
+(docs/vertex-rebuild/prediction-market-onchain-sample.md, Results). Kalshi has no real-row run.
 """
 from __future__ import annotations
 
