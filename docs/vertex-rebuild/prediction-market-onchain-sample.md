@@ -192,7 +192,7 @@ The EGM drift report compared this design with the merged code (commit `459d6446
 * **Defaults**: the reader applies no horizon unless `--horizon-blocks` is given and prints the condition count only with `--bootstrap`; the Phase 6 commands pass both.
 * **File writing**: each Parquet file is written through a temporary CSV file in the output folder; if the second file fails, rerun into a new folder.
 * **Endpoint and folder**: `--rpc` and `--out` accept any URL and any folder outside the repository; the rights basis covers only the PublicNode endpoint and the data-handling folder above.
-* **Tests**: duplicate fills are not tested separately; `ci-suites-prediction.txt` also lists the existing `tests/test_prediction_markets.py`.
+* **Tests**: duplicate fills are not tested separately; `ci-suites-prediction.txt` also lists the existing `services/research/tests/test_prediction_markets.py`.
 * **Kalshi code**: the Kalshi functions of `prediction_markets.py` stay, tested on synthetic rows, for a run after written Kalshi consent.
 * **Curve step**: as in the Gnosis loop, x is increased by one before the first square-root test, so the hash value itself is never tested.
 
