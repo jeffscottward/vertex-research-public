@@ -61,7 +61,7 @@ type State =
 const headCell = "px-2 py-1.5 font-normal text-muted-foreground";
 const numCell = "px-2 py-1.5 text-right font-mono tabular-nums";
 const badgeBase =
-  "inline-flex items-center rounded-sm border px-1 py-0.5 font-medium font-sans text-[10px] leading-none";
+  "inline-flex items-center whitespace-nowrap rounded-sm border px-1 py-0.5 font-medium font-sans text-[10px] leading-none";
 
 const MarkCard = ({
   testId,
