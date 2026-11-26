@@ -40,7 +40,7 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 5. **Charts form.** The `Security type` list has a fourth entry, `Forex (CASH)`. While it is selected, the exchange preset is `IDEALPRO` and the `Data` list holds only `MIDPOINT`. The form keeps the operator's own `Data` choice: after a forex chart, a stock or futures chart loads with the value that was selected before. A venue that the operator typed (not `SMART`, `CME` or `IDEALPRO`) stays when the security type changes.
 6. **Quick picks.** The `Quick pick` list gets `EUR.USD`, `USD.JPY` and `GBP.USD` after the existing four entries. These are the three pairs that the removed code offered and that the probe covered. A pick sets symbol, security type, exchange and currency.
 7. **Pair name.** For a `CASH` chart the panel title shows the pair, for example `USD.JPY · 1D`. Other charts keep the symbol alone.
-8. **Panels.** For a `CASH` chart the order flow panel is not mounted, because it needs ticks and depth. The order-flow marks line says that marks are not available for forex. The stock-only panels and the futures open-interest control already check for their own security type and stay off.
+8. **Panels.** For a `CASH` chart the order flow panel is not mounted, because it needs ticks and depth. The order-flow marks line says that forex has no marks and gives the cause. The stock-only panels and the futures open-interest control already check for their own security type and stay off.
 9. **Lab fixtures.** The fake-data lab (`/lab`) answers a `CASH` bars request with `MIDPOINT` and with `v: null` on every bar, as the live service does.
 
 ## Alternatives considered
@@ -81,7 +81,7 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 
 ## Implementation Plan
 
-Reference for the restored code: `git show 1c7987817` (read it in reverse). Steps 1 to 7 are one feature commit; the design folder is a second commit. Work order inside the feature commit: contract (step 1), tests (steps 2 and 5, failing), then implementation (steps 3, 4, 6). The tree does not type-check between step 1 and step 4, because `SEC_TYPE_LABELS` is an exhaustive record; this is expected.
+Reference for the restored code: `git show 1c7987817` (read it in reverse). The change has three commits: the design folder; the feature (steps 1 to 7, differences 1 to 6 and 9); and the fixes from the code review (differences 7 and 8, and the pair name of the lab contract in difference 4). Work order inside the feature commit: contract (step 1), tests (steps 2 and 5, failing), then implementation (steps 3, 4, 6). The tree does not type-check between step 1 and step 4, because `SEC_TYPE_LABELS` is an exhaustive record; this is expected.
 
 ### Restored from `1c7987817`
 
@@ -103,8 +103,6 @@ Reference for the restored code: `git show 1c7987817` (read it in reverse). Step
 
 ### Differences from the removed code
 
-These are in the same feature commit.
-
 1. **`MIDPOINT` is derived, not stored** (behavior 5; removes code). The removed code wrote `MIDPOINT` into the form state in `changeSecType` and `changeQuickPick`, so it stayed after forex. Now `buildBarsInput` sends `MIDPOINT` when `form.secType === "CASH"`, the `Data` select shows the derived value, and the two setters are not restored.
 2. **Pair name in the title** (behavior 7; visible defect). In `charts-workspace.tsx`, the title text is `${symbol}.${currency}` for `CASH`, from the response request block when a chart is loaded and from the form before that.
 3. **Marks line for forex** (behavior 8; visible defect). `apps/web/src/components/portal/order-flow-marks-bar.tsx` (Modify): in the `unsupported` state with `secType === "CASH"`, show `Order-flow marks: none for forex (CASH). IBKR gives no ticks or depth for a forex pair.` in place of the text that points to the order flow panel. Add the case to `order-flow-marks-bar.test.tsx`.
@@ -112,7 +110,7 @@ These are in the same feature commit.
 5. **Shared sample answer** (`market-data.test.ts`). The test `reads the shared sample answers as expected.json says for charts` now filters out only `-ind.json` and expects one file fewer than the cases in `packages/api/src/fixtures/history-answers/expected.json`, so it reads `bars-v2-cash.json` (three bars, volumes `null`). Correct the comment above the filter.
 6. **MCP tool** (`packages/api/src/server/mcp.ts`, Modify). The `market_bars` description becomes: `Read-only IBKR historical OHLCV bars from the QuantVPS history service (IB Gateway, client id 77): symbol, secType STK|FUT|CONTFUT|CASH, exchange (SMART for stocks; required for futures, e.g. CME, and for forex, e.g. IDEALPRO), currency, barSize (1 min to 1 day), duration (daily <= 1 Y, intraday <= 1 M, 1 min <= 2 D), whatToShow TRADES|MIDPOINT, useRTH. Forex (CASH): symbol is the base currency and currency is the quote currency (EUR.USD is symbol EUR, currency USD); bars are always MIDPOINT and v is null. Bars are {t epoch seconds UTC, o, h, l, c, v}; includes contract, asOf, fetchedAt and cache age. The service paces IBKR requests; PACED errors say when to retry.` In the test block `market_bars MCP tool`, add one call with `{ symbol: "EUR", secType: "CASH", exchange: "IDEALPRO" }` and assert that the tool accepts it and forwards it to `marketData/bars`, and that the description names `CASH` and the pair format. (The `MIDPOINT` rule sits behind that procedure; step 2 tests it.)
 7. **One issue for ticks and depth** (code review finding). The removed code added a second issue, `Futures need an exchange, for example CME`, for a `CASH` ticks or depth request without an exchange. That hint points at a request that can never work, so `instrumentRefinements` returns after the forex issue. The test covers the request with and without an exchange.
-8. **Status texts.** The status language guard of the repository (`status-language.test.ts` in `apps/web/src` and `packages/api/src`) refuses the words "not available" in a displayed text. So the two forex texts name the cause; they differ from the texts of the removed code.
+8. **Status texts.** The status language guard of the repository (`status-language.test.ts` in `apps/web/src` and `packages/api/src`) refuses the words "not available" in a displayed text. So the two forex texts name the cause. The ticks and depth text differs from the text of the removed code; the marks line text is new.
 9. **Documents.** `docs/vertex-rebuild/quantvps-status-endpoint.md`: replace the stale note with: `CASH` is verified live on service 1.8.0 (probe of 2026-11-25), and the web/API side (`MARKET_SEC_TYPES`, the charts picker, MCP `market_bars`) exposes it for bars; ticks and depth refuse it. `CHANGELOG.md`: one line under `[Unreleased]`, `Added`.
 
 Not planned: the Graphify update of `AGENTS.md` work-sequence step 7 is deferred (the graph is optional and not committed); this plan makes no graph claim.
