@@ -15,7 +15,7 @@ Keep the repository structure clean so agents copy good patterns. Source idea: G
 
 ## Conflict rule
 
-The runner (`bun run vertex:janitor`) computes the busy-file list against the repository default branch and gives its path in the prompt. The list holds every file changed by open PRs to the default branch and by `origin/ws/*` branches that share history with it. Do not touch a file on that list, and do not move a file to a path on that list. Do not compute busy files against `main`: that branch has unrelated history.
+The runner (`bun run vertex:janitor`) computes the busy-file list against the repository default branch and gives its path in the prompt. The list holds every file changed by open PRs to the default branch, by `origin/ws/*` branches that share history with it, and by the local worktrees of the main checkout: uncommitted edits, untracked files and commits not yet on the default branch, so a live job's unpushed work is busy too. Do not touch a file on that list, and do not move a file to a path on that list. Do not compute busy files against `main`: that branch has unrelated history.
 
 ## Procedure
 
