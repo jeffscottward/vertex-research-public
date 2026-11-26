@@ -576,6 +576,7 @@ describe("smart money text", () => {
 describe("SmartMoneyWorkspace unified multi-source panels and freshness strip", () => {
   const sampleStatus = (overdue = false): OpenbbStatusOutput => ({
     checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+    lastFallbackAt: null,
     overdueCount: overdue ? 2 : 0,
     runs: [],
     sources: [
