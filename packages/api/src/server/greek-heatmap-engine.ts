@@ -11,17 +11,21 @@ import type {
   GreekHeatmapRow,
   GreekHeatmapStatus,
 } from "../contracts/options-analytics.ts";
-import { callGreeks } from "./gex-context.ts";
+import {
+  callGreeks,
+  DAYS_PER_YEAR,
+  FLIP_RANGE,
+  FLIP_STEPS,
+} from "./gex-context.ts";
 import {
   type ChainRow,
   daysUntil,
+  entries,
+  ISO_DATE,
   termStructure,
+  toNumber,
 } from "./options-analytics-engine.ts";
 
-const DAYS_PER_YEAR = 365;
-const FLIP_RANGE = 0.3;
-const FLIP_STEPS = 120;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const RANGE_MIN = 0.5;
 const RANGE_MAX = 1.5;
 
@@ -60,20 +64,6 @@ type PricedCell = Readonly<{
   charm: number;
   dex: number;
 }>;
-
-const toNumber = (value: unknown): number | null => {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-};
-
-const entries = (value: unknown): [string, unknown][] =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? Object.entries(value)
-    : [];
 
 const nonNegCount = (cell: unknown, key: string): number => {
   if (typeof cell !== "object" || cell === null || Array.isArray(cell))
