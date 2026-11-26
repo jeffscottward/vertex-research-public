@@ -7,6 +7,7 @@ import type {
   ChartStudies,
   DisplayCandle,
   ExpectedMoveCone,
+  GammaLevelsOverlay,
   SeriesPane,
 } from "./types.ts";
 
@@ -20,6 +21,7 @@ export type MarketBarsChartProps = Readonly<{
   studies: ChartStudies;
   markers: readonly ChartMarker[];
   expectedMove?: ExpectedMoveCone | null;
+  gammaLevels?: GammaLevelsOverlay | null;
   seriesPane?: SeriesPane | null;
 }>;
 
@@ -38,6 +40,7 @@ export const MarketBarsChart = ({
   studies,
   markers,
   expectedMove,
+  gammaLevels,
   seriesPane,
 }: MarketBarsChartProps) => {
   if (typeof window === "undefined")
@@ -52,6 +55,7 @@ export const MarketBarsChart = ({
       captions={MARKET_CHART_CAPTIONS}
       expectedMove={expectedMove ?? null}
       factory={createKLineRenderer}
+      gammaLevels={gammaLevels ?? null}
       label={label}
       markers={markers}
       pricePrecision={pricePrecision}

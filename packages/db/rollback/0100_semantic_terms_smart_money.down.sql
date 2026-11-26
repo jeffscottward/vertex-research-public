@@ -1,5 +1,5 @@
--- Guarded rollback for 0098_semantic_terms_smart_money.sql.
--- Run with `psql -v ON_ERROR_STOP=1 -f packages/db/rollback/0098_semantic_terms_smart_money.down.sql`
+-- Guarded rollback for 0100_semantic_terms_smart_money.sql.
+-- Run with `psql -v ON_ERROR_STOP=1 -f packages/db/rollback/0100_semantic_terms_smart_money.down.sql`
 -- (without --single-transaction, because this script manages its own BEGIN/COMMIT).
 -- Refuses if any operator edited or recertified the five smart-money terms, their SQL attributes,
 -- or their relationships, or if any other SQL attribute uses the five added grains.

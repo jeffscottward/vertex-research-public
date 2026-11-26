@@ -415,4 +415,107 @@ describe("FlowTradeBubblesPanel", () => {
     expect(svg?.getAttribute("aria-hidden")).toBe("true");
     expect(svg?.getAttribute("role")).toBeNull();
   });
+
+  it("overlays gamma level lines and off-scale strips from gex and lets users toggle them off", () => {
+    const el = renderPanel({
+      document: sampleDocument(),
+      failure: null,
+      gex: {
+        at: "2026-11-25T15:30:00Z",
+        basis: 10,
+        ivRegime: "contango",
+        levels: {
+          callWall: 6050,
+          flip: 6002,
+          kingNode: 6050,
+          maxPain: 6003,
+          putWall: 5950,
+        },
+        netDex: 1e6,
+        regime: "positive",
+        spot: 6002,
+        symbolLevels: {
+          callWall: 6060,
+          flip: 6012,
+          kingNode: 6060,
+          maxPain: 6013,
+          putWall: 5960,
+        },
+        ticker: "SPX",
+        totalGex: 1e9,
+        zeroDteShare: 0.4,
+      },
+      refreshMs: 60_000,
+      symbol: "ES",
+    });
+    const toggle = el.querySelector<HTMLButtonElement>(
+      "[data-flow-trade-bubbles-gamma-toggle]"
+    );
+    expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+    expect(el.querySelector("[data-flow-gamma-lines]")).not.toBeNull();
+    // The level lines are drawn before the candles and the labels after them: a candle stays
+    // on top of a line, and no candle hides a label.
+    const order = [
+      ...el.querySelectorAll(
+        "[data-flow-gamma-lines], [data-flow-trade-bubbles-candle]"
+      ),
+    ].map((node) => node.getAttribute("data-flow-gamma-lines") ?? "candle");
+    expect(order[0]).toBe("lines");
+    expect(order.at(-1)).toBe("labels");
+    expect(order.slice(1, -1).every((kind) => kind === "candle")).toBe(true);
+    expect(order.length).toBeGreaterThan(2);
+    const strip = el.querySelector("[data-flow-gamma-strip]");
+    expect(strip?.textContent).toContain(
+      "Gamma levels: GEX estimate as of Nov 25, 10:30 AM EST"
+    );
+    // The chart SVG is hidden from screen readers: the drawn levels are also given as text.
+    expect(
+      strip?.querySelector("[data-flow-gamma-in-range]")?.textContent
+    ).toBe("In range: ◎ Max pain 6,013.00, ⇄ Flip 6,012.00");
+    act(() => {
+      toggle?.click();
+    });
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-strip]")).toBeNull();
+  });
+
+  it("omits gamma overlay when viewing SPY so SPY GEX levels are never plotted on the ES futures scale", () => {
+    const el = renderPanel({
+      document: sampleDocument(),
+      failure: null,
+      gex: {
+        at: "2026-11-25T15:30:00Z",
+        basis: 0,
+        ivRegime: "contango",
+        levels: {
+          callWall: 615,
+          flip: 602,
+          kingNode: 615,
+          maxPain: 600,
+          putWall: 590,
+        },
+        netDex: 1e6,
+        regime: "positive",
+        spot: 605,
+        symbolLevels: {
+          callWall: 615,
+          flip: 602,
+          kingNode: 615,
+          maxPain: 600,
+          putWall: 590,
+        },
+        ticker: "SPY",
+        totalGex: 1e9,
+        zeroDteShare: 0.4,
+      },
+      refreshMs: 60_000,
+      symbol: "SPY",
+    });
+    expect(
+      el.querySelector("[data-flow-trade-bubbles-gamma-toggle]")
+    ).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-lines]")).toBeNull();
+    expect(el.querySelector("[data-flow-gamma-strip]")).toBeNull();
+  });
 });

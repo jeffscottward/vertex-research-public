@@ -25,6 +25,7 @@ const makePrint = (
   id,
   iv: 16.5,
   moneyness: "otm",
+  openInterest: 1000,
   opening: false,
   premium: 300_000,
   price: 2.5,
@@ -326,6 +327,37 @@ describe("foldOptionBubbles", () => {
     expect(fold.storedUntil).toBeNull();
     expect(fold.truncated).toBe(false);
     expect(fold.totals.latestPrice).toBeNull();
+  });
+
+  it("reports Quant Data flags of a print with open interest 0 as not reported", () => {
+    const flagged = { opening: true, volumeOverOi: true };
+    const fold = foldOptionBubbles({
+      gaps: [],
+      minPremiumUsd: 250_000,
+      minutes: [],
+      prints: [
+        makePrint("zero", "2026-11-20T14:40:00.000Z", {
+          ...flagged,
+          openInterest: 0,
+        }),
+        makePrint("stored", "2026-11-20T14:40:30.000Z", {
+          opening: null,
+          openInterest: 0,
+          volumeOverOi: null,
+        }),
+        makePrint("known", "2026-11-20T14:41:00.000Z", {
+          ...flagged,
+          openInterest: 900,
+        }),
+      ],
+      range: RANGE,
+    });
+
+    expect(fold.bubbles.map((b) => [b.id, b.opening, b.volumeOverOi])).toEqual([
+      ["zero", null, null],
+      ["stored", null, null],
+      ["known", true, true],
+    ]);
   });
 
   it("picks earliest start and latest end across unordered gaps and handles non-overlapping gaps", () => {

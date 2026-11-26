@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   type FlowOptionPrintRow,
+  oiFlags,
+  oiFlagsKnown,
   oldestRowTime,
   optionEvents,
   parseOptionPrints,
@@ -85,6 +87,37 @@ describe("parseOptionPrints", () => {
         volumeOverOi: true,
       },
     ]);
+  });
+
+  it("stores both open-interest flags as not reported when the print reports open interest 0", () => {
+    // QuantData sets Opening and Vol > OI on every print with open interest 0 (card
+    // vertex-flow-print-flags-oi-zero-third-state); null is the stored third state.
+    expect(parseOne({ openInterest: 0 })).toMatchObject({
+      openInterest: 0,
+      opening: null,
+      volumeOverOi: null,
+    });
+    expect(
+      parseOne({
+        isOpeningPosition: false,
+        isVolumeGreaterThanOpenInterest: false,
+        openInterest: 0,
+      })
+    ).toMatchObject({ opening: null, volumeOverOi: null });
+  });
+
+  it("keeps the flags as sent when open interest is above 0 or not sent", () => {
+    expect(
+      parseOne({
+        isOpeningPosition: false,
+        isVolumeGreaterThanOpenInterest: true,
+        openInterest: 1,
+      })
+    ).toMatchObject({ opening: false, volumeOverOi: true });
+    expect(parseOne({ openInterest: null })).toMatchObject({
+      opening: true,
+      volumeOverOi: true,
+    });
   });
 
   it("skips and counts invalid rows and unparseable times", () => {
@@ -263,6 +296,68 @@ describe("optionEvents", () => {
     expect(event?.detail).toBe(
       "SPY 2026-11-09 605C 12x @ 2.05 (side not classified, moneyness not classified), unusual, vol > OI"
     );
+  });
+
+  it("leaves out vol > OI when the print reports open interest 0 or stored null flags", () => {
+    const [legacy, storedNull] = optionEvents(
+      [
+        print({ openInterest: 0 }),
+        print({ openInterest: 0, opening: null, volumeOverOi: null }),
+      ],
+      0
+    );
+    expect(legacy?.detail).toBe(
+      "SPY 2026-11-09 605C 12x @ 2.05 (ask, otm), unusual"
+    );
+    expect(storedNull?.detail).toBe(
+      "SPY 2026-11-09 605C 12x @ 2.05 (ask, otm), unusual"
+    );
+  });
+});
+
+describe("oiFlags", () => {
+  const flags = { opening: true, volumeOverOi: true };
+
+  it("keeps the flags as sent when open interest is above 0", () => {
+    expect(oiFlags({ ...flags, openInterest: 1 })).toEqual(flags);
+    expect(
+      oiFlags({ openInterest: 500, opening: false, volumeOverOi: false })
+    ).toEqual({ opening: false, volumeOverOi: false });
+  });
+
+  it("keeps the flags as sent when open interest is not reported", () => {
+    expect(oiFlags({ ...flags, openInterest: null })).toEqual(flags);
+  });
+
+  it("reads both flags as not reported when open interest is 0 (rows stored before null)", () => {
+    expect(oiFlags({ ...flags, openInterest: 0 })).toEqual({
+      opening: null,
+      volumeOverOi: null,
+    });
+  });
+
+  it("reads stored null flags as paired not reported", () => {
+    expect(
+      oiFlags({ openInterest: 0, opening: null, volumeOverOi: null })
+    ).toEqual({ opening: null, volumeOverOi: null });
+    expect(
+      oiFlags({ openInterest: 7, opening: null, volumeOverOi: true })
+    ).toEqual({ opening: null, volumeOverOi: null });
+    expect(
+      oiFlags({ openInterest: 7, opening: false, volumeOverOi: null })
+    ).toEqual({ opening: null, volumeOverOi: null });
+  });
+
+  it("knows the OI flags only when both are reported", () => {
+    expect(oiFlagsKnown({ ...flags, openInterest: 0 })).toBe(false);
+    expect(oiFlagsKnown({ ...flags, openInterest: null })).toBe(true);
+    expect(oiFlagsKnown({ ...flags, openInterest: 3 })).toBe(true);
+    expect(
+      oiFlagsKnown({ openInterest: 3, opening: null, volumeOverOi: true })
+    ).toBe(false);
+    expect(
+      oiFlagsKnown({ openInterest: 3, opening: true, volumeOverOi: null })
+    ).toBe(false);
   });
 });
 

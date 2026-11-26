@@ -10,7 +10,10 @@ import { PageHeader } from "@darkfactory/ui";
 
 import type { BacktestsGateway } from "../../components/portal/agent-ops-client.tsx";
 import { ChartsWorkspace } from "../../components/portal/charts-workspace.tsx";
-import type { FlowEventsGateway } from "../../components/portal/flow-events-client.ts";
+import type {
+  FlowEventsGateway,
+  FlowSnapshotGateway,
+} from "../../components/portal/flow-events-client.ts";
 import type { JevVerdictGateway } from "../../components/portal/jev-verdict-client.ts";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
@@ -25,7 +28,7 @@ import {
 } from "../../features/stock-detail/fake-gateways.ts";
 import { StockDetailWorkspace } from "../../features/stock-detail/stock-detail-workspace.tsx";
 import { LAB_NOW, labBasePrice, labReadOnly } from "../fixtures/core.ts";
-import { labFlowControl } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
+import { labFlowControl, labFlowSnapshot } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import {
   labBarsOutput,
   labDepthEntitlementError,
@@ -77,6 +80,11 @@ const labFlowEventsGateway: FlowEventsGateway = {
   events: (input) => Promise.resolve(labFlowEventsOutput(input)),
 };
 
+/** Fictional stored flow_gex snapshots so futures gamma levels render on /lab/charts. */
+const labFlowSnapshotGateway: FlowSnapshotGateway = {
+  snapshot: ({ symbol }) => Promise.resolve(labFlowSnapshot(symbol, 120)),
+};
+
 /** Deterministic rolling IV rank / percentile history for Core 7 ETFs (and unavailable for others). */
 const labOpenbbIvHistoryGateway: IvHistoryGateway = {
   ivHistory: (symbol, sessions) =>
@@ -123,6 +131,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
         <ChartsWorkspace
           backtests={labChartsBacktests}
           flowEvents={labFlowEventsGateway}
+          flowSnapshot={labFlowSnapshotGateway}
           ivHistory={labOpenbbIvHistoryGateway}
           jevVerdict={labJevVerdictGateway}
           marketData={labMarketDataGateway}

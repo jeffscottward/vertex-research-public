@@ -1,5 +1,5 @@
 {
-  "id": "2afba19b-488a-4a4c-943e-2885d16e5849",
+  "id": "152bf378-c42a-4ccc-8e66-17513a26c963",
   "prevId": "d08d30f0-5cb8-484f-9330-84faa167fd81",
   "version": "7",
   "dialect": "postgresql",
@@ -4360,6 +4360,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "king_node": {
+          "name": "king_node",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
         },
         "max_pain": {
           "name": "max_pain",
@@ -12539,7 +12545,7 @@
         },
         "semantic_sql_attributes_grain_check": {
           "name": "semantic_sql_attributes_grain_check",
-          "value": "\"semantic_sql_attributes\".\"grain\" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor', 'ticker', 'filing_trade', 'issuer_cluster', 'filer_position', 'ticker_session')"
+          "value": "\"semantic_sql_attributes\".\"grain\" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor')"
         }
       },
       "isRLSEnabled": false

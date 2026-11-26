@@ -1,0 +1,808 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 560"
+  width="1120"
+  height="560"
+  role="img"
+  aria-label="Before vs after: storing and displaying QuantData Opening and Vol > OI flags when print open interest is 0"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0e14" />
+      <stop offset="100%" stop-color="#131924" />
+    </linearGradient>
+    <marker
+      id="arrMuted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#7c8aa5" />
+    </marker>
+    <marker
+      id="arrGold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="arrRed"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#ef4444" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="560" rx="16" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="36"
+    y="46"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    Option Print OI Flags: Before vs After (openInterest = 0)
+  </text>
+  <text
+    x="36"
+    y="70"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    QuantData order-flow/consolidated → flow_option_prints → oRPC flow.* → /flow
+  </text>
+
+  <!-- Column headers -->
+  <text
+    x="128"
+    y="106"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    letter-spacing="1.2"
+  >
+    FEED PRINT
+  </text>
+  <text
+    x="372"
+    y="106"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    letter-spacing="1.2"
+  >
+    POSTGRES TABLE
+  </text>
+  <text
+    x="640"
+    y="106"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    letter-spacing="1.2"
+  >
+    oRPC CONTRACT
+  </text>
+  <text
+    x="936"
+    y="106"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    letter-spacing="1.2"
+  >
+    /flow DISPLAY
+  </text>
+
+  <!-- BEFORE LANE -->
+  <rect
+    x="24"
+    y="120"
+    width="1072"
+    height="190"
+    rx="12"
+    fill="#171219"
+    stroke="#5b2333"
+    stroke-width="1.5"
+  />
+  <rect
+    x="40"
+    y="132"
+    width="144"
+    height="24"
+    rx="12"
+    fill="#451a24"
+    stroke="#ef4444"
+    stroke-width="1"
+  />
+  <text
+    x="112"
+    y="148"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    BEFORE (PR #451)
+  </text>
+
+  <!-- Before: Feed node -->
+  <rect
+    x="44"
+    y="170"
+    width="168"
+    height="120"
+    rx="10"
+    fill="#1b2230"
+    stroke="#334155"
+  />
+  <circle cx="66" cy="192" r="7" fill="#ef4444" />
+  <text
+    x="80"
+    y="196"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    openInterest: 0
+  </text>
+  <text
+    x="58"
+    y="224"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    isOpening: true
+  </text>
+  <text
+    x="58"
+    y="244"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    vol &gt; OI: true
+  </text>
+  <text
+    x="58"
+    y="274"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    23/23 SPY OI-0 prints
+  </text>
+
+  <!-- Arrow 1 -->
+  <line
+    x1="216"
+    y1="230"
+    x2="270"
+    y2="230"
+    stroke="#ef4444"
+    stroke-width="2"
+    marker-end="url(#arrRed)"
+  />
+
+  <!-- Before: Postgres cylinder -->
+  <path
+    d="M278 186 C278 175 466 175 466 186 L466 274 C466 285 278 285 278 274 Z"
+    fill="#1b2230"
+    stroke="#ef4444"
+    stroke-width="1.4"
+  />
+  <ellipse
+    cx="372"
+    cy="186"
+    rx="94"
+    ry="11"
+    fill="#261b26"
+    stroke="#ef4444"
+    stroke-width="1.4"
+  />
+  <text
+    x="372"
+    y="218"
+    text-anchor="middle"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    BOOLEAN NOT NULL
+  </text>
+  <text
+    x="372"
+    y="241"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+  >
+    opening = true
+  </text>
+  <text
+    x="372"
+    y="261"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+  >
+    volume_over_oi = true
+  </text>
+
+  <!-- Arrow 2 -->
+  <line
+    x1="470"
+    y1="230"
+    x2="530"
+    y2="230"
+    stroke="#7c8aa5"
+    stroke-width="2"
+    marker-end="url(#arrMuted)"
+  />
+  <text
+    x="500"
+    y="218"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    oiFlags
+  </text>
+
+  <!-- Before: Contract -->
+  <rect
+    x="538"
+    y="170"
+    width="204"
+    height="120"
+    rx="10"
+    fill="#1b2230"
+    stroke="#475569"
+  />
+  <text
+    x="554"
+    y="196"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    z.boolean()
+  </text>
+  <text
+    x="554"
+    y="222"
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    opening: false
+  </text>
+  <text
+    x="554"
+    y="242"
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    volumeOverOi: false
+  </text>
+  <text
+    x="554"
+    y="272"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    False looks like "not opening"
+  </text>
+
+  <!-- Arrow 3 -->
+  <line
+    x1="746"
+    y1="230"
+    x2="796"
+    y2="230"
+    stroke="#7c8aa5"
+    stroke-width="2"
+    marker-end="url(#arrMuted)"
+  />
+
+  <!-- Before: UI -->
+  <rect
+    x="804"
+    y="170"
+    width="272"
+    height="120"
+    rx="10"
+    fill="#1b2230"
+    stroke="#475569"
+  />
+  <text
+    x="820"
+    y="194"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Vol &gt; OI tile
+  </text>
+  <rect
+    x="910"
+    y="179"
+    width="150"
+    height="22"
+    rx="5"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text
+    x="920"
+    y="194"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    0 (gap hidden)
+  </text>
+
+  <text
+    x="820"
+    y="228"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Top prints Flags
+  </text>
+  <rect
+    x="910"
+    y="213"
+    width="150"
+    height="22"
+    rx="5"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text
+    x="920"
+    y="228"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    —
+  </text>
+
+  <text
+    x="820"
+    y="262"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Bubble inspector
+  </text>
+  <rect
+    x="910"
+    y="247"
+    width="150"
+    height="22"
+    rx="5"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text
+    x="920"
+    y="262"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    (omitted)
+  </text>
+
+  <!-- AFTER LANE -->
+  <rect
+    x="24"
+    y="330"
+    width="1072"
+    height="206"
+    rx="12"
+    fill="#121a18"
+    stroke="#ca8a04"
+    stroke-width="1.5"
+  />
+  <rect
+    x="40"
+    y="342"
+    width="206"
+    height="24"
+    rx="12"
+    fill="#3b2f0b"
+    stroke="#eab308"
+    stroke-width="1"
+  />
+  <text
+    x="143"
+    y="358"
+    text-anchor="middle"
+    fill="#fde047"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    AFTER (THIRD STATE = NULL)
+  </text>
+
+  <!-- After: Feed node -->
+  <rect
+    x="44"
+    y="382"
+    width="168"
+    height="134"
+    rx="10"
+    fill="#1b2230"
+    stroke="#334155"
+  />
+  <circle cx="66" cy="404" r="7" fill="#eab308" />
+  <text
+    x="80"
+    y="408"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    openInterest: 0
+  </text>
+  <text
+    x="58"
+    y="436"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    parseOptionPrints
+  </text>
+  <text
+    x="58"
+    y="456"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    → opening: null
+  </text>
+  <text
+    x="58"
+    y="476"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    → volOverOi: null
+  </text>
+  <text
+    x="58"
+    y="502"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+  >
+    OI &gt; 0 or null: kept
+  </text>
+
+  <!-- Arrow 4 -->
+  <line
+    x1="216"
+    y1="448"
+    x2="270"
+    y2="448"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrGold)"
+  />
+
+  <!-- After: Postgres cylinder -->
+  <path
+    d="M278 398 C278 387 466 387 466 398 L466 498 C466 509 278 509 278 498 Z"
+    fill="#1b2230"
+    stroke="#eab308"
+    stroke-width="1.4"
+  />
+  <ellipse
+    cx="372"
+    cy="398"
+    rx="94"
+    ry="11"
+    fill="#292412"
+    stroke="#eab308"
+    stroke-width="1.4"
+  />
+  <text
+    x="372"
+    y="428"
+    text-anchor="middle"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    BOOLEAN NULLABLE
+  </text>
+  <text
+    x="372"
+    y="450"
+    text-anchor="middle"
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    opening = NULL
+  </text>
+  <text
+    x="372"
+    y="468"
+    text-anchor="middle"
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    volume_over_oi = NULL
+  </text>
+  <text
+    x="372"
+    y="492"
+    text-anchor="middle"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    CHECK: paired &amp; OI=0
+  </text>
+
+  <!-- Arrow 5 -->
+  <line
+    x1="470"
+    y1="448"
+    x2="530"
+    y2="448"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrGold)"
+  />
+  <text
+    x="500"
+    y="436"
+    text-anchor="middle"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    oiFlags
+  </text>
+
+  <!-- After: Contract -->
+  <rect
+    x="538"
+    y="382"
+    width="204"
+    height="134"
+    rx="10"
+    fill="#1b2230"
+    stroke="#eab308"
+  />
+  <text
+    x="554"
+    y="406"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+  >
+    z.boolean().nullable()
+  </text>
+  <text
+    x="554"
+    y="430"
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    opening: null
+  </text>
+  <text
+    x="554"
+    y="448"
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    volumeOverOi: null
+  </text>
+  <line x1="554" y1="462" x2="726" y2="462" stroke="#334155" />
+  <text
+    x="554"
+    y="482"
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    + oiFlagsNotReported: 23
+  </text>
+  <text
+    x="554"
+    y="502"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+  >
+    Legacy OI-0 rows also → null
+  </text>
+
+  <!-- Arrow 6 -->
+  <line
+    x1="746"
+    y1="448"
+    x2="796"
+    y2="448"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrGold)"
+  />
+
+  <!-- After: UI -->
+  <rect
+    x="804"
+    y="382"
+    width="272"
+    height="134"
+    rx="10"
+    fill="#1b2230"
+    stroke="#eab308"
+  />
+  <text
+    x="818"
+    y="405"
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Vol &gt; OI tile
+  </text>
+  <rect
+    x="908"
+    y="390"
+    width="156"
+    height="22"
+    rx="5"
+    fill="#292412"
+    stroke="#ca8a04"
+  />
+  <text
+    x="916"
+    y="405"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="10.5"
+  >
+    0 · 23 not reported
+  </text>
+
+  <text
+    x="818"
+    y="437"
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Opening share
+  </text>
+  <rect
+    x="908"
+    y="422"
+    width="156"
+    height="22"
+    rx="5"
+    fill="#292412"
+    stroke="#ca8a04"
+  />
+  <text
+    x="916"
+    y="437"
+    fill="#fde047"
+    font-family="ui-monospace, monospace"
+    font-size="10.5"
+  >
+    0% · 23 not reported
+  </text>
+
+  <text
+    x="818"
+    y="469"
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Top prints
+  </text>
+  <rect
+    x="908"
+    y="454"
+    width="156"
+    height="22"
+    rx="5"
+    fill="#1e293b"
+    stroke="#64748b"
+  />
+  <text
+    x="916"
+    y="469"
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="10.5"
+  >
+    no OI flags
+  </text>
+
+  <text
+    x="818"
+    y="501"
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    Bubbles
+  </text>
+  <rect
+    x="908"
+    y="486"
+    width="156"
+    height="22"
+    rx="5"
+    fill="#1e293b"
+    stroke="#64748b"
+  />
+  <text
+    x="916"
+    y="501"
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="9.5"
+  >
+    Opening &amp; Vol&gt;OI not rptd
+  </text>
+</svg>

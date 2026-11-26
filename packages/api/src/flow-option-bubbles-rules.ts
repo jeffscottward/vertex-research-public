@@ -26,6 +26,7 @@ import {
 } from "./contracts/flow.ts";
 import {
   OPTION_SIDE_SIGN,
+  oiFlags,
   type StoredMoneyness,
   type StoredOptionSide,
 } from "./flow-options.ts";
@@ -69,8 +70,12 @@ export type OptionBubblesPrintRow = Readonly<{
   moneyness: StoredMoneyness;
   unusual: boolean;
   goldenSweep: boolean;
-  opening: boolean;
-  volumeOverOi: boolean;
+  /** Null: not reported (see `oiFlags`). */
+  opening: boolean | null;
+  /** Null: not reported (see `oiFlags`). */
+  volumeOverOi: boolean | null;
+  /** Open interest on the print; 0 means the Opening and Vol > OI flags are not reported. */
+  openInterest: number | null;
   iv: number | null;
 }>;
 
@@ -338,7 +343,6 @@ export const foldOptionBubbles = (
       id: print.id,
       iv,
       moneyness,
-      opening: print.opening,
       premium: print.premium,
       price,
       right: print.right,
@@ -348,7 +352,7 @@ export const foldOptionBubbles = (
       strike: print.strike,
       underlyingPrice,
       unusual: print.unusual,
-      volumeOverOi: print.volumeOverOi,
+      ...oiFlags(print),
     };
   });
 

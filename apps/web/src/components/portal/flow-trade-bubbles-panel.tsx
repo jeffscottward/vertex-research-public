@@ -9,7 +9,7 @@
 // docs/vertex-rebuild/designs/vertex-viz-trade-bubbles/design.md.
 "use client";
 
-import type { FlowTradeBubbles } from "@darkfactory/api";
+import type { FlowGex, FlowTradeBubbles } from "@darkfactory/api";
 import {
   Panel,
   StatusBadge,
@@ -31,6 +31,10 @@ import {
 
 import type { FlowControlFailure } from "../../features/flow/control-view-model.ts";
 import { formatCount, formatNyDateTime } from "../../features/flow/format.ts";
+import {
+  buildFlowPriceOverlayLevels,
+  type SvgGammaLevelLine,
+} from "../../features/flow/gamma-levels-view-model.ts";
 import { tapeSymbolOf } from "../../features/flow/tape-speed-view-model.ts";
 import {
   buildTradeBubblesPlot,
@@ -56,12 +60,17 @@ import {
 } from "../../features/flow/trade-bubbles-view-model.ts";
 import type { FlowSymbol } from "../../features/flow/view-model.ts";
 import { loadFailedLabel } from "../status-time.ts";
+import {
+  FlowGammaLevelsStrip,
+  SvgGammaLevelLines,
+} from "./flow-gamma-levels-chart.tsx";
 
 export type FlowTradeBubblesFailure = FlowControlFailure &
   Readonly<{ failedAt: number }>;
 export type FlowTradeBubblesPanelProps = Readonly<{
   document: FlowTradeBubbles | null;
   failure: FlowTradeBubblesFailure | null;
+  gex?: FlowGex | null;
   refreshMs: number;
   symbol: FlowSymbol;
 }>;
@@ -95,6 +104,7 @@ const toneTextClass = (
 };
 
 const BubbleChartSvg = ({
+  gammaLines,
   onKeyDown,
   onSelect,
   plot,
@@ -102,6 +112,7 @@ const BubbleChartSvg = ({
   symbol,
   titleId,
 }: Readonly<{
+  gammaLines: readonly SvgGammaLevelLine[];
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onSelect: (key: string) => void;
   plot: TradeBubblesPlot;
@@ -194,6 +205,14 @@ const BubbleChartSvg = ({
           </g>
         ))}
 
+        {/* Dealer gamma level lines, under the candles and the price lines */}
+        <SvgGammaLevelLines
+          chartWidth={plot.chartWidth}
+          chartX={plot.chartX}
+          layer="lines"
+          lines={gammaLines}
+        />
+
         {/* 1-minute OHLC candles */}
         {plot.candles.map((candle) => {
           const stroke =
@@ -259,6 +278,14 @@ const BubbleChartSvg = ({
             strokeWidth={1.5}
           />
         )}
+
+        {/* Gamma level labels at the left edge, over the oldest candles */}
+        <SvgGammaLevelLines
+          chartWidth={plot.chartWidth}
+          chartX={plot.chartX}
+          layer="labels"
+          lines={gammaLines}
+        />
 
         {/* Selected crosshair */}
         {selectedPoint === null ? null : (
@@ -431,12 +458,13 @@ const PrintsTable = ({
 
 const TradeBubblesDocument = ({
   document,
-}: Readonly<{ document: FlowTradeBubbles }>) => {
+  gex,
+}: Readonly<{ document: FlowTradeBubbles; gex: FlowGex | null }>) => {
   const titleId = useId();
   const [sideFilter, setSideFilter] = useState<TradeBubblesSideFilter>("all");
   const [sizeFilter, setSizeFilter] = useState<TradeBubblesSizeFilter>("all");
+  const [showGammaLevels, setShowGammaLevels] = useState(true);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-
   const filteredBubbles = useMemo(
     () => filterTradeBubbles(document.bubbles, sideFilter, sizeFilter),
     [document, sideFilter, sizeFilter]
@@ -445,6 +473,22 @@ const TradeBubblesDocument = ({
   const plot = useMemo(
     () => buildTradeBubblesPlot(document, filteredBubbles),
     [document, filteredBubbles]
+  );
+
+  const gammaOverlay = useMemo(
+    () =>
+      plot === null
+        ? null
+        : buildFlowPriceOverlayLevels({
+            chartHeight: plot.chartHeight,
+            chartY: plot.chartY,
+            gex,
+            priceMax: plot.priceMax,
+            priceMin: plot.priceMin,
+            referencePrice: document.candles.at(-1)?.close ?? null,
+            symbol: document.symbol,
+          }),
+    [document, gex, plot]
   );
 
   const filtersActive = sideFilter !== "all" || sizeFilter !== "all";
@@ -543,6 +587,17 @@ const TradeBubblesDocument = ({
               </button>
             ))}
           </div>
+          {gammaOverlay === null ? null : (
+            <button
+              aria-pressed={showGammaLevels}
+              className={filterButtonClass(showGammaLevels)}
+              data-flow-trade-bubbles-gamma-toggle=""
+              onClick={() => setShowGammaLevels((prev) => !prev)}
+              type="button"
+            >
+              Gamma levels
+            </button>
+          )}
         </div>
       </div>
 
@@ -612,6 +667,9 @@ const TradeBubblesDocument = ({
             {`${document.symbol} 1-minute price chart with ${plot.bubbles.length} deep futures trade bubbles. Use Left and Right arrow keys to step through prints.`}
           </figcaption>
           <BubbleChartSvg
+            gammaLines={
+              showGammaLevels ? (gammaOverlay?.visibleLines ?? []) : []
+            }
             onKeyDown={(event) =>
               handleChartKeyDown(event, plot.chronologicalKeys)
             }
@@ -621,6 +679,9 @@ const TradeBubblesDocument = ({
             symbol={document.symbol}
             titleId={titleId}
           />
+          {showGammaLevels && gammaOverlay !== null ? (
+            <FlowGammaLevelsStrip levels={gammaOverlay} />
+          ) : null}
 
           {/* Legend */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-xs">
@@ -693,6 +754,7 @@ const TradeBubblesDocument = ({
 export const FlowTradeBubblesPanel = ({
   document,
   failure,
+  gex = null,
   refreshMs,
   symbol,
 }: FlowTradeBubblesPanelProps) => {
@@ -735,6 +797,7 @@ export const FlowTradeBubblesPanel = ({
       ) : (
         <TradeBubblesDocument
           document={activeDocument}
+          gex={symbol === futureSymbol ? gex : null}
           key={activeDocument.symbol}
         />
       )}

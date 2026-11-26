@@ -88,6 +88,7 @@ describe("buildFlowOptionBubbles", () => {
           id: "spy-big-1",
           iv: 17.4,
           moneyness: "otm",
+          openInterest: 12_000,
           opening: true,
           premium: 650_000,
           price: 3.25,

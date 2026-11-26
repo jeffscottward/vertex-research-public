@@ -92,9 +92,11 @@
 # and HUP exit through it). The worker ignores a file older than 90 min, so a killed script
 # (SIGKILL) cannot stop it for good. --dry-run never touches the file.
 #
-# Market hours guard (owner rule 2026-11-16): a real run refuses (exit 14) on Monday to Friday from
-# 08:30 to 16:00 New York time, before the lock, before each idle poll and after the idle wait.
-# Market holidays count as trading days; a time that cannot be read counts as market hours.
+# Market hours guard (owner rule 2026-11-16): a real run refuses (exit 14) on NYSE trading days from
+# 08:30 to 16:00 New York time (08:30 to the early close, 13:00, on NYSE early-close days), before
+# the lock, before each idle poll and after the idle wait. Full-day NYSE holidays in
+# infra/quantvps/nyse-calendar.txt count as closed; a time that cannot be read, or a missing,
+# malformed or out-of-range calendar during weekday 08:30-16:00, counts as market hours.
 # --allow-market-hours <reason> skips the guard with one #omp-alerts notice. --dry-run prints the
 # decision and never refuses.
 #
@@ -125,9 +127,9 @@
 #              for a deliberate rollback or the first recorded deploy. The reason is printed.
 #   --allow-stale-runtime  restart although the runtime tree is not at the new build SHA (emergency
 #              only). The reason is printed and sent to #omp-alerts.
-#   --allow-market-hours  restart on Monday to Friday from 08:30 to 16:00 New York time (see "Market
-#              hours guard" below; only with an owner decision). The reason is printed and sent to
-#              #omp-alerts.
+#   --allow-market-hours  restart during US market hours (08:30-16:00 New York time on regular
+#              trading days, 08:30 to early close on NYSE early-close days; see "Market hours guard"
+#              below; only with an owner decision). The reason is printed and sent to #omp-alerts.
 #   --allow-unapplied-migrations  restart although one or more build migrations are not applied on
 #              QuantVPS Postgres (emergency only; never skips a failed read or unreadable commit).
 #              The reason is printed and sent to #omp-alerts.
@@ -143,8 +145,9 @@
 #   11 the lock file could not be opened or flock failed (this run did nothing);
 #   12 runtime guard refused: the runtime tree is not at the new build SHA and no stage for it
 #   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished;
-#   14 market hours guard refused: Monday to Friday 08:30-16:00 New York time, or the time could not
-#   be read (no call to QuantVPS was made, or the idle wait reached 08:30; no restart happened).
+#   14 market hours guard refused: US market hours (08:30-16:00 New York time on regular trading
+#   days, 08:30 to early close on NYSE early-close days), or the time could not be read (no call to
+#   QuantVPS was made, or the idle wait reached 08:30; no restart happened).
 #   15 migration guard refused: one or more build migrations are not applied on QuantVPS Postgres,
 #   or the Postgres schema or build commit migrations could not be read (no restart happened).
 #   13 is not used: it means "partial or unknown" in the prune scripts.
@@ -153,6 +156,7 @@
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
 #   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_WORKER_PAUSE_FILE (worker pause
 #   file), VERTEX_DEPLOY_NY_TIME (the New York time for the market hours guard; a set hook is
+#   printed), VERTEX_DEPLOY_NYSE_CALENDAR (replaces infra/quantvps/nyse-calendar.txt; a set hook is
 #   printed), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
 #   from BASH_VERSINFO; the tests set it, CI has bash 5.2), VERTEX_DEPLOY_GIT_DIR (checkout for the
 #   ancestry and migration checks, default this repository), VERTEX_MIGRATIONS_CHECKER (replaces
@@ -463,37 +467,246 @@ build_guard() {
   return 1
 }
 
-# Market hours guard (owner rule 2026-11-16): no restart of the web app on Monday to Friday from
-# 08:30 to 16:00 New York time; market holidays count as trading days. The time is read as in
-# prune-runtime-backups.sh: GNU date falls back to UTC without an error when the zone data is
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+NYSE_CALENDAR="${VERTEX_DEPLOY_NYSE_CALENDAR:-$SCRIPT_DIR/nyse-calendar.txt}"
+
+# Market hours guard (owner rule 2026-11-16): no restart of the web app on NYSE trading days from
+# 08:30 to 16:00 New York time (08:30 to early close, 13:00, on NYSE early-close days). Full-day
+# NYSE holidays and early closes are read from infra/quantvps/nyse-calendar.txt. The time is read as
+# in prune-runtime-backups.sh: GNU date falls back to UTC without an error when the zone data is
 # missing, so the zone name must be EST or EDT, and a time that cannot be read counts as market
-# hours. Test hook VERTEX_DEPLOY_NY_TIME: "<day 1-7> <HHMM> <zone>", or the path of an executable
-# file that prints such a line (a test moves the clock with it during the idle wait).
+# hours. A missing, malformed or out-of-range calendar fails closed during weekday 08:30-16:00.
+# Test hook VERTEX_DEPLOY_NY_TIME: "<YYYY-MM-DD> <day 1-7> <HHMM> <zone>" (or legacy dateless
+# "<day 1-7> <HHMM> <zone>", treated as a regular day), or the path of an executable file that
+# prints such a line (a test moves the clock with it during the idle wait). Test hook
+# VERTEX_DEPLOY_NYSE_CALENDAR replaces the calendar file path.
 ny_now() {
-  if [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ]; then TZ=America/New_York date +'%u %H%M %Z' 2>/dev/null
+  if [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ]; then TZ=America/New_York date +'%Y-%m-%d %u %H%M %Z' 2>/dev/null
   elif [ -f "$VERTEX_DEPLOY_NY_TIME" ] && [ -x "$VERTEX_DEPLOY_NY_TIME" ]; then "$VERTEX_DEPLOY_NY_TIME"
   else printf '%s\n' "$VERTEX_DEPLOY_NY_TIME"; fi
 }
-# Prints the New York time that it read; returns 0 outside market hours, 1 inside or unknown.
-market_window() {
-  local dow hm z _
-  read -r dow hm z _ <<<"$(ny_now)"
-  if [[ "${dow:-}" =~ ^[1-7]$ ]] && [[ "${hm:-}" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "${z:-}" =~ ^E[SD]T$ ]]; then
-    echo "New York day $dow time $hm"
-    [ "$dow" -gt 5 ] || [ $((10#$hm)) -lt 830 ] || [ $((10#$hm)) -ge 1600 ]
-    return
+# valid_ny_date <YYYY-MM-DD> <dow 1-7>: returns 0 when <YYYY-MM-DD> is a real Gregorian calendar
+# date (>= 1970) whose ISO day of week (1=Mon..7=Sun) matches <dow>.
+valid_ny_date() {
+  local y m d dow leap maxd yy sun0 iso
+  local -a t=(0 0 3 2 5 0 3 5 1 4 6 2 4)
+  [[ "$2" =~ ^[1-7]$ ]] || return 1
+  [[ "$1" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]] || return 1
+  y=$((10#${BASH_REMATCH[1]})); m=$((10#${BASH_REMATCH[2]})); d=$((10#${BASH_REMATCH[3]}))
+  dow="$2"
+  [ "$y" -ge 1970 ] && [ "$m" -ge 1 ] && [ "$m" -le 12 ] && [ "$d" -ge 1 ] || return 1
+  leap=0
+  if (( (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 )); then leap=1; fi
+  case "$m" in
+    1|3|5|7|8|10|12) maxd=31 ;;
+    4|6|9|11) maxd=30 ;;
+    2) maxd=$((28 + leap)) ;;
+  esac
+  [ "$d" -le "$maxd" ] || return 1
+  yy=$(( m < 3 ? y - 1 : y ))
+  sun0=$(( (yy + yy / 4 - yy / 100 + yy / 400 + t[m] + d) % 7 ))
+  iso=$(( sun0 == 0 ? 7 : sun0 ))
+  [ "$iso" -eq "$dow" ]
+}
+# nyse_calendar_lookup <YYYY-MM-DD>: validates the entire NYSE calendar file and prints one line:
+#   "ok closed" | "ok early <HHMM>" | "ok regular" | "uncovered <Y1>-<Y2>" | "error <detail>"
+nyse_calendar_lookup() {
+  local out
+  if [ ! -e "$NYSE_CALENDAR" ]; then echo "error file not found ($NYSE_CALENDAR)"; return 0; fi
+  if [ -d "$NYSE_CALENDAR" ]; then echo "error path is a directory ($NYSE_CALENDAR)"; return 0; fi
+  if [ ! -f "$NYSE_CALENDAR" ] || [ ! -r "$NYSE_CALENDAR" ]; then echo "error file not readable ($NYSE_CALENDAR)"; return 0; fi
+  if ! out="$(awk -v target="$1" '
+    function is_leap(y) {
+      return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+    }
+    function iso_dow(y, m, d,   yy, sun0) {
+      yy = (m < 3) ? y - 1 : y
+      sun0 = (yy + int(yy / 4) - int(yy / 100) + int(yy / 400) + t[m] + d) % 7
+      return (sun0 == 0) ? 7 : sun0
+    }
+    function valid_date(s,   y, m, d, maxd) {
+      if (s !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) return 0
+      y = substr(s, 1, 4) + 0
+      m = substr(s, 6, 2) + 0
+      d = substr(s, 9, 2) + 0
+      if (y < 2000 || m < 1 || m > 12 || d < 1) return 0
+      maxd = md[m] + (m == 2 && is_leap(y) ? 1 : 0)
+      return (d <= maxd)
+    }
+    BEGIN {
+      md[1]=31; md[2]=28; md[3]=31; md[4]=30; md[5]=31; md[6]=30
+      md[7]=31; md[8]=31; md[9]=30; md[10]=31; md[11]=30; md[12]=31
+      t[1]=0; t[2]=3; t[3]=2; t[4]=5; t[5]=0; t[6]=3
+      t[7]=5; t[8]=1; t[9]=4; t[10]=6; t[11]=2; t[12]=4
+      has_years = 0; err = ""
+    }
+    {
+      if (err != "") next
+      line = $0
+      sub(/#.*$/, "", line)
+      sub(/^[ \t\r]+/, "", line)
+      sub(/[ \t\r]+$/, "", line)
+      if (line == "") next
+      n = split(line, f, /[ \t]+/)
+      if (f[1] == "years") {
+        if (has_years) { err = "duplicate years header at line " NR; next }
+        if (n != 2 || f[2] !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]$/) {
+          err = "invalid years header at line " NR; next
+        }
+        y1 = substr(f[2], 1, 4) + 0
+        y2 = substr(f[2], 6, 4) + 0
+        if (y1 < 2000 || y1 > y2) { err = "invalid years range at line " NR; next }
+        has_years = 1
+        next
+      }
+      if (n != 2 || !valid_date(f[1])) { err = "invalid entry at line " NR; next }
+      ey = substr(f[1], 1, 4) + 0
+      em = substr(f[1], 6, 2) + 0
+      ed = substr(f[1], 9, 2) + 0
+      if (iso_dow(ey, em, ed) > 5) { err = "weekend entry " f[1] " at line " NR; next }
+      if (f[1] in entries) { err = "duplicate date " f[1] " at line " NR; next }
+      if (f[2] == "closed") {
+        entries[f[1]] = "closed"
+      } else if (f[2] ~ /^early:[0-9][0-9][0-9][0-9]$/) {
+        ch = substr(f[2], 7, 2) + 0
+        cm = substr(f[2], 9, 2) + 0
+        chm = ch * 100 + cm
+        if (ch > 23 || cm > 59 || chm <= 830 || chm >= 1600) {
+          err = "invalid early close time at line " NR; next
+        }
+        entries[f[1]] = f[2]
+      } else {
+        err = "invalid action at line " NR; next
+      }
+    }
+    END {
+      if (err != "") { print "error " err; exit 0 }
+      if (!has_years) { print "error missing years header"; exit 0 }
+      for (d in entries) {
+        ey = substr(d, 1, 4) + 0
+        if (ey < y1 || ey > y2) {
+          print "error entry " d " outside years " y1 "-" y2
+          exit 0
+        }
+      }
+      ty = substr(target, 1, 4) + 0
+      if (ty < y1 || ty > y2) {
+        print "uncovered " y1 "-" y2
+        exit 0
+      }
+      if (target in entries) {
+        if (entries[target] == "closed") print "ok closed"
+        else print "ok early " substr(entries[target], 7, 4)
+      } else {
+        print "ok regular"
+      }
+    }
+  ' <"$NYSE_CALENDAR" 2>/dev/null)" || [ -z "$out" ]; then
+    echo "error cannot read calendar file ($NYSE_CALENDAR)"
+    return 0
   fi
-  echo "New York time unknown (day ${dow:-?} time ${hm:-?} zone ${z:-?})"
-  return 1
+  printf '%s\n' "$out"
+}
+# Sets MARKET_ALLOWED_LINE (when returning 0) or MARKET_REFUSE_WHEN (when returning 1).
+MARKET_ALLOWED_LINE=""
+MARKET_REFUSE_WHEN=""
+market_window() {
+  local ny_line a b c d extra day_date dow hm z hm_num when
+  local cal_res cal_status cal_arg cal_rest close_hm close_fmt cal_warn cal_detail
+  MARKET_ALLOWED_LINE=""
+  MARKET_REFUSE_WHEN=""
+  if ! ny_line="$(ny_now)"; then
+    MARKET_REFUSE_WHEN="New York time unknown (clock command failed)"
+    return 1
+  fi
+  if [[ "$ny_line" == *$'\n'* ]]; then
+    MARKET_REFUSE_WHEN="New York time unknown (multiline output)"
+    return 1
+  fi
+  IFS=$' \t' read -r a b c d extra <<<"$ny_line" || true
+  if [ -z "${extra:-}" ] && [ -n "${d:-}" ]; then
+    if valid_ny_date "$a" "$b" && [[ "$c" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "$d" =~ ^E[SD]T$ ]]; then
+      day_date="$a"; dow="$b"; hm="$c"; z="$d"
+      when="New York $day_date day $dow time $hm"
+    else
+      MARKET_REFUSE_WHEN="New York time unknown (date ${a:-?} day ${b:-?} time ${c:-?} zone ${d:-?})"
+      return 1
+    fi
+  elif [ -z "${extra:-}" ] && [ -n "${c:-}" ] && [ -n "${VERTEX_DEPLOY_NY_TIME:-}" ]; then
+    if [[ "$a" =~ ^[1-7]$ ]] && [[ "$b" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "$c" =~ ^E[SD]T$ ]]; then
+      day_date=""; dow="$a"; hm="$b"; z="$c"
+      when="New York day $dow time $hm"
+    else
+      MARKET_REFUSE_WHEN="New York time unknown (day ${a:-?} time ${b:-?} zone ${c:-?})"
+      return 1
+    fi
+  else
+    MARKET_REFUSE_WHEN="New York time unknown (${ny_line:-empty})"
+    return 1
+  fi
+  hm_num=$((10#$hm))
+  if [ -z "$day_date" ]; then
+    if [ "$dow" -gt 5 ] || [ "$hm_num" -lt 830 ] || [ "$hm_num" -ge 1600 ]; then
+      MARKET_ALLOWED_LINE="market hours: outside Monday to Friday 08:30-16:00 New York time ($when)"
+      return 0
+    fi
+    MARKET_REFUSE_WHEN="$when"
+    return 1
+  fi
+  cal_res="$(nyse_calendar_lookup "$day_date")"
+  IFS=$' \t' read -r cal_status cal_arg cal_rest <<<"$cal_res" || true
+  case "$cal_status" in
+    ok)
+      if [ "$dow" -gt 5 ]; then
+        MARKET_ALLOWED_LINE="market hours: outside Monday to Friday 08:30-16:00 New York time ($when)"
+        return 0
+      fi
+      if [ "$cal_arg" = "closed" ]; then
+        MARKET_ALLOWED_LINE="market hours: NYSE holiday closed ($when)"
+        return 0
+      fi
+      if [ "$cal_arg" = "early" ]; then
+        close_hm=$((10#$cal_rest))
+        close_fmt="${cal_rest:0:2}:${cal_rest:2:2}"
+        if [ "$hm_num" -lt 830 ] || [ "$hm_num" -ge "$close_hm" ]; then
+          MARKET_ALLOWED_LINE="market hours: outside Monday to Friday 08:30-$close_fmt New York time (NYSE early close; $when)"
+          return 0
+        fi
+        MARKET_REFUSE_WHEN="$when (NYSE early close at $close_fmt)"
+        return 1
+      fi
+      if [ "$hm_num" -lt 830 ] || [ "$hm_num" -ge 1600 ]; then
+        MARKET_ALLOWED_LINE="market hours: outside Monday to Friday 08:30-16:00 New York time ($when)"
+        return 0
+      fi
+      MARKET_REFUSE_WHEN="$when"
+      return 1 ;;
+    uncovered)
+      cal_warn="NYSE calendar covers $cal_arg, year ${day_date:0:4} not covered"
+      if [ "$dow" -gt 5 ] || [ "$hm_num" -lt 830 ] || [ "$hm_num" -ge 1600 ]; then
+        MARKET_ALLOWED_LINE="market hours: outside Monday to Friday 08:30-16:00 New York time ($when; WARNING: $cal_warn)"
+        return 0
+      fi
+      MARKET_REFUSE_WHEN="$when ($cal_warn; counting weekday as regular 08:30-16:00)"
+      return 1 ;;
+    *)
+      cal_detail="${cal_arg:-}${cal_rest:+ $cal_rest}"
+      cal_warn="NYSE calendar error: ${cal_detail:-unknown}"
+      if [ "$dow" -gt 5 ] || [ "$hm_num" -lt 830 ] || [ "$hm_num" -ge 1600 ]; then
+        MARKET_ALLOWED_LINE="market hours: outside Monday to Friday 08:30-16:00 New York time ($when; WARNING: $cal_warn)"
+        return 0
+      fi
+      MARKET_REFUSE_WHEN="$when ($cal_warn; counting weekday as regular 08:30-16:00)"
+      return 1 ;;
+  esac
 }
 # market_guard [quiet]: returns 0 = allowed, 1 = refused (with one NOT RESTARTED line). quiet:
 # print nothing when allowed. --allow-market-hours skips the guard with one #omp-alerts notice per
 # run (none in a dry run).
 MARKET_ALERTED=0
 market_guard() {
-  local when
-  if when="$(market_window)"; then
-    [ -n "${1:-}" ] || echo "market hours: outside Monday to Friday 08:30-16:00 New York time ($when)"
+  if market_window; then
+    [ -n "${1:-}" ] || echo "$MARKET_ALLOWED_LINE"
     return 0
   fi
   if [ -n "$ALLOW_MARKET" ]; then
@@ -501,13 +714,13 @@ market_guard() {
     # during the idle wait). The notice says "run": the run can still end without a restart.
     if [ "$DRY" != 1 ] && [ "$MARKET_ALERTED" = 0 ]; then
       MARKET_ALERTED=1
-      echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
-      alert "⚠️ **vertex-web restart run in US market hours** (QuantVPS): the market hours guard was skipped ($when). Reason: $ALLOW_MARKET"
-    elif [ -z "${1:-}" ]; then echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
+      echo "market hours: WARNING guard skipped ($MARKET_REFUSE_WHEN): $ALLOW_MARKET"
+      alert "⚠️ **vertex-web restart run in US market hours** (QuantVPS): the market hours guard was skipped ($MARKET_REFUSE_WHEN). Reason: $ALLOW_MARKET"
+    elif [ -z "${1:-}" ]; then echo "market hours: WARNING guard skipped ($MARKET_REFUSE_WHEN): $ALLOW_MARKET"
     fi
     return 0
   fi
-  echo "NOT RESTARTED: market hours guard: $when. No restart of the web app on Monday to Friday from 08:30 to 16:00 New York time (an unknown time counts as market hours). Run this script after 16:00 or before 08:30 New York time. --allow-market-hours <reason> skips this guard; use it only with an owner decision."
+  echo "NOT RESTARTED: market hours guard: $MARKET_REFUSE_WHEN. No restart of the web app on trading days from 08:30 to 16:00 New York time (08:30 to early close on NYSE early-close days; NYSE holidays are closed; an unknown time counts as market hours). Run this script after the close or before 08:30 New York time. --allow-market-hours <reason> skips this guard; use it only with an owner decision."
   return 1
 }
 
@@ -560,7 +773,6 @@ runtime_guard() {
   return 1
 }
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 MIGRATION_CHECKER="${VERTEX_MIGRATIONS_CHECKER:-$SCRIPT_DIR/../../scripts/db-migrations-check.ts}"
 run_migration_checker() {
   if [ -x "$MIGRATION_CHECKER" ]; then
@@ -689,7 +901,8 @@ if [ "$DRY" = 1 ]; then
   tail -n +2 <<<"$d" | sed 's/^/  /'
   echo "health now: $(health_line)"
   [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
-  market_guard | sed -e 's/^NOT RESTARTED: market hours guard: /market hours guard would refuse: /' -e 's/\. No restart of the web app on .*$//'
+  [ -z "${VERTEX_DEPLOY_NYSE_CALENDAR:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NYSE_CALENDAR replaces the NYSE calendar"
+  market_guard | sed -e 's/^NOT RESTARTED: market hours guard: /market hours guard would refuse: /' -e 's/\. No restart of the web app .*$//'
   build_guard | sed 's/^NOT RESTARTED: build stage: /build stage would refuse: /'
   # A pipe runs its left side in a subshell: call build_guard again here so SHA_SRC is set.
   build_guard >/dev/null
@@ -725,6 +938,7 @@ fi
 
 # Market hours guard, before the lock and before any call to QuantVPS. A set test hook is named.
 [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+[ -z "${VERTEX_DEPLOY_NYSE_CALENDAR:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NYSE_CALENDAR replaces the NYSE calendar"
 market_guard || exit 14
 
 # One fixed lock path for every caller (login shell, cron, systemd-run, ssh), so two waiters never run.

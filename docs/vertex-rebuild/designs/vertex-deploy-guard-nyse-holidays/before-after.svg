@@ -1,0 +1,466 @@
+<svg
+  aria-label="Before vs After: QuantVPS restart-when-idle.sh NYSE holiday and early-close guard"
+  height="540"
+  role="img"
+  viewBox="0 0 1120 540"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#131926" />
+    </linearGradient>
+    <linearGradient id="redBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#dc2626" />
+      <stop offset="100%" stop-color="#ef4444" />
+    </linearGradient>
+    <linearGradient id="greenBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#15803d" />
+      <stop offset="100%" stop-color="#22c55e" />
+    </linearGradient>
+    <linearGradient id="amberBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#b45309" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+  </defs>
+
+  <rect fill="url(#bg)" height="540" rx="16" width="1120" />
+
+  <!-- Header -->
+  <text
+    fill="#f8fafc"
+    font-family="Manrope, 'Public Sans', system-ui, sans-serif"
+    font-size="22"
+    font-weight="700"
+    x="36"
+    y="44"
+  >
+    QuantVPS Deploy Guard: NYSE Holidays &amp; Early Closes
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    x="36"
+    y="66"
+  >
+    infra/quantvps/restart-when-idle.sh · America/New_York timeline (00:00–24:00
+    ET)
+  </text>
+
+  <!-- Legend -->
+  <g transform="translate(705,36)">
+    <rect fill="url(#greenBar)" height="12" rx="3" width="22" x="0" y="0" />
+    <text
+      fill="#cbd5e1"
+      font-family="'Public Sans', system-ui, sans-serif"
+      font-size="12"
+      x="28"
+      y="10"
+    >
+      Allowed
+    </text>
+    <rect fill="url(#redBar)" height="12" rx="3" width="22" x="100" y="0" />
+    <text
+      fill="#cbd5e1"
+      font-family="'Public Sans', system-ui, sans-serif"
+      font-size="12"
+      x="128"
+      y="10"
+    >
+      Blocked (exit 14)
+    </text>
+    <rect fill="url(#amberBar)" height="12" rx="3" width="22" x="252" y="0" />
+    <text
+      fill="#cbd5e1"
+      font-family="'Public Sans', system-ui, sans-serif"
+      font-size="12"
+      x="280"
+      y="10"
+    >
+      Fail-closed
+    </text>
+  </g>
+
+  <!-- BEFORE LANE -->
+  <rect
+    fill="#151b28"
+    height="156"
+    rx="12"
+    stroke="#334155"
+    stroke-width="1"
+    width="1048"
+    x="36"
+    y="88"
+  />
+  <rect fill="#7f1d1d" height="24" rx="12" width="84" x="52" y="102" />
+  <text
+    fill="#fecaca"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    letter-spacing="1"
+    x="71"
+    y="118"
+  >
+    BEFORE
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    x="148"
+    y="118"
+  >
+    Weekday-only clock (Mon–Fri 08:30–16:00) · holidays &amp; early closes
+    ignored
+  </text>
+
+  <!-- Timeline scale markers (x=310..930 = 620px for 24h => 25.833px/h; 08:30=529.6, 13:00=645.8, 16:00=723.3) -->
+  <g
+    fill="#64748b"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+  >
+    <text x="310" y="142">00:00</text>
+    <text x="530" y="142">08:30</text>
+    <text x="646" y="142">13:00</text>
+    <text x="723" y="142">16:00</text>
+    <text x="930" y="142">24:00</text>
+  </g>
+
+  <!-- Before Row 1: Thanksgiving -->
+  <text
+    fill="#e2e8f0"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="56"
+    y="168"
+  >
+    NYSE Holiday (2026-11-26)
+  </text>
+  <rect fill="url(#greenBar)" height="22" rx="4" width="220" x="310" y="152" />
+  <rect fill="url(#redBar)" height="22" rx="2" width="193" x="530" y="152" />
+  <rect fill="url(#greenBar)" height="22" rx="4" width="207" x="723" y="152" />
+  <text
+    fill="#fff"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="626"
+    y="167"
+  >
+    08:30–16:00 BLOCKED
+  </text>
+  <text
+    fill="#f87171"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="948"
+    y="167"
+  >
+    ✕ Exit 14
+  </text>
+
+  <!-- Before Row 2: Early Close -->
+  <text
+    fill="#e2e8f0"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="56"
+    y="206"
+  >
+    Early Close (2026-11-27)
+  </text>
+  <rect fill="url(#greenBar)" height="22" rx="4" width="220" x="310" y="190" />
+  <rect fill="url(#redBar)" height="22" rx="2" width="193" x="530" y="190" />
+  <rect fill="url(#greenBar)" height="22" rx="4" width="207" x="723" y="190" />
+  <text
+    fill="#fff"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="626"
+    y="205"
+  >
+    08:30–16:00 BLOCKED
+  </text>
+  <text
+    fill="#f87171"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="948"
+    y="205"
+  >
+    ✕ Wait til 16:00
+  </text>
+
+  <!-- Guide lines for BEFORE -->
+  <line
+    stroke="#475569"
+    stroke-dasharray="3 3"
+    stroke-width="1"
+    x1="530"
+    x2="530"
+    y1="147"
+    y2="218"
+  />
+  <line
+    stroke="#475569"
+    stroke-dasharray="3 3"
+    stroke-width="1"
+    x1="646"
+    x2="646"
+    y1="147"
+    y2="218"
+  />
+  <line
+    stroke="#475569"
+    stroke-dasharray="3 3"
+    stroke-width="1"
+    x1="723"
+    x2="723"
+    y1="147"
+    y2="218"
+  />
+
+  <!-- AFTER LANE -->
+  <rect
+    fill="#151b28"
+    height="252"
+    rx="12"
+    stroke="#d4af37"
+    stroke-opacity="0.55"
+    stroke-width="1.2"
+    width="1048"
+    x="36"
+    y="260"
+  />
+  <rect fill="#d4af37" height="24" rx="12" width="76" x="52" y="274" />
+  <text
+    fill="#0b0f17"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="800"
+    letter-spacing="1"
+    x="71"
+    y="290"
+  >
+    AFTER
+  </text>
+  <text
+    fill="#e2e8f0"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    x="140"
+    y="290"
+  >
+    Reads infra/quantvps/nyse-calendar.txt (2025–2028) · holidays open all day,
+    early closes open at 13:00 ET
+  </text>
+
+  <!-- Timeline scale markers -->
+  <g
+    fill="#94a3b8"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+  >
+    <text x="310" y="316">00:00</text>
+    <text x="530" y="316">08:30</text>
+    <text x="646" y="316">13:00</text>
+    <text x="723" y="316">16:00</text>
+    <text x="930" y="316">24:00</text>
+  </g>
+
+  <!-- After Row 1: NYSE Holiday -->
+  <text
+    fill="#f8fafc"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="56"
+    y="344"
+  >
+    NYSE Holiday (2026-11-26)
+  </text>
+  <rect fill="url(#greenBar)" height="24" rx="4" width="620" x="310" y="327" />
+  <text
+    fill="#052e16"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="800"
+    text-anchor="middle"
+    x="620"
+    y="343"
+  >
+    CLOSED ALL DAY — DEPLOY ALLOWED (NO OVERRIDE)
+  </text>
+  <text
+    fill="#4ade80"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="948"
+    y="343"
+  >
+    ✓ Allowed
+  </text>
+
+  <!-- After Row 2: Early Close -->
+  <text
+    fill="#f8fafc"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="56"
+    y="388"
+  >
+    Early Close (2026-11-27)
+  </text>
+  <rect fill="url(#greenBar)" height="24" rx="4" width="220" x="310" y="371" />
+  <rect fill="url(#redBar)" height="24" rx="2" width="116" x="530" y="371" />
+  <rect fill="url(#greenBar)" height="24" rx="4" width="284" x="646" y="371" />
+  <text
+    fill="#fff"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="588"
+    y="387"
+  >
+    08:30–13:00
+  </text>
+  <text
+    fill="#052e16"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="800"
+    text-anchor="middle"
+    x="788"
+    y="387"
+  >
+    OPEN AT 13:00 ET
+  </text>
+  <text
+    fill="#4ade80"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="948"
+    y="387"
+  >
+    ✓ From 13:00
+  </text>
+
+  <!-- After Row 3: Regular Trading Day -->
+  <text
+    fill="#cbd5e1"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="56"
+    y="432"
+  >
+    Regular Trading Day
+  </text>
+  <rect fill="url(#greenBar)" height="24" rx="4" width="220" x="310" y="415" />
+  <rect fill="url(#redBar)" height="24" rx="2" width="193" x="530" y="415" />
+  <rect fill="url(#greenBar)" height="24" rx="4" width="207" x="723" y="415" />
+  <text
+    fill="#fff"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="626"
+    y="431"
+  >
+    08:30–16:00 BLOCKED
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    x="948"
+    y="431"
+  >
+    Unchanged
+  </text>
+
+  <!-- After Row 4: Missing / Bad / Uncovered Calendar -->
+  <text
+    fill="#fcd34d"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="56"
+    y="476"
+  >
+    Bad / Uncovered Calendar
+  </text>
+  <rect fill="url(#greenBar)" height="24" rx="4" width="220" x="310" y="459" />
+  <rect fill="url(#amberBar)" height="24" rx="2" width="193" x="530" y="459" />
+  <rect fill="url(#greenBar)" height="24" rx="4" width="207" x="723" y="459" />
+  <text
+    fill="#0b0f17"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="11"
+    font-weight="800"
+    text-anchor="middle"
+    x="626"
+    y="475"
+  >
+    08:30–16:00 FAIL-CLOSED
+  </text>
+  <text
+    fill="#fbbf24"
+    font-family="'Public Sans', system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    x="948"
+    y="475"
+  >
+    ⚠ Exit 14 / Warn
+  </text>
+
+  <!-- Guide lines for AFTER -->
+  <line
+    stroke="#475569"
+    stroke-dasharray="3 3"
+    stroke-width="1"
+    x1="530"
+    x2="530"
+    y1="321"
+    y2="489"
+  />
+  <line
+    stroke="#d4af37"
+    stroke-dasharray="3 3"
+    stroke-opacity="0.7"
+    stroke-width="1"
+    x1="646"
+    x2="646"
+    y1="321"
+    y2="489"
+  />
+  <line
+    stroke="#475569"
+    stroke-dasharray="3 3"
+    stroke-width="1"
+    x1="723"
+    x2="723"
+    y1="321"
+    y2="489"
+  />
+</svg>

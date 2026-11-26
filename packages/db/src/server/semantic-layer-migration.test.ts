@@ -355,17 +355,17 @@ describe("0058_semantic_unlinked_runs migration", () => {
   });
 });
 
-describe("0098_semantic_terms_smart_money migration", () => {
+describe("0100_semantic_terms_smart_money migration", () => {
   const migration = readFileSync(
     new URL(
-      "../../migrations/0098_semantic_terms_smart_money.sql",
+      "../../migrations/0100_semantic_terms_smart_money.sql",
       import.meta.url
     ),
     "utf8"
   );
   const rollback = readFileSync(
     new URL(
-      "../../rollback/0098_semantic_terms_smart_money.down.sql",
+      "../../rollback/0100_semantic_terms_smart_money.down.sql",
       import.meta.url
     ),
     "utf8"
@@ -466,7 +466,7 @@ describe("0098_semantic_terms_smart_money migration", () => {
 
   it("is journaled as idx 98 right after 0097 with a newer timestamp", () => {
     const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0098_semantic_terms_smart_money"
+      (entry) => entry.tag === "0100_semantic_terms_smart_money"
     );
     expect(journal.entries[index]).toMatchObject({ idx: 98 });
     expect(journal.entries[index - 1]).toMatchObject({

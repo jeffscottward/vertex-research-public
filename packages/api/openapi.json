@@ -113912,6 +113912,1005 @@
         ]
       }
     },
+    "/flow/off-exchange-levels": {
+      "get": {
+        "operationId": "flow.offExchangeLevels",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "5d",
+              "enum": [
+                "1d",
+                "5d",
+                "14d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "anchorSession": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "bars": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "close": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "coveredSeconds": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "high": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "low": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "offExchangeShare": {
+                            "anyOf": [
+                              {
+                                "maximum": 1,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "offExchangeVolume": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "open": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "possibleSeconds": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "session": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "start": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "volume": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "vwap": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "start",
+                          "session",
+                          "open",
+                          "high",
+                          "low",
+                          "close",
+                          "vwap",
+                          "volume",
+                          "offExchangeVolume",
+                          "offExchangeShare",
+                          "coveredSeconds",
+                          "possibleSeconds"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 420,
+                      "type": "array"
+                    },
+                    "bucketMinutes": {
+                      "anyOf": [
+                        {
+                          "const": 1
+                        },
+                        {
+                          "const": 5
+                        },
+                        {
+                          "const": 15
+                        }
+                      ]
+                    },
+                    "finraWeekly": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "atsShare": {
+                            "anyOf": [
+                              {
+                                "maximum": 1,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "atsShares": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "atsTrades": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "avgAtsTradeSize": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastUpdated": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "nonAtsShares": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "nonAtsTrades": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "tier": {
+                            "anyOf": [
+                              {
+                                "maxLength": 20,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "totalShares": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "weekStart": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "weekStart",
+                          "atsShares",
+                          "atsTrades",
+                          "nonAtsShares",
+                          "nonAtsTrades",
+                          "totalShares",
+                          "atsShare",
+                          "avgAtsTradeSize",
+                          "tier",
+                          "lastUpdated"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 8,
+                      "type": "array"
+                    },
+                    "latestPrice": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "latestPriceAt": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "levels": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bandHigh": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "bandLow": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "buyShares": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "distanceFromSpot": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "distancePct": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "dominantDirection": {
+                            "enum": [
+                              "bullish",
+                              "bearish",
+                              "neutral"
+                            ],
+                            "type": "string"
+                          },
+                          "firstAt": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "lastAt": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "maxPrice": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "minPrice": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "neutralShares": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "prints": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "rank": {
+                            "maximum": 10,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "sellShares": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "totalNotional": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "totalShares": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "rank",
+                          "bandLow",
+                          "bandHigh",
+                          "price",
+                          "minPrice",
+                          "maxPrice",
+                          "totalShares",
+                          "totalNotional",
+                          "prints",
+                          "buyShares",
+                          "sellShares",
+                          "neutralShares",
+                          "dominantDirection",
+                          "firstAt",
+                          "lastAt",
+                          "distanceFromSpot",
+                          "distancePct"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
+                    },
+                    "prints": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "direction": {
+                            "enum": [
+                              "bullish",
+                              "bearish",
+                              "neutral"
+                            ],
+                            "type": "string"
+                          },
+                          "key": {
+                            "maxLength": 160,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "levelIndex": {
+                            "anyOf": [
+                              {
+                                "maximum": 9,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "notional": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "session": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "size": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "at",
+                          "session",
+                          "price",
+                          "size",
+                          "notional",
+                          "direction",
+                          "levelIndex"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 500,
+                      "type": "array"
+                    },
+                    "range": {
+                      "enum": [
+                        "1d",
+                        "5d",
+                        "14d"
+                      ],
+                      "type": "string"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "capture": {
+                          "const": "sampled"
+                        },
+                        "clusterStep": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "finraMaxWeeks": {
+                          "maximum": 8,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "maxLevels": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "maxPrints": {
+                          "maximum": 500,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "minPrintShares": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "readCap": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "version": {
+                          "const": "flow-off-exchange-levels-rules.v1"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "clusterStep",
+                        "minPrintShares",
+                        "maxLevels",
+                        "maxPrints",
+                        "readCap",
+                        "finraMaxWeeks",
+                        "capture"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-off-exchange-levels.v1"
+                    },
+                    "sessions": {
+                      "items": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "maxItems": 14,
+                      "type": "array"
+                    },
+                    "symbol": {
+                      "enum": [
+                        "SPY"
+                      ],
+                      "type": "string"
+                    },
+                    "ticks": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "state",
+                        "lastOkAt",
+                        "ageSeconds",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen"
+                      ],
+                      "type": "object"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "barsCount": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "buyShares": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "coveredSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "neutralShares": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "omittedLevels": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "omittedPrints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "prints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "sampledOffExchangeShare": {
+                          "anyOf": [
+                            {
+                              "maximum": 1,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sampledOffExchangeVolume": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "sampledVolume": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "sellShares": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "totalClusterCount": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "totalNotional": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "totalShares": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "truncated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "prints",
+                        "totalShares",
+                        "totalNotional",
+                        "buyShares",
+                        "sellShares",
+                        "neutralShares",
+                        "totalClusterCount",
+                        "omittedLevels",
+                        "omittedPrints",
+                        "truncated",
+                        "sampledVolume",
+                        "sampledOffExchangeVolume",
+                        "sampledOffExchangeShare",
+                        "coveredSeconds",
+                        "barsCount"
+                      ],
+                      "type": "object"
+                    },
+                    "windowEnd": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "windowStart": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "symbol",
+                    "range",
+                    "bucketMinutes",
+                    "anchorSession",
+                    "sessions",
+                    "windowStart",
+                    "windowEnd",
+                    "latestPrice",
+                    "latestPriceAt",
+                    "bars",
+                    "prints",
+                    "levels",
+                    "totals",
+                    "finraWeekly",
+                    "ticks",
+                    "rules"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "SPY: off-exchange (FINRA TRF) print levels on the price chart with FINRA weekly OTC context (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
     "/flow/option-bubbles": {
       "get": {
         "operationId": "flow.optionBubbles",
@@ -114050,7 +115049,14 @@
                             "type": "string"
                           },
                           "opening": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "premium": {
                             "minimum": 0,
@@ -114116,7 +115122,14 @@
                             "type": "boolean"
                           },
                           "volumeOverOi": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -114999,7 +116012,14 @@
                             "type": "string"
                           },
                           "opening": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "premium": {
                             "minimum": 0,
@@ -115053,7 +116073,14 @@
                             "type": "boolean"
                           },
                           "volumeOverOi": {
-                            "type": "boolean"
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -116650,6 +117677,16 @@
                                     }
                                   ]
                                 },
+                                "kingNode": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "maxPain": {
                                   "anyOf": [
                                     {
@@ -116675,7 +117712,8 @@
                                 "flip",
                                 "callWall",
                                 "putWall",
-                                "maxPain"
+                                "maxPain",
+                                "kingNode"
                               ],
                               "type": "object"
                             },
@@ -116733,6 +117771,16 @@
                                         }
                                       ]
                                     },
+                                    "kingNode": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
                                     "maxPain": {
                                       "anyOf": [
                                         {
@@ -116758,7 +117806,8 @@
                                     "flip",
                                     "callWall",
                                     "putWall",
-                                    "maxPain"
+                                    "maxPain",
+                                    "kingNode"
                                   ],
                                   "type": "object"
                                 },
@@ -116966,6 +118015,11 @@
                           "minimum": 0,
                           "type": "number"
                         },
+                        "oiFlagsNotReported": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
                         "openingPremiumShare": {
                           "anyOf": [
                             {
@@ -117058,7 +118112,14 @@
                                 "type": "string"
                               },
                               "opening": {
-                                "type": "boolean"
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               },
                               "premium": {
                                 "minimum": 0,
@@ -117112,7 +118173,14 @@
                                 "type": "boolean"
                               },
                               "volumeOverOi": {
-                                "type": "boolean"
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -117180,6 +118248,7 @@
                         "blockPremium",
                         "unusual",
                         "volumeOverOi",
+                        "oiFlagsNotReported",
                         "otmPremiumShare",
                         "zeroDtePremiumShare",
                         "openingPremiumShare",
@@ -162009,6 +163078,16 @@
                                 }
                               ]
                             },
+                            "kingNode": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "putWall": {
                               "anyOf": [
                                 {
@@ -162034,6 +163113,7 @@
                             "flip",
                             "callWall",
                             "putWall",
+                            "kingNode",
                             "dailyMove",
                             "flipMoves",
                             "callWallMoves",

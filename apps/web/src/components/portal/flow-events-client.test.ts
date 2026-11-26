@@ -4,19 +4,21 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createApiClient: vi.fn(),
   events: vi.fn(),
+  snapshot: vi.fn(),
 }));
 vi.mock("@darkfactory/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@darkfactory/api")>();
   return {
     ...actual,
     createApiClient: mocks.createApiClient.mockImplementation(() => ({
-      flow: { events: mocks.events },
+      flow: { events: mocks.events, snapshot: mocks.snapshot },
     })),
   };
 });
 
 import {
   createBrowserFlowEventsGateway,
+  createBrowserFlowSnapshotGateway,
   isFlowInstrument,
 } from "./flow-events-client.ts";
 
@@ -62,5 +64,19 @@ describe("flow-events-client", () => {
     expect(mocks.createApiClient).toHaveBeenCalledTimes(1);
     expect(mocks.events).toHaveBeenCalledTimes(2);
     expect(mocks.events).toHaveBeenCalledWith(input);
+  });
+
+  it("lazily creates one ApiClient and forwards flow.snapshot calls", async () => {
+    mocks.createApiClient.mockClear();
+    const response = { gex: null, symbol: "ES" as const };
+    mocks.snapshot.mockResolvedValue(response);
+    const gateway = createBrowserFlowSnapshotGateway();
+    expect(mocks.createApiClient).not.toHaveBeenCalled();
+    const input = { minutes: 120, symbol: "ES" as const };
+    await expect(gateway.snapshot(input)).resolves.toEqual(response);
+    await expect(gateway.snapshot(input)).resolves.toEqual(response);
+    expect(mocks.createApiClient).toHaveBeenCalledTimes(1);
+    expect(mocks.snapshot).toHaveBeenCalledTimes(2);
+    expect(mocks.snapshot).toHaveBeenCalledWith(input);
   });
 });

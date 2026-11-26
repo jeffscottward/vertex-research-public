@@ -92,6 +92,8 @@ export type OptionBubblesPlot = Readonly<{
   priceSegments: readonly string[];
   priceDots: readonly Readonly<{ x: number; y: number }>[];
   latestSpot: Readonly<{ price: number; label: string; y: number }> | null;
+  priceMax: number;
+  priceMin: number;
   /** Plotted bubbles ordered chronologically (at asc, id asc) for keyboard navigation. */
   chronologicalBubbles: readonly OptionBubblesPlotBubble[];
   /** Same plotted bubbles ordered largest-first so smaller bubbles draw on top. */
@@ -369,8 +371,12 @@ export const describeSelectedBubble = (
   const flags: string[] = [];
   if (bubble.goldenSweep) flags.push("Golden sweep");
   if (bubble.unusual) flags.push("Unusual");
-  if (bubble.volumeOverOi) flags.push("Vol > OI");
-  if (bubble.opening) flags.push("Opening");
+  if (bubble.opening === null || bubble.volumeOverOi === null) {
+    flags.push("Opening and Vol > OI not reported");
+  } else {
+    if (bubble.volumeOverOi) flags.push("Vol > OI");
+    if (bubble.opening) flags.push("Opening");
+  }
 
   return {
     contextLine: `${underlyingText} · ${OPTION_BUBBLES_CONSOLIDATION_LABELS[bubble.consolidation]} · ${OPTION_BUBBLES_MONEYNESS_LABELS[bubble.moneyness]} · ${dteText} · ${ivText}`,
@@ -610,6 +616,8 @@ export const buildOptionBubblesPlot = (
     height: BUBBLES_CHART_HEIGHT,
     latestSpot,
     priceDots,
+    priceMax: yMax,
+    priceMin: yMin,
     priceSegments,
     priceTicks,
     scaleMax,

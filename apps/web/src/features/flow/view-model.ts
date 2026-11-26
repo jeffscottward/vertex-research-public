@@ -288,7 +288,13 @@ export const optionsMetrics = (options: FlowOptionsFlow): readonly Metric[] => [
     value: `${options.blocks} · ${formatMoney(options.blockPremium)}`,
   },
   { label: "Unusual", value: String(options.unusual) },
-  { label: "Vol > OI", value: String(options.volumeOverOi) },
+  {
+    label: "Vol > OI",
+    value:
+      options.oiFlagsNotReported > 0
+        ? `${options.volumeOverOi} · ${options.oiFlagsNotReported} not reported`
+        : String(options.volumeOverOi),
+  },
   {
     label: "OTM share",
     value: formatShare(options.otmPremiumShare, "no option premium"),
@@ -299,7 +305,15 @@ export const optionsMetrics = (options: FlowOptionsFlow): readonly Metric[] => [
   },
   {
     label: "Opening share",
-    value: formatShare(options.openingPremiumShare, "no option premium"),
+    // Null with premium: every print reported open interest 0, so no Opening flag can be read.
+    value:
+      options.openingPremiumShare === null
+        ? options.callPremium + options.putPremium > 0
+          ? "no Opening flag: every print reports open interest 0"
+          : "no option premium"
+        : options.oiFlagsNotReported > 0
+          ? `${formatShare(options.openingPremiumShare, "no option premium")} · ${options.oiFlagsNotReported} not reported`
+          : formatShare(options.openingPremiumShare, "no option premium"),
   },
 ];
 
@@ -349,8 +363,12 @@ export const optionPrintRows = (
         : [print.moneyness.toUpperCase()]),
       ...(print.goldenSweep ? ["golden sweep"] : []),
       ...(print.unusual ? ["unusual"] : []),
-      ...(print.volumeOverOi ? ["vol>OI"] : []),
-      ...(print.opening ? ["opening"] : []),
+      ...(print.opening === null || print.volumeOverOi === null
+        ? ["no OI flags"]
+        : [
+            ...(print.volumeOverOi ? ["vol>OI"] : []),
+            ...(print.opening ? ["opening"] : []),
+          ]),
     ],
     key: `${print.at}-${print.contract}-${index}`,
     kind: print.consolidation,
@@ -388,11 +406,18 @@ const IV_REGIME_LABELS: Readonly<Partial<Record<FlowGex["ivRegime"], string>>> =
     no_term_data: "no front-back IV pair",
   };
 
-const LEVEL_KEYS = ["flip", "callWall", "putWall", "maxPain"] as const;
+const LEVEL_KEYS = [
+  "flip",
+  "callWall",
+  "putWall",
+  "maxPain",
+  "kingNode",
+] as const;
 type LevelKey = (typeof LEVEL_KEYS)[number];
 const LEVEL_LABELS: Readonly<Record<LevelKey, string>> = {
   callWall: "Call wall",
   flip: "Gamma flip",
+  kingNode: "King node",
   maxPain: "Max pain",
   putWall: "Put wall",
 };

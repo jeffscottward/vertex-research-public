@@ -90,8 +90,10 @@ export type FlowOptionPrintRow = Readonly<{
   consolidation: FlowConsolidation;
   unusual: boolean;
   goldenSweep: boolean;
-  opening: boolean;
-  volumeOverOi: boolean;
+  /** Null: not reported (the print reports open interest 0; see `oiFlags`). */
+  opening: boolean | null;
+  /** Null: not reported (the print reports open interest 0; see `oiFlags`). */
+  volumeOverOi: boolean | null;
   volume: number | null;
   openInterest: number | null;
   moneyness: StoredMoneyness;
@@ -156,6 +158,33 @@ export const oldestRowTime = (
   return oldest;
 };
 
+type OiFlagFields = Pick<
+  FlowOptionPrintRow,
+  "opening" | "openInterest" | "volumeOverOi"
+>;
+
+/**
+ * Quant Data's Opening and Vol > OI flags compare a print with the contract's open interest. A
+ * print that reports open interest 0 has both flags set on every print, also for contracts that
+ * other feeds show with thousands of open contracts (card vertex-flow-print-flags-oi-zero,
+ * 2026-11-25 SPY prints). Since card vertex-flow-print-flags-oi-zero-third-state the collector
+ * stores both flags of such a print as null ("not reported"); rows stored before keep Quant Data's
+ * values, so readers also read a print with open interest 0 as not reported. Null open interest
+ * (not sent) keeps the flags as sent.
+ */
+export const oiFlags = (
+  print: OiFlagFields
+): Readonly<{ opening: boolean | null; volumeOverOi: boolean | null }> =>
+  print.openInterest === 0 ||
+  print.opening === null ||
+  print.volumeOverOi === null
+    ? { opening: null, volumeOverOi: null }
+    : { opening: print.opening, volumeOverOi: print.volumeOverOi };
+
+/** True when the print reports both OI-derived flags (oiFlags pairs both as null or boolean). */
+export const oiFlagsKnown = (print: OiFlagFields): boolean =>
+  oiFlags(print).opening !== null;
+
 const optionKind = (print: FlowOptionPrintRow): FlowEventRow["kind"] => {
   if (print.goldenSweep) return "option_golden_sweep";
   if (print.consolidation === "sweep") return "option_sweep";
@@ -196,7 +225,8 @@ export const parseOptionPrints = (
         MONEYNESS[String(row.moneyness?.moneyType).toUpperCase()] ?? "unknown",
       moneynessPct: row.moneyness?.degreeInPercent ?? null,
       openInterest: row.openInterest ?? null,
-      opening: row.isOpeningPosition === true,
+      // Open interest 0: Quant Data's flags do not describe the print; store them as not reported.
+      opening: row.openInterest === 0 ? null : row.isOpeningPosition === true,
       premium: row.premium,
       price: row.optionPrice ?? null,
       right: row.contractType.toLowerCase() as "call" | "put",
@@ -211,7 +241,10 @@ export const parseOptionPrints = (
       underlyingPrice: row.stockPrice ?? null,
       unusual: row.isUnusual === true,
       volume: row.volume ?? null,
-      volumeOverOi: row.isVolumeGreaterThanOpenInterest === true,
+      volumeOverOi:
+        row.openInterest === 0
+          ? null
+          : row.isVolumeGreaterThanOpenInterest === true,
     });
   }
   return { prints, skipped: rows.length - prints.length };
@@ -226,7 +259,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not classified" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not classified" : print.moneyness})${print.unusual ? ", unusual" : ""}${oiFlags(print).volumeOverOi === true ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),

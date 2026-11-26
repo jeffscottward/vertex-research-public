@@ -184,20 +184,32 @@ export const gexFlip = (
   spot: number
 ): number | null => flipFromProfile(gexProfile(strikes, model, spot), spot);
 
-// Call wall: largest positive estimated GEX strike; put wall: most negative.
+// Call wall: largest positive estimated GEX strike; put wall: most negative;
+// king node: strike with the largest absolute estimated GEX (dealer gamma magnet).
 export const gexWalls = (
   strikes: readonly StrikeOi[]
-): Readonly<{ callWall: number | null; putWall: number | null }> => {
+): Readonly<{
+  callWall: number | null;
+  putWall: number | null;
+  kingNode: number | null;
+}> => {
   let callWall: Readonly<{ strike: number; gex: number }> | null = null;
   let putWall: Readonly<{ strike: number; gex: number }> | null = null;
+  let kingNode: Readonly<{ strike: number; absGex: number }> | null = null;
   for (const { strike, gex } of strikes) {
     if (gex !== null && gex > 0 && (callWall === null || gex > callWall.gex))
       callWall = { gex, strike };
     if (gex !== null && gex < 0 && (putWall === null || gex < putWall.gex))
       putWall = { gex, strike };
+    if (gex !== null && Number.isFinite(gex) && gex !== 0) {
+      const absGex = Math.abs(gex);
+      if (kingNode === null || absGex > kingNode.absGex)
+        kingNode = { absGex, strike };
+    }
   }
   return {
     callWall: callWall?.strike ?? null,
+    kingNode: kingNode?.strike ?? null,
     putWall: putWall?.strike ?? null,
   };
 };
@@ -388,6 +400,7 @@ const NO_LEVELS: Levels = {
   dailyMove: null,
   flip: null,
   flipMoves: null,
+  kingNode: null,
   putWall: null,
   putWallMoves: null,
 };
@@ -453,6 +466,7 @@ const dealerContext = (
       dailyMove,
       flip,
       flipMoves: distance(flip),
+      kingNode: walls.kingNode,
       putWall: walls.putWall,
       putWallMoves: distance(walls.putWall),
     },

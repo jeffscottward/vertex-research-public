@@ -19,6 +19,7 @@ import {
   type JanitorDeps,
   janitorPrompt,
   parseSymrefHead,
+  parseWorktrees,
   type RunResult,
   resolveDefaultBranch,
   runJanitorWeekly,
@@ -154,6 +155,7 @@ describe("busy files", () => {
       ],
       prs: 1,
       unrelated: ["origin/ws/stale-main"],
+      worktrees: 0,
     });
   });
 
@@ -214,6 +216,165 @@ describe("busy files", () => {
       "cannot list files of PR #86"
     );
   });
+
+  const WT_A = "/home/u/Github/trading/vertex-research-public-wt-job-a";
+  const WT_OLD = "/home/u/Github/trading/vertex-research-public-wt-old";
+  const LOCAL = "git -c core.quotePath=false";
+  /** `git worktree list --porcelain -z`: NUL after each field and entry. */
+  const porcelain = (...entries: string[][]) =>
+    entries.map((fields) => `${fields.join("\0")}\0\0`).join("");
+  const worktreeList = porcelain(
+    [`worktree ${MAIN}`, "HEAD aaa", `branch refs/heads/${LIVE}`],
+    [`worktree ${WT_A}`, "HEAD bbb", "branch refs/heads/ws/job-a", "locked"],
+    [
+      `worktree ${WT_OLD}`,
+      "HEAD ccc",
+      "detached",
+      "prunable gitdir file points to non-existent location",
+    ],
+    ["worktree /srv/bare.git", "bare"]
+  );
+  const one = porcelain([`worktree ${WT_A}`, "HEAD bbb"]);
+
+  it("parses usable worktrees and skips bare and prunable ones", () => {
+    expect(parseWorktrees(worktreeList)).toEqual([MAIN, WT_A]);
+    expect(parseWorktrees("")).toEqual([]);
+    expect(
+      parseWorktrees(porcelain(["worktree /tmp/odd\nname", "detached"]))
+    ).toEqual(["/tmp/odd\nname"]);
+  });
+
+  it("marks untracked, uncommitted and unpushed files of local worktrees busy", () => {
+    const { calls, run } = fakeRun({
+      ...healthyRepo,
+      "gh pr list": ok(""),
+      "git for-each-ref": ok(""),
+      "git worktree list --porcelain -z": ok(worktreeList),
+      [`${LOCAL} ls-files --others --exclude-standard`]: [
+        ok(""),
+        ok("apps/web/new-page.tsx\n"),
+      ],
+      [`${LOCAL} diff-index --name-only --no-renames HEAD`]: [
+        ok("docs/edited.md\n"),
+        ok("apps/web/old-page.tsx\n"),
+      ],
+      [`${LOCAL} diff --name-only --no-renames origin/${LIVE}...HEAD`]: [
+        ok(""),
+        ok("packages/api/src/unpushed.ts\n"),
+      ],
+    });
+    expect(collectBusyFiles(run, MAIN, LIVE)).toEqual({
+      branches: 0,
+      files: [
+        "apps/web/new-page.tsx",
+        "apps/web/old-page.tsx",
+        "docs/edited.md",
+        "packages/api/src/unpushed.ts",
+      ],
+      prs: 0,
+      unrelated: [],
+      worktrees: 2,
+    });
+    const readIn = new Set(
+      calls
+        .filter((call) => call.line.startsWith(LOCAL))
+        .map((call) => call.cwd)
+    );
+    expect([...readIn]).toEqual([MAIN, WT_A]);
+  });
+
+  it("keeps local edits of a worktree with unrelated history but skips its commits", () => {
+    const { calls, run } = fakeRun({
+      ...healthyRepo,
+      "git worktree list --porcelain -z": ok(one),
+      [`${LOCAL} ls-files --others`]: ok("new.ts\n"),
+      [`git merge-base origin/${LIVE} HEAD`]: fail,
+    });
+    const busy = collectBusyFiles(run, MAIN, LIVE);
+    expect(busy.files).toContain("new.ts");
+    expect(busy.unrelated).toEqual(["origin/ws/stale-main", WT_A]);
+    expect(calls.some((call) => call.line.endsWith("...HEAD"))).toBe(false);
+  });
+
+  it("fails closed when local worktrees cannot be read", () => {
+    const cases: [Record<string, Answer>, string][] = [
+      [{ "git worktree list": fail }, "cannot list local worktrees"],
+      [
+        { [`${LOCAL} diff-index --name-only --no-renames HEAD`]: fail },
+        `cannot list local changes in ${WT_A}`,
+      ],
+      [
+        { [`${LOCAL} ls-files`]: fail },
+        `cannot list untracked files in ${WT_A}`,
+      ],
+      [
+        { [`git merge-base origin/${LIVE} HEAD`]: { status: 128, stdout: "" } },
+        `cannot list local commits in ${WT_A}`,
+      ],
+      [
+        { [`${LOCAL} diff --name-only --no-renames origin/`]: fail },
+        `cannot list local commits in ${WT_A}`,
+      ],
+    ];
+    for (const [answers, message] of cases) {
+      // The first matching prefix answers, so the failing answer goes first.
+      const { run } = fakeRun({
+        ...answers,
+        ...healthyRepo,
+        "git worktree list --porcelain -z": ok(one),
+      });
+      expect(() => collectBusyFiles(run, MAIN, LIVE)).toThrow(message);
+    }
+  });
+
+  it("finds an untracked file in a real linked worktree", () => {
+    const { run } = createJanitorDeps();
+    const root = mkdtempSync(join(tmpdir(), "janitor-busy-"));
+    try {
+      const origin = join(root, "origin.git");
+      const main = join(root, "main");
+      const job = join(root, "main-wt-job");
+      const git = (cwd: string, ...args: string[]) =>
+        expect(
+          run(
+            "git",
+            [
+              "-c",
+              "core.hooksPath=/dev/null",
+              "-c",
+              "user.name=t",
+              "-c",
+              "user.email=t@t",
+              ...args,
+            ],
+            { cwd }
+          ).status
+        ).toBe(0);
+      git(root, "init", "-q", "--bare", "-b", "base", origin);
+      git(root, "clone", "-q", origin, main);
+      git(main, "checkout", "-q", "-b", "base");
+      writeFileSync(join(main, "kept.ts"), "export const k = 1;\n");
+      git(main, "add", ".");
+      git(main, "commit", "-qm", "init");
+      git(main, "push", "-q", "origin", "base");
+      git(main, "worktree", "add", "-q", "-b", "ws/job", job, "origin/base");
+      writeFileSync(join(job, "brand new.ts"), "export const n = 1;\n");
+      writeFileSync(join(job, "café.ts"), "export const c = 1;\n");
+      git(job, "add", "café.ts");
+      git(job, "commit", "-qm", "unpushed");
+      writeFileSync(join(main, "kept.ts"), "export const k = 2;\n");
+      const { run: busyRun } = fakeRun({});
+      const real: JanitorDeps["run"] = (command, args, options) =>
+        command === "gh"
+          ? busyRun(command, args, options)
+          : run(command, args, options);
+      const busy = collectBusyFiles(real, main, "base");
+      expect(busy.files).toEqual(["brand new.ts", "café.ts", "kept.ts"]);
+      expect(busy.worktrees).toBe(2);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
 });
 
 describe("weekly pass", () => {
@@ -227,15 +388,15 @@ describe("weekly pass", () => {
     const run = deps(healthyRepo);
     expect(runJanitorWeekly(["--dry-run"], env, run.deps)).toBe(0);
     expect(run.output.join("")).toBe(
-      `janitor: base ${LIVE}; 3 busy file(s) from 2 ws branch(es) and 1 open PR(s)\n` +
-        `janitor: skipped 1 ws branch(es) with no history shared with ${LIVE}: origin/ws/stale-main\n`
+      `janitor: base ${LIVE}; 3 busy file(s) from 2 ws branch(es), 1 open PR(s) and 0 local worktree(s)\n` +
+        `janitor: skipped 1 ws branch(es) or worktree commit(s) with no history shared with ${LIVE}: origin/ws/stale-main\n`
     );
     expect(run.written[`${WT}-busy.txt`]).toBe(
       "apps/web/a.ts\nresearch/master-rules/rule-pack.json\nshared.ts\n"
     );
-    expect(run.calls.some((call) => call.line.startsWith("git worktree"))).toBe(
-      false
-    );
+    expect(
+      run.calls.some((call) => call.line.startsWith("git worktree add"))
+    ).toBe(false);
     expect(run.calls.at(-1)?.line).toBe(
       `rm -f ${WT}-busy.txt ${WT}-pr-body.md`
     );
@@ -248,7 +409,7 @@ describe("weekly pass", () => {
     });
     expect(runJanitorWeekly(["--dry-run"], env, run.deps)).toBe(0);
     expect(run.output).toEqual([
-      `janitor: base ${LIVE}; 3 busy file(s) from 1 ws branch(es) and 1 open PR(s)\n`,
+      `janitor: base ${LIVE}; 3 busy file(s) from 1 ws branch(es), 1 open PR(s) and 0 local worktree(s)\n`,
     ]);
   });
 

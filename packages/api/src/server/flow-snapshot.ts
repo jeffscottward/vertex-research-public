@@ -31,7 +31,11 @@ import {
   type FlowMinuteRow,
   isFlowSymbol,
 } from "../flow-features.ts";
-import type { FlowOptionPrintRow } from "../flow-options.ts";
+import {
+  type FlowOptionPrintRow,
+  oiFlags,
+  oiFlagsKnown,
+} from "../flow-options.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import { marketSession, newYorkParts } from "./gex-context.ts";
 
@@ -159,6 +163,7 @@ export type FlowGexRow = Readonly<{
   callWall: number | null;
   putWall: number | null;
   maxPain: number | null;
+  kingNode: number | null;
   netDex: number | null;
   zeroDteShare: number | null;
   ivRegime: string;
@@ -517,7 +522,6 @@ export const printView = (
   expiry: print.expiry,
   goldenSweep: print.goldenSweep,
   moneyness: contractValue(FLOW_MONEYNESS, print.moneyness, "not_reported"),
-  opening: print.opening,
   premium: print.premium,
   price: print.price,
   right: print.right,
@@ -526,7 +530,7 @@ export const printView = (
   size: print.size,
   strike: print.strike,
   unusual: print.unusual,
-  volumeOverOi: print.volumeOverOi,
+  ...oiFlags(print),
 });
 
 /** Options flow of the window: premium by right, sentiment, aggressor side and print type. */
@@ -553,9 +557,12 @@ export const buildOptionsSummary = (
     blocks: countWhere((print) => print.consolidation === "block"),
     bullishPremium: where((print) => print.sentiment === "bullish"),
     callPremium: call,
+    // Prints whose Opening and Vol > OI flags are not reported (open interest 0).
+    oiFlagsNotReported: countWhere((print) => !oiFlagsKnown(print)),
+    // Share of the premium whose Opening flag is reported; null without any.
     openingPremiumShare: ratio(
-      where((print) => print.opening),
-      total
+      where((print) => oiFlags(print).opening === true),
+      where(oiFlagsKnown)
     ),
     otmPremiumShare: ratio(
       where((print) => print.moneyness === "otm"),
@@ -572,7 +579,7 @@ export const buildOptionsSummary = (
       .map(printView),
     trades: prints.length,
     unusual: countWhere((print) => print.unusual),
-    volumeOverOi: countWhere((print) => print.volumeOverOi),
+    volumeOverOi: countWhere((print) => oiFlags(print).volumeOverOi === true),
     zeroDtePremiumShare: ratio(
       where((print) => print.dte !== null && print.dte < 1),
       total
@@ -593,6 +600,7 @@ export const buildGexView = (gex: FlowGexRow | null): FlowSnapshot["gex"] => {
     levels: {
       callWall: gex.callWall,
       flip: gex.flip,
+      kingNode: gex.kingNode,
       maxPain: gex.maxPain,
       putWall: gex.putWall,
     },
@@ -605,6 +613,7 @@ export const buildGexView = (gex: FlowGexRow | null): FlowSnapshot["gex"] => {
         : {
             callWall: shift(gex.callWall, basis),
             flip: shift(gex.flip, basis),
+            kingNode: shift(gex.kingNode, basis),
             maxPain: shift(gex.maxPain, basis),
             putWall: shift(gex.putWall, basis),
           },

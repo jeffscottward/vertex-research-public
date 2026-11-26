@@ -43,7 +43,7 @@ The external MCP tools for smart money (`openbb_smart_money_ranking`, `openbb_co
 
 ### Decision B: Five certified Postgres semantic terms (Migration `0098`)
 
-**Choice:** Seed 5 certified `source = 'postgres'` terms in `0098_semantic_terms_smart_money.sql` with certified SQL attributes in `semantic_sql_attributes`, 5 true `many_to_one` entries in `semantic_relationships`, and read-only `GRANT SELECT` on 11 tables to `vertex_semantic_reader`.
+**Choice:** Seed 5 certified `source = 'postgres'` terms in `0100_semantic_terms_smart_money.sql` with certified SQL attributes in `semantic_sql_attributes`, 5 true `many_to_one` entries in `semantic_relationships`, and read-only `GRANT SELECT` on 11 tables to `vertex_semantic_reader`.
 
 | Term ID | Grain | Parameters | Tables Read | Source & Delay Columns |
 | --- | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ The external MCP tools for smart money (`openbb_smart_money_ranking`, `openbb_co
    * `institutional_13f_changes`: deduplicates `(filer_cik, period_ending)` in `openbb_sec_13f_filings` by `filed_on asc, accession_number asc`, keeps only consecutive quarter-end pairs, joins `openbb_sec_13f_holdings` using the `(filer_cik, period_ending)` PK prefix plus strict `accession_number` match, computes `new`/`added`/`reduced`/`sold` (using `shares` when both non-null, else `value`; excluding `unchanged`), resolves display `ticker` via correlated `LEFT JOIN LATERAL` on `openbb_cusip_symbols` PK `(cusip, symbol)` (`coalesce(c.symbol, pr.symbol, cm.symbol)`) and filters optional `$1` against both `upper(ticker) = upper($1::text)` and `EXISTS (SELECT 1 FROM openbb_cusip_symbols cs WHERE cs.cusip = joined.cusip AND cs.symbol = upper($1::text))`, ordered by `greatest(coalesce(value_usd, 0), coalesce(previous_value_usd, 0)) desc, filer_cik asc, cusip asc, option_type asc`.
    * `short_volume`: FINRA Reg SHO daily short volume, exempt volume, total volume, and `short_ratio_percent`; explicitly notes short volume is not short interest.
 5. **Grain schema & contract extension:** Widen `SEMANTIC_ATTRIBUTE_GRAINS` and `semantic_sql_attributes_grain_check` to add `ticker`, `filing_trade`, `issuer_cluster`, `filer_position`, and `ticker_session`, update `SEMANTIC_GRAIN_LABELS`, generate `packages/db/migrations/meta/0098_snapshot.json`, and regenerate `packages/api/openapi.json`.
-6. **Least privilege & guarded rollback:** `vertex_semantic_reader` receives `GRANT SELECT` only (same plain-role guard as `0056_semantic_layer.sql`) on the 11 tables above. Guarded rollback `packages/db/rollback/0098_semantic_terms_smart_money.down.sql` (`BEGIN; ... COMMIT;`, run with `psql -v ON_ERROR_STOP=1` without `--single-transaction`) refuses if any seeded row across all 3 catalog tables has `updated_by IS NOT NULL OR NOT certified OR certified_by IS DISTINCT FROM 'migration 0098' OR certification_note IS DISTINCT FROM '<exact seed note>'` or if any non-`0098` row uses the 5 added grains, deletes only the `0098` rows, revokes the 11 `SELECT` grants (guarded by `IF EXISTS` on `vertex_semantic_reader`), and restores the `0058` grain check. Only true `many_to_one` relationships are seeded (omitting many-to-many `openbb_cusip_symbols`).
+6. **Least privilege & guarded rollback:** `vertex_semantic_reader` receives `GRANT SELECT` only (same plain-role guard as `0056_semantic_layer.sql`) on the 11 tables above. Guarded rollback `packages/db/rollback/0100_semantic_terms_smart_money.down.sql` (`BEGIN; ... COMMIT;`, run with `psql -v ON_ERROR_STOP=1` without `--single-transaction`) refuses if any seeded row across all 3 catalog tables has `updated_by IS NOT NULL OR NOT certified OR certified_by IS DISTINCT FROM 'migration 0098' OR certification_note IS DISTINCT FROM '<exact seed note>'` or if any non-`0098` row uses the 5 added grains, deletes only the `0098` rows, revokes the 11 `SELECT` grants (guarded by `IF EXISTS` on `vertex_semantic_reader`), and restores the `0058` grain check. Only true `many_to_one` relationships are seeded (omitting many-to-many `openbb_cusip_symbols`).
 
 ### Decision C: 375 px `/smart-money` StatusBadge dot fix
 
@@ -75,9 +75,9 @@ The external MCP tools for smart money (`openbb_smart_money_ranking`, `openbb_co
 
 * `docs/vertex-rebuild/designs/smart-money/plan-assistant-terms.md` & `plan-assistant-terms.svg`
 * `packages/db/src/schema/semantic-layer.ts`
-* `packages/db/migrations/0098_semantic_terms_smart_money.sql`
+* `packages/db/migrations/0100_semantic_terms_smart_money.sql`
 * `packages/db/migrations/meta/0098_snapshot.json` & `packages/db/migrations/meta/_journal.json`
-* `packages/db/rollback/0098_semantic_terms_smart_money.down.sql`
+* `packages/db/rollback/0100_semantic_terms_smart_money.down.sql`
 * `packages/api/src/contracts/semantic-terms.ts` & `packages/api/openapi.json`
 * `packages/api/src/server/assistant-runtime.ts`
 * `packages/ui/src/status-badge.tsx` & `packages/ui/src/semantics.test.ts`
@@ -103,6 +103,6 @@ The external MCP tools for smart money (`openbb_smart_money_ranking`, `openbb_co
    * `grader-self-test.test.ts` binds the independent audit to `anthropic/claude-opus-5-5`. Re-recording and 3-run majority grading must run on a host with Anthropic credentials (never faking the grader model with a failover model).
 3. **Merge & off-hours deploy (after eval re-recording + full CI green):**
    * Merge via `scripts/merge-pr` after exact-head fresh-context review and green `ci-gate`.
-   * Dispatch exact-SHA full CI (`browser_tests: on`), apply `0098_semantic_terms_smart_money.sql` on QuantVPS Postgres (via `pnpm db:migrate` or `psql -v ON_ERROR_STOP=1 --single-transaction` with Drizzle ledger reconciliation), deploy `vertex-web` off-hours with `infra/quantvps/restart-when-idle.sh`.
+   * Dispatch exact-SHA full CI (`browser_tests: on`), apply `0100_semantic_terms_smart_money.sql` on QuantVPS Postgres (via `pnpm db:migrate` or `psql -v ON_ERROR_STOP=1 --single-transaction` with Drizzle ledger reconciliation), deploy `vertex-web` off-hours with `infra/quantvps/restart-when-idle.sh`.
    * Verify live (agent viewer session, headless Chrome on the rig, dark 1440 px & 375 px screenshots): `/semantic-terms` lists the 5 certified smart-money terms; live assistant answers "What is big money buying today?", "Who in Congress traded NVDA?", and "Insider cluster buys this week?" with source and data delay; `/smart-money` 375 px dot stays round; `openbb.status` and `openbb.changes13f` answer live.
-4. **Rollback:** Deploy previous `vertex-web` SHA with `infra/quantvps/restart-when-idle.sh`, and (only if no operator edited the seeded terms) run `psql -v ON_ERROR_STOP=1 -f packages/db/rollback/0098_semantic_terms_smart_money.down.sql` (no `--single-transaction`, as the file wraps itself in `BEGIN; ... COMMIT;`).
+4. **Rollback:** Deploy previous `vertex-web` SHA with `infra/quantvps/restart-when-idle.sh`, and (only if no operator edited the seeded terms) run `psql -v ON_ERROR_STOP=1 -f packages/db/rollback/0100_semantic_terms_smart_money.down.sql` (no `--single-transaction`, as the file wraps itself in `BEGIN; ... COMMIT;`).

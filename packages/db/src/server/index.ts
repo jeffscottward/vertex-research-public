@@ -238,6 +238,7 @@ export {
   type FlowMarketPremiumSessionRecord,
   type FlowMarketPremiumSort,
   type FlowMinuteRecord,
+  type FlowMinutesQuery,
   type FlowNetDriftQuery,
   type FlowNetDriftRecord,
   type FlowOptionGapRecord,
