@@ -224,6 +224,7 @@ export * from "./flow-tape-speed-rules.ts";
 export * from "./flow-trade-bubbles-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./generated/public-registry.ts";
+export * from "./gex-wall-drift-rules.ts";
 export {
   MARKET_NOTE_CONTEXT_HEADER,
   MARKET_NOTE_CONTEXT_MAX_NOTES,

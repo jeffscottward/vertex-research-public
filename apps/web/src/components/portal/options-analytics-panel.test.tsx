@@ -14,7 +14,7 @@ import {
   it,
   vi,
 } from "vitest";
-
+import { labFlowControl } from "../../lab/fixtures/flow.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
@@ -48,14 +48,21 @@ afterEach(() => {
 
 const render = async (
   gateway: OptionsAnalyticsGateway | undefined,
-  symbol = "NVDA"
+  symbol = "NVDA",
+  wallDrift = false
 ): Promise<HTMLElement> => {
   host = document.createElement("div");
   document.body.append(host);
   const mounted = createRoot(host);
   root = mounted;
   await act(async () => {
-    mounted.render(<OptionsAnalyticsPanel gateway={gateway} symbol={symbol} />);
+    mounted.render(
+      <OptionsAnalyticsPanel
+        gateway={gateway}
+        symbol={symbol}
+        wallDrift={wallDrift}
+      />
+    );
   });
   return host;
 };
@@ -266,6 +273,8 @@ describe("OptionsAnalyticsPanel", () => {
     expect(snapshot).toHaveBeenCalledWith({ flowHours: 24, symbol: "NVDA" });
     expect(view.textContent).toContain("Options analytics · NVDA");
     expect(view.textContent).toContain("spot 101");
+    // No wall x drift badge without wallDrift (operators) and a net drift ticker.
+    expect(view.querySelector("[data-wall-drift]")).toBeNull();
     expect(
       view.querySelectorAll("[data-term-structure] tbody tr")
     ).toHaveLength(2);
@@ -670,6 +679,21 @@ describe("OptionsAnalyticsPanel", () => {
     );
   });
 
+  it("shows the wall x drift read for an operator on a net drift ticker", async () => {
+    const flowControl = vi.fn(async () => labFlowControl("sp500"));
+    const view = await render(
+      { flowControl, snapshot: async () => ({ ...fixture(), symbol: "SPY" }) },
+      "SPY",
+      true
+    );
+    expect(flowControl).toHaveBeenCalledWith({ group: "sp500" });
+    expect(
+      view
+        .querySelector("[data-wall-drift]")
+        ?.getAttribute("data-wall-drift-ticker")
+    ).toBe("SPY");
+  });
+
   it("uses the browser gateway by default", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -681,8 +705,15 @@ describe("OptionsAnalyticsPanel", () => {
     expect(fetchSpy).toHaveBeenCalled();
     const gateway = createBrowserOptionsAnalyticsGateway();
     await gateway.snapshot({ symbol: "SPY" }).catch(() => undefined);
-    await gateway.snapshot({ symbol: "SPY" }).catch(() => undefined);
+    await gateway.flowControl?.({ group: "sp500" }).catch(() => undefined);
     expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(
+      fetchSpy.mock.calls.some(([request]) =>
+        String(request instanceof Request ? request.url : request).endsWith(
+          "/flow/control"
+        )
+      )
+    ).toBe(true);
     return expect(view.textContent).toContain("Options analytics");
   });
 });

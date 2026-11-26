@@ -127,6 +127,10 @@ describe("charts lab entry", () => {
       symbol: "NVDA",
     });
     expect(six.flow.hours).toBe(6);
+    const control = await labOptionsAnalyticsGateway.flowControl?.({
+      group: "nasdaq100",
+    });
+    expect(control?.group).toBe("nasdaq100");
   });
 
   it("serves an empty JEV verdict and refuses Ask JEV", async () => {

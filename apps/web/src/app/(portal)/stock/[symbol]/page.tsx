@@ -1,9 +1,11 @@
 import { PageHeader } from "@darkfactory/ui";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { StockDetailWorkspace } from "../../../../features/stock-detail/stock-detail-workspace.tsx";
 import { normalizeStockSymbol } from "../../../../features/stock-detail/url-state.ts";
+import { getRequestPortalSession } from "../../../../lib/request-portal-session.ts";
 
 type Params = Promise<{ symbol: string }>;
 
@@ -24,6 +26,12 @@ export default async function StockPage({
 }) {
   const symbol = normalizeStockSymbol((await params).symbol);
   if (symbol === null) notFound();
+  const requestHeaders = await headers();
+  // Same cached lookup as the portal layout; operator-only reads send nothing otherwise.
+  const session = await getRequestPortalSession(
+    requestHeaders.get("cookie"),
+    requestHeaders.get("cf-connecting-ip")
+  );
   return (
     <div className="space-y-6">
       <nav aria-label="Breadcrumb" className="text-muted-foreground text-sm">
@@ -55,7 +63,10 @@ export default async function StockPage({
         }
         title={symbol}
       />
-      <StockDetailWorkspace symbol={symbol} />
+      <StockDetailWorkspace
+        operator={session?.isOperator === true}
+        symbol={symbol}
+      />
     </div>
   );
 }

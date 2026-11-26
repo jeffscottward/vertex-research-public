@@ -7143,13 +7143,17 @@ describe("OMP CLI adapter", () => {
   });
 
   it("publishes a bounded tracker redacted with the exact child environment before disposing the worktree", async () => {
+    // mkdir and writeFile apply the host umask (0002 gives group write), and
+    // Wayfinder rejects a group- or world-writable repository or skill entry.
+    await chmod(repositoryDirectory, 0o755);
     const skillsRoot = join(repositoriesRoot, "skills");
     for (const skillName of OMP_WAYFINDER_SKILLS) {
       const skillDirectory = join(skillsRoot, skillName);
-      await mkdir(skillDirectory, { recursive: true });
+      await mkdir(skillDirectory, { recursive: true, mode: 0o755 });
       await writeFile(
         join(skillDirectory, "SKILL.md"),
-        `---\nname: ${skillName}\n---\n`
+        `---\nname: ${skillName}\n---\n`,
+        { mode: 0o644 }
       );
     }
     const childSecret = "standalone-omp-child-environment-value";
