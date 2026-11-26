@@ -85,8 +85,8 @@ export type VertexRuntimeModelUseOptions = Readonly<{
     privacy: ReturnType<typeof createResearchChatModelPrivacyOperations>;
   }>;
 }>;
-const requireFact = (condition: unknown): void => {
-  if (!condition) throw new Error("Current model-use context unavailable");
+const requireFact = (condition: unknown, cause: string): void => {
+  if (!condition) throw new Error(cause);
 };
 const minimum = (...values: string[]): string =>
   values.reduce((left, right) =>
@@ -139,7 +139,8 @@ export const createVertexRuntimeModelUse = (
       IdentifierSchema.parse(principal.actorId);
       requireFact(
         principal.actorId === request.researchPrincipalId &&
-          !options.signal?.aborted
+          !options.signal?.aborted,
+        "Model-use context check stopped: principal mismatch or request cancelled"
       );
       const chatOrigin = options.chat
         ? await options.chat.owner.worker.originalForTransaction(
@@ -166,7 +167,10 @@ export const createVertexRuntimeModelUse = (
               entry.jobId === request.jobId &&
               entry.requestSha256 === request.requestSha256
           );
-      requireFact(chat || matches.length === 1);
+      requireFact(
+        chat || matches.length === 1,
+        "Model-use request evidence binding missing or ambiguous"
+      );
       const binding = chat ? null : present(matches[0]);
       if (binding) {
         IdentifierSchema.parse(binding.inputArtifactId);
@@ -185,7 +189,8 @@ export const createVertexRuntimeModelUse = (
         job &&
           job["state"] === "running" &&
           job["lease_id"] === request.leaseId &&
-          job["lease_epoch"] === request.leaseEpoch
+          job["lease_epoch"] === request.leaseEpoch,
+        "Model-use job is not running under the requested lease and epoch"
       );
       const admission = await vertexRuntimeModelRow(
         tx,
@@ -198,10 +203,14 @@ export const createVertexRuntimeModelUse = (
           admission["lease_epoch"] === request.leaseEpoch &&
           typeof admission["admitted_at"] === "string" &&
           timestampToEpochNanoseconds(admission["admitted_at"]) <=
-            timestampToEpochNanoseconds(at)
+            timestampToEpochNanoseconds(at),
+        "Model-use job has no durable same-epoch run admission"
       );
       const lease = WorkerLeaseSchema.parse(present(job)["payload"]);
-      requireFact(chat || !lease.payloadArtifactId.startsWith("chat-recipe-"));
+      requireFact(
+        chat || !lease.payloadArtifactId.startsWith("chat-recipe-"),
+        "Model-use non-chat job references a chat-recipe payload"
+      );
       requireFact(
         lease.jobId === request.jobId &&
           lease.accountAlias === scope.accountAlias &&
@@ -211,7 +220,8 @@ export const createVertexRuntimeModelUse = (
           lease.researchPrincipalId === principal.actorId &&
           lease.policySelectionId === request.selectionId &&
           lease.policySelectionSha256 === request.selectionSha256 &&
-          lease.kind === "research-run"
+          lease.kind === "research-run",
+        "Model-use worker lease does not match requested job, scope or principal"
       );
       requireFact(
         present(job)["event_id"] === lease.eventId &&
@@ -219,7 +229,8 @@ export const createVertexRuntimeModelUse = (
             timestampToEpochNanoseconds(lease.leaseExpiresAt).toString() &&
           present(job)["deadline_at_ns"] ===
             timestampToEpochNanoseconds(lease.deadlineAt).toString() &&
-          present(job)["attempt"] === lease.attempt
+          present(job)["attempt"] === lease.attempt,
+        "Model-use worker lease index columns do not match stored payload"
       );
       const currentAt = source.current(at);
       const atNs = timestampToEpochNanoseconds(currentAt);
@@ -227,7 +238,8 @@ export const createVertexRuntimeModelUse = (
         timestampToEpochNanoseconds(lease.leaseExpiresAt) > atNs &&
           timestampToEpochNanoseconds(lease.deadlineAt) > atNs &&
           timestampToEpochNanoseconds(request.deadlineAt) <=
-            timestampToEpochNanoseconds(lease.deadlineAt)
+            timestampToEpochNanoseconds(lease.deadlineAt),
+        "Model-use worker lease or request deadline expired"
       );
       const serviceRow = await vertexRuntimeModelRow(
         tx,
@@ -235,7 +247,10 @@ export const createVertexRuntimeModelUse = (
         scope,
         sql`grant_id = ${present(job)["grant_id"]}`
       );
-      requireFact(serviceRow);
+      requireFact(
+        serviceRow,
+        "Model-use worker service grant record not found in store"
+      );
       const service = WorkerServiceGrantSchema.parse(
         present(serviceRow)["payload"]
       );
@@ -251,13 +266,15 @@ export const createVertexRuntimeModelUse = (
           present(serviceRow)["revoked_at"] === null &&
           service.operations.includes("currentModelUse") &&
           timestampToEpochNanoseconds(service.issuedAt) <= atNs &&
-          timestampToEpochNanoseconds(service.expiresAt) > atNs
+          timestampToEpochNanoseconds(service.expiresAt) > atNs,
+        "Model-use worker service grant failed integrity, scope or expiry check"
       );
       requireFact(
         present(serviceRow)["issued_at_ns"] ===
           timestampToEpochNanoseconds(service.issuedAt).toString() &&
           present(serviceRow)["expires_at_ns"] ===
-            timestampToEpochNanoseconds(service.expiresAt).toString()
+            timestampToEpochNanoseconds(service.expiresAt).toString(),
+        "Model-use worker service grant index columns do not match payload"
       );
       const selection = await parseRuntimePolicySelection(
         await options.policySelection(
@@ -280,7 +297,8 @@ export const createVertexRuntimeModelUse = (
           selection.research &&
           selection.research.modelVersion === request.modelVersion &&
           timestampToEpochNanoseconds(selection.issuedAt) <= atNs &&
-          timestampToEpochNanoseconds(selection.expiresAt) > atNs
+          timestampToEpochNanoseconds(selection.expiresAt) > atNs,
+        "Model-use policy selection does not match request pins, scope, model version or validity window"
       );
       const research = present(selection.research);
       // The concrete native chat owner above has rejoined the immutable phase,
@@ -302,7 +320,8 @@ export const createVertexRuntimeModelUse = (
             request.inputTokens <= research.tokenBudget) &&
           request.maximumOutputTokens <= research.tokenBudget &&
           decimalUnits(request.maximumCostUsd) <=
-            decimalUnits(research.costBudgetUsd)
+            decimalUnits(research.costBudgetUsd),
+        "Model-use requested tools, token budget or cost budget exceed research policy"
       );
       const capability = chat
         ? selection.providerCapabilities.find(
@@ -324,7 +343,8 @@ export const createVertexRuntimeModelUse = (
           capability.endpointReferenceId === request.endpointReferenceId &&
           capability.endpointSha256 === request.endpointSha256 &&
           timestampToEpochNanoseconds(capability.observedAt) <= atNs &&
-          timestampToEpochNanoseconds(capability.expiresAt) > atNs
+          timestampToEpochNanoseconds(capability.expiresAt) > atNs,
+        "Model-use capability not ready or does not match provider and model"
       );
       const endpoint = selection.references.find(
         (entry) => entry.referenceId === request.endpointReferenceId
@@ -337,7 +357,8 @@ export const createVertexRuntimeModelUse = (
           endpoint.verificationState === "verified" &&
           endpoint.lastVerifiedAt !== null &&
           timestampToEpochNanoseconds(endpoint.lastVerifiedAt) <= atNs &&
-          timestampToEpochNanoseconds(endpoint.expiresAt) > atNs
+          timestampToEpochNanoseconds(endpoint.expiresAt) > atNs,
+        "Model-use endpoint reference missing, unverified, expired or not server-only"
       );
       const deadlines = [
         selection.expiresAt,
@@ -355,7 +376,8 @@ export const createVertexRuntimeModelUse = (
         requireFact(
           bytes instanceof Uint8Array &&
             bytes.byteLength <= 1_048_576 &&
-            (await hashArtifact(bytes)) === pin.artifactSha256
+            (await hashArtifact(bytes)) === pin.artifactSha256,
+          "Model-use selected artifact bytes failed size or digest verification"
         );
         const grant = await source.readGrant(
           tx,
@@ -379,7 +401,10 @@ export const createVertexRuntimeModelUse = (
               scope,
               sql`artifact_id = ${pin.artifactId} and collection_key = ''`
             );
-        requireFact(row || stage);
+        requireFact(
+          row || stage,
+          "Model-use selected artifact record not found in store"
+        );
         const payload = (row?.["payload"] ??
           present(stage)["payload"]) as Record<string, unknown>;
         const rightsPin = row
@@ -403,7 +428,10 @@ export const createVertexRuntimeModelUse = (
       const modelPins = selection.artifacts.filter(
         (entry) => entry.role === "model"
       );
-      requireFact(modelPins.length === 1);
+      requireFact(
+        modelPins.length === 1,
+        "Model-use policy selection must pin exactly one model descriptor"
+      );
       const model = VertexRuntimeModelDescriptorSchema.parse(
         vertexRuntimeModelJson(
           await readSelected(present(modelPins[0]).artifact)
@@ -418,11 +446,15 @@ export const createVertexRuntimeModelUse = (
         "tokenizerSha256",
         "modelUsePolicyVersion",
       ] as const)
-        requireFact(model[field] === request[field]);
+        requireFact(
+          model[field] === request[field],
+          "Model-use pinned model descriptor field does not match request"
+        );
       if (!chat)
         requireFact(
           model.endpointReferenceId === request.endpointReferenceId &&
-            model.endpointSha256 === request.endpointSha256
+            model.endpointSha256 === request.endpointSha256,
+          "Model-use pinned model endpoint does not match request"
         );
       deadlines.push(model.expiresAt, model.pricing.expiresAt);
       const price = model.pricing;
@@ -438,20 +470,29 @@ export const createVertexRuntimeModelUse = (
               decimalUnits(price.outputTokenUsd);
       // Price the real byte upper bound, not a caller's potentially smaller
       // token claim. Zero-cost is possible only when explicitly pinned as zero.
-      requireFact(decimalUnits(request.maximumCostUsd) >= requiredCost);
+      requireFact(
+        decimalUnits(request.maximumCostUsd) >= requiredCost,
+        "Model-use request cost cap is below conservative source pricing"
+      );
       const tokenizerPins = selection.artifacts.filter(
         (entry) =>
           entry.role === "tokenizer" &&
           entry.artifact.artifactId === request.tokenizerArtifactId &&
           entry.artifact.artifactSha256 === request.tokenizerSha256
       );
-      requireFact(tokenizerPins.length === 1);
+      requireFact(
+        tokenizerPins.length === 1,
+        "Model-use policy selection must pin exactly one tokenizer artifact"
+      );
       await readSelected(present(tokenizerPins[0]).artifact);
       await readSelected(present(capability).evidenceArtifact);
       const budgetPins = selection.policies.filter(
         (entry) => entry.role === "provider-budget"
       );
-      requireFact(budgetPins.length === 1);
+      requireFact(
+        budgetPins.length === 1,
+        "Model-use policy selection must pin exactly one provider budget policy"
+      );
       const budgetPin = present(budgetPins[0]);
       const budgetPolicy = VertexRuntimeModelBudgetPolicySchema.parse(
         vertexRuntimeModelJson(await readSelected(budgetPin.artifact))
@@ -462,7 +503,8 @@ export const createVertexRuntimeModelUse = (
           budgetPolicy.policyId === budgetPin.policyId &&
           budgetPolicy.policyVersion === budgetPin.version &&
           timestampToEpochNanoseconds(budgetPolicy.startsAt) <= atNs &&
-          timestampToEpochNanoseconds(budgetPolicy.expiresAt) > atNs
+          timestampToEpochNanoseconds(budgetPolicy.expiresAt) > atNs,
+        "Model-use provider budget policy failed scope, version or expiry check"
       );
       const originalPrivacy = chat
         ? await present(options.chat).privacy.readForTransaction(
@@ -484,13 +526,15 @@ export const createVertexRuntimeModelUse = (
           (await hashArtifact(privacy.request)) ===
             (await hashArtifact(request)) &&
           timestampToEpochNanoseconds(privacy.decidedAt) <= atNs &&
-          timestampToEpochNanoseconds(privacy.expiresAt) > atNs
+          timestampToEpochNanoseconds(privacy.expiresAt) > atNs,
+        "Model-use privacy decision failed issuer, request hash or expiry check"
       );
       if (chat) {
         requireFact(
           governedInput instanceof Uint8Array &&
             governedInput.byteLength === request.inputBytes &&
-            (await hashArtifact(governedInput)) === request.inputSha256
+            (await hashArtifact(governedInput)) === request.inputSha256,
+          "Model-use governed chat input failed length or digest verification"
         );
         deadlines.push(chat.expiresAt, present(originalPrivacy).expiresAt);
       } else {
@@ -504,7 +548,8 @@ export const createVertexRuntimeModelUse = (
           input &&
             input["job_id"] === request.jobId &&
             input["content_sha256"] === request.inputSha256 &&
-            input["byte_length"] === request.inputBytes
+            input["byte_length"] === request.inputBytes,
+          "Model-use staged input record missing or failed length and hash check"
         );
         const inputDescriptor = present(input)["payload"] as Record<
           string,
@@ -515,7 +560,8 @@ export const createVertexRuntimeModelUse = (
             present(input)["request_hash"] &&
             inputDescriptor["artifactId"] ===
               present(binding).inputArtifactId &&
-            inputDescriptor["contentSha256"] === request.inputSha256
+            inputDescriptor["contentSha256"] === request.inputSha256,
+          "Model-use staged input descriptor failed integrity or artifact match"
         );
         const inputGrant = await source.readGrant(
           tx,
@@ -542,7 +588,10 @@ export const createVertexRuntimeModelUse = (
             : "content",
           request.inputSha256
         );
-        requireFact(present(input)["object_key"] === inputKey);
+        requireFact(
+          present(input)["object_key"] === inputKey,
+          "Model-use staged input object key does not match scoped path"
+        );
         await source.objectBytes(
           scope,
           inputKey,
@@ -569,7 +618,8 @@ export const createVertexRuntimeModelUse = (
         ) &&
           timestampToEpochNanoseconds(lease.leaseExpiresAt) > completedAt &&
           timestampToEpochNanoseconds(privacy.expiresAt) > completedAt &&
-          timestampToEpochNanoseconds(budgetPolicy.expiresAt) > completedAt
+          timestampToEpochNanoseconds(budgetPolicy.expiresAt) > completedAt,
+        "Model-use lease, grant, policy or privacy deadline expired before check finished"
       );
       const chatBudgets = chatOrigin
         ? VertexResearchChatInputBudgetsSchema.parse(
@@ -739,7 +789,10 @@ export const createVertexRuntimeModelUse = (
           ReturnType<typeof createVertexModelUseStore>["issueGrant"]
         >[0]
       ) => {
-        requireFact(!options.signal?.aborted);
+        requireFact(
+          !options.signal?.aborted,
+          "Model-use grant issuance cancelled by caller signal"
+        );
         return await admin().issueGrant(input);
       },
       revokeGrant: async (
@@ -747,7 +800,10 @@ export const createVertexRuntimeModelUse = (
           ReturnType<typeof createVertexModelUseStore>["revokeGrant"]
         >[0]
       ) => {
-        requireFact(!options.signal?.aborted);
+        requireFact(
+          !options.signal?.aborted,
+          "Model-use grant revocation cancelled by caller signal"
+        );
         return await admin().revokeGrant(input);
       },
     }),

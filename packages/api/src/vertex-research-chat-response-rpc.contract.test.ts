@@ -575,7 +575,8 @@ describe("additive durable response RPC contracts", () => {
       json: {
         code: "SERVICE_UNAVAILABLE",
         data: { reason: "not-configured" },
-        message: "Vertex research chat service unavailable",
+        message:
+          "Vertex research chat request failed: the service is not configured, the request was cancelled, or its store did not answer. Reload to check whether any change was saved, then retry.",
       },
     });
     h.requestResponse.mockResolvedValue({
