@@ -49,6 +49,10 @@ State before this change:
 ## Open Questions
 
 * **Dataset rights**: the upstream code is MIT, but the pre-collected dataset has no license statement and holds venue data (Kalshi API data and Polymarket chain events). This change ships no data and no download, so the question does not block it. A rights check is the first step of the dataset run and gates any download (tracker card `vertex-prediction-market-dataset-run`).
+  * Rights check of 2026-11-26 (card `vertex-prediction-market-dataset-run`, no download done). Source: `https://s3.jbecker.dev/data.tar.zst`, linked from the upstream README and its download script; HTTP HEAD gives 36,020,641,508 bytes, ETag `18f290309fb5d12915d667fc5ee199e4-4294`, last modified 2026-02-05. The upstream tree at `main` has only the MIT license file, which covers "the Software and associated documentation files", not the archive. No issue or document gives a data license.
+  * The [Kalshi Data Terms of Use](https://kalshi-public-docs.s3.amazonaws.com/kalshi-data-terms-of-service.pdf) allow only personal, non-commercial use "in the form in which it is presented on the Website". Without prior written authorization they prohibit copying, downloading, compiling and text and data mining of Kalshi Data (section II). They also say that non-commercial use does not include providing archived data sets of Kalshi Data to another person without consent (section I). The archive is such a data set from a third party. Result: the Kalshi Data Terms of Use give no permitted use basis for the Kalshi part (the separate Kalshi API terms were not checked); the dataset run stays blocked.
+  * Paths that would unblock it (each needs an owner decision): written consent from Kalshi for local research use, or a new design that scores only Polymarket from sources with clear terms (for example public Polygon chain events) and leaves Kalshi out.
+  * Storage: the preflight of tracker sweep run 20261121T113718 found about 22 GiB free on the rig, less than the 33.5 GiB archive. The 2026-11-26 cloud sandbox had 118 GiB free; the extracted size is not known.
 
 ## Critical User Journeys (CUJs)
 
