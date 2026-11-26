@@ -230,8 +230,9 @@ const OptionsGexContextToolInputSchema = z
   .strict();
 
 // Certified terms first, each group in its catalog order: the assistant cuts a tool result at
-// 16,000 characters, and the full catalog is longer, so the long uncertified indicator terms
-// (no certified answer) go last and the cut drops them, never a certified term.
+// 16,000 characters, and the full catalog is longer, so the uncertified terms (trend indicators and
+// flow-control pointers, no certified answer) go last and the cut drops them, never a certified
+// term (read-tools.test.ts checks this on the real catalog).
 const presentTermsList = (value: unknown): unknown => {
   if (
     typeof value !== "object" ||

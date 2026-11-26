@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ASSISTANT_CHART_TOOLS } from "../../../packages/api/src/server/assistant-chart-tools.ts";
-import { assistantToolsFor } from "../../../packages/api/src/server/assistant-runtime.ts";
+import {
+  ASSISTANT_TOOL_RESULT_MAX_CHARS,
+  assistantToolsFor,
+} from "../../../packages/api/src/server/assistant-runtime.ts";
 import {
   callMcpTool,
   MCP_TOOLS,
@@ -148,6 +151,23 @@ describe("read tools on the eval backend", () => {
       }
     }
   );
+
+  it("keeps every certified term of terms_list inside the cut of an assistant tool result", async () => {
+    const result = await callMcpTool("terms_list", {}, backend.callProcedure);
+    const [content] = result["content"] as readonly Readonly<{
+      text: string;
+    }>[];
+    const { terms } = result["structuredContent"] as Readonly<{
+      terms: readonly Readonly<{ certified: boolean; id: string }>[];
+    }>;
+    const seen = content?.text.slice(0, ASSISTANT_TOOL_RESULT_MAX_CHARS) ?? "";
+    expect(
+      terms
+        .filter((term) => term.certified)
+        .filter((term) => !seen.includes(`"id":"${term.id}"`))
+        .map((term) => term.id)
+    ).toEqual([]);
+  });
 
   it("answers terms_query for every term of terms_list with the status its catalog entry requires", async () => {
     const result = await callMcpTool("terms_list", {}, backend.callProcedure);
