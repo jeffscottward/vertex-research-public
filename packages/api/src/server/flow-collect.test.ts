@@ -360,6 +360,7 @@ const fakeRepository = (
     moveOptionGapEnd: gaps.moveOptionGapEnd,
     netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
+    newestMinuteAt: vi.fn(async () => null),
     newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,

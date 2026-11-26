@@ -708,6 +708,59 @@ ES only):
 - **Fixtures.** `/lab/flow` renders deterministic SPY (mixed sides, golden sweeps, open collector
   gap, one unplotted print) and ES (SPX options, no gap) responses across all four premium floors.
 
+## Off-exchange print levels (SPY)
+
+Design: [vertex-viz-offexchange-levels/design.md](designs/vertex-viz-offexchange-levels/design.md).
+Research only: shows horizontal off-exchange (FINRA TRF) print levels overlaid on the SPY price and
+VWAP chart alongside sampled FINRA TRF volume share and lagged FINRA weekly OTC context. It is not
+a trade signal, and no trading engine reads it. Nothing here places, changes, or cancels an order.
+
+Data: stored rows of `flow_minutes`, `flow_events` (`kind = 'off_exchange_print'`, `source = 'ibkr'`),
+and `openbb_finra_otc_weekly` (no new table, no migration, and no vendor call). SPY is the only
+symbol with sampled IBKR FINRA TRF ticks; ES, NQ, and QQQ have no panel.
+
+Rules (`OFF_EXCHANGE_LEVELS_RULES`, version `flow-off-exchange-levels-rules.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `capture` | `sampled` | SPY ticks are sampled (~1000 prints every ~6 min); totals reflect covered seconds only |
+| `minPrintShares` | 10000 | minimum single-print share size stored as `off_exchange_print` |
+| `clusterStep` | 0.25 | price-band width in USD (`$0.25`) used to cluster prints into levels |
+| `maxLevels` | 10 | top levels ranked by total notional returned |
+| `maxPrints` | 500 | newest prints returned for chart dots and level inspection |
+| `readCap` | 2000 | maximum `off_exchange_print` rows read from Postgres per request |
+| `finraMaxWeeks` | 8 | newest FINRA weekly OTC weeks returned (ATS + non-ATS) |
+
+- **Ranges and bar bucketing.** `1d` (1 session, 1-minute bars), `5d` (default; up to 5 sessions,
+  5-minute bars), and `14d` (up to 10 sessions within 14 calendar days, 15-minute bars), aligned to
+  regular US equity hours (`09:30`–`16:00` New York, end-exclusive). Each bar aggregates OHLC,
+  volume-weighted VWAP, total volume, `off_exchange_volume`, `off_exchange_share`, and
+  `coveredSeconds` / `possibleSeconds`.
+- **Clustering and ranking.** `packages/api/src/flow-off-exchange-levels-rules.ts` assigns each
+  valid print to band `floor(price / 0.25) * 0.25`, computes VWAP level price, share/notional
+  totals, buy/sell/neutral split, dominant direction (`bullish`, `bearish`, or `neutral`), and
+  distance from latest stored close (`distanceFromSpot`, `distancePct`), then ranks levels by
+  `totalNotional DESC` (top 10 returned; omitted counts reported in `totals`).
+- **FINRA weekly context.** Reads stored `openbb_finra_otc_weekly` rows for SPY (120-day lookback,
+  newest 8 weeks) and reports ATS (dark pool) shares, non-ATS OTC shares, ATS share of off-exchange
+  volume, and average ATS trade size.
+
+Procedure `flow.offExchangeLevels` (`GET /flow/off-exchange-levels`, input `symbol: "SPY"` and
+optional `range: "1d" | "5d" | "14d"`, default `"5d"`; operator session; no API key; read-only
+viewer account can call it as a GET procedure) returns `flow-off-exchange-levels.v1`.
+
+Panel "Off-exchange print levels (SPY)" on `/flow` (below the Options flow heatmap panel, SPY only):
+
+- **Own call.** Runs in its own `loadOffExchangeLevels` sequence. Switching `1d` / `5d` / `14d` or
+  clicking **Retry** refetches only `flow.offExchangeLevels` without refetching other panels or
+  resetting the 60 s refresh timer.
+- **Chart, table, and context.** Responsive SVG price/VWAP chart with horizontal print levels,
+  notional-scaled bands and right-rail bars, print dots, latest spot line, and aligned sampled TRF
+  volume share sub-panel; keyboard-navigable level table (`TableScroll`) with pinned print
+  inspector; and a FINRA weekly OTC context strip with stacked ATS vs non-ATS weekly bars.
+- **Fixtures.** `/lab/flow` renders deterministic SPY off-exchange levels across `1d`, `5d`, and
+  `14d` with 6 FINRA weekly OTC bars.
+
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options

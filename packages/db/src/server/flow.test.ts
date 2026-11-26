@@ -1964,3 +1964,57 @@ describe("flow repository readOptionTape", () => {
     ).rejects.toThrow("readOptionTape limit must be a positive integer.");
   });
 });
+
+describe("createFlowRepository off-exchange minute queries", () => {
+  it("reads the newest minute timestamp for a symbol or returns null when empty", async () => {
+    const newest = new Date("2026-11-20T20:55:00.000Z");
+    const double = createDouble([[{ at: newest }], [{ at: null }]]);
+    const repository = createFlowRepository(double.database);
+
+    await expect(repository.newestMinuteAt("SPY")).resolves.toEqual(newest);
+    await expect(repository.newestMinuteAt("SPY")).resolves.toBeNull();
+    expect(double.operations).toHaveLength(2);
+    expect(double.operations[0]?.table).toBe(flowMinutes);
+    expect(whereOf(double.operations[0]).params).toEqual(["SPY"]);
+  });
+
+  it("reads flow_minutes rows in [from, to) ascending by minute", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:00:00.000Z");
+    const row: FlowMinuteRecord = {
+      absorption: null,
+      buyVolume: 60_000,
+      close: 592.4,
+      coveredSeconds: 60,
+      delta: 20_000,
+      high: 592.6,
+      largePrints: 1,
+      largePrintVolume: 25_000,
+      low: 592.1,
+      minute: from,
+      offExchangeVolume: 35_000,
+      open: 592.2,
+      sellVolume: 40_000,
+      stackedBuy: 0,
+      stackedSell: 0,
+      symbol: "SPY",
+      trades: 420,
+      volume: 100_000,
+      vwap: 592.35,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+
+    await expect(
+      repository.readMinutes({ from, symbol: "SPY", to })
+    ).resolves.toEqual([row]);
+    const [select] = double.operations;
+    expect(select?.kind).toBe("select");
+    expect(select?.table).toBe(flowMinutes);
+    expect(select?.orderBy).toHaveLength(1);
+    const where = whereOf(select);
+    expect(where.sql).toContain('"minute" >= $2');
+    expect(where.sql).toContain('"minute" < $3');
+    expect(where.params).toEqual(["SPY", from.toISOString(), to.toISOString()]);
+  });
+});
