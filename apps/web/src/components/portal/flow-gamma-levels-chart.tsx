@@ -31,22 +31,26 @@ import {
 
 /**
  * Draws horizontal gamma level lines and non-overlapping pill badges inside an SVG. The pills
- * sit at the left edge, over the oldest prices: the newest price and its label are at the right.
+ * sit at the left edge: the newest price and its label are at the right. A chart with candles
+ * draws the `lines` layer under them and the `labels` layer over them, so a candle never hides a
+ * label and the labels cover only the oldest candles.
  */
 export const SvgGammaLevelLines = ({
   lines,
   chartX,
   chartWidth,
+  layer = "all",
 }: Readonly<{
   lines: readonly SvgGammaLevelLine[];
   chartX: number;
   chartWidth: number;
+  layer?: "all" | "lines" | "labels";
 }>) => {
   if (lines.length === 0) return null;
   const x2 = chartX + chartWidth;
   const pillX = chartX + 4;
   return (
-    <g data-flow-gamma-lines="">
+    <g data-flow-gamma-lines={layer}>
       {lines.map((line) => {
         const maxPillWidth = Math.max(40, chartWidth - 8);
         const pillWidth = Math.min(
@@ -56,59 +60,67 @@ export const SvgGammaLevelLines = ({
         const shifted = Math.abs(line.labelY - line.y) > 2;
         return (
           <g data-flow-gamma-line={line.key} key={line.key}>
-            <line
-              stroke={line.color}
-              strokeDasharray={line.dashArray}
-              strokeOpacity={0.92}
-              strokeWidth={line.strokeWidth}
-              x1={chartX}
-              x2={x2}
-              y1={line.y}
-              y2={line.y}
-            />
-            {line.isMergedWithKing ? (
-              <line
-                stroke={line.accentColor}
-                strokeDasharray="4 14"
-                strokeOpacity={0.95}
-                strokeWidth={2.5}
-                x1={chartX}
-                x2={x2}
-                y1={line.y}
-                y2={line.y}
-              />
-            ) : null}
-            {shifted ? (
-              <line
-                stroke={line.color}
-                strokeOpacity={0.7}
-                strokeWidth={1}
-                x1={pillX + pillWidth}
-                x2={Math.min(x2, pillX + pillWidth + 8)}
-                y1={line.labelY}
-                y2={line.y}
-              />
-            ) : null}
-            <rect
-              fill="var(--background)"
-              fillOpacity={0.92}
-              height={16}
-              rx={3}
-              stroke={line.hasKingNode ? line.accentColor : line.color}
-              strokeWidth={1}
-              width={pillWidth}
-              x={pillX}
-              y={line.labelY - 8}
-            />
-            <text
-              className="fill-foreground font-mono text-[10px]"
-              dominantBaseline="middle"
-              textAnchor="start"
-              x={pillX + 5}
-              y={line.labelY}
-            >
-              {line.pillText}
-            </text>
+            {layer === "labels" ? null : (
+              <>
+                <line
+                  stroke={line.color}
+                  strokeDasharray={line.dashArray}
+                  strokeOpacity={0.92}
+                  strokeWidth={line.strokeWidth}
+                  x1={chartX}
+                  x2={x2}
+                  y1={line.y}
+                  y2={line.y}
+                />
+                {line.isMergedWithKing ? (
+                  <line
+                    stroke={line.accentColor}
+                    strokeDasharray="4 14"
+                    strokeOpacity={0.95}
+                    strokeWidth={2.5}
+                    x1={chartX}
+                    x2={x2}
+                    y1={line.y}
+                    y2={line.y}
+                  />
+                ) : null}
+              </>
+            )}
+            {layer === "lines" ? null : (
+              <>
+                {shifted ? (
+                  <line
+                    stroke={line.color}
+                    strokeOpacity={0.7}
+                    strokeWidth={1}
+                    x1={pillX + pillWidth}
+                    x2={Math.min(x2, pillX + pillWidth + 8)}
+                    y1={line.labelY}
+                    y2={line.y}
+                  />
+                ) : null}
+                <rect
+                  fill="var(--background)"
+                  fillOpacity={0.92}
+                  height={16}
+                  rx={3}
+                  stroke={line.hasKingNode ? line.accentColor : line.color}
+                  strokeWidth={1}
+                  width={pillWidth}
+                  x={pillX}
+                  y={line.labelY - 8}
+                />
+                <text
+                  className="fill-foreground font-mono text-[10px]"
+                  dominantBaseline="middle"
+                  textAnchor="start"
+                  x={pillX + 5}
+                  y={line.labelY}
+                >
+                  {line.pillText}
+                </text>
+              </>
+            )}
           </g>
         );
       })}
@@ -166,8 +178,8 @@ const OffScaleList = ({
 
 /**
  * Strip under an intraday /flow price chart with gamma levels: when the estimate was stored, the
- * drawn levels as text for screen readers (the chart SVG is hidden from them), and the levels
- * above or below the chart's Y-axis zoom.
+ * drawn levels as text for screen readers (the Trade Bubbles SVG is hidden from them), and the
+ * levels above or below the chart's Y-axis zoom.
  */
 export const FlowGammaLevelsStrip = ({
   levels,

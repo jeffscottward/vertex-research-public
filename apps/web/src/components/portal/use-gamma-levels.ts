@@ -85,7 +85,7 @@ const stateFromAnalytics = (
   if (overlay === null)
     return {
       reason: report.data.rateLimited
-        ? "QuantData rate limit reached; levels return with the next snapshot."
+        ? `QuantData rate limit reached; retry in about ${report.data.retryAfterSeconds ?? 60} s.`
         : "no GEX or max-pain levels computed for this snapshot.",
       type: "empty",
     };

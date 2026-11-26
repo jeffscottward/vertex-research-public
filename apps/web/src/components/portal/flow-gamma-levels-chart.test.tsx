@@ -196,30 +196,25 @@ describe("FlowGammaLevelsChart & SVG helpers", () => {
     expect(noSpot.querySelector("[data-flow-gex-spot]")).toBeNull();
 
     // Shifted label pill renders a leader connector.
+    const flipLine = {
+      accentColor: "var(--vx-gold)",
+      color: "var(--warning)",
+      dashArray: "8 4",
+      glyphs: "⇄",
+      hasKingNode: false,
+      isMergedWithKing: false,
+      key: "flip",
+      labelY: 96,
+      pillText: "⇄ Flip 602.00",
+      price: 602,
+      primaryKind: "flip",
+      shortLabel: "Flip",
+      strokeWidth: 1.75,
+      y: 80,
+    } as const;
     const shifted = await mount(
       <svg aria-hidden="true">
-        <SvgGammaLevelLines
-          chartWidth={500}
-          chartX={40}
-          lines={[
-            {
-              accentColor: "var(--vx-gold)",
-              color: "var(--warning)",
-              dashArray: "8 4",
-              glyphs: "⇄",
-              hasKingNode: false,
-              isMergedWithKing: false,
-              key: "flip",
-              labelY: 96,
-              pillText: "⇄ Flip 602.00",
-              price: 602,
-              primaryKind: "flip",
-              shortLabel: "Flip",
-              strokeWidth: 1.75,
-              y: 80,
-            },
-          ]}
-        />
+        <SvgGammaLevelLines chartWidth={500} chartX={40} lines={[flipLine]} />
       </svg>
     );
     // The pill sits at the left edge of the plot; its leader runs from the pill to the line.
@@ -234,6 +229,35 @@ describe("FlowGammaLevelsChart & SVG helpers", () => {
     expect(
       ["x1", "y1", "x2", "y2"].map((name) => leader?.getAttribute(name))
     ).toEqual(["137", "96", "145", "80"]);
+
+    // A chart with candles draws the two layers apart: the level lines alone, then the labels.
+    const layered = await mount(
+      <svg aria-hidden="true">
+        <SvgGammaLevelLines
+          chartWidth={500}
+          chartX={40}
+          layer="lines"
+          lines={[flipLine]}
+        />
+        <SvgGammaLevelLines
+          chartWidth={500}
+          chartX={40}
+          layer="labels"
+          lines={[flipLine]}
+        />
+      </svg>
+    );
+    const linesLayer = layered.querySelector('[data-flow-gamma-lines="lines"]');
+    const labelsLayer = layered.querySelector(
+      '[data-flow-gamma-lines="labels"]'
+    );
+    expect(linesLayer?.querySelectorAll("line")).toHaveLength(1);
+    expect(linesLayer?.querySelector("line")?.getAttribute("x2")).toBe("540");
+    expect(linesLayer?.querySelector("rect, text")).toBeNull();
+    expect(labelsLayer?.textContent).toBe("⇄ Flip 602.00");
+    // Only the leader: the level line itself is in the other layer.
+    expect(labelsLayer?.querySelectorAll("line")).toHaveLength(1);
+    expect(labelsLayer?.querySelector("line")?.getAttribute("x1")).toBe("137");
   });
 
   it("states the as-of time, the levels in range for screen readers, and the levels off the scale", async () => {

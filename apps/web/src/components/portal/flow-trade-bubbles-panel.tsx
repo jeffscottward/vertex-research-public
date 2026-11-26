@@ -205,10 +205,11 @@ const BubbleChartSvg = ({
           </g>
         ))}
 
-        {/* Horizontal dealer gamma levels, under the candles and the price lines */}
+        {/* Dealer gamma level lines, under the candles and the price lines */}
         <SvgGammaLevelLines
           chartWidth={plot.chartWidth}
           chartX={plot.chartX}
+          layer="lines"
           lines={gammaLines}
         />
 
@@ -277,6 +278,14 @@ const BubbleChartSvg = ({
             strokeWidth={1.5}
           />
         )}
+
+        {/* Gamma level labels at the left edge, over the oldest candles */}
+        <SvgGammaLevelLines
+          chartWidth={plot.chartWidth}
+          chartX={plot.chartX}
+          layer="labels"
+          lines={gammaLines}
+        />
 
         {/* Selected crosshair */}
         {selectedPoint === null ? null : (

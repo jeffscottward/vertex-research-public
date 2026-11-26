@@ -453,14 +453,17 @@ describe("FlowTradeBubblesPanel", () => {
     );
     expect(toggle?.getAttribute("aria-pressed")).toBe("true");
     expect(el.querySelector("[data-flow-gamma-lines]")).not.toBeNull();
-    // The levels are drawn before the candles, so the newest candles stay on top of them.
+    // The level lines are drawn before the candles and the labels after them: a candle stays
+    // on top of a line, and no candle hides a label.
     const order = [
       ...el.querySelectorAll(
         "[data-flow-gamma-lines], [data-flow-trade-bubbles-candle]"
       ),
-    ].map((node) => node.hasAttribute("data-flow-gamma-lines"));
-    expect(order[0]).toBe(true);
-    expect(order.length).toBeGreaterThan(1);
+    ].map((node) => node.getAttribute("data-flow-gamma-lines") ?? "candle");
+    expect(order[0]).toBe("lines");
+    expect(order.at(-1)).toBe("labels");
+    expect(order.slice(1, -1).every((kind) => kind === "candle")).toBe(true);
+    expect(order.length).toBeGreaterThan(2);
     const strip = el.querySelector("[data-flow-gamma-strip]");
     expect(strip?.textContent).toContain(
       "Gamma levels: GEX estimate as of Nov 25, 10:30 AM EST"

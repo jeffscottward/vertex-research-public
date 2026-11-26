@@ -209,14 +209,33 @@ describe("useGammaLevelsView", () => {
     await update({
       ...base,
       analyticsReport: {
-        data: { ...optionsData(false), rateLimited: true },
+        data: {
+          ...optionsData(false),
+          rateLimited: true,
+          retryAfterSeconds: 45,
+        },
         symbol: "SPY",
         type: "ready",
       },
     });
     expect(get().state).toEqual({
-      reason:
-        "QuantData rate limit reached; levels return with the next snapshot.",
+      reason: "QuantData rate limit reached; retry in about 45 s.",
+      type: "empty",
+    });
+    await update({
+      ...base,
+      analyticsReport: {
+        data: {
+          ...optionsData(false),
+          rateLimited: true,
+          retryAfterSeconds: null,
+        },
+        symbol: "SPY",
+        type: "ready",
+      },
+    });
+    expect(get().state).toEqual({
+      reason: "QuantData rate limit reached; retry in about 60 s.",
       type: "empty",
     });
 

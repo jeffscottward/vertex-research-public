@@ -125,6 +125,9 @@ const COINCIDENT_EPSILON = 1e-6;
 const PILL_MIN_GAP_PX = 20;
 const PILL_PADDING_Y_PX = 12;
 const PILL_EDGE_X_PX = 8;
+// KLineCharts draws its legend (the candle row, then one row per overlay indicator) over the
+// top-left of the pane, after the overlays. One row is about 22 px high.
+const LEGEND_ROW_PX = 22;
 
 const positiveFiniteOrNull = (
   value: number | null | undefined
@@ -596,12 +599,19 @@ export const gammaLevelsFigures = (
   const figures: GammaLevelsFigure[] = [];
   const narrow = width < 420;
   const pillX = PILL_EDGE_X_PX;
-  const topReserve =
-    above.length > 0 ? PILL_PADDING_Y_PX + 20 : PILL_PADDING_Y_PX;
   const bottomReserve =
     below.length > 0
       ? height - PILL_PADDING_Y_PX - 20
       : height - PILL_PADDING_Y_PX;
+  // Keep the pills below the legend: two rows on a wide pane; on a narrow pane the candle row
+  // wraps to three. A short pane gives the legend only the room that the pills do not need.
+  const topReserve = Math.max(
+    PILL_PADDING_Y_PX,
+    Math.min(
+      (narrow ? 4 : 2) * LEGEND_ROW_PX,
+      bottomReserve - (visible.length - 1) * PILL_MIN_GAP_PX
+    )
+  );
   const placedY = resolveGammaLabelY(
     visible.map((entry) => ({ id: entry.spec.key, idealY: entry.y })),
     topReserve,

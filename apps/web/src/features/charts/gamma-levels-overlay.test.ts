@@ -553,6 +553,28 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
       narrowInBounds.filter((f) => f.type === "text").map((f) => f.attrs.text)
     ).toEqual(["▲★ 615.00", "⇄ 602.50", "◎ 600.00", "▼ 590.00"]);
 
+    // The chart legend covers the top-left of the pane. A level near the top keeps its line there
+    // and gets its pill below the legend rows: two rows on a wide pane, four on a narrow one.
+    const pillYs = (
+      ys: readonly number[],
+      bounding: { height: number; width: number }
+    ) =>
+      gammaLevelsFigures(
+        ys.map((y) => ({ x: 50, y })),
+        data,
+        bounding
+      ).flatMap((f) => (f.type === "text" ? [f.attrs.y] : []));
+    expect(pillYs([10, 140, 200, 280], { height: 360, width: 800 })).toEqual([
+      44, 140, 200, 280,
+    ]);
+    expect(pillYs([10, 140, 200, 280], { height: 360, width: 375 })).toEqual([
+      88, 140, 200, 280,
+    ]);
+    // A short pane gives the legend only the room that the four pills do not need.
+    expect(pillYs([10, 30, 50, 70], { height: 100, width: 800 })).toEqual([
+      28, 48, 68, 88,
+    ]);
+
     // Mid-width 460 px viewport also condenses 3+ off-scale groups when the full string would clip.
     const midWidthFigs = gammaLevelsFigures(
       [
