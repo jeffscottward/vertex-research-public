@@ -117,6 +117,9 @@ def test_condition_bootstrap_and_cli(files: tuple[Path, Path]) -> None:
                  "--horizon-blocks", "100000"], out=lines.append) == 0
     text = lines[0]
     assert "positions in 1..99 cents: 8" in text and "conditions: 2" in text and "21-30 | " in text
+    # 8 rows read: 1 dropped by the horizon (unknown token 999), 2 skipped, 4 joined,
+    # 1 not joined (the split-payout market, which resolved within the horizon).
+    assert "trade rows read: 8" in text and "joined rows: 4" in text
     lines.clear()
     assert main(["--markets", str(files[0]), "--trades", str(files[1]), "--maker-rows-only"], out=lines.append) == 0
     assert "bootstrap" not in lines[0]
@@ -133,3 +136,14 @@ def test_bootstrap_without_joined_markets_has_no_interval(tmp_path: Path) -> Non
         "taker_amount": "VARCHAR", "block_number": "BIGINT", "taker": "VARCHAR"})
     boot = condition_bootstrap(markets, trades, draws=5)
     assert boot.conditions == 0 and boot.brier.low is None
+
+
+def test_counts_explain_every_dropped_row(files: tuple[Path, Path]) -> None:
+    from providers.prediction_market_parquet import TradeCounts, format_report, polymarket_calibration_from_parquet
+
+    counts = TradeCounts()
+    report = polymarket_calibration_from_parquet(*files, maker_rows_only=True, horizon_blocks=100, counts=counts)
+    assert (counts.read, counts.maker_dropped, counts.horizon_dropped) == (8, 1, 2)
+    text = format_report(report, counts=counts)
+    # 8 read - 1 maker - 2 horizon - 2 skipped - 2 joined = 1 not joined (the split-payout market).
+    assert "joined rows: 2" in text and "not joined to a clear winner (unknown token or split payout): 1" in text

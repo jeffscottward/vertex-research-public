@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import http.client
 import json
 import sys
 import tempfile
@@ -61,11 +62,13 @@ CONFIRMATIONS = 256  # blocks below the latest block that a run reads, so reorga
 FILL_STEP = 50  # about 60-90 fill logs per block in November 2026; 50 blocks stay under 10,000 results
 RESOLUTION_STEP = 2_000
 REQUEST_SPACING = 0.1  # seconds between requests
-TRIES = 6  # back-off 1, 2, 4, 8, 16 s
+TRIES = 6  # back-off 1, 2, 4, 8, 16 s between tries
 TIMEOUT = 60.0
 REPOSITORY = Path(__file__).resolve().parents[3]
+# Text of a rate limit: back off and retry the same range. Checked before the range words.
+_RATE_ERROR_WORDS = ("rate limit", "rate-limit", "ratelimit", "too many requests", "429", "capacity", "throttl")
 # Text of a refused range: halve the block step. The archive-token error is never a range error.
-_RANGE_ERROR_WORDS = ("range", "too many", "more than", "limit", "exceed", "response size", "too large", "timeout")
+_RANGE_ERROR_WORDS = ("range", "more than", "response size", "too large", "query returned", "results", "timeout")
 _COLUMN_TYPES = {
     "block_number": "BIGINT", "block_time": "BIGINT", "log_index": "BIGINT", "version": "INTEGER",
     "closed": "BOOLEAN",
@@ -98,26 +101,33 @@ class JsonRpc:
         request = urllib.request.Request(self.url, data=body, headers={
             "content-type": "application/json", "user-agent": USER_AGENT})
         for attempt in range(self.tries):
-            if self.calls:
+            if attempt:
+                self.sleep(2 ** (attempt - 1))
+            elif self.calls:
                 self.sleep(self.spacing)
             self.calls += 1
             try:
                 with self.opener(request, timeout=self.timeout) as response:
                     reply = json.loads(response.read())
             except urllib.error.HTTPError as error:
-                if error.code == 403:  # PublicNode answers archive ranges with 403 and a JSON error.
-                    reply = json.loads(error.read() or b"{}")
-                elif error.code == 429 or error.code >= 500:
-                    self.sleep(2 ** attempt)
+                if error.code == 429 or error.code >= 500:
                     continue
-                else:
+                if error.code != 403:  # PublicNode answers archive ranges with 403 and a JSON error.
                     raise
-            except (urllib.error.URLError, TimeoutError, ConnectionError):
-                self.sleep(2 ** attempt)
+                raw = error.read() or b""
+                try:
+                    reply = json.loads(raw)
+                except ValueError:
+                    raise RpcError(f"HTTP 403: {raw[:200]!r}") from None
+            except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError, ValueError):
+                continue  # network failure, cut or non-JSON body: retry
+            error_value = reply.get("error") if isinstance(reply, dict) else reply
+            if isinstance(reply, dict) and "result" in reply and error_value is None:
+                return reply["result"]
+            message = str(error_value.get("message", error_value) if isinstance(error_value, dict) else error_value)
+            if any(word in message.lower() for word in _RATE_ERROR_WORDS):
                 continue
-            if "error" in reply or "result" not in reply:
-                raise RpcError(str(reply.get("error", {}).get("message", reply.get("error", reply))))
-            return reply["result"]
+            raise RpcError(message)
         raise RpcError(f"{method}: no answer after {self.tries} tries")
 
 
@@ -266,13 +276,16 @@ def main(argv: Sequence[str] | None = None, rpc: JsonRpc | None = None, out: Cal
                         help="resolutions are read up to the last fill block plus this (7 days)")
     args = parser.parse_args(argv)
     out_dir = outside_repository(args.out)
+    for name in ("trades.parquet", "markets.parquet"):
+        if (out_dir / name).exists():
+            parser.error(f"refusing to overwrite {out_dir / name}")
     client = rpc or JsonRpc(args.rpc)
     head = int(client.call("eth_blockNumber", []), 16) - CONFIRMATIONS
     first = head + CONFIRMATIONS - args.fills_back
     slices = fill_slices(first, args.fills_span, args.slices, args.slice_blocks)
-    resolutions_to = min(head, slices[-1][1] + args.horizon_blocks)
-    if resolutions_to < slices[-1][1]:
-        parser.error("the fill window ends after the latest confirmed block")
+    resolutions_to = slices[-1][1] + args.horizon_blocks
+    if resolutions_to > head:
+        parser.error("the fill window plus the horizon ends after the latest confirmed block")
     summary = sample(client, slices, resolutions_to, out_dir)
     for key, value in summary.items():
         out(f"{key}: {value}")

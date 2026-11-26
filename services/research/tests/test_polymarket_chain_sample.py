@@ -5,6 +5,7 @@ node is a fake opener: no network.
 """
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import urllib.error
@@ -38,7 +39,7 @@ def test_sample_writes_parquet_that_the_reader_calibrates(tmp_path: Path) -> Non
     node = FakeNode(logs, head=block + 300, max_range=40)
     lines: list[str] = []
     argv = ["--out", str(tmp_path / "w"), "--fills-back", "330", "--fills-span", "4", "--slices", "2",
-            "--slice-blocks", "2", "--horizon-blocks", "100"]
+            "--slice-blocks", "2", "--horizon-blocks", "50"]
     assert main(argv, rpc=_rpc(node), out=lines.append) == 0
     summary = dict(line.split(": ", 1) for line in lines)
     assert (summary["trade_rows"], summary["skipped_fill_logs"], summary["traded_tokens"]) == ("2", "1", "1")
@@ -47,8 +48,10 @@ def test_sample_writes_parquet_that_the_reader_calibrates(tmp_path: Path) -> Non
     report = polymarket_calibration_from_parquet(tmp_path / "w/markets.parquet", tmp_path / "w/trades.parquet")
     # 99.9 cents rounds to 100 (out of range); 30/100 gives a 30-cent winner and a 70-cent loser.
     assert (report.total_trades, report.out_of_range_positions) == (2, 2)
-    with pytest.raises(SystemExit, match="overwrite"):
-        main(argv, rpc=_rpc(FakeNode(logs, head=block + 300)), out=lines.append)
+    again = FakeNode(logs, head=block + 300)
+    with pytest.raises(SystemExit):
+        main(argv, rpc=_rpc(again), out=lines.append)
+    assert again.ranges == []  # refused before any log request
 
 
 def test_main_refuses_a_folder_in_the_repository_and_a_window_past_the_head(tmp_path: Path) -> None:
@@ -95,7 +98,12 @@ def test_rpc_retries_transient_failures_and_stops_on_others() -> None:
     rpc = _rpc(FakeNode([], head=7, failures=[_http_error(429), urllib.error.URLError("down")]))
     rpc.sleep = sleeps.append
     assert rpc.call("eth_blockNumber", []) == "0x7"
-    assert sleeps == [1, 0.1, 2, 0.1]
+    assert sleeps == [1, 2]
+    assert rpc.call("eth_blockNumber", []) == "0x7" and sleeps == [1, 2, 0.1]
+    rpc = _rpc(FakeNode([], head=7, failures=[http.client.IncompleteRead(b"x"), ValueError("cut body")]))
+    assert rpc.call("eth_blockNumber", []) == "0x7"
+    with pytest.raises(RpcError, match="HTTP 403"):
+        _rpc(FakeNode([], failures=[_http_error(403, b"<html>blocked</html>")])).call("eth_blockNumber", [])
     with pytest.raises(urllib.error.HTTPError):
         _rpc(FakeNode([], failures=[_http_error(404)])).call("eth_blockNumber", [])
     with pytest.raises(RpcError, match="no answer"):
@@ -107,3 +115,27 @@ def test_default_opener_refuses_redirects() -> None:
 
     assert _NoRedirect().redirect_request() is None
     assert callable(JsonRpc().opener)
+
+
+class _ErrorNode(FakeNode):
+    """Answers the first calls with given JSON-RPC error values, then like FakeNode."""
+
+    def __init__(self, errors: list[object]) -> None:
+        super().__init__([], head=9)
+        self.errors = errors
+
+    def __call__(self, request, timeout):  # type: ignore[no-untyped-def]
+        from tests.polymarket_fixtures import Reply
+
+        if self.errors:
+            return Reply({"jsonrpc": "2.0", "id": 1, "error": self.errors.pop(0)})
+        return super().__call__(request, timeout)
+
+
+def test_rate_limit_errors_back_off_and_other_errors_stop() -> None:
+    from providers.polymarket_chain_sample import RpcError
+
+    rpc = _rpc(_ErrorNode([{"code": -32005, "message": "Rate limit exceeded"}, "Too Many Requests"]))
+    assert rpc.call("eth_blockNumber", []) == "0x9"
+    with pytest.raises(RpcError, match="execution reverted"):
+        _rpc(_ErrorNode(["execution reverted"])).call("eth_blockNumber", [])

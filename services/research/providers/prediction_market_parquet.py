@@ -93,11 +93,23 @@ def _trade_token(row: Mapping[str, Any]) -> str:
     return str(row.get("taker_asset_id")) if maker == "0" else maker
 
 
+@dataclass
+class TradeCounts:
+    """Trade rows read and dropped before the join (mutable, filled while rows stream)."""
+
+    read: int = 0
+    maker_dropped: int = 0
+    horizon_dropped: int = 0
+
+
 def _trade_rows(trades: str | Path, maker_rows_only: bool, horizon_blocks: int | None,
-                markets: Mapping[str, TokenMarket]) -> Iterator[dict[str, Any]]:
+                markets: Mapping[str, TokenMarket], counts: TradeCounts | None = None) -> Iterator[dict[str, Any]]:
+    counts = counts if counts is not None else TradeCounts()
     extra = (("taker",) if maker_rows_only else ()) + (("block_number",) if horizon_blocks is not None else ())
     for row in iter_parquet_rows(trades, TRADE_COLUMNS + extra):
+        counts.read += 1
         if maker_rows_only and not is_maker_order_row(row):
+            counts.maker_dropped += 1
             continue
         if horizon_blocks is not None:
             market = markets.get(_trade_token(row))
@@ -106,12 +118,14 @@ def _trade_rows(trades: str | Path, maker_rows_only: bool, horizon_blocks: int |
             except (TypeError, ValueError):
                 wait = None
             if wait is None or not 0 <= wait <= horizon_blocks:
+                counts.horizon_dropped += 1
                 continue
         yield row
 
 
 def polymarket_calibration_from_parquet(markets: str | Path, trades: str | Path, maker_rows_only: bool = False,
-                                        horizon_blocks: int | None = None) -> CalibrationReport:
+                                        horizon_blocks: int | None = None, counts: TradeCounts | None = None
+                                        ) -> CalibrationReport:
     """Polymarket report from local Parquet files.
 
     ``maker_rows_only`` leaves out the aggregate taker rows (whose ``taker`` is
@@ -119,12 +133,13 @@ def polymarket_calibration_from_parquet(markets: str | Path, trades: str | Path,
     side. ``horizon_blocks`` keeps only fills whose token resolved within that
     many blocks after the fill block, so every fill had the same time to
     resolve; the market rows then need ``condition_id`` and ``block_number``
-    and the trade rows ``block_number``.
+    and the trade rows ``block_number``. ``counts`` (when given) receives the
+    rows read and the rows each filter dropped.
     """
     token_won = polymarket_token_resolution(iter_parquet_rows(markets, MARKET_COLUMNS))
     keyed = token_markets(markets) if horizon_blocks is not None else {}
     skipped = SkippedRows()
-    rows = _trade_rows(trades, maker_rows_only, horizon_blocks, keyed)
+    rows = _trade_rows(trades, maker_rows_only, horizon_blocks, keyed, counts)
     report = calibration_by_price(polymarket_positions(rows, token_won, skipped))
     return replace(report, skipped_rows=skipped.count)
 
@@ -192,9 +207,21 @@ def condition_bootstrap(markets: str | Path, trades: str | Path, draws: int = 20
                      _percentiles(scores["ece"]))
 
 
-def format_report(report: CalibrationReport, bootstrap: Bootstrap | None = None) -> str:
-    """Plain-text report: totals, scores and win rate by 10-cent band."""
-    lines = [
+def format_report(report: CalibrationReport, bootstrap: Bootstrap | None = None,
+                  counts: TradeCounts | None = None) -> str:
+    """Plain-text report: row counts, totals, scores and win rate by 10-cent band."""
+    lines: list[str] = []
+    if counts is not None:
+        joined = (report.total_trades + report.out_of_range_positions) // 2  # two positions per joined row
+        not_joined = (counts.read - counts.maker_dropped - counts.horizon_dropped - report.skipped_rows - joined)
+        lines += [
+            f"trade rows read: {counts.read}",
+            f"dropped by the maker-row filter: {counts.maker_dropped}",
+            f"dropped by the horizon (no market, or resolved before the fill or later than H): {counts.horizon_dropped}",
+            f"not joined to a clear winner (unknown token or split payout): {not_joined}",
+            f"joined rows: {joined}",
+        ]
+    lines += [
         f"positions in 1..99 cents: {report.total_trades}",
         f"positions out of range: {report.out_of_range_positions}",
         f"skipped rows: {report.skipped_rows}",
@@ -223,10 +250,12 @@ def main(argv: Sequence[str] | None = None, out: Callable[[str], object] = print
     parser.add_argument("--horizon-blocks", type=int)
     parser.add_argument("--bootstrap", type=int, default=0, help="draws; 0 = no bootstrap")
     args = parser.parse_args(argv)
-    report = polymarket_calibration_from_parquet(args.markets, args.trades, args.maker_rows_only, args.horizon_blocks)
+    counts = TradeCounts()
+    report = polymarket_calibration_from_parquet(args.markets, args.trades, args.maker_rows_only, args.horizon_blocks,
+                                                 counts)
     bootstrap = (condition_bootstrap(args.markets, args.trades, args.bootstrap, 0, args.maker_rows_only,
                                      args.horizon_blocks) if args.bootstrap > 0 else None)
-    out(format_report(report, bootstrap))
+    out(format_report(report, bootstrap, counts))
     return 0
 
 
