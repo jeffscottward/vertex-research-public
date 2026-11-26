@@ -51,7 +51,7 @@ The FreeStockAlerts template, restated in Vertex's own words. `services/research
 - Event-study engine and CLI: `services/research/strategies/smart_money/` (`engine.py`, `signals.py`, `document.py`, `__main__.py`) reusing `services/research/backtesting/optimizer.py` (`deflated_sharpe_ratio`) and `services/research/strategies/trend_trio/study.py` (`moments`).
 - Unit tests: `services/research/tests/test_smart_money_backtests.py`.
 - Offline rig collector: `scripts/smart-money-pr7/fetch_data.py`.
-- Library entry: migrations `packages/db/migrations/0031_strategy_catalog.sql` and `0095_strategy_catalog_smart_money_backtests.sql` (portal `/library` and Postgres `research_studies` id `insider-purchase-confirmation`).
+- Library entry: migrations `packages/db/migrations/0031_strategy_catalog.sql` and `0096_strategy_catalog_smart_money_backtests.sql` (portal `/library` and Postgres `research_studies` id `insider-purchase-confirmation`).
 
 ## Data
 

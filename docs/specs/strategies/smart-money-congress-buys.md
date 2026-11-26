@@ -30,7 +30,7 @@ Summary: Event-study backtest of U.S. House and Senate electronic PTR stock purc
 - Event-study engine and CLI: `services/research/strategies/smart_money/` (`engine.py`, `signals.py`, `document.py`, `__main__.py`).
 - Unit tests: `services/research/tests/test_smart_money_backtests.py`.
 - Offline rig collector: `scripts/smart-money-pr7/fetch_data.py`.
-- Library entry: migration `packages/db/migrations/0095_strategy_catalog_smart_money_backtests.sql` (portal `/library` and Postgres `research_studies` id `smart-money-congress-buys`).
+- Library entry: migration `packages/db/migrations/0096_strategy_catalog_smart_money_backtests.sql` (portal `/library` and Postgres `research_studies` id `smart-money-congress-buys`).
 
 ## Backtest (2026-11-25, real data)
 

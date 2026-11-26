@@ -22,8 +22,8 @@ import {
   type FlowGroupId,
   type FlowNetDriftSeries,
   type FlowNetDriftTotals,
+  type FlowIndexOptionTicker,
   type FlowNoDataReason,
-  type FlowOptionTicker,
   type FlowStudyStatus,
   type FlowSymbol,
 } from "../contracts/flow.ts";
@@ -150,7 +150,7 @@ export const optionsSessionRange = (
 export const etClock = (date: Date): string => `${flowClockText(date)} ET`;
 
 type TickerFold = Readonly<{
-  ticker: FlowOptionTicker;
+  ticker: FlowIndexOptionTicker;
   symbol: FlowSymbol;
   state: FlowControlState;
   reason: FlowNoDataReason | null;
@@ -205,7 +205,7 @@ const tickerReason = (
 
 const foldTicker = (
   rows: FlowControlRows,
-  ticker: FlowOptionTicker,
+  ticker: FlowIndexOptionTicker,
   from: Date,
   to: Date
 ): TickerFold => {

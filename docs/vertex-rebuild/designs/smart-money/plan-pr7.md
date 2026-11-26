@@ -12,7 +12,7 @@
 
 ## Outcome
 
-Research-only backtests of the three smart-money signals defined in [design.md](design.md) are executed with pre-registered rules, excess returns over SPY, transaction costs, and deflated Sharpe ratio (DSR) testing. Every result is stored in Postgres (`research_studies`) and linked to the Strategy Library (`strategies`) via migration `0095`:
+Research-only backtests of the three smart-money signals defined in [design.md](design.md) are executed with pre-registered rules, excess returns over SPY, transaction costs, and deflated Sharpe ratio (DSR) testing. Every result is stored in Postgres (`research_studies`) and linked to the Strategy Library (`strategies`) via migration `0096`:
 
 1. **`insider-purchase-confirmation`** (existing Strategy Library row updated from `status = 'researching'` with tag `needs-data` to `status = 'backtested'` with tag `backtest-study`, plus tag `failed` if verdict is `no-edge`): feeds the existing `services/research/strategies/alert_templates.py` rule with SEC Form 4 public-at filing dates, and evaluates the pre-registered insider cluster-buy variant (`>= 3` distinct reporting-owner groups within 10 calendar days).
 2. **`smart-money-congress-buys`** (new Strategy Library row, `status = 'backtested'`): evaluates House and Senate electronic Periodic Transaction Report (PTR) purchases by first filing date (`filed_on`, zero look-ahead).
@@ -144,7 +144,7 @@ Every study JSON emitted by `services/research/strategies/smart_money/document.p
 * `provenance`: `{ commit: "<7-40 hex git SHA>", dataHash: "sha256:<first 24 hex of the SHA-256 over the study's source file and every bars CSV>", engine: "vertex-smart-money-event-study 1.0.0", runId: "<id>-<ran date>" }`. The ran date of the recorded run is `2026-11-25`.
 * `__main__.py` emits each individual `<id>.json` AND one combined `studies.jsonl` under `~/Documents/reports/web/vertex-smart-money-pr7/`, asserting each JSON line is `<= 262,144` bytes and combined file is `<= 1,048,576` bytes for stdin transport to `scripts/research-studies/import.ts`.
 
-### 3.2 Migration `0095_strategy_catalog_smart_money_backtests.sql` and Rollback
+### 3.2 Migration `0096_strategy_catalog_smart_money_backtests.sql` and Rollback
 
 * **Update existing `insider-purchase-confirmation` row (`strategy-seed-insider-purchase-confirmation`):**
   * Guarded `UPDATE "public"."strategies"` using **`AND`** across all predicates:
@@ -154,7 +154,7 @@ Every study JSON emitted by `services/research/strategies/smart_money/document.p
 * **Insert two new rows (`ON CONFLICT ("slug") DO NOTHING`):**
   * `strategy-seed-smart-money-congress-buys` (`slug = 'smart-money-congress-buys'`, `kind = 'python'`, `status = 'backtested'`, `section = 'Idea discovery'`, `source_ref = 'docs/specs/strategies/smart-money-congress-buys.md'`, exact `tags`: `["research-only","smart-money","congress","daily","backtest-study"]` + `"failed"` iff verdict is `no-edge`, `description <= 2,000` chars with verdict, House/Senate PTR source, up-to-45-day STOCK Act delay, scanned-PTR & survivorship limits).
   * `strategy-seed-smart-money-large-bullish-premium` (`slug = 'smart-money-large-bullish-premium'`, `kind = 'python'`, `status = 'researching'`, `section = 'Idea discovery'`, `source_ref = 'docs/specs/strategies/smart-money-large-bullish-premium.md'`, exact `tags`: `["research-only","smart-money","options-flow","daily","needs-data","backtest-study"]`, `description <= 2,000` chars with `needs-more-data` verdict, QuantData `gainers-losers` source, intraday/EOD delay, bullish-includes-sold-puts note, and `2027-10-16` OOS unlock date).
-* **Rollback `packages/db/rollback/0095_strategy_catalog_smart_money_backtests.down.sql`:**
+* **Rollback `packages/db/rollback/0096_strategy_catalog_smart_money_backtests.down.sql`:**
   * Follows `0079_strategy_catalog_flow_control_continuation.down.sql` verbatim: `BEGIN; SET LOCAL search_path = pg_catalog, public; SET LOCAL row_security = off; LOCK TABLE "public"."strategies" IN ACCESS EXCLUSIVE MODE;`.
   * Refuses rollback (`RAISE EXCEPTION`) if any of the 3 rows has `updated_at <> created_at` OR is referenced by any of the **7** tables: `strategy_presets`, `backtest_results`, `backtest_runs`, `optimization_runs`, `strategy_specs`, `deployment_requests`, `autopilot_candidates`.
   * Deletes the 2 new rows and restores the exact `0031_strategy_catalog.sql` columns (`status = 'researching'`, `source_ref = 'services/research/strategies/alert_templates.py'`, original `tags` and `description`) on `strategy-seed-insider-purchase-confirmation`.
@@ -193,8 +193,8 @@ Create:
 * `services/research/strategies/smart_money/__main__.py` (CLI runner reading local data dir, writing studies & summary report)
 * `services/research/tests/test_smart_money_backtests.py` (synthetic fixture tests covering all 3 signals, zero look-ahead, as-printed price filters, overlap/capacity, DSR skew/raw-kurtosis and per-observation units, verdict gates, schema shape, pure-stdlib isolation; 100% line and branch coverage of the package)
 * `scripts/smart-money-pr7/fetch_data.py` (offline rig data collector: streams SEC Form 3/4/5 ZIPs, invokes `services/openbb` venv in monthly chunks for 2022–2025 Congress + exports 2026 Congress & `flow_market_premium` from Postgres, caches daily OHLCV bars plus the as-printed `raw_close` for up to 600 pre-registered tickers, stops when Yahoo fails for a ticker after retries, records `universe_requested`, `bars_cached` and `bars_not_found` in `metadata.json`, and caches `bars_premium/` (Signal 3) and `bars_events/` (post-hoc full-universe check); not imported by `services/research` or CI)
-* `packages/db/migrations/0095_strategy_catalog_smart_money_backtests.sql` + Drizzle meta (`_journal.json`, `0095_snapshot.json`)
-* `packages/db/rollback/0095_strategy_catalog_smart_money_backtests.down.sql`
+* `packages/db/migrations/0096_strategy_catalog_smart_money_backtests.sql` + Drizzle meta (`_journal.json`, `0096_snapshot.json`)
+* `packages/db/rollback/0096_strategy_catalog_smart_money_backtests.down.sql`
 * `packages/db/src/server/strategy-catalog-smart-money-backtests-migration.test.ts` (SQL & rollback structural unit test)
 * `tests/integration/database/strategy-catalog-smart-money-backtests.test.ts` (live Postgres migration, UPDATE guards and rollback guards)
 * `docs/specs/strategies/smart-money-congress-buys.md`
@@ -228,15 +228,15 @@ Modify:
 
 ## 6. Deploy, Live Checks, and Rollback
 
-Because PR 7 modifies no web or API runtime code (`apps/web`, `packages/api` unchanged), **redeploying `vertex-web` is not required**; applying migration `0095` and importing `studies.jsonl` into QuantVPS Postgres immediately updates `/library` and MCP `strategies_list`/`strategies_get`. (If a `vertex-web` restart is ever performed later, it must use `infra/quantvps/stage-build.sh`, `stage-runtime.sh`, and `restart-when-idle.sh --deploy <sha>` after exact-SHA CI.)
+Because PR 7 modifies no web or API runtime code (`apps/web`, `packages/api` unchanged), **redeploying `vertex-web` is not required**; applying migration `0096` and importing `studies.jsonl` into QuantVPS Postgres immediately updates `/library` and MCP `strategies_list`/`strategies_get`. (If a `vertex-web` restart is ever performed later, it must use `infra/quantvps/stage-build.sh`, `stage-runtime.sh`, and `restart-when-idle.sh --deploy <sha>` after exact-SHA CI.)
 
 1. **Market-hours gate (owner rule 2026-11-16):** Run production DB changes only after 16:00 ET or before 08:30 ET on a trading day.
-2. **Apply migration `0095` on QuantVPS Postgres:** run `0095_strategy_catalog_smart_money_backtests.sql` inside one transaction via `psql -v ON_ERROR_STOP=1 --single-transaction`.
+2. **Apply migration `0096` on QuantVPS Postgres:** run `0096_strategy_catalog_smart_money_backtests.sql` inside one transaction via `psql -v ON_ERROR_STOP=1 --single-transaction`.
 3. **Import the 3 frozen studies into `research_studies`:**
    `DATABASE_URL=<quantvps-db-url> bun run vertex:research-studies:import < ~/Documents/reports/web/vertex-smart-money-pr7/studies.jsonl`
 4. **Live verification:**
    * Query QuantVPS Postgres `strategies` and `research_studies` to confirm all 3 rows and studies exist with expected status, tags, and verdicts.
    * Capture dark-mode headless Chrome screenshots (desktop + 375 px phone, scrolled to top, using the agent viewer account in `~/.config/vertex/agent-viewer.env`) of `/library` and each study's Backtests tab.
    * Call MCP `strategies_list` / `strategies_get` (or `strategyLibrary.get` + `researchStudies.get` through authenticated API) and verify verdict, source, delay, and limits appear truthfully.
-5. **Rollback:** run `psql -v ON_ERROR_STOP=1 -f packages/db/rollback/0095_strategy_catalog_smart_money_backtests.down.sql` (without `--single-transaction`), and optionally delete the 3 rows from `research_studies`:
+5. **Rollback:** run `psql -v ON_ERROR_STOP=1 -f packages/db/rollback/0096_strategy_catalog_smart_money_backtests.down.sql` (without `--single-transaction`), and optionally delete the 3 rows from `research_studies`:
    `DELETE FROM research_studies WHERE id IN ('insider-purchase-confirmation', 'smart-money-congress-buys', 'smart-money-large-bullish-premium');`

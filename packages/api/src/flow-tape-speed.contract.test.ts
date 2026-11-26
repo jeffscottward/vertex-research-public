@@ -185,6 +185,7 @@ describe("flow-tape-speed.v1", () => {
       "liveDom",
       "liveDomStream",
       "optionBubbles",
+      "optionPrints",
       "putCallRatio",
       "snapshot",
       "strikeHeatmap",

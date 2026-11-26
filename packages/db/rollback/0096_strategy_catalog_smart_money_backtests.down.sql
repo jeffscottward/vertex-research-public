@@ -1,4 +1,4 @@
--- Guarded reversal of 0095_strategy_catalog_smart_money_backtests only.
+-- Guarded reversal of 0096_strategy_catalog_smart_money_backtests only.
 -- Deletes the two newly inserted smart-money catalog rows and restores the original 0031
 -- insider-purchase-confirmation columns only while none of the three rows was edited and no
 -- preset, spec, backtest, backtest run, optimization run, deployment request or Autopilot

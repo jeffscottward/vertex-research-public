@@ -670,8 +670,15 @@
     {
       "idx": 95,
       "version": "7",
+      "when": 1795487387699,
+      "tag": "0095_flow_option_tickers",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
       "when": 1795641192960,
-      "tag": "0095_strategy_catalog_smart_money_backtests",
+      "tag": "0096_strategy_catalog_smart_money_backtests",
       "breakpoints": true
     }
   ]

@@ -57,14 +57,15 @@ describe("flow.collect output", () => {
 });
 
 describe("four symbols", () => {
-  it("accepts four symbols in flow.collect and rejects five", () => {
+  it("accepts six option-print symbols in flow.collect and rejects seven", () => {
     expect(
-      FlowCollectInputSchema.safeParse({ symbols: ["SPY", "ES", "QQQ", "NQ"] })
-        .success
+      FlowCollectInputSchema.safeParse({
+        symbols: ["SPY", "ES", "QQQ", "NQ", "IWM", "NVDA"],
+      }).success
     ).toBe(true);
     expect(
       FlowCollectInputSchema.safeParse({
-        symbols: ["SPY", "ES", "QQQ", "NQ", "SPY"],
+        symbols: ["SPY", "ES", "QQQ", "NQ", "IWM", "NVDA", "SPY"],
       }).success
     ).toBe(false);
   });

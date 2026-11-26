@@ -9,17 +9,17 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Data migration 0095 (Smart-money PR 7 backtests) and its guarded rollback on Postgres.
+// Data migration 0096 (Smart-money PR 7 backtests) and its guarded rollback on Postgres.
 const migrationSql = readFileSync(
   new URL(
-    "../../../packages/db/migrations/0095_strategy_catalog_smart_money_backtests.sql",
+    "../../../packages/db/migrations/0096_strategy_catalog_smart_money_backtests.sql",
     import.meta.url
   ),
   "utf8"
 );
 const rollbackSql = readFileSync(
   new URL(
-    "../../../packages/db/rollback/0095_strategy_catalog_smart_money_backtests.down.sql",
+    "../../../packages/db/rollback/0096_strategy_catalog_smart_money_backtests.down.sql",
     import.meta.url
   ),
   "utf8"
@@ -60,7 +60,7 @@ const newRowCount = async (): Promise<number | undefined> => {
   return rows[0]?.count;
 };
 
-describe("0095 smart-money PR 7 catalog rows (Postgres)", () => {
+describe("0096 smart-money PR 7 catalog rows (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({

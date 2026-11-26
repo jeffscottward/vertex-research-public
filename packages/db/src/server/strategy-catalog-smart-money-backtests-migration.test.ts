@@ -10,12 +10,12 @@ import {
   normalizeStrategyTags,
 } from "./strategy-library.ts";
 
-// Data migration 0095: Smart-money PR 7 backtest catalog rows (card vertex-smart-money-pr7-backtests).
+// Data migration 0096: Smart-money PR 7 backtest catalog rows (card vertex-smart-money-pr7-backtests).
 // Updates insider-purchase-confirmation when untouched and inserts smart-money-congress-buys +
 // smart-money-large-bullish-premium. Research only.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
-const TAG = "0095_strategy_catalog_smart_money_backtests";
+const TAG = "0096_strategy_catalog_smart_money_backtests";
 const migration = read(`../../migrations/${TAG}.sql`);
 const rollback = read(`../../rollback/${TAG}.down.sql`);
 const migration0031 = read("../../migrations/0031_strategy_catalog.sql");

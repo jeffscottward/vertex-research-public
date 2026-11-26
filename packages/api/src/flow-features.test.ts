@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   FLOW_EXPIRY_PARTS,
+  FLOW_INDEX_OPTION_TICKERS,
+  FLOW_OPTION_PRINT_SYMBOLS,
   FLOW_OPTION_TICKERS,
   FLOW_SOURCES,
   FLOW_SYMBOLS,
@@ -21,6 +23,10 @@ import {
   findStacks,
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
+  FLOW_OPTION_STREAMS,
+  flowOptionStreamForSymbol,
+  flowOptionSymbolForTicker,
+  isFlowSymbol,
   flowSymbolForTicker,
 } from "./flow-features.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
@@ -84,10 +90,11 @@ describe("FLOW_INSTRUMENTS", () => {
       });
   });
 
-  it("NQ lists the ticks source and reads the streamed tape", () => {
+  it("NQ lists the ticks and options sources and reads the streamed tape", () => {
     expect(FLOW_INSTRUMENTS.NQ.sources).toEqual([
       "ticks",
       "depth",
+      "options",
       "gex",
       "net_drift",
     ]);
@@ -134,20 +141,32 @@ describe("flow registry", () => {
     );
     expect(sorted(FLOW_SOURCE_VALUES)).toEqual(sorted(FLOW_SOURCES));
     expect(sorted(FLOW_NET_DRIFT_TICKER_VALUES)).toEqual(
-      sorted(FLOW_OPTION_TICKERS)
+      sorted(FLOW_INDEX_OPTION_TICKERS)
     );
     expect(sorted(FLOW_NET_DRIFT_PART_VALUES)).toEqual(
       sorted(FLOW_EXPIRY_PARTS)
     );
   });
 
-  it("maps each option ticker to one flow symbol", () => {
-    for (const ticker of FLOW_OPTION_TICKERS) {
+  it("maps each index option ticker to one flow symbol and every option ticker to one option stream", () => {
+    for (const ticker of FLOW_INDEX_OPTION_TICKERS) {
       const symbol = flowSymbolForTicker(ticker);
       expect(FLOW_INSTRUMENTS[symbol].optionsTicker).toBe(ticker);
     }
+    for (const ticker of FLOW_OPTION_TICKERS) {
+      const symbol = flowOptionSymbolForTicker(ticker);
+      expect(flowOptionStreamForSymbol(symbol).optionsTicker).toBe(ticker);
+    }
+    expect(sorted(Object.keys(FLOW_OPTION_STREAMS))).toEqual(
+      sorted(FLOW_OPTION_PRINT_SYMBOLS)
+    );
     expect(flowSymbolForTicker("SPX")).toBe("ES");
     expect(flowSymbolForTicker("NDX")).toBe("NQ");
+    expect(flowOptionSymbolForTicker("IWM")).toBe("IWM");
+    expect(flowOptionSymbolForTicker("NVDA")).toBe("NVDA");
+    expect(isFlowSymbol("SPY")).toBe(true);
+    expect(isFlowSymbol("IWM")).toBe(false);
+    expect(isFlowSymbol("NVDA")).toBe(false);
   });
 });
 
