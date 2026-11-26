@@ -115,7 +115,7 @@ where f.status = 'parsed'
   and t.row_number <= f.row_count
   and a.newest_filed_on is not null
   and t.filed_on >= a.newest_filed_on - least(greatest(coalesce(floor($3::numeric), 30), 1), 365)::integer
-  and ($1::text is null or upper(coalesce(t.ticker, '')) = upper($1::text))
+  and ($1::text is null or t.ticker = upper($1::text))
   and ($2::text is null or t.member ilike '%' || replace(replace(replace($2::text, '\', '\\'), '%', '\%'), '_', '\_') || '%' escape '\')
 order by t.filed_on desc, t.transaction_date desc nulls last, t.doc_id asc, t.row_number asc$sql$, true, now(), 'migration 0098', 'Smart-money assistant terms (owner picks 2026-11-11; card vertex-smart-money-assistant-terms, plan-assistant-terms.md).'),
   ('insider_cluster_buys', 'insider_cluster_buys', 'issuer_cluster', 'Issuers with >= 3 distinct Form 4 open-market purchase reporting-person signatures accepted within 10 calendar days.', $sql$with anchor as (
@@ -125,14 +125,6 @@ order by t.filed_on desc, t.transaction_date desc nulls last, t.doc_id asc, t.ro
 ),
 params as (
   select least(greatest(coalesce(floor($1::numeric), 7), 1), 90)::integer as lookback_days
-),
-filing_owners as (
-  select
-    o.accession_number,
-    string_agg(distinct o.owner_cik, ',' order by o.owner_cik) as person_key,
-    string_agg(distinct o.owner_name, '; ' order by o.owner_name) as owner_names
-  from openbb_sec_form4_owners o
-  group by o.accession_number
 ),
 purchase_filings as (
   select
@@ -150,7 +142,14 @@ purchase_filings as (
   cross join anchor a
   cross join params p
   join openbb_sec_form4_transactions tx on tx.accession_number = f.accession_number
-  join filing_owners fo on fo.accession_number = f.accession_number
+  join lateral (
+    select
+      string_agg(distinct o.owner_cik, ',' order by o.owner_cik) as person_key,
+      string_agg(distinct o.owner_name, '; ' order by o.owner_name) as owner_names
+    from openbb_sec_form4_owners o
+    where o.accession_number = f.accession_number
+    having count(*) > 0
+  ) fo on true
   where a.newest_accepted_at is not null
     and f.status = 'parsed'
     and f.form_type = '4'
@@ -208,7 +207,7 @@ select
   'SEC EDGAR Form 4 (daily index, every issuer; open-market code P, non-derivative, excluding 4/A)'::text as source,
   'Previous business day: EDGAR publishes the daily index after about 22:00 ET; insiders file within 2 business days of the trade'::text as data_delay
 from newest_per_issuer
-where ($2::text is null or upper(coalesce(issuer_symbol, '')) = upper($2::text))
+where ($2::text is null or issuer_symbol = upper($2::text))
 order by as_of desc, total_value_usd desc, issuer_cik asc$sql$, true, now(), 'migration 0098', 'Smart-money assistant terms (owner picks 2026-11-11; card vertex-smart-money-assistant-terms, plan-assistant-terms.md).'),
   ('institutional_13f_changes', 'institutional_13f_changes', 'filer_position', 'Quarter-over-quarter 13F position changes across tracked filers'' two newest consecutive full 13F-HR books.', $sql$with dedup_books as (
   select distinct on (filer_cik, period_ending)
@@ -244,11 +243,6 @@ pairs as (
      or (extract(month from cur.period_ending) = 6 and extract(day from cur.period_ending) = 30 and prev.period_ending = make_date(extract(year from cur.period_ending)::integer, 3, 31))
      or (extract(month from cur.period_ending) = 9 and extract(day from cur.period_ending) = 30 and prev.period_ending = make_date(extract(year from cur.period_ending)::integer, 6, 30))
      or (extract(month from cur.period_ending) = 12 and extract(day from cur.period_ending) = 31 and prev.period_ending = make_date(extract(year from cur.period_ending)::integer, 9, 30))
-),
-cusip_map as (
-  select distinct on (cusip) cusip, symbol
-  from openbb_cusip_symbols
-  order by cusip, last_seen desc, symbol asc
 ),
 cur_h as (
   select p.filer_cik, p.filer_name, p.cur_accession, p.period, p.filed_on, p.previous_period,
@@ -297,7 +291,13 @@ joined as (
     on pr.filer_cik = c.filer_cik
    and pr.cusip = c.cusip
    and pr.option_type = c.option_type
-  left join cusip_map cm on cm.cusip = coalesce(c.cusip, pr.cusip)
+  left join lateral (
+    select cs.symbol
+    from openbb_cusip_symbols cs
+    where cs.cusip = coalesce(c.cusip, pr.cusip)
+    order by cs.last_seen desc, cs.symbol asc
+    limit 1
+  ) cm on true
 )
 select
   filer_name,
@@ -322,10 +322,10 @@ from joined
 where change_kind <> 'unchanged'
   and (
     $1::text is null
-    or upper(coalesce(ticker, '')) = upper($1::text)
+    or upper(ticker) = upper($1::text)
     or exists (
       select 1 from openbb_cusip_symbols cs
-      where cs.cusip = joined.cusip and upper(cs.symbol) = upper($1::text)
+      where cs.cusip = joined.cusip and cs.symbol = upper($1::text)
     )
   )
   and ($2::text is null or $2::text = 'all' or change_kind = $2::text)
