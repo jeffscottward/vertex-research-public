@@ -10,10 +10,12 @@ import {
   buildGexContext,
   callGreeks,
   dealerTotals,
+  flipFromProfile,
   flowContext,
-  gexFlip,
-  gexWalls,
   type GexContextInput,
+  gexFlip,
+  gexProfile,
+  gexWalls,
   greeksMissingCause,
   ivContext,
   marketSession,
@@ -24,8 +26,8 @@ import {
   blackScholesGamma,
   type ChainRow,
   exposure,
-  gammaModel,
   type GammaModel,
+  gammaModel,
   type OpenInterestRow,
   termStructure,
 } from "./server/options-analytics-engine.ts";
@@ -202,6 +204,79 @@ describe("dealer Greeks", () => {
     return expect(gexFlip(strikes, model(null), 100)).toBeNull();
   });
 
+  it("sweeps GEX over +/-30% spot in 121 steps and brackets the flip", () => {
+    const strikes = [
+      { callOpenInterest: 0, gex: null, putOpenInterest: 1000, strike: 90 },
+      { callOpenInterest: 1000, gex: null, putOpenInterest: 0, strike: 110 },
+    ];
+    const profile = gexProfile(strikes, model(0.3), 100);
+    expect(profile).toHaveLength(121);
+    expect(profile[0]?.spot).toBeCloseTo(70, 6);
+    expect(profile[60]?.spot).toBeCloseTo(100, 6);
+    expect(profile[120]?.spot).toBeCloseTo(130, 6);
+    const flip = gexFlip(strikes, model(0.3), 100);
+    expect(flip).not.toBeNull();
+    const bracketIndex = profile.findIndex(
+      (point, index) =>
+        index + 1 < profile.length &&
+        point.spot <= (flip ?? 0) &&
+        (profile[index + 1]?.spot ?? 0) >= (flip ?? 0)
+    );
+    expect(bracketIndex).toBeGreaterThanOrEqual(0);
+    const left = profile[bracketIndex];
+    const right = profile[bracketIndex + 1];
+    expect(left).toBeDefined();
+    expect(right).toBeDefined();
+    expect((left?.gex ?? 0) * (right?.gex ?? 0)).toBeLessThan(0);
+    // Short-DTE call-only chain whose far-left Black-Scholes tail underflows to 0 must not
+    // fabricate a zero-gamma crossing.
+    const shortDteModel: GammaModel = {
+      atmIv: 0.15,
+      expiry: "2026-10-23",
+      ivAt: () => 0.15,
+      years: 1 / 365,
+    };
+    const callOnly = [
+      { callOpenInterest: 1000, gex: null, putOpenInterest: 0, strike: 110 },
+    ];
+    const callProfile = gexProfile(callOnly, shortDteModel, 100);
+    expect(callProfile.some((point) => point.gex === 0)).toBe(true);
+    expect(gexFlip(callOnly, shortDteModel, 100)).toBeNull();
+    // Touching zero without changing sign is not a crossing; crossing through exact zero(s) is.
+    expect(
+      flipFromProfile(
+        [
+          { gex: 100, spot: 80 },
+          { gex: 0, spot: 90 },
+          { gex: 100, spot: 100 },
+        ],
+        95
+      )
+    ).toBeNull();
+    expect(
+      flipFromProfile(
+        [
+          { gex: -100, spot: 80 },
+          { gex: 0, spot: 90 },
+          { gex: 0, spot: 94 },
+          { gex: 100, spot: 100 },
+        ],
+        95
+      )
+    ).toBe(92);
+    // Multiple sign crossings: pick the crossing nearest spot (whether earlier or later).
+    const twoCrossings = [
+      { gex: -100, spot: 80 },
+      { gex: 100, spot: 90 },
+      { gex: 100, spot: 110 },
+      { gex: -100, spot: 120 },
+    ];
+    expect(flipFromProfile(twoCrossings, 88)).toBeCloseTo(85, 6);
+    expect(flipFromProfile(twoCrossings, 112)).toBeCloseTo(115, 6);
+    expect(gexProfile(strikes, model(null), 100)).toEqual([]);
+    expect(gexProfile(strikes, model(0.3), Number.NaN)).toEqual([]);
+    return expect(gexProfile(strikes, model(0.3), 0)).toEqual([]);
+  });
   it("picks the largest positive and most negative GEX strikes as walls", () => {
     const row = (strike: number, gex: number | null) => ({
       callOpenInterest: 1,
@@ -363,6 +438,21 @@ describe("buildGexContext", () => {
     expect(context.levels.flip).not.toBeNull();
     expect(context.levels.callWall).toBe(105);
     expect(context.levels.putWall).toBe(95);
+    expect(context.profile).toHaveLength(121);
+    expect(context.profile[0]?.spot).toBeCloseTo(101 * 0.7, 6);
+    expect(context.profile[60]?.spot).toBeCloseTo(101, 6);
+    expect(context.profile[120]?.spot).toBeCloseTo(101 * 1.3, 6);
+    const flipIndex = context.profile.findIndex(
+      (point, index) =>
+        index + 1 < context.profile.length &&
+        point.spot <= (context.levels.flip ?? 0) &&
+        (context.profile[index + 1]?.spot ?? 0) >= (context.levels.flip ?? 0)
+    );
+    expect(flipIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      (context.profile[flipIndex]?.gex ?? 0) *
+        (context.profile[flipIndex + 1]?.gex ?? 0)
+    ).toBeLessThan(0);
     const { factors } = context;
     expect(factor(factors, "regime").value).toBe(
       "Positive GEX, not a range promise"
@@ -420,6 +510,7 @@ describe("buildGexContext", () => {
       greeks: { netCharm: null, netDex: null, netVanna: null },
       iv: { regime: "no_term_data" },
       levels: { callWall: null, dailyMove: null, flip: null, putWall: null },
+      profile: [],
       regime: "no_data",
     });
     const values = Object.fromEntries(
