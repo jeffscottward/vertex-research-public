@@ -96,8 +96,11 @@ const MAX_BARS = 400;
 export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
   const symbol = input.symbol.trim().toUpperCase();
   const barSize = input.barSize ?? "1 day";
-  const bars = labBars(symbol, barSize === "1 day" ? 250 : MAX_BARS, barSize);
   const secType = input.secType ?? "STK";
+  // Forex (CASH) as the live service answers it: MIDPOINT bars without volume.
+  const forex = secType === "CASH";
+  const priced = labBars(symbol, barSize === "1 day" ? 250 : MAX_BARS, barSize);
+  const bars = forex ? priced.map((bar) => ({ ...bar, v: null })) : priced;
   return {
     asOf: LAB_NOW_ISO,
     bars,
@@ -107,7 +110,7 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
       currency: input.currency ?? "USD",
       exchange: input.exchange ?? "SMART",
       lastTradeDateOrContractMonth: null,
-      localSymbol: symbol,
+      localSymbol: forex ? `${symbol}.${input.currency ?? "USD"}` : symbol,
       longName: `${symbol} Demo Listing (fake data)`,
       matches: 1,
       multiplier: null,
@@ -126,7 +129,7 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
       secType,
       symbol,
       useRTH: input.useRTH ?? true,
-      whatToShow: input.whatToShow ?? "TRADES",
+      whatToShow: forex ? "MIDPOINT" : (input.whatToShow ?? "TRADES"),
     },
     source: "ibkr-gateway",
   };
