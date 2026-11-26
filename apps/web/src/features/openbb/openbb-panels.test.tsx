@@ -732,7 +732,7 @@ describe("OpenbbMarketsSection", () => {
       <OpenbbMarketsSection gateway={fallback} now={() => NOW} />
     );
     expect(notices(shown.container, "iv")).toEqual([
-      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each percentile sample; this notice and the table come from separate reads.",
+      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each own option-chain percentile sample; this notice and the table come from separate reads.",
     ]);
   });
 
@@ -744,7 +744,9 @@ describe("OpenbbMarketsSection", () => {
     expect(iv).toContain("15.0%");
     expect(iv).toContain("Yahoo IV in sample");
     expect(iv).toContain("Source not verified");
-    expect(iv).toContain("Cboe only");
+    // DIA has clean own rows, but its percentile uses the VXD proxy index.
+    expect(iv).toContain("Proxy index basis");
+    expect(iv).not.toContain("Cboe only");
   });
 
   it("renders the panels without notices when the status read fails", async () => {

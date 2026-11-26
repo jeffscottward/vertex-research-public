@@ -108,7 +108,7 @@ export const ivSourceNotice = (runs: OpenbbRuns): string | null => {
     ),
   ].sort();
   if (symbols.length === 0) return null;
-  return `Source of the newest rows: Yahoo option chain for ${symbols.join(", ")} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each percentile sample; this notice and the table come from separate reads.`;
+  return `Source of the newest rows: Yahoo option chain for ${symbols.join(", ")} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each own option-chain percentile sample; this notice and the table come from separate reads.`;
 };
 
 /** New York calendar date of `now`, shifted by `days`. */
@@ -251,8 +251,15 @@ export const ivBasisText = (
   return row.basisReason ?? NOT_COLLECTED;
 };
 
-/** Per-underlying source caveat for the same sample used by the IV percentile. */
-export const ivHistoryText = (state: IvTableRow["historyState"]): string => {
+/**
+ * Per-underlying source caveat for the same sample used by the IV percentile. A volatility-index
+ * proxy percentile uses no option-chain rows, so the own rows' source state does not apply to it.
+ */
+export const ivHistoryText = (
+  row: Pick<IvTableRow, "basis" | "historyState">
+): string => {
+  if (row.basis === "vol_index_proxy") return "Proxy index basis";
+  const state = row.historyState;
   if (state === null) return NOT_COLLECTED;
   if (state === "affected") return "Yahoo IV in sample";
   if (state === "clean") return "Cboe only";
