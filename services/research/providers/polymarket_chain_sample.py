@@ -66,7 +66,7 @@ TRIES = 6  # back-off 1, 2, 4, 8, 16 s between tries
 TIMEOUT = 60.0
 REPOSITORY = Path(__file__).resolve().parents[3]
 # Text of a rate limit: back off and retry the same range. Checked before the range words.
-_RATE_ERROR_WORDS = ("rate limit", "rate-limit", "ratelimit", "too many requests", "429", "capacity", "throttl")
+_RATE_ERROR_WORDS = ("rate limit", "rate-limit", "ratelimit", "too many requests", "capacity", "throttl")
 # Text of a refused range: halve the block step. The archive-token error is never a range error.
 _RANGE_ERROR_WORDS = ("range", "more than", "response size", "too large", "query returned", "results", "timeout")
 _COLUMN_TYPES = {
