@@ -99,9 +99,10 @@ const isForbidden = (tool: CatalogueTool): boolean => {
  * MCP tools the in-app assistant does not get yet. The OpenBB read tools (card vertex-openbb) and
  * the owner market notes tool (market_notes_list) reach research agents over /api/mcp; the
  * assistant catalogue gains them when the semantic-layer eval (tests/integration/semantic-layer)
- * is re-recorded with them, since every recorded call is keyed by the exact tool list and message
- * list. The assistant reads active market notes from its system prompt instead (marketNotes on
- * the turn input).
+ * is recorded with them: every recorded trial names the tool list it saw, and a new tool that no
+ * trial calls needs one new trial for each question (the tool rule in
+ * tests/integration/semantic-layer/recording.ts). The assistant reads active market notes from its
+ * system prompt instead (marketNotes on the turn input).
  */
 export const ASSISTANT_DEFERRED_TOOL_PATTERN =
   /^(?:openbb_|market_notes_|flow_option_prints$)/u;

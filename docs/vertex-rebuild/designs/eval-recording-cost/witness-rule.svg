@@ -1,0 +1,206 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 980 400"
+  role="img"
+  aria-label="The witness rule over two changes of the tool list"
+>
+  <rect width="980" height="400" fill="#0f1115" />
+  <defs>
+    <marker
+      id="g"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#d4a72c" />
+    </marker>
+  </defs>
+  <g font-family="Manrope, Public Sans, Helvetica, Arial, sans-serif">
+    <text x="40" y="44" font-size="22" font-weight="700" fill="#e8e6df">
+      One question, three trials, two changes of tools that it does not call
+    </text>
+    <text x="40" y="155" font-size="15" fill="#e8e6df">Trial 1</text>
+    <line
+      x1="150"
+      y1="150"
+      x2="840"
+      y2="150"
+      stroke="#2a2f3a"
+      stroke-width="2"
+    />
+    <circle cx="190" cy="150" r="13" fill="#d4a72c" />
+    <circle
+      cx="340"
+      cy="150"
+      r="12"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="3"
+      stroke-dasharray="5 4"
+    />
+    <circle cx="490" cy="150" r="13" fill="#d4a72c" />
+    <circle
+      cx="640"
+      cy="150"
+      r="12"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="3"
+      stroke-dasharray="5 4"
+    />
+    <circle
+      cx="790"
+      cy="150"
+      r="12"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="3"
+    />
+    <text x="40" y="220" font-size="15" fill="#e8e6df">Trial 2</text>
+    <line
+      x1="150"
+      y1="215"
+      x2="840"
+      y2="215"
+      stroke="#2a2f3a"
+      stroke-width="2"
+    />
+    <circle cx="190" cy="215" r="13" fill="#d4a72c" />
+    <circle
+      cx="340"
+      cy="215"
+      r="12"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="3"
+      stroke-dasharray="5 4"
+    />
+    <circle
+      cx="490"
+      cy="215"
+      r="12"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="3"
+    />
+    <circle
+      cx="640"
+      cy="215"
+      r="12"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="3"
+      stroke-dasharray="5 4"
+    />
+    <circle cx="790" cy="215" r="13" fill="#d4a72c" />
+    <text x="40" y="285" font-size="15" fill="#e8e6df">Trial 3</text>
+    <line
+      x1="150"
+      y1="280"
+      x2="840"
+      y2="280"
+      stroke="#2a2f3a"
+      stroke-width="2"
+    />
+    <circle cx="190" cy="280" r="13" fill="#d4a72c" />
+    <circle
+      cx="340"
+      cy="280"
+      r="12"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="3"
+      stroke-dasharray="5 4"
+    />
+    <circle
+      cx="490"
+      cy="280"
+      r="12"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="3"
+    />
+    <circle
+      cx="640"
+      cy="280"
+      r="12"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="3"
+      stroke-dasharray="5 4"
+    />
+    <circle
+      cx="790"
+      cy="280"
+      r="12"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="3"
+    />
+    <text x="190" y="100" font-size="13" fill="#8b8f98" text-anchor="middle">
+      start
+    </text>
+    <text x="340" y="100" font-size="13" fill="#8b8f98" text-anchor="middle">
+      tool A changes
+    </text>
+    <text x="490" y="100" font-size="13" fill="#8b8f98" text-anchor="middle">
+      after the run
+    </text>
+    <text x="640" y="100" font-size="13" fill="#8b8f98" text-anchor="middle">
+      tool B is added
+    </text>
+    <text x="790" y="100" font-size="13" fill="#8b8f98" text-anchor="middle">
+      after the run
+    </text>
+    <path
+      d="M358 150 H470"
+      stroke="#d4a72c"
+      stroke-width="3"
+      marker-end="url(#g)"
+    />
+    <text x="415.0" y="136" font-size="12" fill="#d4a72c" text-anchor="middle">
+      record (oldest)
+    </text>
+    <path
+      d="M658 215 H770"
+      stroke="#d4a72c"
+      stroke-width="3"
+      marker-end="url(#g)"
+    />
+    <text x="715.0" y="201" font-size="12" fill="#d4a72c" text-anchor="middle">
+      record (oldest)
+    </text>
+    <g transform="translate(40,340)">
+      <circle cx="14" cy="0" r="13" fill="#d4a72c" />
+      <text x="36" y="5" font-size="13" fill="#e8e6df">
+        saw the current tool list
+      </text>
+      <circle
+        cx="254"
+        cy="0"
+        r="12"
+        fill="none"
+        stroke="#3fb950"
+        stroke-width="3"
+      />
+      <text x="276" y="5" font-size="13" fill="#e8e6df">
+        older list, valid: a witness exists
+      </text>
+      <circle
+        cx="554"
+        cy="0"
+        r="12"
+        fill="none"
+        stroke="#e5534b"
+        stroke-width="3"
+        stroke-dasharray="5 4"
+      />
+      <text x="576" y="5" font-size="13" fill="#e8e6df">
+        older list, no witness: record one trial
+      </text>
+    </g>
+  </g>
+</svg>

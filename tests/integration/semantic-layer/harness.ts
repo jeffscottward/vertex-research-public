@@ -23,6 +23,7 @@ import { setDeployStatusFetchOptionsForTesting } from "../../../packages/api/src
 import {
   type AssistantCompletion,
   type AssistantCompletionRequest,
+  type AssistantLogEntry,
   type AssistantModelClient,
   type AssistantTraceEntry,
   AssistantTurnError,
@@ -42,7 +43,18 @@ import {
   freezeMasterRules,
   readFrozenMasterRules,
 } from "./master-rules-freeze.ts";
-import type { EvalQuestion } from "./questions.ts";
+import { type EvalQuestion, gradeAnswer } from "./questions.ts";
+import {
+  type IdentifiedToolList,
+  identifyToolList,
+  RECORDING_MODEL,
+  RECORDING_PROMPT_FORMAT,
+  type RecordedTrial,
+  type Recording,
+  type ToolVerdict,
+  toolVerdicts,
+  trialKey,
+} from "./recording.ts";
 import { unknownTermAnswer } from "./tool-failures.ts";
 
 // Eval backend for the agent semantic layer: a real Postgres with every migration and the synthetic
@@ -194,7 +206,7 @@ export const startEvalBackend = async (
   };
 };
 
-/** One model call as recorded: the reply and a digest of the input it saw. */
+/** One model call as recorded: the reply and a digest of the messages it saw. */
 export type RecordedCompletion = Readonly<{
   content: string;
   toolCalls: readonly Readonly<{
@@ -205,22 +217,40 @@ export type RecordedCompletion = Readonly<{
   inputDigest: string;
 }>;
 
-/**
- * Digest of everything the model was given except its own replies: the tool definitions, the system
- * prompt, the question and every tool result, in order. The replay compares it with the recording, so a changed prompt, question
- * or tool result (the semantic layer above all) makes the recording stale.
- */
-const inputDigest = (
-  request: Pick<AssistantCompletionRequest, "messages" | "tools">
+const hashMessages = (
+  hash: ReturnType<typeof createHash>,
+  messages: AssistantCompletionRequest["messages"]
 ): string => {
-  const hash = createHash("sha256");
-  hash.update(`${JSON.stringify(request.tools)}\n`);
-  for (const message of request.messages) {
+  for (const message of messages) {
     if (message.role === "assistant") continue;
     const id = message.role === "tool" ? message.tool_call_id : message.role;
     hash.update(`${id}\n${message.content}\n`);
   }
   return hash.digest("hex");
+};
+
+/**
+ * Digest of the messages the model was given except its own replies: the system prompt, the question
+ * and every tool result, in order. The replay compares it with the recording, so a changed prompt,
+ * question or tool result (the semantic layer above all) makes the recording stale. The tool list is
+ * not in this digest: a trial names the list it saw (`toolList`), and the tool rule of recording.ts
+ * decides what a change of the list means for the trial.
+ */
+const messageDigest = (
+  request: Pick<AssistantCompletionRequest, "messages">
+): string => hashMessages(createHash("sha256"), request.messages);
+
+/**
+ * The digest of a version 2 recording: the JSON text of the whole tool list, then the messages. Used
+ * only by `upgrade` (recorder.ts): a version 2 trial whose calls still match this digest saw the
+ * current tool list, so its new fields can be written without a model call.
+ */
+const versionTwoInputDigest = (
+  request: Pick<AssistantCompletionRequest, "messages" | "tools">
+): string => {
+  const hash = createHash("sha256");
+  hash.update(`${JSON.stringify(request.tools)}\n`);
+  return hashMessages(hash, request.messages);
 };
 
 const toCompletion = (recorded: RecordedCompletion): AssistantCompletion => ({
@@ -239,24 +269,42 @@ export type TrialResult = Readonly<{
   answer: string;
   trace: readonly AssistantTraceEntry[];
   completions: readonly RecordedCompletion[];
+  /** The tool list that every model call of the turn was given. */
+  toolList: IdentifiedToolList;
 }>;
 
-/** Runs one question as a Plan-mode assistant turn with the given model. */
+/**
+ * Runs one question as a Plan-mode assistant turn with the given model. `log` takes the turn log
+ * entry; without it the turn prints the entry on stdout, which the recorder must not do (its stdout
+ * carries the bridge protocol).
+ */
 export const runTrial = async (
   backend: EvalBackend,
   question: EvalQuestion,
   complete: (
     request: AssistantCompletionRequest
   ) => Promise<AssistantCompletion>,
-  model = "eval-model"
+  options: Readonly<{
+    log?: (entry: AssistantLogEntry) => void;
+    onToolList?: (toolList: IdentifiedToolList) => void;
+  }> = {}
 ): Promise<TrialResult> => {
   const completions: RecordedCompletion[] = [];
+  let toolList: IdentifiedToolList | undefined;
   const client: AssistantModelClient = {
     complete: async (request) => {
+      const seen = identifyToolList(request.tools);
+      if (toolList !== undefined && toolList.id !== seen.id) {
+        throw new Error(
+          "the turn gave the model two different tool lists; a trial stores one"
+        );
+      }
+      toolList = seen;
+      options.onToolList?.(seen);
       const completion = await complete(request);
       completions.push({
         content: completion.content,
-        inputDigest: inputDigest(request),
+        inputDigest: messageDigest(request),
         toolCalls: completion.toolCalls.map((call) => ({
           arguments: call.function.arguments,
           id: call.id,
@@ -265,7 +313,7 @@ export const runTrial = async (
       });
       return completion;
     },
-    model,
+    model: "eval-model",
   };
   const result = await runAssistantTurn({
     budget: { record: () => Promise.resolve(), reserve: async () => true },
@@ -273,16 +321,29 @@ export const runTrial = async (
     client,
     clock: () => EVAL_NOW.getTime(),
     history: [],
+    ...(options.log === undefined ? {} : { log: options.log }),
     message: question.question,
     mode: "plan",
     now: () => EVAL_NOW,
   });
-  return { answer: result.content, completions, trace: result.trace };
+  if (toolList === undefined) {
+    throw new Error("the turn ended with no model call");
+  }
+  return {
+    answer: result.content,
+    completions,
+    toolList,
+    trace: result.trace,
+  };
 };
 
 /** One recorded trial replayed against the built layer. */
 export type TrialReplay = Readonly<{
-  /** Null when the trial replays unchanged; else the first difference (the trial is stale). */
+  /**
+   * Null when every model call saw the recorded messages and the final answer is the recorded one;
+   * else the first difference (the trial is stale). The tool list is not compared here: see
+   * `replayRecording`.
+   */
   stale: string | null;
   /** The tool calls of the replayed turn; when the turn threw, the calls made before the throw. */
   trace: readonly AssistantTraceEntry[];
@@ -292,11 +353,16 @@ export type TrialReplay = Readonly<{
    * and this line names the cause.
    */
   unknownTerms: readonly string[];
+  /** The tool list of the replayed turn (the current list); null when the turn made no model call. */
+  toolList: IdentifiedToolList | null;
+  /** The message digest of each replayed model call, in order. */
+  messageDigests: readonly string[];
 }>;
 
 /**
  * Replays one recorded trial against the built layer, with the recorded model replies in order.
  * `stale` is null when the trial replays unchanged; else the first difference (record the trial again).
+ * `versionTwo` compares the whole-input digest of a version 2 recording (for `upgrade` only).
  */
 export const replayTrial = async (
   backend: EvalBackend,
@@ -304,10 +370,13 @@ export const replayTrial = async (
   recorded: Readonly<{
     answer: string;
     completions: readonly RecordedCompletion[];
-  }>
+  }>,
+  options: Readonly<{ versionTwo?: boolean }> = {}
 ): Promise<TrialReplay> => {
   let call = 0;
   let reason: string | null = null;
+  let toolList: IdentifiedToolList | null = null;
+  const messageDigests: string[] = [];
   // The trace marks a terms_query answer with status unknown as a call that worked; keep those answers.
   const unknownTerms: string[] = [];
   const watched: EvalBackend = {
@@ -327,31 +396,45 @@ export const replayTrial = async (
       reason ??= `the turn asked for more than the ${recorded.completions.length} recorded model calls`;
       throw new Error(reason);
     }
-    if (inputDigest(request) !== next.inputDigest) {
-      reason ??= `the input of model call ${call} changed (tool definitions, system prompt, question or a tool result)`;
+    const digest = messageDigest(request);
+    const compared =
+      options.versionTwo === true ? versionTwoInputDigest(request) : digest;
+    if (compared !== next.inputDigest) {
+      reason ??=
+        options.versionTwo === true
+          ? `the input of model call ${call} changed (tool definitions, system prompt, question or a tool result)`
+          : `the input of model call ${call} changed (system prompt, question or a tool result)`;
       throw new Error(reason);
     }
+    messageDigests.push(digest);
     call += 1;
     return toCompletion(next);
   };
   let result: TrialResult;
   try {
-    result = await runTrial(watched, question, replay);
+    result = await runTrial(watched, question, replay, {
+      // A replay prints no turn log: 90 lines for each run of the replay test say nothing.
+      log: () => undefined,
+      onToolList: (seen) => {
+        toolList = seen;
+      },
+    });
   } catch (error) {
     if (reason === null) throw error;
     return {
+      messageDigests,
       stale: reason,
+      toolList,
       trace: error instanceof AssistantTurnError ? error.trace : [],
       unknownTerms,
     };
   }
   const { answer, trace } = result;
-  const tools = { trace, unknownTerms };
-  if (reason !== null) return { stale: reason, ...tools };
+  const rest = { messageDigests, toolList, trace, unknownTerms };
   if (call !== recorded.completions.length) {
     return {
       stale: `the turn made ${call} of the ${recorded.completions.length} recorded model calls`,
-      ...tools,
+      ...rest,
     };
   }
   return {
@@ -359,16 +442,23 @@ export const replayTrial = async (
       answer === recorded.answer
         ? null
         : "the final answer differs from the recorded answer",
-    ...tools,
+    ...rest,
   };
 };
 
+const withUnknownTerms = (
+  stale: string | null,
+  unknownTerms: readonly string[]
+): string | null =>
+  stale === null || unknownTerms.length === 0
+    ? stale
+    : `${stale}; ${[...new Set(unknownTerms)].join("; ")}`;
+
 /**
  * Null when the recorded trial replays unchanged; else the first difference (the trial is stale: record
- * it again). The replay test (through `replayTrial`) and the recorder's `stale` selection share this
- * definition of stale. A stale reason also names each terms_query answer with status unknown in the
- * replay: such an answer can be the cause, and recording the trial again does not remove it (correct the
- * layer, the fixture or the feed first).
+ * it again). A stale reason also names each terms_query answer with status unknown in the replay: such
+ * an answer can be the cause, and recording the trial again does not remove it (correct the layer, the
+ * fixture or the feed first).
  */
 export const staleReason = async (
   backend: EvalBackend,
@@ -383,6 +473,90 @@ export const staleReason = async (
     question,
     recorded
   );
-  if (stale === null || unknownTerms.length === 0) return stale;
-  return `${stale}; ${[...new Set(unknownTerms)].join("; ")}`;
+  return withUnknownTerms(stale, unknownTerms);
+};
+
+/** One trial of a recording, judged against the built layer and the current tool list. */
+export type TrialVerdict = Readonly<{
+  /**
+   * Null when the trial is valid. Else every reason why it must be recorded again, joined with "; ":
+   * the replay difference, the tool rule (a called tool changed, or the tool list changed and the
+   * question has no witness), another model than RECORDING_MODEL, another prompt format of the bridge
+   * than RECORDING_PROMPT_FORMAT, a changed rubric grade.
+   */
+  stale: string | null;
+  /** The verdict of the tool rule alone (recording.ts); null when no trial gave a current tool list. */
+  tool: ToolVerdict | null;
+  trace: readonly AssistantTraceEntry[];
+  unknownTerms: readonly string[];
+}>;
+
+/**
+ * Replays every trial of a recording and applies the tool rule. The replay test and the recorder's
+ * `stale` selection share this one definition of "must be recorded again".
+ */
+export const replayRecording = async (
+  backend: EvalBackend,
+  questions: readonly EvalQuestion[],
+  recording: Pick<Recording, "toolLists" | "trials">
+): Promise<Map<string, TrialVerdict>> => {
+  const byId = new Map(questions.map((question) => [question.id, question]));
+  const replays = new Map<string, TrialReplay>();
+  const reasons = new Map<string, string[]>();
+  let current: IdentifiedToolList | null = null;
+  // One at a time: the replay needs no model, and the order of the results stays fixed.
+  for (const trial of recording.trials) {
+    const key = trialKey(trial);
+    const question = byId.get(trial.question);
+    if (question === undefined) {
+      reasons.set(key, [`unknown question ${trial.question}`]);
+      continue;
+    }
+    const replayed = await replayTrial(backend, question, trial);
+    replays.set(key, replayed);
+    current ??= replayed.toolList;
+    const found: string[] = [];
+    const stale = withUnknownTerms(replayed.stale, replayed.unknownTerms);
+    if (stale !== null) found.push(stale);
+    if (trial.model !== RECORDING_MODEL) {
+      found.push(
+        `recorded with the model ${trial.model}, not ${RECORDING_MODEL}`
+      );
+    }
+    if (trial.promptFormat !== RECORDING_PROMPT_FORMAT) {
+      found.push("asked with another prompt format of the bridge");
+    }
+    if (gradeAnswer(question, trial.answer) !== trial.grade) {
+      found.push("the rubric grade of the recorded answer changed");
+    }
+    reasons.set(key, found);
+  }
+  const tools =
+    current === null
+      ? null
+      : toolVerdicts(
+          recording,
+          current,
+          (trial) => reasons.get(trialKey(trial))?.length === 0
+        );
+  return new Map(
+    recording.trials.map((trial: RecordedTrial) => {
+      const key = trialKey(trial);
+      const tool = tools?.get(key) ?? null;
+      const found = [...(reasons.get(key) ?? [])];
+      if (tool?.state === "stale" || tool?.state === "needs-witness") {
+        found.push(tool.reason);
+      }
+      const replayed = replays.get(key);
+      return [
+        key,
+        {
+          stale: found.length === 0 ? null : found.join("; "),
+          tool,
+          trace: replayed?.trace ?? [],
+          unknownTerms: replayed?.unknownTerms ?? [],
+        },
+      ];
+    })
+  );
 };

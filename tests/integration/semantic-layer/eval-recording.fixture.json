@@ -6,14 +6,51 @@
     "gradedAt": "2026-11-20T15:01:12.000Z"
   },
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
+  "toolLists": {
+    "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76": {
+      "summary": "707127689d2300bb457f0af2ee326c17b3c35b02e4bdda7e257d803d2dcd2086",
+      "tasks_list": "7153aef5068b8a1f8bbec806b7907c8acae682a9c9e2c5677fbfea456854bb4e",
+      "tasks_get": "5c30957f9e0dfafe5516ebcb8565966a96ecb0b0670543e2aa4634dc4fd80034",
+      "papers_list": "4a57e70bdeed2b7ba7ee51b8c16de072dde366c8a6459623582d9e09be47792b",
+      "backtests_list": "c6fcb9d7b520f3af251b043ab23fba06d304baf4213da1452d8635bbc693bc1e",
+      "backtests_get": "891cae587811b883c2f08afa1912a54c66e2d1d393fcad940ad49ec58a568a7d",
+      "backtest_runs_get": "435c9ac54497d2549d15f0db40e14bd33ff1cb520140afcc3e5a027a4ee3e693",
+      "backtest_runs_list": "794b7063ad723e5b0936cba2d9948d5110985bd795e1ee9a734c92b808df430c",
+      "deployment_status": "d12451f286dd5a35eb3e84bf69c1ffb67396ef6e3680da75d6309475a56ba254",
+      "market_bars": "2d2260c6977d064e87984bd0c68f96045b3d6f6bda66791e4617eff507c8592b",
+      "options_gex_context": "90ed961863b4ee5a2b4712f31edb5c4c56a02b91eecc6e91328399ba78c73b57",
+      "terms_list": "62f7682f82922fa9538baff4afabb8ed71630c1c1508c91490bbbcf857c21593",
+      "terms_query": "87597e6ab1cde70ad868b04f58e1ee127e313f1bcd72972e602613af81888612",
+      "master_rules_search": "c890e2f31e45a67cb789bed3b21375349ad703d397c150c75f75def22ccd0493",
+      "flow_snapshot": "c739b3e645367b8bdb0717085f8ca8b0b65e520e3d706d2781011fb63e33fee0",
+      "flow_control": "eb41c96df8b6b89c1d2f016458f25d976190bc5893f030f5b90ac1f8046610cb",
+      "strategies_list": "e4c17812fef66c3323e3bfac59df6ba5ea7b05fa8b5fef75fcc9023c5a634132",
+      "strategies_get": "0dabcafe0245724a14e19aa42d823dab2d4a8dcd8edc498ee1f36a82b6f5720d",
+      "optimizations_list": "484b419cc04c779bbf0cd31fcd11206ac8af234a7a0da2203a7f495f46327c47",
+      "optimizations_get": "2065d648fb64bc92c5cf4cf0d230f7fecd71a37c8ca5cc9eb0410039dd80ebdc",
+      "model_runs_list": "5fb747dee403542771df4a3380ea90d41dcd757005f902bc29e64d25cafa2287",
+      "model_runs_get": "2233da6dd76124c931ad6754b98959b659b85928044c5ff3538c1198850d324a",
+      "model_runs_search": "ab5c4c85c1c8ba73e4aaa3db8888cd61bcfc9f4d5d222be79121f4444583d53e",
+      "model_runs_benchmark": "e8ac0655adbfc70a5947af664fa154340c9919c642029533edd9c83a7b9f3ce1",
+      "strategy_definition_validate": "fd117957fdc3d67b636653035527b3b47440d72638066f5379f02471f6d03cd2",
+      "strategy_definitions_list": "641fa30630e0b20c59f6278dabaa01dea9ae41ecf2f2de356b8f6a46c23e52c8",
+      "strategy_definitions_get": "5f0c012fc87018c7715b0561ec7f32db05f3b392f9a72d1cccc77edd09a4da54",
+      "drift_status": "f72028afb110370f5880cb2233c2e01d84c6707013b5447d46a25d56d5a2677e",
+      "drift_monitor_get": "752532a607e8209371b127c2dc7603030f2abbbc807b6d05defab680044008f3",
+      "chart_draw": "e8c09b3939ff7bc3ff9275954590b5d88da0ce5d903f6c4526e233d7ec4a9c94",
+      "chart_clear_drawings": "912a49c8848cf0d9c252e9dbc6a79e4e1994fc5250a17be969c7cf46df1fbcf3",
+      "chart_script": "b6819e07bac07dd72df2c513e524f599202442a6d7e5120b53efe1cc291cd8ab",
+      "teach_steps": "49cc2cfe7d678d61ad8102c586345f759025bd1f3d17c763e54f0d6cea2d165c"
+    }
+  },
   "trials": [
     {
       "answer": "Your net liquidation is 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nI got this from the certified term net_liquidation. Its source is the live IBKR account in the vertex-portfolio feed (summary.netLiquidation), not the paper exec node.",
       "completions": [
         {
           "content": "",
-          "inputDigest": "88031d2b7d7e30ecfcfc7e4a33d94a9a30fbc575eee691283c8680de1b6bb10b",
+          "inputDigest": "011fd4bd2a21a54171e18312f7822f0c642007c774a91a93afe8e78329f46b7a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -24,14 +61,16 @@
         },
         {
           "content": "Your net liquidation is 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nI got this from the certified term net_liquidation. Its source is the live IBKR account in the vertex-portfolio feed (summary.netLiquidation), not the paper exec node.",
-          "inputDigest": "c9f8c574c670066a04f7bda54a9d27163dd61014b4cb170157c36f301de759db",
+          "inputDigest": "be5097b8a25aa852c90a4952d7c2a670317c4ecfeb11e0e60d2baf2fb84a1861",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q1",
       "recordedAt": "2026-11-20T03:36:18.158Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 1,
       "audit": "correct"
@@ -41,7 +80,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "88031d2b7d7e30ecfcfc7e4a33d94a9a30fbc575eee691283c8680de1b6bb10b",
+          "inputDigest": "011fd4bd2a21a54171e18312f7822f0c642007c774a91a93afe8e78329f46b7a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -52,14 +91,16 @@
         },
         {
           "content": "Your net liquidation is 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term net_liquidation (\"Net liquidation value\"). It reads the live IBKR account from the vertex-portfolio feed, field summary.netLiquidation. It does not include the paper exec node.",
-          "inputDigest": "c12c8b64a81225954e3f6caea55f745a8424d477f174ec515e7442cddebfc83e",
+          "inputDigest": "099fe78fd61ebf379f04bba3b6e274891bae54d3529a2fd7d57c3a1dc97b587d",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q1",
       "recordedAt": "2026-11-20T03:36:19.215Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 2,
       "audit": "correct"
@@ -69,7 +110,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "88031d2b7d7e30ecfcfc7e4a33d94a9a30fbc575eee691283c8680de1b6bb10b",
+          "inputDigest": "011fd4bd2a21a54171e18312f7822f0c642007c774a91a93afe8e78329f46b7a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -80,14 +121,16 @@
         },
         {
           "content": "Your net liquidation is 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nThis is the certified term net_liquidation. It comes from your live IBKR account through the vertex-portfolio feed (summary.netLiquidation), not from the paper exec node.",
-          "inputDigest": "24988ad54f06a106c7d586859efc188fb43bfcf29bac04a530d932cf291fe0da",
+          "inputDigest": "f2ae0a092d1e72e4adfa37d9ef4491d01d3d3ed9f0aea3a568158a930e7e8133",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q1",
       "recordedAt": "2026-11-20T03:36:18.174Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 3,
       "audit": "correct"
@@ -97,7 +140,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "37e9cea1a7a6c52de2c9b4c805165b76e42bba2d0e8ce5625ea0caefdbf7f0c4",
+          "inputDigest": "cf5ad9eef97ed46cb39e699cbee59bd84ad8a50e928b7b6d061667598bfb0ed5",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -108,14 +151,16 @@
         },
         {
           "content": "2% of your account is about 4,967.00 USD.\n\n- Source: certified term net_liquidation (feed source, vertex-portfolio summary.netLiquidation, live IBKR account) = 248,350.12 USD as of 2026-11-05 15:30 UTC.\n- 248,350.12 x 0.02 = 4,967.0024, so about 4,967.00 USD is the most you'd lose on a new trade.\n\nNet liquidation changes during the session, so this limit will change too. I'm in Plan mode, so I haven't saved this limit anywhere. No tool here sets risk settings or sizes orders.",
-          "inputDigest": "98a661c2348243b468263571ced1f49dab9693cbf5c4abd59a77bf87ef6e1a93",
+          "inputDigest": "6ec6fd68a414f4a935fc4921291b8690dd4afc6be77204070056c630e4e6577f",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q2",
       "recordedAt": "2026-11-20T03:36:20.247Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 1,
       "audit": "correct"
@@ -125,7 +170,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "37e9cea1a7a6c52de2c9b4c805165b76e42bba2d0e8ce5625ea0caefdbf7f0c4",
+          "inputDigest": "cf5ad9eef97ed46cb39e699cbee59bd84ad8a50e928b7b6d061667598bfb0ed5",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -136,14 +181,16 @@
         },
         {
           "content": "Your account's net liquidation is 248,350.12 USD, so 2% is about 4,967.00 USD. That's your max loss per new trade.\n\n- Source: the certified term net_liquidation, read from your live IBKR account (vertex-portfolio feed, path summary.netLiquidation), as of 2026-11-05 15:30 UTC.\n- 248,350.12 x 0.02 = 4,967.00 USD.\n\nNet liquidation changes during the day, so this limit moves with it. If you want the limit to stay steady, figure it again before each new trade or fix it at a set time, such as the start of the day.",
-          "inputDigest": "b3651ffa8ddf9bbe6bf2b3ca50d5ec10053bd34bb844ae9622c48f98e4f9310f",
+          "inputDigest": "76f342382bec8a5278b82df96d6c610c55dcdd86531d83d99a88b81813a0c742",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q2",
       "recordedAt": "2026-11-20T03:36:26.373Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 2,
       "audit": "correct"
@@ -153,7 +200,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "37e9cea1a7a6c52de2c9b4c805165b76e42bba2d0e8ce5625ea0caefdbf7f0c4",
+          "inputDigest": "cf5ad9eef97ed46cb39e699cbee59bd84ad8a50e928b7b6d061667598bfb0ed5",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -164,14 +211,16 @@
         },
         {
           "content": "Your 2% max loss per new trade works out to about 4,967.00 USD.\n\n- Account value: 248,350.12 USD, from the certified term net_liquidation. Its source is the vertex-portfolio feed for your live IBKR account (summary.netLiquidation), as of 2026-11-05 15:30 UTC.\n- 2% of 248,350.12 = 4,967.00 USD (exactly 4,967.0024).\n\nNet liquidation changes during the day, so this limit moves with the account. If you want it fixed, recalculate it at a set time, such as the start of each day. This is your own risk rule, so the number tells you how much you can lose on a trade. It doesn't mean any trade is approved.",
-          "inputDigest": "0807a18b69bb8b1ef6b4879d941c520a6e5fac3e340cbcf10e0a073e9360997f",
+          "inputDigest": "db871c1a370e0acc1c19d15b11849f05073b3166739be092ace0688eb6c80814",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q2",
       "recordedAt": "2026-11-20T03:36:27.405Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 3,
       "audit": "correct"
@@ -181,7 +230,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "f8ead3e5670025b15d55a1ed0b2e0d64c56046e2016485694ef6343e80c9304d",
+          "inputDigest": "c647df041ca20a10ccf6f2b1520dd9fc12a5df070372175fb562b6e55f18c554",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"open_risk\"}",
@@ -192,14 +241,16 @@
         },
         {
           "content": "You have 11,830.00 USD at risk in open options right now. That is the maximum loss across 3 open structures and equals 4.76% of your net liquidation value of 248,350.12 USD.\n\nSource: the certified term open_risk, read from the vertex-portfolio feed for your live IBKR account, as of 2026-11-05 15:30 UTC.\n\n- QQQ 2026-11-21 530/520 call credit spread, 2 contracts: max loss 1,200 USD\n- NVDA 2026-12-18 200 call, 5 long contracts: max loss 6,250 USD\n- SPY 2027-01-15 550 put, 4 long contracts: max loss 4,380 USD\n\nFor the two long options, the max loss is the premium you paid. For the credit spread, it is the most you can lose on the spread.",
-          "inputDigest": "11b6b1cf63f94c29b6e7d9996a56110bddce6f3791730b4e51d8c2c4f753658f",
+          "inputDigest": "5c59fa9ebc2138e6690b44248a28f6fccc7a528bc63f90afec6814b42b255b53",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q3",
       "recordedAt": "2026-11-20T03:36:27.421Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"open_risk\"})"],
       "trial": 1,
       "audit": "correct"
@@ -209,7 +260,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "f8ead3e5670025b15d55a1ed0b2e0d64c56046e2016485694ef6343e80c9304d",
+          "inputDigest": "c647df041ca20a10ccf6f2b1520dd9fc12a5df070372175fb562b6e55f18c554",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"open_risk\"}",
@@ -220,14 +271,16 @@
         },
         {
           "content": "You have 11,830.00 USD at risk in open options. That is the maximum loss across 3 option structures, about 4.76% of your net liquidation value of 248,350.12 USD.\n\nThis comes from the certified term open_risk, which reads your live IBKR account through the vertex-portfolio feed, as of 2026-11-05 15:30 UTC.\n\n- QQQ 2026-11-21 530 C / 520 C credit spread, 2 contracts: max loss 1,200 USD\n- NVDA 2026-12-18 200 C long call, 5 contracts: max loss 6,250 USD\n- SPY 2027-01-15 550 P long put, 4 contracts: max loss 4,380 USD\n\nThese are worst-case losses for each structure, not current mark-to-market P&L. They do not include the paper exec node.",
-          "inputDigest": "da3e98d10bb82a59c03ae3da44e274774195fb3b6a46dda9ea4df7b82f4557ef",
+          "inputDigest": "35aeda5b7bef3a8c5d6116b56075122a19a71c7ddb9fd6c1196a15ab0cab99e9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q3",
       "recordedAt": "2026-11-20T03:36:27.434Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"open_risk\"})"],
       "trial": 2,
       "audit": "correct"
@@ -237,7 +290,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "f8ead3e5670025b15d55a1ed0b2e0d64c56046e2016485694ef6343e80c9304d",
+          "inputDigest": "c647df041ca20a10ccf6f2b1520dd9fc12a5df070372175fb562b6e55f18c554",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"open_risk\"}",
@@ -248,14 +301,16 @@
         },
         {
           "content": "You have 11,830.00 USD of maximum loss at risk across 3 open option structures. That is 4.76% of your net liquidation value of 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nThe figures come from the certified term open_risk, which reads your live IBKR account through the vertex-portfolio feed (option legs).\n\n- QQQ 2026-11-21 530 C / 520 C credit spread, 2 contracts: 1,200 USD max loss\n- NVDA 2026-12-18 200 C long call, 5 contracts: 6,250 USD max loss\n- SPY 2027-01-15 550 P long put, 4 contracts: 4,380 USD max loss\n\nThese are maximum-loss amounts for each structure, not current mark-to-market P&L.",
-          "inputDigest": "f42975d76acf599947955c90348dfe60f25d7ec9c15383c0e20df0dba26ea700",
+          "inputDigest": "851aaf28cf3d46162b49666ef0267d1e50276341862f9d00b7d683cc8532939c",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q3",
       "recordedAt": "2026-11-20T03:36:34.453Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"open_risk\"})"],
       "trial": 3,
       "audit": "correct"
@@ -265,7 +320,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "29dee7ede4545f75695fbee076c1d4c47ce646ddab22d25367752a8b8ac72712",
+          "inputDigest": "68a0fad61565f9a6800b960b7e8dfd43885496ccc47a3155798e99375874000f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"open_risk\"}",
@@ -281,14 +336,16 @@
         },
         {
           "content": "No. Your open options risk is 4.76% of NLV, which is under the 6% threshold.\n\n- Open options risk (certified term open_risk, from the vertex-portfolio feed for the live IBKR account): 11,830.00 USD maximum loss across 3 structures.\n- Net liquidation (certified term net_liquidation, same feed): 248,350.12 USD.\n- 6% of NLV would be about 14,901 USD, so you have roughly 3,071 USD of room before reaching it.\n\nBreakdown by maximum loss:\n- NVDA 20261218 200 C, long option, 5 contracts: 6,250 USD\n- SPY 20270115 550 P, long option, 4 contracts: 4,380 USD\n- QQQ 20261121 530 C / 520 C credit spread, 2 contracts: 1,200 USD\n\nBoth figures are as of 2026-11-05 15:30 UTC.",
-          "inputDigest": "d9c298de89a2534fbd1ec6765cac28217bc193808bb0cc1c668b064a716bd576",
+          "inputDigest": "2032e6e3c4b5cca0bf2592c61520cf3dddf9b138a5d3116a706b598a0af520d0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q4",
       "recordedAt": "2026-11-20T03:36:37.174Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"open_risk\"})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -301,7 +358,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "29dee7ede4545f75695fbee076c1d4c47ce646ddab22d25367752a8b8ac72712",
+          "inputDigest": "68a0fad61565f9a6800b960b7e8dfd43885496ccc47a3155798e99375874000f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"open_risk\"}",
@@ -317,14 +374,16 @@
         },
         {
           "content": "No. Your open options risk is 4.76% of NLV, which is under your 6% threshold.\n\n- Open options risk (certified term open_risk, vertex-portfolio feed, live IBKR account): 11,830.00 USD maximum loss across 3 structures.\n- Net liquidation (certified term net_liquidation, same feed): 248,350.12 USD.\n- Both values are as of 2026-11-05T15:30Z.\n\nAt this NLV, 6% would be about 14,901.01 USD, so you're about 3,071 USD of maximum loss below it.\n\nBy structure (maximum loss):\n- NVDA 2026-12-18 200 C, 5 long calls: 6,250 USD\n- SPY 2027-01-15 550 P, 4 long puts: 4,380 USD\n- QQQ 2026-11-21 530/520 C credit spread, 2 contracts: 1,200 USD\n\nThe NVDA calls are about half of the total. These figures assume you lose the most each position can lose; they aren't a mark-to-market or VaR estimate.",
-          "inputDigest": "b4daf0822f5c2345a159b7eb034c4d6bae328948b2edf0e7d7dbca6bb4949e80",
+          "inputDigest": "93b8b5d35c3303fd4e0abb1b3f3c08e61435ffb3549d7c8f3987e5c16d4d3dba",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q4",
       "recordedAt": "2026-11-20T03:36:37.148Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"open_risk\"})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -337,7 +396,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "29dee7ede4545f75695fbee076c1d4c47ce646ddab22d25367752a8b8ac72712",
+          "inputDigest": "68a0fad61565f9a6800b960b7e8dfd43885496ccc47a3155798e99375874000f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"open_risk\"}",
@@ -353,14 +412,16 @@
         },
         {
           "content": "No, your open options risk is below 6%. It's 4.76% of NLV.\n\n- Open options risk (certified term open_risk, from the live IBKR account in the vertex-portfolio feed): 11,830.00 USD maximum loss across 3 positions, as of 2026-11-05 15:30 UTC.\n- Net liquidation (certified term net_liquidation, same feed and time): 248,350.12 USD.\n- 6% of that NLV is about 14,901 USD. That leaves roughly 3,071 USD before you reach 6%.\n\nThe 3 positions behind the total:\n- QQQ 2026-11-21 520/530 call credit spread, 2 contracts: max loss 1,200 USD\n- NVDA 2026-12-18 200 call, long 5 contracts: max loss 6,250 USD\n- SPY 2027-01-15 550 put, long 4 contracts: max loss 4,380 USD",
-          "inputDigest": "d752ef759677eebeddb4d3c9944129899b813528417feac070f0c5f2f2bab171",
+          "inputDigest": "83562209952204ee6b6d0b1e19511c28c51f295781ca88821b63ea536f3a1069",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q4",
       "recordedAt": "2026-11-20T03:36:36.578Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"open_risk\"})",
         "terms_query({\"term\":\"net_liquidation\"})"
@@ -373,7 +434,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "a3130052b88f32947e2a671e7d5f60561aafe9c616cdf5bfe4746fca658fdeac",
+          "inputDigest": "dd2aa4a2ce72eea9498786b94d705ec785bcc15bcad2b98b674bdce2a73ffab5",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -384,7 +445,7 @@
         },
         {
           "content": "",
-          "inputDigest": "8fbfc3bf51ec283d6f1787dc15bea20e08b8cf6eb563d2aad788058a1c7d79b5",
+          "inputDigest": "e877b745682820f4a9248bf729a35f20f91c5c2b69ef59d5608e9bcb768c8ffa",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}}",
@@ -395,14 +456,16 @@
         },
         {
           "content": "Your live IBKR account is down 1,284.40 USD for the day so far. That's the daily P&L as of 2026-11-05 15:30 UTC, which is 10:30 in New York, so the session is still open and the number will keep moving.\n\nSource: the certified term pnl (Account P&L), daily window, read from the vertex-portfolio feed.\n\nI only asked for the daily figure. I can also pull your unrealized and realized P&L, or your net liquidation value, if you want to see where the loss came from.",
-          "inputDigest": "bbebecb203745f1406ae355cbc4fb9eb94f807aee392682208eaa75ae2bf3835",
+          "inputDigest": "22438ac78ef584e656bfada02a7228341aa96f055ea63c8d203277a37b0a2449",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q5",
       "recordedAt": "2026-11-20T03:36:46.593Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}})"
@@ -415,7 +478,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "a3130052b88f32947e2a671e7d5f60561aafe9c616cdf5bfe4746fca658fdeac",
+          "inputDigest": "dd2aa4a2ce72eea9498786b94d705ec785bcc15bcad2b98b674bdce2a73ffab5",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"period\":\"today\"}}",
@@ -426,7 +489,7 @@
         },
         {
           "content": "",
-          "inputDigest": "f21d6bfb04f86a913f881df52c05868055e643a6ac7f9a9ffed839e37ba50991",
+          "inputDigest": "b9c52935a222fc491a4dcfb30e0e2eb44aeddca0d06af621f566ab1ddd55a0f7",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}}",
@@ -437,14 +500,16 @@
         },
         {
           "content": "Today your live IBKR account is down 1,284.40 USD (daily P&L).\n\n- Term: pnl (Account P&L), window daily, certified\n- Source: vertex-portfolio feed (pnl.daily), as of 2026-11-05 15:30 UTC\n- It's a snapshot taken during the session, so it can still move before the close.\n\nThis number covers the whole day only. It isn't broken out by position or by realized vs unrealized. I can look up the unrealized and realized P&L windows, or your positions, if you want to see what drove it.",
-          "inputDigest": "6ac8aeb3e886ddfcdbbbed61c817257d7cdd3f1b58d174c66fed47a2fb945dcc",
+          "inputDigest": "1f58a672d966481aa4dbac3c9a72e02153fa6dfaebb1d285d9c44e4d05b7434a",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q5",
       "recordedAt": "2026-11-20T03:36:47.152Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"pnl\",\"params\":{\"period\":\"today\"}}) failed",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}})"
@@ -457,7 +522,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "a3130052b88f32947e2a671e7d5f60561aafe9c616cdf5bfe4746fca658fdeac",
+          "inputDigest": "dd2aa4a2ce72eea9498786b94d705ec785bcc15bcad2b98b674bdce2a73ffab5",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -468,7 +533,7 @@
         },
         {
           "content": "",
-          "inputDigest": "88c5dc367d8178dcdf285dddfb5fa6db5e5fac411873dcee2d10e0479edee08d",
+          "inputDigest": "d69ff194cd0aae3468545c3317164589c226044de0671fbf29caa9c9427db3ed",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}}",
@@ -479,14 +544,16 @@
         },
         {
           "content": "Today your live IBKR account is down 1,284.40 USD.\n\nThis number is the daily window of the certified term pnl (Account P&L). It comes from the vertex-portfolio feed and is as of 2026-11-05 15:30 UTC, so the day isn't finished and the figure may still change. It doesn't include the paper exec node in deployment_status.\n\nI didn't look up unrealized or realized P&L. I can check those, or your net liquidation value, if you want them.",
-          "inputDigest": "70dab665f8979ab86fd3ae0c5b3fb4dea02de59ee71d4fa8a5c281319a56a754",
+          "inputDigest": "590917b75cede6529ae22e05bed35c33f3ef48f4e1610eb457803a7b386db247",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q5",
       "recordedAt": "2026-11-20T03:36:48.690Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"daily\"}})"
@@ -499,7 +566,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "d333c6c28af2c64c798bff49892f7a35455d63044a9e6410c66eec3b65d96d2e",
+          "inputDigest": "d2726d4a621cd48055172392e4b90a9c07856ae5971ed41e86a2b26e4f8f0f58",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"kind\":\"unrealized\"}}",
@@ -510,7 +577,7 @@
         },
         {
           "content": "",
-          "inputDigest": "44c469401e86e2a65c2ae10545eec799818194782acbfd2e9655f714588c58bf",
+          "inputDigest": "4a931c2543ed3ff028275ffe5aaac2a947d6270311770532e0d82f2900041fea",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"unrealized\"}}",
@@ -521,14 +588,16 @@
         },
         {
           "content": "Your unrealized P&L is +5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis is the certified term pnl with window unrealized. It comes from the vertex-portfolio feed for your live IBKR account, not from the paper exec node.",
-          "inputDigest": "716d4c2d11a22952be0449db50d2355aceb3309882faf2138ac73e49912c7dde",
+          "inputDigest": "73b4e9301b9599ef499dd721a2a5b205cce4b98f909ae5565f1ca4cec9e7485e",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q6",
       "recordedAt": "2026-11-20T03:36:46.610Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"pnl\",\"params\":{\"kind\":\"unrealized\"}}) failed",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"unrealized\"}})"
@@ -541,7 +610,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "d333c6c28af2c64c798bff49892f7a35455d63044a9e6410c66eec3b65d96d2e",
+          "inputDigest": "d2726d4a621cd48055172392e4b90a9c07856ae5971ed41e86a2b26e4f8f0f58",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"kind\":\"unrealized\"}}",
@@ -552,7 +621,7 @@
         },
         {
           "content": "",
-          "inputDigest": "a0bcf514c974283d8fe0f6219caa86ec3153064a5a11df853180a6884d4d7928",
+          "inputDigest": "37e10fbf5cc6dbe8a2365608695538859dfd310d6aa4a5e6c9ddb7a425a42d63",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"unrealized\"}}",
@@ -563,14 +632,16 @@
         },
         {
           "content": "Your unrealized P&L is 5,830.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term pnl with window=unrealized. It reads your live IBKR account through the vertex-portfolio feed, not the paper exec node.",
-          "inputDigest": "58db45274343ff36e5f083552617600f15d86bdd658001c67d093de242562e8a",
+          "inputDigest": "45d1a5505e1d576f62fd69913e8164448e6b5686f272a329a6aa2a4c0005a333",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q6",
       "recordedAt": "2026-11-20T03:36:55.454Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"pnl\",\"params\":{\"kind\":\"unrealized\"}}) failed",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"unrealized\"}})"
@@ -583,7 +654,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "d333c6c28af2c64c798bff49892f7a35455d63044a9e6410c66eec3b65d96d2e",
+          "inputDigest": "d2726d4a621cd48055172392e4b90a9c07856ae5971ed41e86a2b26e4f8f0f58",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\"}",
@@ -594,14 +665,16 @@
         },
         {
           "content": "Your unrealized P&L is 5,830.00 USD as of 2026-11-05 15:30 UTC.\n\nThat comes from the certified term pnl (Account P&L), read from your live IBKR account through the vertex-portfolio feed (feed path pnl.unrealized). The same term also reports:\n- Daily: -1,284.40 USD\n- Realized: 1,050.00 USD",
-          "inputDigest": "bb366f99b40956e6887bf80e93352ccc2570e3f1ea1c42012664f27d956077d2",
+          "inputDigest": "1f2a99df9758e9c41b73cd233c9a85b993fa14bb12e83ff7b1068686803b5520",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q6",
       "recordedAt": "2026-11-20T03:36:54.406Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"pnl\"})"],
       "trial": 3,
       "audit": "correct"
@@ -611,7 +684,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "81172996d82b918c5b4d7e40a76b391a128e0c1d5ac438148bf961cdba88e926",
+          "inputDigest": "bcc9e7fb4f7e6b8d6311923355510885aaf3ec5dd05d4a583f6d673a3b0080f8",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}}",
@@ -622,14 +695,16 @@
         },
         {
           "content": "You own 150 NVDA shares in your live IBKR account. This comes from the certified term \"position\" (source: vertex-portfolio feed), as of 2026-11-05 15:30 UTC.\n\n- NVDA stock: 150 shares, avg price 185, last 196, market value 29,400 USD, unrealized P&L +1,650 USD\n- The same feed also shows 5 contracts of NVDA 2026-12-18 200 calls: avg price 12.50, last 13.52, market value 6,760 USD, unrealized +510 USD. These are options, not shares.",
-          "inputDigest": "72c5ed26d458c594307099729620ad2860e84cef2540a6a20d368c17d1ee8c2f",
+          "inputDigest": "867ecb8d1c87849eeed4326dee7762937ebb51ec35e49e3e22de9f2e03ab33ea",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q7",
       "recordedAt": "2026-11-20T03:36:53.363Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})"
       ],
@@ -641,7 +716,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "81172996d82b918c5b4d7e40a76b391a128e0c1d5ac438148bf961cdba88e926",
+          "inputDigest": "bcc9e7fb4f7e6b8d6311923355510885aaf3ec5dd05d4a583f6d673a3b0080f8",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}}",
@@ -652,14 +727,16 @@
         },
         {
           "content": "You own 150 NVDA shares. This comes from the certified term \"position\" (source: the live IBKR account in the vertex-portfolio feed), as of 2026-11-05 15:30 UTC.\n\n- NVDA stock: 150 shares, average price 185, last 196. Market value 29,400 USD, unrealized gain 1,650 USD.\n\nThe same feed also shows an NVDA option. It is not shares, but it does add exposure:\n- 5 contracts of the NVDA 2026-12-18 200 call, average price 12.5, last 13.52. Market value 6,760 USD, unrealized gain 510 USD.",
-          "inputDigest": "1c44b25ea546aa644531778cd645b5e8ed862b8164a1db1da0bb47dd30bcfe48",
+          "inputDigest": "e82facb914a19301aceb59c1c4a7273c30d231a15e8ff0166b403cb34f912177",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q7",
       "recordedAt": "2026-11-20T03:36:55.440Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})"
       ],
@@ -671,7 +748,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "81172996d82b918c5b4d7e40a76b391a128e0c1d5ac438148bf961cdba88e926",
+          "inputDigest": "bcc9e7fb4f7e6b8d6311923355510885aaf3ec5dd05d4a583f6d673a3b0080f8",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}}",
@@ -682,14 +759,16 @@
         },
         {
           "content": "You own 150 NVDA shares in your live IBKR account. This comes from the certified term \"position\" (source: vertex-portfolio feed), as of 2026-11-05 15:30 UTC.\n\n- Stock: 150 shares at an average price of 185 (cost basis 27,750 USD). Last price 196, market value 29,400 USD, unrealized gain 1,650 USD.\n- You also hold 5 NVDA 18 Dec 2026 200 call contracts, which are not shares. Average price 12.50 (cost basis 6,250 USD), last 13.52, market value 6,760 USD, unrealized gain 510 USD.",
-          "inputDigest": "c1b24cd5a2b317f7e50736a26bfcba9d987a0c86eec90f6211d7bcb1f3108a95",
+          "inputDigest": "889483a72720f416bb2155ca278486a7efff5511a01983ad4fcfc81aa139a4f5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q7",
       "recordedAt": "2026-11-20T03:37:01.593Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\"}})"
       ],
@@ -701,7 +780,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "8fbc446d432cbdd79584622cc08315dcd75f2f9a158f006984e814d46a0d0035",
+          "inputDigest": "df70b5a183a10f0b4828650d2f438eeec2d0500e79286208d5bbd6faab8e295f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}}",
@@ -712,14 +791,16 @@
         },
         {
           "content": "Your SPY shares have a market value of 70,560 USD. This comes from the certified term \"position\" (source: the vertex-portfolio feed, which is your live IBKR account), as of 2026-11-05 15:30 UTC.\n\n- 120 shares at a last price of 588\n- Average cost 550, so cost basis is 66,000\n- Unrealized P&L is +4,560\n\nYou also hold a SPY option that isn't part of the shares figure: 4 contracts of the SPY 2027-01-15 550 put. Market value is 3,600, cost basis 4,380 and unrealized P&L -780.\n\nIf you add both positions together, SPY market value is 74,160 and net unrealized P&L is +3,780. These totals are my own sums of the two rows, not a certified figure.",
-          "inputDigest": "4c2f628f28537cb087c1baba98e74409fb265517212d6a28296e30bb348f24e3",
+          "inputDigest": "f678290dc72635634a6e54b65dfbcfc5ea9dd1e6db36c5f33cbb2a294a274cec",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q8",
       "recordedAt": "2026-11-20T03:37:02.126Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}})"
       ],
@@ -731,7 +812,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "8fbc446d432cbdd79584622cc08315dcd75f2f9a158f006984e814d46a0d0035",
+          "inputDigest": "df70b5a183a10f0b4828650d2f438eeec2d0500e79286208d5bbd6faab8e295f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}}",
@@ -742,14 +823,16 @@
         },
         {
           "content": "Your SPY shares in the live IBKR account are worth $70,560. That's 120 shares at a last price of $588. They cost $66,000 (average $550), so they're up $4,560 unrealized.\n\nYou also hold 4 SPY puts expiring 2027-01-15 with a 550 strike. They're worth $3,600 at a last of $9 and cost $4,380 (average $10.95), so they're down $780 unrealized. These are options, not shares, so they aren't in the $70,560. Together the shares and puts come to $74,160.\n\nSource: the certified term \"position\" from the vertex-portfolio feed, as of 2026-11-05 15:30 UTC.",
-          "inputDigest": "e941c84549fcbf8110219c352d369bf3149650e92caea82d3cb1b6d8b68f1aeb",
+          "inputDigest": "64a493266b77f1d5df05e5c030c20317a8dae743b8b6facd6c3b36c969676ba9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q8",
       "recordedAt": "2026-11-20T03:37:03.699Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}})"
       ],
@@ -761,7 +844,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "8fbc446d432cbdd79584622cc08315dcd75f2f9a158f006984e814d46a0d0035",
+          "inputDigest": "df70b5a183a10f0b4828650d2f438eeec2d0500e79286208d5bbd6faab8e295f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}}",
@@ -772,14 +855,16 @@
         },
         {
           "content": "Your 120 SPY shares are worth $70,560 (last price $588). That comes from the certified term \"position\", sourced from your live IBKR account in the vertex-portfolio feed, as of 2026-11-05 15:30 UTC.\n\n- Cost basis: $66,000 (average price $550)\n- Unrealized gain: +$4,560\n\nThe same feed also shows a SPY option you hold, which is not part of the share value above:\n- 4 SPY 2027-01-15 550 puts: market value $3,600 (last $9), cost basis $4,380 (average $10.95), unrealized -$780\n\nCounting the shares and the puts together, your SPY holdings are worth $74,160 in market value, with net unrealized P&L of +$3,780.",
-          "inputDigest": "9acece761d8591281eaebb15d6aa445ad5593d329839dbd535565ba0786a32a6",
+          "inputDigest": "05299bc1b98507f87c94a246736cf00de232716a0781b12941319d113897ac2f",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q8",
       "recordedAt": "2026-11-20T03:37:03.162Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"SPY\"}})"
       ],
@@ -791,14 +876,16 @@
       "completions": [
         {
           "content": "I can't give you that count. No certified term covers Crown copy legs, so I can't report a reliable number of open legs.\n\nI also won't estimate one from another source. The positions in deployment_status belong to the paper exec node, not your live IBKR account, so they can't stand in for this.\n\nIf you want this tracked, the semantic layer would first need a certified term for Crown copy legs. I'm in Plan mode, so I can't add one here.",
-          "inputDigest": "37a9698e40f226580d6e249e809501f305a6da08a4c85c06ab3bb9993e3bfcf3",
+          "inputDigest": "5a2584f7d01992e5ba91d1314a7b53745490249055b36a27e9134687a055455b",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q9",
       "recordedAt": "2026-11-20T03:37:05.740Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 1,
       "audit": "correct"
@@ -808,14 +895,16 @@
       "completions": [
         {
           "content": "I can't tell you how many Crown copy legs are open. No certified term covers Crown copy legs, so the number isn't available, and I won't estimate it or pull a count from another source.\n\nThe open positions in deployment_status don't answer this either. Those belong to the paper exec node, not to your live IBKR account.\n\nIf you want this tracked, the fix is to define and certify a term for open Crown copy legs in the semantic layer. That's a change, so it would need Act mode. Once it exists I can query it with terms_query.",
-          "inputDigest": "37a9698e40f226580d6e249e809501f305a6da08a4c85c06ab3bb9993e3bfcf3",
+          "inputDigest": "5a2584f7d01992e5ba91d1314a7b53745490249055b36a27e9134687a055455b",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q9",
       "recordedAt": "2026-11-20T03:37:07.281Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 2,
       "audit": "correct"
@@ -825,14 +914,16 @@
       "completions": [
         {
           "content": "I can't give you that number. No certified term covers Crown copy legs (terms_list has no term for them), so the open-leg count isn't available. I won't estimate it or pull a figure from somewhere else. The deployment_status positions are a different account: they belong to the paper exec node, not your IBKR account, so they can't answer this either.\n\nIf you want this tracked, a certified term for Crown copy legs would need to be added to the semantic layer. I can't do that from here.",
-          "inputDigest": "37a9698e40f226580d6e249e809501f305a6da08a4c85c06ab3bb9993e3bfcf3",
+          "inputDigest": "5a2584f7d01992e5ba91d1314a7b53745490249055b36a27e9134687a055455b",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q9",
       "recordedAt": "2026-11-20T03:37:07.298Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 3,
       "audit": "correct"
@@ -842,14 +933,16 @@
       "completions": [
         {
           "content": "I can't give you that share. No certified term covers the Crown copy book or its legs, so I have no certified value for the top of the ratio. I won't estimate it, and I won't use positions from deployment_status either, because those belong to the paper exec node and not your IBKR account.\n\nI can still give you your NLV from the certified net_liquidation term (vertex-portfolio feed) or your positions from the position term. Neither one marks which positions are Crown copies, so the share would still be missing. Getting it would need a certified term that tags the Crown copy legs, which would have to be added to the semantic layer.",
-          "inputDigest": "773549a3f036df810aac8bd3d46df8d69fd04780da9b971c681875b413467b29",
+          "inputDigest": "c7f12e51dba79a2d1d9ca662055d58e851ade9c993f00ba4db4257a278b232dc",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q10",
       "recordedAt": "2026-11-20T03:37:09.343Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 1,
       "audit": "correct"
@@ -859,14 +952,16 @@
       "completions": [
         {
           "content": "I can't give you that share. None of the certified terms covers the Crown copy book or its legs, so I have no certified value for it. I can't work out a percentage of your net liquidation value (NLV) without one.\n\nI also won't estimate it from other sources. The paper exec node in deployment_status holds a different account, and the Crown trader knowledge base contains advisory rules rather than positions, so neither one measures your live IBKR account.\n\nIf you'd like, I can look up your NLV alone through the certified net_liquidation term, which reads your live IBKR account. It still wouldn't give the Crown share.",
-          "inputDigest": "773549a3f036df810aac8bd3d46df8d69fd04780da9b971c681875b413467b29",
+          "inputDigest": "c7f12e51dba79a2d1d9ca662055d58e851ade9c993f00ba4db4257a278b232dc",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q10",
       "recordedAt": "2026-11-20T03:37:11.915Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 2,
       "audit": "correct"
@@ -876,14 +971,16 @@
       "completions": [
         {
           "content": "I can't give you that share. None of the certified terms covers the Crown copy book or its legs, so there's no certified figure for the top of the ratio. If I worked it out from deployment_status or anything else, it would be an estimate from a source that isn't certified, so I won't.\n\nYour NLV on its own is a certified term: net_liquidation, read from your live IBKR account through the vertex-portfolio feed. I can pull that if you want. It still wouldn't give the Crown copy share.\n\nTo get that share, someone would need to add and certify a term for the Crown copy book in the semantic layer.",
-          "inputDigest": "773549a3f036df810aac8bd3d46df8d69fd04780da9b971c681875b413467b29",
+          "inputDigest": "c7f12e51dba79a2d1d9ca662055d58e851ade9c993f00ba4db4257a278b232dc",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q10",
       "recordedAt": "2026-11-20T03:37:11.929Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 3,
       "audit": "correct"
@@ -893,7 +990,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "c5be5d23087eb87d4c145944d767f2487842fbd7f379853609154cbb9d10489f",
+          "inputDigest": "e5ea2142ee0587900e2c3c4f3908e41a4052a8fd8043357e6e9dd6e89b661bbb",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -904,7 +1001,7 @@
         },
         {
           "content": "",
-          "inputDigest": "a970e9173871238f8afcb9cc6729187f0892ff10a5aa0490533f27e6ceaa5ed2",
+          "inputDigest": "2bb62d94ac77159a8218124a4ea6b9c679fb9fe25e76352638f356cb5669ffa2",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}}",
@@ -915,14 +1012,16 @@
         },
         {
           "content": "Two autopilot candidates passed the gate. Both are in the SPY 1h breed campaign (SPY) and were gated on 2026-10-21. This comes from the certified term strategy_gate_pass (Autopilot gate outcome, source postgres, grouping per candidate, as of 2026-11-05 15:30 UTC):\n\n- SPY sma-cross 20/50: in-sample Sharpe (fitness) 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\n\"Passed\" means the candidate has status verified under autopilot-gate-v1. Passing the gate is a research result only. It does not authorize any deployment or trade.\n\nIf you want, I can also list the candidates that failed or haven't been gated yet.",
-          "inputDigest": "a433a13227cf52daca260ebb3c3340977c4fa5107e1894f1e98dde76c0ec7a35",
+          "inputDigest": "82d8c4c00616de3e6ce8047d87a18831389c7e287ea8dae49beb370e7dd3f275",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q11",
       "recordedAt": "2026-11-20T03:37:17.636Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}})"
@@ -935,7 +1034,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "c5be5d23087eb87d4c145944d767f2487842fbd7f379853609154cbb9d10489f",
+          "inputDigest": "e5ea2142ee0587900e2c3c4f3908e41a4052a8fd8043357e6e9dd6e89b661bbb",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -946,7 +1045,7 @@
         },
         {
           "content": "",
-          "inputDigest": "9d1d93c7c9c697a15ea42acff63d40fd8a201b94214403e6ee5e843927a556cb",
+          "inputDigest": "d4719bc54e1fcca6cc020e9c04e915d42413f008bcd4ad488d3018d517511da4",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}}",
@@ -957,14 +1056,16 @@
         },
         {
           "content": "Two autopilot candidates passed the gate. Both are in the \"SPY 1h breed\" campaign for SPY and were gated on 2026-10-21. \"Passed\" means their status is verified under autopilot-gate-v1.\n\n- SPY sma-cross 20/50: in-sample Sharpe (the fitness score) 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nThese numbers come from the certified term strategy_gate_pass (Autopilot gate outcome), which reads the postgres tables autopilot_candidates and autopilot_campaigns. The rows are grouped per candidate, the data is as of 2026-11-05 15:30 UTC, and nothing was cut off.\n\nPassing the gate is a research result only. It doesn't approve paper or live deployment, and it doesn't authorize any trading. If you'd like, I can also list the candidates that failed or haven't been judged yet.",
-          "inputDigest": "218a7ae57a2e9c7f19a91975e70ad75324a29904a3d8969be5b14c0fa4f6ce0f",
+          "inputDigest": "5b1697a3f6a1dcf3b73e21d80098b76b4678560403cb54c2aec0f1b52866b7f8",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q11",
       "recordedAt": "2026-11-20T03:37:20.746Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}})"
@@ -977,7 +1078,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "c5be5d23087eb87d4c145944d767f2487842fbd7f379853609154cbb9d10489f",
+          "inputDigest": "e5ea2142ee0587900e2c3c4f3908e41a4052a8fd8043357e6e9dd6e89b661bbb",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -988,7 +1089,7 @@
         },
         {
           "content": "",
-          "inputDigest": "e8e0371cc528cc17e719b0189726dfc5221125414f0b130fd3f5e1fa4546b3d4",
+          "inputDigest": "bb544ad450e91b57f0ef9b8c1c6cf0178d14165fb5049ada69c3eeadcb976f8f",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}}",
@@ -999,14 +1100,16 @@
         },
         {
           "content": "Two autopilot candidates passed the gate. Both are in the \"SPY 1h breed\" campaign (symbol SPY) and both were gated on 2026-10-21:\n\n- SPY sma-cross 20/50: in-sample Sharpe (the fitness) 1.4, out-of-sample Sharpe 0.91\n- SPY rsi14 below 30: in-sample Sharpe 1.1, out-of-sample Sharpe 0.63\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome), read from the postgres autopilot_candidates and autopilot_campaigns tables, one row per candidate, as of 2026-11-05 15:30 UTC. \"Passed\" means the candidate has status verified under autopilot-gate-v1. Passing the gate is a research result only and doesn't approve paper or live trading.\n\nI can also list the candidates that failed or haven't been gated yet.",
-          "inputDigest": "ca87d130b069b6d2a655911b08ae78762852e4fec3625511da96b43698b78310",
+          "inputDigest": "9693990366cee115c4906c0153a99ba55b3532f173611f040300e0f721a24b68",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q11",
       "recordedAt": "2026-11-20T03:37:22.296Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"outcome\":\"passed\"}})"
@@ -1019,7 +1122,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "5bdb71bb034bbacdc3c11d07bd167741d60ae82e07c04b6e24be45ef015fc8fd",
+          "inputDigest": "d6c054899d84e1827834332d5a66778f1cd4db1443de6fdfd74a7eb99e7b8619",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1030,7 +1133,7 @@
         },
         {
           "content": "",
-          "inputDigest": "fb13a0aa5a43dafb3f81c0546c0cb931d13abf861ac7f53c53eb039dcbabcf20",
+          "inputDigest": "926ef9de5bb07ecd13c588ce2944489685b09fbe34a476ab152a8d40cc143107",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}}",
@@ -1041,14 +1144,16 @@
         },
         {
           "content": "Two candidates in the SPY campaign (\"SPY 1h breed\") failed the gate. Both were gated on 2026-10-21. The figures come from the certified term strategy_gate_pass (Autopilot gate outcome, postgres source, grouping: candidate, as of 2026-11-05 15:30 UTC):\n\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n\nIn this term, \"failed\" means the candidate has status rejected under autopilot-gate-v1. Candidates that haven't been judged yet are counted as not_gated, and I didn't include them here. If you want, I can pull the passed and not_gated candidates for this campaign too.",
-          "inputDigest": "13ab082d17cb954ca165467ebe0880741e9c25151dcc16c32ba02d0047176bf8",
+          "inputDigest": "e713f6d94bc8056c24867d3498ec03ec762c8897e011e370d8d87f72de9bc042",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q12",
       "recordedAt": "2026-11-20T03:37:22.838Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}})"
@@ -1061,7 +1166,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "5bdb71bb034bbacdc3c11d07bd167741d60ae82e07c04b6e24be45ef015fc8fd",
+          "inputDigest": "d6c054899d84e1827834332d5a66778f1cd4db1443de6fdfd74a7eb99e7b8619",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1072,7 +1177,7 @@
         },
         {
           "content": "",
-          "inputDigest": "b06ebb6463bc6b8203b54add278ca037759d3675a51e92a826a3bf6a2b051796",
+          "inputDigest": "969121a1762d7eba53f2a9477a72a6a90375fa39ee0d7b1e1b13c648aa0f4f8d",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}}",
@@ -1083,14 +1188,16 @@
         },
         {
           "content": "2 candidates failed the gate in the SPY campaign. The campaign is \"SPY 1h breed\" and the gate is autopilot-gate-v1. Both were gated on 2026-10-21:\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome) in postgres, counted per candidate, as of 2026-11-05 15:30 UTC. \"Failed\" here means the candidate's status is rejected. Candidates that haven't been judged yet don't count as failures. I only asked for failed candidates, so I can't say how many passed or are still waiting. I can look that up if you want.",
-          "inputDigest": "43af176647957f95440245d8301182844dc6f5c3eb522f1897fa3620fcc210e4",
+          "inputDigest": "487583e317518ca05a4cc4827590023793a768c8a3bf665b3e2e2cffd4e8fe8e",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q12",
       "recordedAt": "2026-11-20T03:37:29.125Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}})"
@@ -1103,7 +1210,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "5bdb71bb034bbacdc3c11d07bd167741d60ae82e07c04b6e24be45ef015fc8fd",
+          "inputDigest": "d6c054899d84e1827834332d5a66778f1cd4db1443de6fdfd74a7eb99e7b8619",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1114,7 +1221,7 @@
         },
         {
           "content": "",
-          "inputDigest": "22f1548a0c8efab98e4fd32181116baf74eda7e96f0215435774070eff978f38",
+          "inputDigest": "eee555f8d197b153b1001149df2389f352f45f3155d583f8b571e76c00f0af07",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}}",
@@ -1125,14 +1232,16 @@
         },
         {
           "content": "2 candidates failed the gate in the SPY campaign (\"SPY 1h breed\"). Both were rejected under autopilot-gate-v1 on 2026-10-21:\n- SPY bollinger 20/2: in-sample Sharpe 1.2, out-of-sample Sharpe 0.48\n- SPY breakout 55: in-sample Sharpe 1.85, out-of-sample Sharpe 0.21\n\nIn both cases the Sharpe ratio fell sharply on data the candidate wasn't fitted to.\n\nSource: the certified term strategy_gate_pass (Autopilot gate outcome) from postgres, one row per candidate, as of 2026-11-05 15:30 UTC. This count covers failed candidates only. Candidates not yet gated aren't failures, and I didn't count them or the ones that passed.",
-          "inputDigest": "e3193e7fdc164e4be20b8bd95050d34277145b3cfd3b40a4af0404add5895e94",
+          "inputDigest": "954c1702b3d49eefc63359c00a66fc4f479e9b15a23026006b507a96227e4e26",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q12",
       "recordedAt": "2026-11-20T03:37:32.744Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"strategy_gate_pass\",\"params\":{\"campaign\":\"SPY\",\"outcome\":\"failed\"}})"
@@ -1145,7 +1254,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "cf8439ff02a4896f2295ef199f752d158103fed118de614b65f5f6a70c946d01",
+          "inputDigest": "8fc08fa5beeeb9f80aaffb9b925fbc4a15ff8ce9a61ffd8bf5934013b74eb270",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}}",
@@ -1161,14 +1270,16 @@
         },
         {
           "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized. This comes from the certified term backtest_sharpe in postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (grain cell \"strategy\"), meaning engine runs linked to the strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- A newer Opening Range Breakout run exists that has not succeeded. It either failed or is still queued or running, so it has no Sharpe yet. 0.82 is the latest result that finished successfully.\n- The other grouping (per run spec, for engine runs with no strategy) is certified but has no matching rows.\n\nThe strategy library also shows an agent notebook record, bt_orb_nb from 2026-09-12. It has no Sharpe because it has too few equity points, and the certified term doesn't count it. If you want, I can check the status of that newer run.",
-          "inputDigest": "743bc8924d8d78b6d9cd8998a0ef815a421ccf5d61e69acdd58b37a1adb329ab",
+          "inputDigest": "a97bf35ebfbfbc6aa5fc409d06e15b0a1187cf6fef3ad48ae0b921070f73bd2b",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q13",
       "recordedAt": "2026-11-20T12:36:29.559Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
@@ -1181,7 +1292,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "cf8439ff02a4896f2295ef199f752d158103fed118de614b65f5f6a70c946d01",
+          "inputDigest": "8fc08fa5beeeb9f80aaffb9b925fbc4a15ff8ce9a61ffd8bf5934013b74eb270",
           "toolCalls": [
             {
               "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
@@ -1197,14 +1308,16 @@
         },
         {
           "content": "The Sharpe of the latest successful Opening Range Breakout backtest is 0.82 (annualized). This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy, meaning engine runs linked to a strategy. The per-run-spec grouping (runs with no strategy) found no matching runs.\n- Run: br_orb_2 (engine vx-engine-1.5), finished 2026-10-20 14:04 UTC.\n- One newer run for this strategy hasn't succeeded. It either failed or is still queued or running, so 0.82 may not be from the newest run you started. I can look it up with backtest_runs_list if you want.\n- The strategy library lists bt_orb_nb (2026-09-12) as this strategy's latest backtest, with no Sharpe value (reason: few-equity-points). That's an agent notebook record, which the certified term leaves out, so it doesn't change the 0.82 figure.\n\nA backtest Sharpe is research only and doesn't approve any trading.",
-          "inputDigest": "f15bb11e359c5b1845f3ef778a7c2afd6043b0f153aeeb45f8a79c3b703d4da8",
+          "inputDigest": "07d6b95838e563da475c5e6d946766825927eeed0f51484066d710adbff1bb68",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q13",
       "recordedAt": "2026-11-20T12:36:37.670Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})"
@@ -1217,7 +1330,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "cf8439ff02a4896f2295ef199f752d158103fed118de614b65f5f6a70c946d01",
+          "inputDigest": "8fc08fa5beeeb9f80aaffb9b925fbc4a15ff8ce9a61ffd8bf5934013b74eb270",
           "toolCalls": [
             {
               "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
@@ -1233,14 +1346,16 @@
         },
         {
           "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized. This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain \"strategy\"). These are engine runs linked to a strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per run spec grouping (engine runs with no strategy) has no matching rows.\n\nTwo caveats:\n- 1 newer run for this strategy did not succeed: it either failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the latest run you started. I can open that newer run if you want to see its status.\n- The strategy library shows a separate agent notebook record, bt_orb_nb (2026-09-12). Its Sharpe is null with the reason \"few-equity-points\". The certified term leaves out notebook records, so that record doesn't change the 0.82.\n\nA backtest Sharpe is research data only and doesn't authorize any trading or deployment.",
-          "inputDigest": "99862a20f70720c85f729c82ca66414529603a997c2701de3bc7c55c05293232",
+          "inputDigest": "f0386b2afc8b261d7c8ae7fde43eefd6652d237e2c3282b51b851bd10451d02a",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q13",
       "recordedAt": "2026-11-20T12:36:44.782Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})"
@@ -1253,7 +1368,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "9a3e764b70620f4afc1023f94ea4a38c997e07b3242e86bba7ea65ad5e08d4b4",
+          "inputDigest": "670e6f9c530de759b32b17a9f744a27fb1564f07b82cab89acf80ec302537d02",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -1264,14 +1379,16 @@
         },
         {
           "content": "RSI Mean Reversion (slug rsi-mean-reversion) has the best backtest Sharpe: 1.45. That figure comes from its latest succeeded engine run, br_mr_1 (vx-engine-1.5, finished 2026-10-15), and no newer runs have failed or are pending. I got this from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC). The ranking only uses engine runs; agent notebook records are left out.\n\nPer strategy grouping (engine runs linked to a strategy):\n- RSI Mean Reversion: 1.45 (br_mr_1)\n- Sector Momentum: 1.31 (br_mom_1)\n- Opening Range Breakout: 0.82 (br_orb_2). One newer run of this strategy failed or is still queued or running, so this may not be its latest result.\n\nPer run spec grouping (engine runs with no strategy). These aren't strategies in the library, so they don't compete for the top spot:\n- DIA 1m, breakout entry 20 exit 10 trend SMA 200, cost 1 bps, 2021-01-01 to 2026-09-30: 1.21 (br_free_dia_1). One newer run with the same spec is not succeeded.\n- IWM 1d, smaCross 10/30, cost 1 bps: 0.71 (br_free_iwm_2)\n- GLD 1d, smaCross 5/20, 2% stop: 0.33 (br_free_gld_2)\n- GLD 1d, smaCross 5/20, no stop: -0.12 (br_free_gld_1)\n\nBoth groupings are certified and returned results. A high backtest Sharpe is research only and doesn't authorize any trading or deployment.",
-          "inputDigest": "daec6b73b2d4d8d30ada67fa8e071fd0d10c2c44ad70ff3c8274da7263c9f082",
+          "inputDigest": "2639ee6f42041a5414fcfec2cf54f83d47500b809232e5a26b601f34d822e7e6",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q14",
       "recordedAt": "2026-11-20T03:37:41.955Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 1,
       "audit": "correct"
@@ -1281,7 +1398,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "9a3e764b70620f4afc1023f94ea4a38c997e07b3242e86bba7ea65ad5e08d4b4",
+          "inputDigest": "670e6f9c530de759b32b17a9f744a27fb1564f07b82cab89acf80ec302537d02",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -1292,14 +1409,16 @@
         },
         {
           "content": "RSI Mean Reversion has the best backtest Sharpe, at 1.45. That comes from its latest successful run, br_mr_1, which finished 2026-10-15 on vx-engine-1.5. No newer runs for it have failed or are still pending.\n\nThese figures come from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC). Both of its groupings are certified and both returned results.\n\nPer strategy (latest successful run linked to a strategy):\n- RSI Mean Reversion: 1.45 (br_mr_1)\n- Sector Momentum: 1.31 (br_mom_1)\n- Opening Range Breakout: 0.82 (br_orb_2). One newer run has failed or hasn't finished, so this may not be its current figure.\n\nPer run spec (runs with no strategy):\n- DIA 1m, breakout entry 20 exit 10 with 200-day SMA trend filter, cost 1 bps, 2021-01-01 to 2026-09-30: 1.21 (br_free_dia_1). One newer run has failed or hasn't finished.\n- IWM 1d, SMA cross 10/30, cost 1 bps: 0.71 (br_free_iwm_2)\n- GLD 1d, SMA cross 5/20, 2% stop loss: 0.33 (br_free_gld_2)\n- GLD 1d, SMA cross 5/20, no stop: -0.12 (br_free_gld_1)\n\nThe best run with no strategy is DIA at 1.21, which is below RSI Mean Reversion.\n\nA backtest Sharpe is a research result only and doesn't authorize any trading or deployment.",
-          "inputDigest": "ce3f668ab2de4a209013e050d831dc5a799d14b78baa9855923c1584c795cd12",
+          "inputDigest": "4c97e7485439a9981ba163dc453dce1b8dc37fcf060646916ece8c2e5e26bd54",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q14",
       "recordedAt": "2026-11-20T03:37:41.969Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 2,
       "audit": "correct"
@@ -1309,7 +1428,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "9a3e764b70620f4afc1023f94ea4a38c997e07b3242e86bba7ea65ad5e08d4b4",
+          "inputDigest": "670e6f9c530de759b32b17a9f744a27fb1564f07b82cab89acf80ec302537d02",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -1320,14 +1439,16 @@
         },
         {
           "content": "RSI Mean Reversion has the best backtest Sharpe, 1.45. That comes from its latest succeeded engine run, br_mr_1 (vx-engine-1.5, finished 2026-10-15), and no newer runs of it are pending or failed. Source: the certified term backtest_sharpe (postgres, as of 2026-11-05 15:30 UTC). Both groupings of the term are certified and ran.\n\nPer strategy (engine runs linked to a strategy):\n- RSI Mean Reversion: 1.45 (br_mr_1)\n- Sector Momentum: 1.31 (br_mom_1)\n- Opening Range Breakout: 0.82 (br_orb_2). It has 1 newer run that failed or hasn't finished.\n\nPer run spec (engine runs with no strategy linked, all 2021-01-01 to 2026-09-30 at 1 bp cost):\n- DIA 1m, breakout entry 20 exit 10 with trend SMA 200, no stop or take profit: 1.21 (br_free_dia_1). It also has 1 newer run that failed or hasn't finished.\n- IWM 1d, smaCross 10/30, no stop or take profit: 0.71 (br_free_iwm_2)\n- GLD 1d, smaCross 5/20 with a 2% stop: 0.33 (br_free_gld_2)\n- GLD 1d, smaCross 5/20 with no stop: -0.12 (br_free_gld_1)\n\nThe highest Sharpe across both groupings is RSI Mean Reversion's 1.45. Notebook backtest records the agent saved are left out of this term. A backtest Sharpe doesn't authorize any trading.",
-          "inputDigest": "b61c973ef6a9bdefa19a0bb9c86355dbe9f6c614d36ecf0d000da816cb7d93d8",
+          "inputDigest": "db03f1128a2d6ef480a9f3a3664f49894cb53e539c569e79abb1404fedf000ad",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q14",
       "recordedAt": "2026-11-20T03:37:42.528Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 3,
       "audit": "correct"
@@ -1337,7 +1458,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "0d13dc969bdbb94cd5ce80ff442f1113a54c2eee6563db1f60954da612865212",
+          "inputDigest": "84aabd9b0498d9ae18cb05ba1f0a7646575874b24690df5cd5d519f9138ed493",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}}",
@@ -1348,14 +1469,16 @@
         },
         {
           "content": "The latest succeeded backtest for Opening Range Breakout (ORB) had a max drawdown of 18.9%.\n\n- Source: the certified term backtest_max_drawdown (postgres, as of 2026-11-05 15:30 UTC). The row is in the per-strategy grouping (grain: strategy).\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- There is one newer ORB run that did not succeed (it failed or hasn't finished), so the term skipped it. 18.9% comes from the latest run that completed, not from the most recent attempt.\n- No ORB rows came up in the per-run-spec grouping, which covers engine runs that aren't linked to a strategy.\n\nI can look up that newer run if you want to see its status.",
-          "inputDigest": "9617d92383cae23ec785e808db5278eba339d936c2ca79370f52fb6b1e857263",
+          "inputDigest": "6bd59fc5970a7de0a3b6744572dcb402f6eb074c72751a19ec5e8990af586585",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q15",
       "recordedAt": "2026-11-20T03:37:50.782Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}})"
       ],
@@ -1367,7 +1490,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "0d13dc969bdbb94cd5ce80ff442f1113a54c2eee6563db1f60954da612865212",
+          "inputDigest": "84aabd9b0498d9ae18cb05ba1f0a7646575874b24690df5cd5d519f9138ed493",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}}",
@@ -1378,14 +1501,16 @@
         },
         {
           "content": "The max drawdown in Opening Range Breakout's latest succeeded backtest was 18.9%.\n\n- Source: the certified term backtest_max_drawdown, read from the backtest_runs table in postgres, as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy (grain \"strategy\"). This counts engine runs linked to the strategy. The per run spec grouping, for runs with no strategy, had no matching rows.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n\nOne thing to note: there is 1 newer ORB run that didn't succeed. It failed, is still queued or running, or was cancelled. So 18.9% comes from the latest run that finished, which isn't necessarily the latest one started. If you want, I can look up that newer run's status.",
-          "inputDigest": "8d156869953e58253ee728cf2be088a79ca47b6af372ce566377b6930d39e647",
+          "inputDigest": "d57b3f157145afb0bf7acb7fe3f2554bb36155e551f569a2b5eb91fed7f00c0e",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q15",
       "recordedAt": "2026-11-20T03:37:51.315Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}})"
       ],
@@ -1397,7 +1522,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "0d13dc969bdbb94cd5ce80ff442f1113a54c2eee6563db1f60954da612865212",
+          "inputDigest": "84aabd9b0498d9ae18cb05ba1f0a7646575874b24690df5cd5d519f9138ed493",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}}",
@@ -1408,14 +1533,16 @@
         },
         {
           "content": "The latest succeeded backtest for Opening Range Breakout (ORB) had a max drawdown of 18.9%.\n\n- Source: the certified term backtest_max_drawdown (postgres, as of 2026-11-05 15:30 UTC). The row is in the per-strategy grouping, which covers engine runs linked to a strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- One newer ORB run did not succeed, so 18.9% is from the latest successful run, not the newest run. I can look up why that newer run didn't succeed if you'd like.\n- No runs without a strategy matched ORB.",
-          "inputDigest": "d72999125ea9c866b65530885b62be3d9e6f63df5cb338d1b24604a0a9851ce1",
+          "inputDigest": "424494b5118357c896cb0dfa6cfe6c335be5f22f8c1c40336267b1f6e643b5e4",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q15",
       "recordedAt": "2026-11-20T03:37:49.243Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"ORB\"}})"
       ],
@@ -1427,7 +1554,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "bd1b521c9833ab8d7a308a9085fd85c6e25255feaece9c6bc4da4a399c5905af",
+          "inputDigest": "00ab37374b182eab5509159b5fd8767da3023cb977a75e0d3f2b379051c29d86",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\"}",
@@ -1438,14 +1565,16 @@
         },
         {
           "content": "Yes. Three backtests have a max drawdown worse than 20%. Values come from the certified term backtest_max_drawdown (source: postgres, as of 2026-11-05 15:30 UTC). Each value is from the latest succeeded engine run in its group.\n\nPer strategy (runs linked to a strategy):\n- Sector Momentum: 22.5% (run br_mom_1, finished 2026-10-28)\n\nPer run spec (runs with no strategy):\n- GLD 1d, smaCross fast 5 slow 20, no stop loss, no take profit, 1 bp cost, 2021-01-01 to 2026-09-30: 41.2% (run br_free_gld_1)\n- IWM 1d, smaCross fast 10 slow 30, no stop loss, no take profit, 1 bp cost, same dates: 25.8% (run br_free_iwm_2, the latest of 2 succeeded runs in this spec)\n\nThe rest are under 20%:\n- Opening Range Breakout (per strategy): 18.9%. A newer run for this strategy did not succeed, so this figure may not reflect its current version.\n- GLD smaCross 5/20 with a 2% stop loss (per run spec): 15.2%. Adding the stop cut drawdown from 41.2% to 15.2% on the same dates.\n- RSI Mean Reversion (per strategy): 9.8%\n- DIA 1m breakout 20/10 with a 200 SMA trend filter (per run spec): 8.3%. This spec also has one newer run that did not succeed.\n\nBoth groups are certified and returned rows, so none are waiting on certification. Agent notebook backtest records are not included in this term.",
-          "inputDigest": "55e38d4180361bc50b97730dcf4660c86fbfda44b9fd8f85295f785419fb714c",
+          "inputDigest": "6da10c3a8494638e3cad989f35934ed9388d82de9ac3dd8dd0423343a909c00d",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q16",
       "recordedAt": "2026-11-20T03:37:53.901Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 1,
       "audit": "correct"
@@ -1455,7 +1584,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "bd1b521c9833ab8d7a308a9085fd85c6e25255feaece9c6bc4da4a399c5905af",
+          "inputDigest": "00ab37374b182eab5509159b5fd8767da3023cb977a75e0d3f2b379051c29d86",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\"}",
@@ -1466,14 +1595,16 @@
         },
         {
           "content": "Yes. One strategy and two strategy-less run specs have a max drawdown worse than 20%. Source: the certified term backtest_max_drawdown (postgres, as of 2026-11-05 15:30 UTC). It uses the latest succeeded engine run only. Agent notebook records are not included. Both groupings are certified and both ran.\n\nPer strategy (engine runs linked to a strategy):\n- Sector Momentum: 22.5% (run br_mom_1, finished 2026-10-28). This is the only linked strategy above 20%.\n- Opening Range Breakout: 18.9% (br_orb_2), under the cutoff. One newer run of it has not succeeded, so 18.9% comes from the last good run, not the newest attempt.\n- RSI Mean Reversion: 9.8% (br_mr_1).\n\nPer run spec (engine runs with no strategy):\n- GLD 1d, smaCross fast 5 slow 20, no stop, 1 bp cost, 2021-01-01 to 2026-09-30: 41.2% (br_free_gld_1). The same spec with a 2% stop loss (br_free_gld_2) drops to 15.2%.\n- IWM 1d, smaCross fast 10 slow 30, no stop, 1 bp cost, same dates: 25.8% (br_free_iwm_2, latest of 2 succeeded runs in that spec).\n- DIA 1m, breakout entry 20 exit 10 trend SMA 200: 8.3% (br_free_dia_1). One newer run of this spec has not succeeded.\n\nThese are backtest figures for research only and don't authorize any trade.",
-          "inputDigest": "1019a9af1e0848361d1e031b04d919ab5e28184ba971bb60f62043a2810e1945",
+          "inputDigest": "cd64ad3f1a30a659571ff47fcbf418480ed9bfe9d5ff4d375f72a7f40b3cbcd2",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q16",
       "recordedAt": "2026-11-20T03:37:59.556Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 2,
       "audit": "correct"
@@ -1483,7 +1614,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "bd1b521c9833ab8d7a308a9085fd85c6e25255feaece9c6bc4da4a399c5905af",
+          "inputDigest": "00ab37374b182eab5509159b5fd8767da3023cb977a75e0d3f2b379051c29d86",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\"}",
@@ -1494,14 +1625,16 @@
         },
         {
           "content": "Yes. Using the certified term backtest_max_drawdown (source: postgres, as of 2026-11-05 15:30 UTC), each row is the latest succeeded engine run. Agent notebook records are not included. Both groupings are certified and both ran.\n\nPer strategy grouping (engine runs linked to a strategy):\n- Sector Momentum: 22.5% (run br_mom_1, finished 2026-10-28). This is the only strategy over 20%.\n- Opening Range Breakout: 18.9% (br_orb_2), under 20%. One newer run of this strategy did not succeed, so this number may not reflect the latest attempt.\n- RSI Mean Reversion: 9.8% (br_mr_1)\n\nPer run spec grouping (engine runs with no strategy):\n- GLD 1d, smaCross fast 5 slow 20, no stop, 1 bps cost, 2021-01-01 to 2026-09-30: 41.2% (br_free_gld_1)\n- IWM 1d, smaCross fast 10 slow 30, no stop, 1 bps cost, same dates: 25.8% (br_free_iwm_2, latest of 2 succeeded runs)\n- The same GLD spec with a 2% stop loss: 15.2% (br_free_gld_2), under 20%\n- DIA 1m, breakout entry 20 exit 10 trend SMA 200: 8.3% (br_free_dia_1). One newer run of this spec did not succeed.\n\nSo three latest results are worse than 20%. Only Sector Momentum is a library strategy; the GLD and IWM runs are tests not linked to any strategy. On GLD, adding the 2% stop cut the drawdown from 41.2% to 15.2% on the same dates.",
-          "inputDigest": "bd5a91d9db19ead80465f1e904ba63f59a2c66f6c10c97f19f2bbac59cbd3490",
+          "inputDigest": "2bb40fd778133d0ae41ad72c33de8fedfc6e2d0fc5dcce790f1003c870fdc28e",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q16",
       "recordedAt": "2026-11-20T03:38:01.135Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 3,
       "audit": "correct"
@@ -1511,7 +1644,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "da0b4f96542bb7594bb9662225f1746c3a60b4ea4af1ea91e1e257d5a98bac61",
+          "inputDigest": "3464dc5b7c55acb29b1c929ff4b17d2edbbaf2db16f1fd6222c68a3af147eb5e",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1522,7 +1655,7 @@
         },
         {
           "content": "",
-          "inputDigest": "5cb9e81a42a3259269a90002226f3e75d8f89aa43e373fe09a93f66abb6e37bd",
+          "inputDigest": "e742da5279ccf72cb9fbad865dfb3ce9a37519eac3129c8a1666d8fea1866b62",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}}",
@@ -1533,14 +1666,16 @@
         },
         {
           "content": "Yes. One paper deployment request is waiting for you (certified term deployment_request, source postgres, grouping per request, as of 2026-11-05 15:30 UTC):\n\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, mode paper. Status is requested, which means it is waiting for you. It was requested on 2026-11-04 at 15:00 UTC and has no decision or decision note yet.\n\nI'm in Plan mode, so I can't approve or reject it, and none of my tools can make that decision anyway. If you'd like, I can pull the strategy's certified backtest Sharpe and max drawdown or its drift status before you decide.",
-          "inputDigest": "30caf329e46241c781acbe9ee38d6966043b3433393d788fda7ab5b6966d46a4",
+          "inputDigest": "977b8fc647c64ce461132fea291b22cc5e48688248f35fd29fea8d15010c7b3f",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q17",
       "recordedAt": "2026-11-20T03:38:02.174Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}})"
@@ -1553,7 +1688,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "da0b4f96542bb7594bb9662225f1746c3a60b4ea4af1ea91e1e257d5a98bac61",
+          "inputDigest": "3464dc5b7c55acb29b1c929ff4b17d2edbbaf2db16f1fd6222c68a3af147eb5e",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1564,7 +1699,7 @@
         },
         {
           "content": "",
-          "inputDigest": "32b7d7cdd8aaa738849abae5352453b295450da26b69064d23a16af5a2d53315",
+          "inputDigest": "c4ca6b705c8709f00082cc090aa67985b7e97c9a0140c3b60d0c884151f4af79",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}}",
@@ -1575,14 +1710,16 @@
         },
         {
           "content": "Yes, one paper deployment request is waiting for you. This comes from the certified term deployment_request (source: postgres, request grouping, as of 2026-11-05 15:30 UTC):\n\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode. Status is requested, meaning it is waiting for you. It was requested on 2026-11-04 at 15:00 UTC and has no decision or note yet.\n\nI can't approve or reject it from here. No tool here can do that, and I'm in read-only Plan mode. If it helps you decide, I can pull the certified backtest Sharpe and max drawdown for Opening Range Breakout, or its drift status.",
-          "inputDigest": "dee6a5ab68d98ebc912fc8e0ae12478740f93383149b4f8c06e4e8c4d7421481",
+          "inputDigest": "892e0a9715099b0e6cbd81518a15bfe68131e2bc0b3584f669ff9fd5c22aacc7",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q17",
       "recordedAt": "2026-11-20T03:38:04.778Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}})"
@@ -1595,7 +1732,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "da0b4f96542bb7594bb9662225f1746c3a60b4ea4af1ea91e1e257d5a98bac61",
+          "inputDigest": "3464dc5b7c55acb29b1c929ff4b17d2edbbaf2db16f1fd6222c68a3af147eb5e",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1606,7 +1743,7 @@
         },
         {
           "content": "",
-          "inputDigest": "7e8a794257baecd492819514295514662f4408b69253a3c974b6dd2e2c9a5c45",
+          "inputDigest": "17550256f4655f40f0b8213236bceec06c8f3185c9115fdcaa5efd83ff48fa11",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}}",
@@ -1617,14 +1754,16 @@
         },
         {
           "content": "Yes, one paper deployment request is waiting for you:\n\n- Request d1: Opening Range Breakout on SPY, 5m timeframe, paper mode. Status is requested, meaning it's waiting for your decision. It was submitted on 2026-11-04 at 15:00 UTC and has no decision or note yet.\n\nSource: certified term deployment_request (postgres, request grouping), as of 2026-11-05 15:30 UTC.\n\nI'm in Plan mode and can only read data, and no tool here can approve or reject a deployment. You'll need to make that decision yourself through the normal approval path. If you'd like, I can pull the latest backtest Sharpe and max drawdown for Opening Range Breakout, or its drift status, before you decide.",
-          "inputDigest": "64e927d20a0f8500ce09974b1a598c51c186d7f585055685ed2b446a7d777038",
+          "inputDigest": "4ef0209fe7ad72e312fe23e9668989c3e9e4af4cc46e5948dff7781365b277a0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q17",
       "recordedAt": "2026-11-20T03:38:09.999Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"requested\"}})"
@@ -1637,7 +1776,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "42e51c05c8d594819ee54a3f1edada56c4f25aca73e10b4ec0866762d72ef47b",
+          "inputDigest": "ea55ca200be2eb96c5b32cd2a17b6b34c5a82455533d038d7c52363943cbf76f",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1648,7 +1787,7 @@
         },
         {
           "content": "",
-          "inputDigest": "a54834f67bd6e3eb6cc49bda6f30d1cca4134aef9399441b00388f1f63f1761f",
+          "inputDigest": "4f607f4923720987841d7c76c94701ffb225d954055d76f37a9c1c93b2aa1653",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}}",
@@ -1659,14 +1798,16 @@
         },
         {
           "content": "The last strategy you approved for paper trading was Sector Momentum.\n\n- Request d2: XLK, 1d timeframe, paper mode\n- Requested 2026-10-29 15:00 UTC; you approved it 2026-10-30 13:00 UTC\n- No decision note was recorded\n\nThis comes from the certified term deployment_request (source: postgres, grouping: per request, as of 2026-11-05 15:30 UTC). It is the only approved request in the ledger.",
-          "inputDigest": "c25ee1f9895e22d04b17dfe997b9d09acb74741ae0a18c59571d9d55240b28f9",
+          "inputDigest": "f98839ef8d35ffbb6faeb57b7c372182d73091f1c76c23db8feb5be56647207c",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q18",
       "recordedAt": "2026-11-20T03:38:11.550Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}})"
@@ -1679,7 +1820,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "42e51c05c8d594819ee54a3f1edada56c4f25aca73e10b4ec0866762d72ef47b",
+          "inputDigest": "ea55ca200be2eb96c5b32cd2a17b6b34c5a82455533d038d7c52363943cbf76f",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1690,7 +1831,7 @@
         },
         {
           "content": "",
-          "inputDigest": "5f410c33a76e9160b6fb89a8f0f2d7651b7fc3d578a7be93f4d18f72115994fd",
+          "inputDigest": "19c6331cade06880d512972857ced1a0d45686db300b29ebe21f0afddd1d54d7",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}}",
@@ -1701,14 +1842,16 @@
         },
         {
           "content": "The last strategy you approved for paper trading is Sector Momentum, on XLK with a 1d timeframe in paper mode.\n\n- Request d2\n- Requested 2026-10-29 15:00 UTC\n- You approved it 2026-10-30 13:00 UTC\n- No decision note was recorded\n\nThis comes from the certified term deployment_request (Paper deployment request), filtered to approved requests, grouped per request, from postgres, as of 2026-11-05 15:30 UTC. It's the only approved request in the ledger. Approving a request for paper trading does not authorize live trading.",
-          "inputDigest": "e4be7c2e40d7ef975101de47a7960e6c273c919854439e09264a0914e6809f60",
+          "inputDigest": "32cd398ee66f354c732e534e191ee55e3e411cb71b0674b286acffd6d540c943",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q18",
       "recordedAt": "2026-11-20T03:38:12.595Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}})"
@@ -1721,7 +1864,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "42e51c05c8d594819ee54a3f1edada56c4f25aca73e10b4ec0866762d72ef47b",
+          "inputDigest": "ea55ca200be2eb96c5b32cd2a17b6b34c5a82455533d038d7c52363943cbf76f",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1732,7 +1875,7 @@
         },
         {
           "content": "",
-          "inputDigest": "1ba78c79201cdd8bcf423d9f0e20487f3dec14b257e7632ae0ee6c1a46b99dfc",
+          "inputDigest": "099b00bad74f486af606c1d3c601488e339b63fe38bce8cf2e542d03aa5aec28",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}}",
@@ -1743,14 +1886,16 @@
         },
         {
           "content": "The last strategy you approved for paper trading is Sector Momentum, on XLK with a 1d timeframe, in paper mode.\n\n- Request id: d2\n- Requested 2026-10-29 15:00 UTC, you approved it 2026-10-30 13:00 UTC\n- No decision note was recorded\n\nThis is the only approved request on record. The numbers come from the certified term deployment_request (source: postgres, one row per request, as of 2026-11-05 15:30 UTC). Approving a paper request doesn't approve live trading.",
-          "inputDigest": "c2f735b98d0b7bbf24f12e52c3f60b8f3fc33e4d277f2b2e244f71e3f155cade",
+          "inputDigest": "34b1e55cb5f4b97615625114acc734d00686b98905da32f842f629c8fd8bbe7c",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q18",
       "recordedAt": "2026-11-20T03:38:16.235Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"deployment_request\",\"params\":{\"status\":\"approved\"}})"
@@ -1763,7 +1908,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "f7191f739e0c51c5a646a9942bd4c96021e57d88fdee5b5bc25a55f77fab7c8c",
+          "inputDigest": "ae7a59c7d6f64172e0573d9012c28f963301a526c62d94610b2439aa8f916513",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1779,7 +1924,7 @@
         },
         {
           "content": "",
-          "inputDigest": "53e74521e5286a9355fcf5278647510e6803ce3706c9ca0cb49f94a12d3b0382",
+          "inputDigest": "254326ea4fef9d347796c975c2156da35c7a4f5ca69969ea446fdec3ce039647",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1790,14 +1935,16 @@
         },
         {
           "content": "Yes. Two of the three paper strategies are drifting from their baseline backtests. Levels come from the certified term drift_level (source: postgres, grain: monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (\"ORB paper forward\", baseline run br_orb_2, paper running): ALERT. drift_status shows three open alerts, none acknowledged, over 13 forward trades:\n  - Profit factor: 0.37 forward vs 1.20 baseline (ratio 0.31; the alert line is 0.5)\n  - Sharpe: -7.28 forward vs 0.39 baseline (ratio -18.72; the alert line is 0)\n  - Win rate: 23.08% forward vs 52.00% baseline (ratio 0.44; the alert line is 0.6)\n- Sector Momentum (\"Sector momentum paper forward\", baseline run br_mom_1, paper running): WARN. Max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08; warn at 1, alert at 1.5). This is based on only 3 forward trades, so treat it as a weak signal.\n- RSI Mean Reversion (\"RSI MR paper forward\", baseline run br_mr_1): OK. Its paper runner is off.\n\nNote that the ORB Sharpe comes from just 25 forward points and 13 trades, so it is noisy. Even so, all three of its checks agree.\n\nI'm in Plan mode and can only read the ledger. If you want, I can pull the full check details for the ORB monitor (drift_monitor_get m_orb) or compare against its baseline run br_orb_2. Acknowledging alerts or pausing the paper runner would happen outside these tools.",
-          "inputDigest": "1c6314a72e1c02944bdc7b3721807d22dc9a3f0bbf503be6a15933c44510ae4c",
+          "inputDigest": "04f5f3a3268bd92b6d6e2831f9923e9cda625cedda0101e02625a47546c26f94",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q19",
       "recordedAt": "2026-11-20T03:38:23.961Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20})",
@@ -1811,7 +1958,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "f7191f739e0c51c5a646a9942bd4c96021e57d88fdee5b5bc25a55f77fab7c8c",
+          "inputDigest": "ae7a59c7d6f64172e0573d9012c28f963301a526c62d94610b2439aa8f916513",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1827,7 +1974,7 @@
         },
         {
           "content": "",
-          "inputDigest": "dcadb5e4beb656ecb1a609b92f877aac6611d07f2ae2b6c4bbb084b578c80c82",
+          "inputDigest": "bb607e215079eee135ce020d2b802a5989fbb5ba9484410bc36ddf0686af71b2",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1838,14 +1985,16 @@
         },
         {
           "content": "Yes, two of the three paper strategies are drifting. Levels come from the certified term drift_level (postgres, grouped per monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout (\"ORB paper forward\", baseline run br_orb_2): alert, paper runner running. It has 13 forward trades and three open alerts, none acknowledged yet:\n  - Profit factor 0.37 forward vs 1.20 baseline (ratio 0.31; the alert line is 0.5)\n  - Sharpe -7.28 forward vs 0.39 baseline (ratio -18.72; the alert line is 0)\n  - Win rate 23.08% forward vs 52.00% baseline (ratio 0.44; the alert line is 0.6)\n- Sector Momentum (\"Sector momentum paper forward\", baseline br_mom_1): warn, running. Max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08; warn at 1, alert at 1.5). It has only 3 forward trades, so this is an early reading.\n- RSI Mean Reversion (\"RSI MR paper forward\", baseline br_mr_1): ok, but its paper runner is off, so it isn't collecting new forward data.\n\nThe alert details come from drift_status, which uses paper data only. ORB is clearly underperforming its backtest on several measures at once. Its sample is still small (13 trades), so it's worth looking at whether this is a regime change, an execution difference or a broken assumption.\n\nNext, I could open the ORB monitor's checks with drift_monitor_get and compare the baseline run br_orb_2. Acknowledging alerts or changing a runner needs Act mode, and I can't change deployments or risk settings.",
-          "inputDigest": "e02bf992131940fb734b4df6791266e476986083a656cbfa4ccc9b2c1642232d",
+          "inputDigest": "e43dd32d277262b1ca5d2996c85fdf5f0e41adcddf57db9b6ba14b412b5777ed",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q19",
       "recordedAt": "2026-11-20T03:38:26.531Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20})",
@@ -1859,7 +2008,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "f7191f739e0c51c5a646a9942bd4c96021e57d88fdee5b5bc25a55f77fab7c8c",
+          "inputDigest": "ae7a59c7d6f64172e0573d9012c28f963301a526c62d94610b2439aa8f916513",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1875,7 +2024,7 @@
         },
         {
           "content": "",
-          "inputDigest": "504bb4e9594674731838d89fda142e1c1c7578dad5ebb8af65abd9cf12ffe6be",
+          "inputDigest": "571dfff40f67f057519dac7118d0ba444e54c18c2db7303faacedef6cb65be49",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"all\"}}",
@@ -1886,14 +2035,16 @@
         },
         {
           "content": "Yes. Two of the three paper strategies are drifting from their baseline backtests. This comes from the certified term drift_level (source: postgres, grain: monitor, as of 2026-11-05 15:30 UTC). The check values are from the open alerts in drift_status.\n\n- Opening Range Breakout (\"ORB paper forward\", baseline run br_orb_2, paper running): level alert. 3 checks have open alerts, based on 13 forward trades:\n  - Profit factor is 0.37 forward vs 1.20 in the backtest (ratio 0.31, alert at 0.5).\n  - Sharpe is -7.28 forward vs 0.39 (alert at 0).\n  - Win rate is 23.08% forward vs 52.00% (ratio 0.44, alert at 0.6).\n- Sector Momentum (\"Sector momentum paper forward\", baseline br_mom_1, paper running): level warn. Max drawdown is 24.37% forward vs 22.50% in the backtest (ratio 1.08, warn at 1, alert at 1.5). Only 3 trades so far, so read this with caution.\n- RSI Mean Reversion (\"RSI MR paper forward\", baseline br_mr_1): level ok. Its paper runner is off, though, so it isn't collecting new forward data.\n\nNone of the alerts have been acknowledged. This is paper data only and doesn't touch the live account.\n\nThe ORB drift is the one to look at first. In Act mode I could record a review task for it, for example to compare recent paper trades with the br_orb_2 baseline. In Plan mode I can't record anything. Switch to Act mode if you want that.",
-          "inputDigest": "abb565a2a620a0b29c56f0ef905409a7f86ef6ce5b0bc4f317eaab8ebd86049c",
+          "inputDigest": "2822c7b51203d754974f73e8a2925ea8c038b54506325321d93261fc3cf47316",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q19",
       "recordedAt": "2026-11-20T03:38:25.498Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":20})",
@@ -1907,7 +2058,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "48cc996e632f3e5ec5123f08a1df2278940b0cc79c0fb85c9b53e7adef796fcc",
+          "inputDigest": "fdf80356f3640ffeeaf01fa3747f4107c9d82156da277db0d94955e858b78f13",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1923,7 +2074,7 @@
         },
         {
           "content": "",
-          "inputDigest": "b97a65cbb91f4e5037eeef1dfd895ec1b94d99879254eebbab03f25eb59d7020",
+          "inputDigest": "1617ec42358cb39c9b1e897ce3c7587901aa8cca735b3e1c5b2f21adbbd15cdc",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1934,14 +2085,16 @@
         },
         {
           "content": "Only one drift monitor is in alert: \"ORB paper forward\". This comes from the certified term drift_level (source postgres, grouping per monitor, as of 2026-11-05T15:30:05Z).\n\n- Strategy: Opening Range Breakout. Baseline run: br_orb_2. Paper runner: running. Last updated 2026-11-05T14:00Z, with 13 forward trades.\n- Three alerts are open on it, from drift_status, and none has been acknowledged:\n  - Profit factor: forward 0.37 vs baseline 1.20 (ratio 0.31; alert at 0.5)\n  - Sharpe: forward -7.28 vs baseline 0.39 (ratio -18.72; alert at 0)\n  - Win rate: forward 23.08% vs baseline 52.00% (ratio 0.44; alert at 0.6)\n\nThe other monitors:\n- \"Sector momentum paper forward\" is at warn, not alert. Its forward max drawdown is 24.37% vs a 22.50% baseline (ratio 1.08; warn at 1, alert at 1.5), with only 3 trades.\n- \"RSI MR paper forward\" is ok, and its paper runner is off.\n\nDrift levels are measured on paper data only and say nothing about the live account. If you want the ORB checks in more detail, I can pull them with drift_monitor_get on m_orb. Acknowledging alerts or pausing the paper runner would be changes, which need Act mode and a decision from you.",
-          "inputDigest": "076c311f4adb0becb9defde98a3bda1bff2a6b3048c9c5adf20f0add1c39e6c0",
+          "inputDigest": "1c478db9e970694495a2f477b633b98a3776da98ca3c9028ca7bb5e05bb48278",
           "toolCalls": []
         }
       ],
       "grade": "wrong",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q20",
       "recordedAt": "2026-11-20T03:38:29.622Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50})",
@@ -1955,7 +2108,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "48cc996e632f3e5ec5123f08a1df2278940b0cc79c0fb85c9b53e7adef796fcc",
+          "inputDigest": "fdf80356f3640ffeeaf01fa3747f4107c9d82156da277db0d94955e858b78f13",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -1971,7 +2124,7 @@
         },
         {
           "content": "",
-          "inputDigest": "59d4935a77fb55d3e10a99d50a54e443f0204ee3b91fa54ccc8f7f4d7f570c27",
+          "inputDigest": "3e44d57b7f55829c4282f12e77117c095684e0ccf1b8eb2304e25dacac815d38",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -1982,14 +2135,16 @@
         },
         {
           "content": "Only one drift monitor is at alert: \"ORB paper forward\". That comes from the certified term drift_level (source postgres, grouped per monitor, as of 2026-11-05 15:30 UTC).\n\n- Strategy: Opening Range Breakout. Baseline run br_orb_2. The paper runner is still running. Last updated 2026-11-05 14:00 UTC, with 25 points and 13 trades.\n- Open alerts from drift_status, none acknowledged yet:\n  - Profit factor: forward 0.37 vs baseline 1.20 (ratio 0.31; the alert line is 0.5)\n  - Sharpe: forward -7.28 vs baseline 0.39 (ratio -18.72; the alert line is 0)\n  - Win rate: forward 23.08% vs baseline 52.00% (ratio 0.44; the alert line is 0.6)\n\nThe other two monitors are not at alert:\n- \"Sector momentum paper forward\" is at warn. Its max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08; warn starts at 1, alert at 1.5). It has only 3 trades so far.\n- \"RSI MR paper forward\" is ok, and its paper runner is off.\n\nAll of this is paper forward data only.\n\nI'm in Plan mode, so I can't change anything. Next I could look at the ORB monitor's detailed checks or its baseline run. If you want something recorded, like acknowledging the alerts or opening a review task, switch to Act mode.",
-          "inputDigest": "e101a4b0609f3315c2ea8e4f09fb49d12ed12904590b4bc593caebf967ec96ec",
+          "inputDigest": "baff4d89f4916e598dc8a9177bc29a554206ce1aaee203b4c574ccdbe5be089c",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q20",
       "recordedAt": "2026-11-20T03:38:37.443Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50})",
@@ -2003,7 +2158,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "48cc996e632f3e5ec5123f08a1df2278940b0cc79c0fb85c9b53e7adef796fcc",
+          "inputDigest": "fdf80356f3640ffeeaf01fa3747f4107c9d82156da277db0d94955e858b78f13",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2019,7 +2174,7 @@
         },
         {
           "content": "",
-          "inputDigest": "77e3cf4703581e3f095b5740087008a6f43a7b0dcd0ed81e9b5becf61f965bfd",
+          "inputDigest": "d20c240d70c122e1360b5b15350012a2d4ec155c6175f15b8ea7b1a25a12dcb9",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"drift_level\",\"params\":{\"level\":\"alert\"}}",
@@ -2030,14 +2185,16 @@
         },
         {
           "content": "Only one drift monitor is in alert: ORB paper forward, which tracks the Opening Range Breakout strategy. This comes from the certified term drift_level (Paper forward drift level), source postgres, grouping per monitor, as of 2026-11-05 15:30 UTC.\n\n- ORB paper forward (m_orb): baseline run br_orb_2, paper runner running, 13 trades, last updated 2026-11-05 14:00 UTC.\n\ndrift_status shows three open alerts for it, none acknowledged:\n- Profit factor: forward 0.37 vs baseline 1.20. The ratio is 0.31, below the 0.5 alert line.\n- Sharpe: forward -7.28 vs baseline 0.39. The ratio is -18.72, below the 0 alert line.\n- Win rate: forward 23.08% vs baseline 52.00%. The ratio is 0.44, below the 0.6 alert line.\n\nThe forward sample is only 13 trades, so these figures are noisy.\n\nThe other monitors aren't in alert:\n- Sector momentum paper forward is at warn. Its max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08; warn starts at 1, alert at 1.5).\n- RSI MR paper forward is ok, and its paper runner is off.\n\nAll of this is paper data only. Acknowledging the alerts or pausing the ORB paper runner would need Act mode.",
-          "inputDigest": "79c87b19ea8b0eb1359e5fc5467c92d5a2c01af53266a3f9e0be6ed177ed5d53",
+          "inputDigest": "63b4c099f3b65f1c5a00ee5bcb7ea69c12e40ba285f3477b71d2351bb10d8263",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "Q20",
       "recordedAt": "2026-11-20T03:38:37.974Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "drift_status({\"limit\":50})",
@@ -2051,7 +2208,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "e0dd2d08234888727ff540ac07b75e180bd2431bdba513634e477e34e410292a",
+          "inputDigest": "0ad2005ffd1654f4c11435e050ce9423d30125c0881d5cc1ed0f324d899c833a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -2062,14 +2219,16 @@
         },
         {
           "content": "Your live IBKR account's net liquidation value is 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term net_liquidation, read from the vertex-portfolio feed (summary.netLiquidation). It's the owner's live account, not the paper exec node.",
-          "inputDigest": "b20427c961d591e9d1dcc6cf67eaa0525a97144acf90c75fbeb37598b16a9c9d",
+          "inputDigest": "8bfccfd9327b64e7bf0841146be53a4cec9bbd816453af7b6172220ece322986",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H1",
       "recordedAt": "2026-11-20T03:38:33.843Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 1,
       "audit": "correct"
@@ -2079,7 +2238,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "e0dd2d08234888727ff540ac07b75e180bd2431bdba513634e477e34e410292a",
+          "inputDigest": "0ad2005ffd1654f4c11435e050ce9423d30125c0881d5cc1ed0f324d899c833a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -2090,14 +2249,16 @@
         },
         {
           "content": "Your live IBKR account has a net liquidation value of 248,350.12 USD as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term net_liquidation, read from the vertex-portfolio feed (summary.netLiquidation). It's your live account, not the paper exec node.",
-          "inputDigest": "64d8ba2dccf408bdc4e480c11e6040b571bb83603bfa26f4fdd0c9bb50233d39",
+          "inputDigest": "b131caed37d330c4129ebf6b780c0cf886e852c71fd19a6ce788be17698a1fd9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H1",
       "recordedAt": "2026-11-20T03:38:36.388Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 2,
       "audit": "correct"
@@ -2107,7 +2268,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "e0dd2d08234888727ff540ac07b75e180bd2431bdba513634e477e34e410292a",
+          "inputDigest": "0ad2005ffd1654f4c11435e050ce9423d30125c0881d5cc1ed0f324d899c833a",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"net_liquidation\"}",
@@ -2118,14 +2279,16 @@
         },
         {
           "content": "Your live IBKR account has a net liquidation value of 248,350.12 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term net_liquidation, read from the vertex-portfolio feed (summary.netLiquidation). It doesn't include the paper exec node's equity.",
-          "inputDigest": "6198b66678402c56153d4bccf0387455cdd06ff8000cbaa88d82339ade593f74",
+          "inputDigest": "5644eed3644d9810d4e9b70cbafb0fb1afde72546a917dbcdaf8a93602786e2f",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H1",
       "recordedAt": "2026-11-20T03:38:40.013Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"net_liquidation\"})"],
       "trial": 3,
       "audit": "correct"
@@ -2135,7 +2298,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "21ca333e4c2dde73508bee43a9e3fde222b4da6300ff26a3b34804482485d06c",
+          "inputDigest": "85bd19ff1eb3391df50e131d2219e79f732980eab5d6c8e2d288acfa6b4b416d",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2146,7 +2309,7 @@
         },
         {
           "content": "",
-          "inputDigest": "0dca523df023bb2e218c8ee85d3ff36604ab61158f929625579f57eea483b549",
+          "inputDigest": "acfa399a171e6b5eefe1cc7d9eafe8d1a2237fb3af583cc9390d242c7a10c82c",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}}",
@@ -2167,14 +2330,16 @@
         },
         {
           "content": "No. On the certified numbers, your NVDA option premium is above 2% of NLV.\n\nCertified terms used, all from the vertex-portfolio feed for the live IBKR account, as of 2026-11-05 15:30 UTC:\n- position (NVDA, OPT): 5 contracts of NVDA 20261218 200 C. Average price 12.50, cost basis 6,250 USD, last 13.52, market value 6,760 USD, unrealized +510 USD.\n- net_liquidation: 248,350.12 USD. 2% of that is about 4,967 USD.\n- open_risk: the NVDA long call's defined maximum loss is 6,250 USD (the debit paid). Total open options risk is 11,830 USD across 3 structures, 4.76% of NLV.\n\nMy arithmetic from those values:\n- Premium paid: 6,250 / 248,350.12 = about 2.52% of NLV. That is about 1,283 USD over the cap.\n- Current market value: 6,760 = about 2.72% of NLV.\n\nCaveats:\n- The expiry is 2026-12-18, about 43 days out. Whether that counts as short-dated depends on your rule. No certified term in Vertex defines the 2% cap or a short-dated cutoff, so I applied the cap as you stated it.\n- This is a research check only. I can't change positions or risk settings, and Plan mode records nothing. Any trim would be your decision, made in your broker.",
-          "inputDigest": "da88b866659e21beb7ff65c583e293e3ef7ae023588733a468f6eacb7ce8bc54",
+          "inputDigest": "df8d7717f040949b0899a15a0ce61ffe737e145ad52cabd0f9cf9571d1c891ff",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H2",
       "recordedAt": "2026-11-20T03:46:26.627Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}})",
@@ -2189,7 +2354,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "21ca333e4c2dde73508bee43a9e3fde222b4da6300ff26a3b34804482485d06c",
+          "inputDigest": "85bd19ff1eb3391df50e131d2219e79f732980eab5d6c8e2d288acfa6b4b416d",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2210,7 +2375,7 @@
         },
         {
           "content": "",
-          "inputDigest": "05e1fc0d3e0398c0e4032c7647d1d5e6730e6d64ae7ac7007c6f0fbe59e604c2",
+          "inputDigest": "c36e9ac6446f128859d5b5ac907eb067b867ae1284a2d63608539906acf5467b",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}}",
@@ -2226,14 +2391,16 @@
         },
         {
           "content": "No. The NVDA premium is above 2% of NLV, by these certified live-account terms (vertex-portfolio feed, as of 2026-11-05 15:30 UTC):\n\n- net_liquidation: NLV is 248,350.12 USD. 2% of that is about 4,967 USD.\n- position (NVDA, OPT): 5 contracts of the NVDA 20261218 200 C. Average price 12.50, cost basis 6,250 USD, market value 6,760 USD.\n- open_risk: this is a long call, so its defined maximum loss is the 6,250 USD paid.\n\nPremium paid of 6,250 USD is about 2.52% of NLV, about 1,283 USD over the 2% cap. At today's market value of 6,760 USD it is about 2.72%.\n\nThings to keep in mind:\n- The option expires on 2026-12-18, 43 days from today. Whether that counts as short-dated depends on how your rule defines it. The ledger has no certified term for the 2% cap or its expiry window, so I did the check by hand from the numbers above.\n- Across all open options (QQQ credit spread, NVDA call, SPY put), open_risk is 11,830 USD, or 4.76% of NLV.\n\nThis is a research check only. I can't change positions or risk settings, and nothing here is a trade instruction.",
-          "inputDigest": "5fb85cabfa4a457db9d415455f5094ad7280855de03693b7735bc71f8234280e",
+          "inputDigest": "9690536c85484726245f7d33f70ad6995d7c0cd9f5f85c41c17f5851f10c78e1",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H2",
       "recordedAt": "2026-11-20T03:46:18.106Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"open_risk\",\"params\":{\"symbol\":\"NVDA\"}}) failed",
@@ -2249,7 +2416,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "21ca333e4c2dde73508bee43a9e3fde222b4da6300ff26a3b34804482485d06c",
+          "inputDigest": "85bd19ff1eb3391df50e131d2219e79f732980eab5d6c8e2d288acfa6b4b416d",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2260,7 +2427,7 @@
         },
         {
           "content": "",
-          "inputDigest": "dbcc04d380aa21881fe9f23d9e2c592790c8bff51315f6481e1fdf690fd04a1e",
+          "inputDigest": "7d2d3d9b5acb086c919068100f21fc33af294b20bb28e667f13130b5eb9ee4a4",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}}",
@@ -2281,14 +2448,16 @@
         },
         {
           "content": "No. On premium paid, your NVDA option position is above 2% of NLV.\n\n- Position (certified term position, vertex-portfolio feed, as of 2026-11-05 15:30 UTC): 5 contracts of NVDA 20261218 200 C. Average price 12.50, cost basis 6,250 USD, last price 13.52, market value 6,760 USD.\n- NLV (certified term net_liquidation, same feed and time): 248,350.12 USD.\n- Open options risk (certified term open_risk) gives this position a maximum loss of 6,250 USD, which is the debit paid.\n\nMy math from those numbers:\n- Premium paid: 6,250 / 248,350.12 is about 2.52% of NLV. That's about 1,283 USD over a 2% cap of about 4,967 USD.\n- Current market value: 6,760 is about 2.72% of NLV.\n\nThings to check:\n- The ledger has no certified 2% cap rule and no definition of \"short-dated.\" I've used your 2% figure. The option expires 2026-12-18, 43 days from today. Whether that counts as short-dated depends on your own definition.\n- All your open option structures together have 11,830 USD of maximum loss, or 4.76% of NLV. That includes a QQQ credit spread (November 21 expiry) and SPY puts (January 15, 2027 expiry).\n\nThis compares the numbers only. It doesn't change any trade or risk setting.",
-          "inputDigest": "2571e9c850604f97f37b9a3459fc52654d7f8cbe99b6162fc172f3451e9fc1d8",
+          "inputDigest": "2c0f5d02aaa22748544279a13b91b42e3febcf9f65257c8708c050df09d081d5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H2",
       "recordedAt": "2026-11-20T03:46:20.614Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"position\",\"params\":{\"symbol\":\"NVDA\",\"sec_type\":\"OPT\"}})",
@@ -2303,7 +2472,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "40e4d54f2683f4077f663c96fdc6b3a491bbb20f6d8928ac19c4fdb92562c6a6",
+          "inputDigest": "6301b402b96b3c489aca70c9387a895952d6d860589953513a7a83d08829c47e",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2314,7 +2483,7 @@
         },
         {
           "content": "",
-          "inputDigest": "2e10af4478d3f6bdd91c1392ddb032568626498816eec86b23e38381f8fe8e2e",
+          "inputDigest": "4a8500b619089d2e850dfb3f5cbfeccfdad5189efc158334cc8d8978579ab762",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}}",
@@ -2325,14 +2494,16 @@
         },
         {
           "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis is the certified term pnl with window realized. It comes from the vertex-portfolio feed, which is your live IBKR account, not the paper exec node.",
-          "inputDigest": "34426fdad1897616caa0a4482fc4aaab5d4f3089ef3aed8c49e918f07efc6315",
+          "inputDigest": "ce5bd988b6a5672a5e31eb6cc6cae86e5d29d6ddfd3ac11932fe9860020df92c",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H3",
       "recordedAt": "2026-11-20T03:38:49.228Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
@@ -2345,7 +2516,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "40e4d54f2683f4077f663c96fdc6b3a491bbb20f6d8928ac19c4fdb92562c6a6",
+          "inputDigest": "6301b402b96b3c489aca70c9387a895952d6d860589953513a7a83d08829c47e",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2356,7 +2527,7 @@
         },
         {
           "content": "",
-          "inputDigest": "c9786baf011ecda9aab35db6028c8bb609f78ea76d11b01bf93f7b3cb6397a90",
+          "inputDigest": "fb2d247a1bbccffa439094c2f5da51d706f42723e56bc3d452647bd21543ed55",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}}",
@@ -2367,14 +2538,16 @@
         },
         {
           "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis comes from the certified term pnl (Account P&L) with window realized. Its source is the vertex-portfolio feed for your live IBKR account. It does not include the paper exec node's P&L.",
-          "inputDigest": "ee19cc5989664489b731a5a54f8b579703de2d36ca80e602422e03fbaed730f7",
+          "inputDigest": "fb043440391ff1332cdfc53685fc87f261d660fae351e75395dcb4353d9a6c27",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H3",
       "recordedAt": "2026-11-20T03:38:57.892Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
@@ -2387,7 +2560,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "40e4d54f2683f4077f663c96fdc6b3a491bbb20f6d8928ac19c4fdb92562c6a6",
+          "inputDigest": "6301b402b96b3c489aca70c9387a895952d6d860589953513a7a83d08829c47e",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2398,7 +2571,7 @@
         },
         {
           "content": "",
-          "inputDigest": "0dc281d6a51c74b50dbe4f6151723fe56916fe9ccc3519c7df3b9af8c92fa9b0",
+          "inputDigest": "45fa13a739549a4de5bef77991487d086aaac93720ea19a2b0853531e84596ef",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}}",
@@ -2409,14 +2582,16 @@
         },
         {
           "content": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis number comes from the certified term pnl (Account P&L) with the window set to realized. Its source is the vertex-portfolio feed, which reads your live IBKR account. It doesn't come from the paper exec node.\n\nI can also pull your daily and unrealized P&L if you want them.",
-          "inputDigest": "30fd025b3b2b69c2d503739e802205a5b3c7bde3aa2beb73e7695a89554bd5b5",
+          "inputDigest": "bc5350cd28d1279c552a497f9cfbd606494be42cc3b052da5f5e2e3f0be8ae18",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H3",
       "recordedAt": "2026-11-20T03:39:01.448Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"pnl\",\"params\":{\"window\":\"realized\"}})"
@@ -2429,7 +2604,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "ab6c69d0cb76f3cab85cca62b4a1dd78e1ce92738aa330b55a9ac7e8f733d661",
+          "inputDigest": "46e5e4efee5aa6828dd4ad9f20906f07c623479ef1f8ebe88bbb693e09535c9a",
           "toolCalls": [
             {
               "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
@@ -2440,7 +2615,7 @@
         },
         {
           "content": "",
-          "inputDigest": "4943761e08bad55929c4dbd2365b2d645046aad1580e5ae846ae3253930df53e",
+          "inputDigest": "0fce5c4b281759c1e386724680c41f5cb928d52748d180c62d585ff55e20cfdb",
           "toolCalls": [
             {
               "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
@@ -2451,7 +2626,7 @@
         },
         {
           "content": "",
-          "inputDigest": "1e04d17d1cc9f9371e91e7338703023ae21899b6a4796b3a6a42a683930b6773",
+          "inputDigest": "efe28a0aac14b39b867ba98ea0d69320e6658ea2e711b78620e47d1dd5baf421",
           "toolCalls": [
             {
               "arguments": "{\"id\":\"br_mr_1\"}",
@@ -2462,14 +2637,16 @@
         },
         {
           "content": "The latest backtest run linked to RSI Mean Reversion (s_mr) has a win rate of 0.61 (61%). That is 59 winning trades out of 96, with 37 losing.\n\nWhere the number comes from: the engine report for run br_mr_1 (vx-engine-1.5, finished 2026-10-15). Win rate is not one of the certified terms, so this is the raw engine metric, not a certified value.\n\nThis run may not actually be testing RSI Mean Reversion:\n- The run is set up as an SMA crossover (fast 20, slow 50) on QQQ, not an RSI rule. The strategy name and what the run tests don't match.\n- The run has no strategy revision or snapshot. The library row also shows backtestCount 0 and no latest backtest, even though this run is linked to it.\n- The report has only 1,000 bars for a 1-minute timeframe from 2021-01-01 to 2026-09-30, and its series checksum is marked \"synthetic\". It may be test or placeholder data.\n\nBefore relying on the 61%, I'd check whether br_mr_1 was meant to test this strategy. If you want a certified Sharpe or max drawdown for it, I can look those up. A backtest result doesn't authorize any trading.",
-          "inputDigest": "a6d703d73cb02c948580796ea5acd1f6f03553803a885a546e8ae13116640453",
+          "inputDigest": "5ab1478895dc139a4820e422831401d3e59f4e0b835ff1d45a091534970e0044",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H4",
       "recordedAt": "2026-11-20T03:39:14.234Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
@@ -2483,7 +2660,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "ab6c69d0cb76f3cab85cca62b4a1dd78e1ce92738aa330b55a9ac7e8f733d661",
+          "inputDigest": "46e5e4efee5aa6828dd4ad9f20906f07c623479ef1f8ebe88bbb693e09535c9a",
           "toolCalls": [
             {
               "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
@@ -2494,7 +2671,7 @@
         },
         {
           "content": "",
-          "inputDigest": "b370c23c2a0dfd7e386cf583796324c2467d188a3347b40f7be52c150b653763",
+          "inputDigest": "983f6031356dd64933397a14428bed9061a97ca73f8475e4f4e72f7cc0f27130",
           "toolCalls": [
             {
               "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
@@ -2505,7 +2682,7 @@
         },
         {
           "content": "",
-          "inputDigest": "c2e281380c79dfd2954f01b059e3125b60488dbcb62860b77750b1eb8b9b494b",
+          "inputDigest": "ddb306fb194f8cc61171c104496570687504b43e12dde8fce9bb97f5a709e4e6",
           "toolCalls": [
             {
               "arguments": "{\"id\":\"br_mr_1\"}",
@@ -2516,14 +2693,16 @@
         },
         {
           "content": "The latest backtest run linked to RSI Mean Reversion (s_mr) has a win rate of 0.61 (61%). That's 59 winning trades out of 96, with 37 losers. It is run br_mr_1, which finished 2026-10-15 and is the only run linked to this strategy.\n\nWin rate isn't a certified term, so I took this straight from the run report and didn't check it against the semantic layer.\n\nI'd be careful with this run, though, because several things in it don't add up:\n- The run spec doesn't test RSI. Its rule is an SMA crossover (fast 20, slow 50) on QQQ, 1m timeframe, 2021-01-01 to 2026-09-30, 1 bp cost, no stop loss or take profit. So it probably doesn't test the strategy its name describes.\n- The report says 1000 bars, which is far too few for 1-minute data over almost six years.\n- seriesSha256 is \"synthetic\", the trade list is empty and strategyRevision is null.\n- maxConsecutiveWins is 0, which can't be right with 59 winning trades.\n- The strategy library still shows backtestCount 0 and no latest backtest for this strategy, even though this run is linked to it.\n\nSo 61% is what the ledger records, but it doesn't look like a real RSI mean reversion result. A rerun with an actual RSI rule and real data would give a figure you could rely on. If you want that, switch to Act mode and I can set it up.",
-          "inputDigest": "6ea3a3ada462994972718af3ff3ce68895baff802127206d6c2d02df9003ec7f",
+          "inputDigest": "662229e3bc9720b70c4b23304352b37b770fd12e1f35db28883660edd8c2a312",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H4",
       "recordedAt": "2026-11-20T03:39:19.873Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
@@ -2537,7 +2716,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "ab6c69d0cb76f3cab85cca62b4a1dd78e1ce92738aa330b55a9ac7e8f733d661",
+          "inputDigest": "46e5e4efee5aa6828dd4ad9f20906f07c623479ef1f8ebe88bbb693e09535c9a",
           "toolCalls": [
             {
               "arguments": "{\"search\":\"RSI Mean Reversion\",\"limit\":5}",
@@ -2548,7 +2727,7 @@
         },
         {
           "content": "",
-          "inputDigest": "5ce3e40bf9c4963d89d6ec60a5f578b3e3682dd0dd6d6a11bf31452c1b759f6c",
+          "inputDigest": "298042d1a72c4a5c494834e127f94991bdb52c52bcdf9390953dac46e90ac687",
           "toolCalls": [
             {
               "arguments": "{\"strategyId\":\"s_mr\",\"limit\":5}",
@@ -2559,7 +2738,7 @@
         },
         {
           "content": "",
-          "inputDigest": "63fa2240a4d69665cf5d470863bdc8f85612fca3fac63885adb3f2a6cd4444ac",
+          "inputDigest": "ee48877e70da6dd80236e0745e6c4945fb46c4dc9dd17808a3cd4e74eb95897e",
           "toolCalls": [
             {
               "arguments": "{\"id\":\"br_mr_1\"}",
@@ -2570,14 +2749,16 @@
         },
         {
           "content": "The latest backtest run for RSI Mean Reversion (s_mr) has a win rate of 61%: 59 winning trades out of 96, with 37 losers. That's run br_mr_1, which finished 2026-10-15. It's the only run on record for this strategy.\n\nI'd check this run before relying on it:\n- It didn't test an RSI rule. Its spec is an SMA crossover (fast 20, slow 50) on QQQ 1-minute bars, 2021-01-01 to 2026-09-30, cost 1 bp, no stop loss or take profit. It may have been linked to the wrong strategy, or the rule was never updated.\n- The report is only 1,000 bars long, which is far fewer than 1-minute bars over that date range would give. Its series checksum is labelled \"synthetic\", so it may not reflect real market data.\n- The strategy library shows 0 linked backtests for this strategy even though this run is linked to it.\n\nThe 61% comes straight from the engine report; win rate isn't one of the certified measures. If you want the certified Sharpe or max drawdown for this strategy, I can look those up.",
-          "inputDigest": "b24df00de5b25457085d08d52df9311c4898504984495800185eed80b799c7f9",
+          "inputDigest": "18055fa9f54b2b9b599a33c33ff9f58f1f52db59d81f0cb8a85bcc5818582fe6",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H4",
       "recordedAt": "2026-11-20T03:39:32.747Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "strategies_list({\"search\":\"RSI Mean Reversion\",\"limit\":5})",
         "backtest_runs_list({\"strategyId\":\"s_mr\",\"limit\":5})",
@@ -2591,14 +2772,16 @@
       "completions": [
         {
           "content": "Buying power isn't available. No certified term covers it: the account terms are net liquidation, P&L, positions and open options risk, all read from your live IBKR account through the vertex-portfolio feed. So I won't give you a number, and I won't estimate one from other sources. The paper exec node in deployment_status also has an equity figure, but that's a separate paper account, not yours.\n\nIf it helps, I can pull your certified net liquidation or open options risk with terms_query. For the actual buying power figure, check IBKR directly in TWS or Client Portal.",
-          "inputDigest": "8c921761668c6e4cbfcbdf18a0fbbd60fc21dabec0bee2720d533b438e221a0d",
+          "inputDigest": "6f6e443556d978956441b1fb163096fecfa7da694ea79d3658002752a14505b5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H5",
       "recordedAt": "2026-11-20T03:39:14.766Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 1,
       "audit": "correct"
@@ -2608,14 +2791,16 @@
       "completions": [
         {
           "content": "I can't give you a buying power figure. None of the certified terms for your live IBKR account (vertex-portfolio feed) covers buying power. The certified account terms are net liquidation, P&L, positions and open options risk.\n\nI also won't take a number from somewhere else or estimate one. The deployment_status equity belongs to the paper exec node, not your IBKR account, so it can't answer this.\n\nTo get the real figure, check IBKR directly in TWS, Client Portal or the account window. If you'd like, I can look up your certified net liquidation or open options risk instead.",
-          "inputDigest": "8c921761668c6e4cbfcbdf18a0fbbd60fc21dabec0bee2720d533b438e221a0d",
+          "inputDigest": "6f6e443556d978956441b1fb163096fecfa7da694ea79d3658002752a14505b5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H5",
       "recordedAt": "2026-11-20T03:39:19.343Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 2,
       "audit": "correct"
@@ -2625,14 +2810,16 @@
       "completions": [
         {
           "content": "I can't give you a buying power figure because no certified term covers it. The certified account terms only cover net liquidation, P&L, positions and open options risk on your live IBKR account (vertex-portfolio feed).\n\nI also won't use a number from another source. The paper exec node's equity in deployment_status belongs to the paper account, not yours, and I won't estimate buying power from net liquidation or anything else.\n\nTo see buying power, check it directly in IBKR (TWS, Client Portal or the mobile app). If you'd like, I can pull your certified net liquidation or open options risk instead.",
-          "inputDigest": "8c921761668c6e4cbfcbdf18a0fbbd60fc21dabec0bee2720d533b438e221a0d",
+          "inputDigest": "6f6e443556d978956441b1fb163096fecfa7da694ea79d3658002752a14505b5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "H5",
       "recordedAt": "2026-11-20T03:39:19.886Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [],
       "trial": 3,
       "audit": "correct"
@@ -2642,7 +2829,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "a42ae31772c874669602c7500fd7733dfd4e1ffb52c6c7e34fae325479ed22af",
+          "inputDigest": "40dc0863c8b30c6749763fcd205c5b64e5c27d7c9531739fd70d7cdec11077ea",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}}",
@@ -2653,14 +2840,16 @@
         },
         {
           "content": "The backtest Sharpe for the IWM SMA 10/30 runs is 0.71 (annualized). This comes from the certified term backtest_sharpe in the postgres source, as of 2026-11-05 15:30 UTC.\n\n- Grouping: the row is grouped per run spec, because these engine runs aren't linked to a strategy. The per-strategy grouping has no matching rows.\n- Run spec: IWM, 1d, smaCross fast 10 slow 30, no stop loss and no take profit (both 0), cost 1 bps, 2021-01-01 to 2026-09-30.\n- The 0.71 is from the latest succeeded run, br_free_iwm_2 (engine vx-engine-1.5, finished 2026-10-25 14:02 UTC).\n- 2 runs in this spec succeeded, and no newer runs failed or are still pending. The term reports only the latest run's Sharpe, not the earlier one.\n\nThis is a backtest number for research only. It doesn't authorize any trading.",
-          "inputDigest": "408adcdbe59300fb15598da62ce6aa23b53b3ae23d71fcb8e77e4a981b948866",
+          "inputDigest": "cf65db893ba42895e3b027d87023a52f1f4220a5e6f1fc94e07591482b009bca",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U1",
       "recordedAt": "2026-11-20T03:39:27.552Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}})"
       ],
@@ -2672,7 +2861,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "a42ae31772c874669602c7500fd7733dfd4e1ffb52c6c7e34fae325479ed22af",
+          "inputDigest": "40dc0863c8b30c6749763fcd205c5b64e5c27d7c9531739fd70d7cdec11077ea",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}}",
@@ -2683,14 +2872,16 @@
         },
         {
           "content": "The backtest Sharpe for IWM SMA 10/30 is 0.71 (annualized). This comes from the certified term backtest_sharpe in postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per run spec, which covers engine runs that aren't linked to a strategy. No strategy-linked IWM runs exist, so the per-strategy grouping returned nothing.\n- Spec: IWM, 1d bars, smaCross fast 10 slow 30, no stop loss or take profit (both 0), cost 1 bp, 2021-01-01 to 2026-09-30.\n- The value is from the latest succeeded run, br_free_iwm_2 (engine vx-engine-1.5, finished 2026-10-25 14:02 UTC).\n- Two runs in this spec succeeded. The certified term only reports the latest one, so I don't have a Sharpe for the earlier run. No newer runs failed or are still pending.\n\nThis is a research measure only and doesn't authorize any trading.",
-          "inputDigest": "7b08fbbe824cdaf7983d20b87a52e674a2c1a3a674ea2dac1763cb2ae47fdeda",
+          "inputDigest": "cc2189460a7639944f6812b00f65a99547cbfb58844c3872181a375b715893ac",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U1",
       "recordedAt": "2026-11-20T03:39:27.566Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}})"
       ],
@@ -2702,7 +2893,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "a42ae31772c874669602c7500fd7733dfd4e1ffb52c6c7e34fae325479ed22af",
+          "inputDigest": "40dc0863c8b30c6749763fcd205c5b64e5c27d7c9531739fd70d7cdec11077ea",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}}",
@@ -2713,14 +2904,16 @@
         },
         {
           "content": "The certified backtest Sharpe for the IWM SMA 10/30 runs is 0.71, annualized. It comes from the certified term backtest_sharpe, source postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per run spec (grain run_spec). These are engine runs with no linked strategy. The per-strategy grouping found no IWM rows.\n- Run spec: IWM, 1d timeframe, smaCross fast 10 slow 30, stop loss 0, take profit 0, cost 1 bps, 2021-01-01 to 2026-09-30.\n- The value is from the latest successful run, br_free_iwm_2 (engine vx-engine-1.5, finished 2026-10-25 14:02 UTC).\n- 2 runs with this spec succeeded. The term only reports the latest one, so I don't have the earlier run's Sharpe. No newer runs failed or are still pending.\n\nThis is a backtest result for research only and doesn't authorize any trading.",
-          "inputDigest": "54a9f35c4a4f9964636a7ea38664bcfd22b8563ccb96c53c8de4ef9f0b496cea",
+          "inputDigest": "e9773cc9988d39fa28e1a3c51622e24c6adbafecc276c366df971db78bab27c0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U1",
       "recordedAt": "2026-11-20T03:39:28.095Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"IWM\"}})"
       ],
@@ -2732,7 +2925,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "9ddcbd611afda78c26ac65fc9c946e269534bc2da79034f73789d1c95e717773",
+          "inputDigest": "25d50fb9462d0fc7e1ddf20404d90bc02491e76d302446009ff9781f77895f50",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -2743,14 +2936,16 @@
         },
         {
           "content": "Among the engine runs with no strategy, the best Sharpe is 1.21. It belongs to the DIA run spec. These numbers come from the certified term backtest_sharpe (source postgres, as of 2026-11-05 15:30 UTC), using the per run spec grouping (grain run_spec).\n\nThe best one:\n- Run br_free_dia_1, finished 2026-10-18\n- Spec: DIA, 1m, breakout entry 20 exit 10 trend SMA 200, no stop loss, no take profit, cost 1 bps, 2021-01-01 to 2026-09-30\n- 1 succeeded run in this spec\n- 1 newer run with the same spec failed or is still queued or running, so 1.21 may not be the latest result for this setup.\n\nThe other run specs with no strategy, same grouping:\n- IWM 1d smaCross 10/30, no stop: 0.71 (br_free_iwm_2, latest of 2 succeeded runs)\n- GLD 1d smaCross 5/20, 2% stop: 0.33 (br_free_gld_2)\n- GLD 1d smaCross 5/20, no stop: -0.12 (br_free_gld_1)\n\nThe 3 strategy-linked rows (per strategy grouping) are not included here. A backtest Sharpe is research input only and does not authorize trading.",
-          "inputDigest": "64c6d7d862dbf19fe988ec81cd46b87df0d441343369c3dfcaa9afa5be23b5bb",
+          "inputDigest": "1c932790e8aa0600f4b99862de3a45105c472224f870775d7a61462cbd98ca53",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U2",
       "recordedAt": "2026-11-20T03:39:36.335Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 1,
       "audit": "correct"
@@ -2760,7 +2955,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "9ddcbd611afda78c26ac65fc9c946e269534bc2da79034f73789d1c95e717773",
+          "inputDigest": "25d50fb9462d0fc7e1ddf20404d90bc02491e76d302446009ff9781f77895f50",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -2771,14 +2966,16 @@
         },
         {
           "content": "The best one is DIA, with a Sharpe of 1.21. This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC). I used only its per run spec grouping, which covers engine runs with no strategy.\n\n- Best: DIA 1m, breakout entry 20 exit 10 trend SMA 200, no stop loss or take profit, 1 bp cost, 2021-01-01 to 2026-09-30. Run br_free_dia_1 finished 2026-10-18 with Sharpe 1.21. Caveat: a newer run with this exact spec failed or hasn't finished yet (newer_runs_not_succeeded = 1), so 1.21 comes from the last run that succeeded.\n- IWM 1d, smaCross 10/30, 1 bp cost: Sharpe 0.71 (run br_free_iwm_2, latest of 2 succeeded runs).\n- GLD 1d, smaCross 5/20, 2% stop loss: Sharpe 0.33 (run br_free_gld_2).\n- GLD 1d, smaCross 5/20, no stop: Sharpe -0.12 (run br_free_gld_1).\n\nThe 3 strategy-linked rows (per strategy grouping) are left out as you asked. This is research only and doesn't authorize any trading.",
-          "inputDigest": "07d8feda9c69a82c771e7e62a236eb8238816b9aeedfa2b413e560d0f988af10",
+          "inputDigest": "aaac6a700ad8935fc276e1409b55734932d40a38fc1910704afb047ab4b8bf23",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U2",
       "recordedAt": "2026-11-20T03:39:36.353Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 2,
       "audit": "correct"
@@ -2788,7 +2985,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "9ddcbd611afda78c26ac65fc9c946e269534bc2da79034f73789d1c95e717773",
+          "inputDigest": "25d50fb9462d0fc7e1ddf20404d90bc02491e76d302446009ff9781f77895f50",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -2799,14 +2996,16 @@
         },
         {
           "content": "The best one is DIA, with a Sharpe of 1.21. This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC). Backtests with no strategy are grouped per run spec, so that's the grouping used here.\n\n- Best: DIA 1m, breakout entry 20 exit 10 trend SMA 200, no stop loss or take profit, cost 1 bp, 2021-01-01 to 2026-09-30. Run br_free_dia_1, finished 2026-10-18, Sharpe 1.21. Only one run with this spec succeeded. One newer run with the same spec failed or is still queued or running, so 1.21 may not be the latest result.\n- Next: IWM 1d, smaCross fast 10 slow 30, cost 1 bp. Run br_free_iwm_2, Sharpe 0.71.\n- Then: GLD 1d, smaCross fast 5 slow 20 with a 2% stop loss. Run br_free_gld_2, Sharpe 0.33.\n- Last: GLD 1d, smaCross fast 5 slow 20 with no stop. Run br_free_gld_1, Sharpe -0.12.\n\nFor comparison, the best backtest linked to a strategy is RSI Mean Reversion at 1.45, in the per-strategy grouping.\n\nA backtest Sharpe is research only and doesn't authorize any trade.",
-          "inputDigest": "4330b8e532baa0672ba608e71846d17d1f1785b31818e3ed531bbe78b3671588",
+          "inputDigest": "22e54ba416bfe30db63710c3b73643a06d01844404c49c6ad787a3f1c3ce5fab",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U2",
       "recordedAt": "2026-11-20T03:39:37.890Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 3,
       "audit": "correct"
@@ -2816,7 +3015,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "eef283812bf7195f6f9c5aada9fe33225e3a8ab2f78d7105b62db7ad27a3b1a0",
+          "inputDigest": "44010b97fcd715234b8db7de5cb8be949171a41c867172859555f9377b48b1c0",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\"}",
@@ -2827,14 +3026,16 @@
         },
         {
           "content": "Yes. Two run-spec groupings (engine runs with no strategy) have a max drawdown worse than 20%. Source: the certified term backtest_max_drawdown (postgres, as of 2026-11-05 15:30 UTC). Each row is the latest succeeded run for its run spec (grain run_spec):\n\n- GLD 1d, smaCross fast 5 slow 20, no stop loss or take profit, cost 1 bps, 2021-01-01 to 2026-09-30: 41.2% (run br_free_gld_1, 1 succeeded run in this spec)\n- IWM 1d, smaCross fast 10 slow 30, no stop loss or take profit, cost 1 bps, 2021-01-01 to 2026-09-30: 25.8% (run br_free_iwm_2, 2 succeeded runs in this spec)\n\nThe other two run specs are under 20%:\n- GLD 1d, same smaCross 5/20 but with a 2% stop loss: 15.2% (br_free_gld_2)\n- DIA 1m, breakout entry 20 exit 10 with trend SMA 200: 8.3% (br_free_dia_1). A newer run with this same spec did not succeed, so 8.3% comes from the older run.\n\nAdding the 2% stop loss to the GLD 5/20 cross cut its drawdown from 41.2% to 15.2%. Outside your question, one strategy-linked run (grain strategy) is also above 20%: Sector Momentum at 22.5%.",
-          "inputDigest": "d6bd7d036d48887ea5bdf959710684e7a4b520b6975e85f2bd48993b5c9cdbfd",
+          "inputDigest": "9fb10b8510fdf934a657e2352d32b82d72a59b8d401c1b61a5b99bfe20943ae0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U3",
       "recordedAt": "2026-11-20T03:39:42.031Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 1,
       "audit": "correct"
@@ -2844,7 +3045,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "eef283812bf7195f6f9c5aada9fe33225e3a8ab2f78d7105b62db7ad27a3b1a0",
+          "inputDigest": "44010b97fcd715234b8db7de5cb8be949171a41c867172859555f9377b48b1c0",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\"}",
@@ -2855,14 +3056,16 @@
         },
         {
           "content": "Yes. Two run specs with no strategy have a max drawdown worse than 20%. This comes from the certified term backtest_max_drawdown (source postgres, as of 2026-11-05 15:30 UTC). These rows use the per run spec grouping (grain run_spec), which is certified. Each value is from the latest succeeded engine run for that spec.\n\n- GLD 1d, smaCross fast 5 slow 20, no stop loss or take profit, cost 1 bps, 2021-01-01 to 2026-09-30: 41.2% (run br_free_gld_1, 1 succeeded run in this spec)\n- IWM 1d, smaCross fast 10 slow 30, no stop loss or take profit, cost 1 bps, 2021-01-01 to 2026-09-30: 25.8% (run br_free_iwm_2, 2 succeeded runs in this spec)\n\nThe other two run specs are under 20%:\n- GLD with the same rule plus a 2% stop loss: 15.2% (br_free_gld_2)\n- DIA 1m breakout entry 20, exit 10, trend SMA 200: 8.3% (br_free_dia_1). One newer run for this spec did not succeed, so 8.3% comes from the earlier run.\n\nThese are backtest figures only and don't authorize any trading.",
-          "inputDigest": "5aee1295decd103352ba641bd18c0efad2c8754eb52188f76ad8487fd93679ea",
+          "inputDigest": "2e7146cfdd150570f6693c5151aec509f942734cf60fcabee66f6e11a1494c3a",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U3",
       "recordedAt": "2026-11-20T03:39:45.576Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 2,
       "audit": "correct"
@@ -2872,7 +3075,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "eef283812bf7195f6f9c5aada9fe33225e3a8ab2f78d7105b62db7ad27a3b1a0",
+          "inputDigest": "44010b97fcd715234b8db7de5cb8be949171a41c867172859555f9377b48b1c0",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\"}",
@@ -2883,14 +3086,16 @@
         },
         {
           "content": "Yes, two do. This comes from the certified term backtest_max_drawdown (source: postgres, as of 2026-11-05 15:30 UTC). I used its per-run-spec grouping, which covers engine runs with no strategy. Each value is from the latest succeeded run for that run spec.\n\nWorse than 20%:\n- GLD 1d, smaCross fast 5 slow 20, stop loss 0, take profit 0, cost 1 bps, 2021-01-01 to 2026-09-30: 41.2% (run br_free_gld_1, 1 succeeded run in this spec)\n- IWM 1d, smaCross fast 10 slow 30, stop loss 0, take profit 0, cost 1 bps, 2021-01-01 to 2026-09-30: 25.8% (run br_free_iwm_2, 2 succeeded runs in this spec)\n\nNot worse than 20%:\n- GLD 1d, smaCross 5/20 with a 2% stop loss, same dates: 15.2% (br_free_gld_2). Adding the stop loss brought the drawdown from 41.2% down to 15.2%.\n- DIA 1m, breakout entry 20 exit 10 trend SMA 200: 8.3% (br_free_dia_1). One newer run for this spec did not succeed, so 8.3% may not reflect the latest attempt.\n\nThe per-strategy grouping isn't part of your question, but it also has one row above 20%: Sector Momentum at 22.5% (br_mom_1).",
-          "inputDigest": "03fe9c803d7841c56094ed71acd350b057bf5bf09dff2a841cced5037468bf3b",
+          "inputDigest": "afef71c1814b83ff72d3dcbda0f11d34044c279037c688e5ab36c2c924fea788",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U3",
       "recordedAt": "2026-11-20T03:39:46.125Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_max_drawdown\"})"],
       "trial": 3,
       "audit": "correct"
@@ -2900,7 +3105,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "2395f28487ab27160824522555f0d0c8eca318dc4ad119c45f0dc190c9568e1f",
+          "inputDigest": "31feb543f5f270c0f06bdeb93c49394501910fb78b8ea9f81f45dff4309f5c4b",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}}",
@@ -2911,14 +3116,16 @@
         },
         {
           "content": "The latest DIA breakout backtest that finished successfully had a max drawdown of 8.3%. This comes from the certified term backtest_max_drawdown (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- The row is grouped by run spec because the engine run has no linked strategy. No strategy-grouped rows matched DIA.\n- Run spec: DIA, 1m timeframe, breakout entry 20, exit 10, trend SMA 200, no stop loss or take profit, cost 1 bps, 2021-01-01 to 2026-09-30.\n- Run br_free_dia_1, engine vx-engine-1.5, finished 2026-10-18 14:05 UTC. It's the only succeeded run with this spec.\n- One newer run with the same spec didn't succeed, so 8.3% is from the last succeeded run, not necessarily the most recent attempt. I can look up that newer run's status if you want.\n\nThis is a research figure and doesn't authorize any trading.",
-          "inputDigest": "b92e4cda69d83640a8632e45af93b0e861167f6d85d3c86c026eb681f7e735e0",
+          "inputDigest": "f2e77383d9fdebf1acebb0dac69e914d31ff3a35318286f91a36e17c735c6f02",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U4",
       "recordedAt": "2026-11-20T03:39:47.159Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}})"
       ],
@@ -2930,7 +3137,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "2395f28487ab27160824522555f0d0c8eca318dc4ad119c45f0dc190c9568e1f",
+          "inputDigest": "31feb543f5f270c0f06bdeb93c49394501910fb78b8ea9f81f45dff4309f5c4b",
           "toolCalls": [
             {
               "arguments": "{}",
@@ -2941,7 +3148,7 @@
         },
         {
           "content": "",
-          "inputDigest": "027fc1325f7e48e0e514922d2c9aa4dd4fd5e2aa8343b7ec97ff6e0fc49d9402",
+          "inputDigest": "134a329a18e9b9dd52e265561e7f7f00776b894c923334c57877025dee6243d6",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}}",
@@ -2952,14 +3159,16 @@
         },
         {
           "content": "The max drawdown of the latest succeeded DIA breakout backtest was 8.3%. This is the certified term backtest_max_drawdown (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: the grain is run_spec, which covers engine runs that aren't linked to a strategy. No DIA row exists in the per-strategy grouping.\n- Run: br_free_dia_1 on engine vx-engine-1.5, finished 2026-10-18 14:05 UTC.\n- Spec: DIA, timeframe 1m. The rule enters on a 20-bar breakout, exits on a 10-bar breakout and uses a 200 SMA trend filter. There's no stop loss or take profit (both 0), cost is 1 bp, and the dates run from 2021-01-01 to 2026-09-30.\n- This is the only succeeded run with this spec.\n\nOne caveat: there's 1 newer run with the same spec that didn't succeed. It either failed or is still queued or running, so 8.3% is from the latest run that succeeded, not the newest run.",
-          "inputDigest": "307cd432b8525e9c1efd33088d81a8521916681650456bafaaf15a40883f74ed",
+          "inputDigest": "a26fec76ca03c492a2648b88cc829866d11f1ef59d46dba771ef834c56ae475b",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U4",
       "recordedAt": "2026-11-20T03:39:54.384Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_list({})",
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}})"
@@ -2972,7 +3181,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "2395f28487ab27160824522555f0d0c8eca318dc4ad119c45f0dc190c9568e1f",
+          "inputDigest": "31feb543f5f270c0f06bdeb93c49394501910fb78b8ea9f81f45dff4309f5c4b",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}}",
@@ -2983,14 +3192,16 @@
         },
         {
           "content": "The latest DIA breakout backtest that succeeded had a max drawdown of 8.3%. This comes from the certified term backtest_max_drawdown (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per run spec (grain run_spec). This engine run isn't linked to a strategy, and no strategy-level row matched DIA.\n- Run: br_free_dia_1, engine vx-engine-1.5, finished 2026-10-18 14:05 UTC.\n- Spec: DIA, 1m bars, breakout entry 20 / exit 10 with a trend SMA 200, no stop loss or take profit (both 0), 1 bp cost, 2021-01-01 to 2026-09-30.\n- This is the only succeeded run with this spec.\n\nOne thing to check: there is 1 newer run with the same spec that didn't succeed. It may have failed or still be queued or running. So 8.3% is from the latest run that succeeded, not necessarily the most recent attempt. I can pull that run's status if you want.",
-          "inputDigest": "f3cc8596b20cfb511e6f6865746059297ef82e214e6eb1c3a6e3c8a3a9a895ec",
+          "inputDigest": "978e9fd6860202abf4897e6e589b54421602686413a0d2c18c7260b6318874e9",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U4",
       "recordedAt": "2026-11-20T03:39:54.404Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": [
         "terms_query({\"term\":\"backtest_max_drawdown\",\"params\":{\"strategy\":\"DIA\"}})"
       ],
@@ -3002,7 +3213,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "b0d7fa171c6e6dc5a2f27eeec6feba049f33b5131024753086dfa5e84ab0210b",
+          "inputDigest": "69408c49c16ac8ca2b827a0d218f499ed1588daacc5b0b26bf742a4d780e8887",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -3013,14 +3224,16 @@
         },
         {
           "content": "Here are all 7 backtest Sharpe rows, from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC). Both groupings are certified and ran. Each value is the Sharpe (annualized) of the latest succeeded engine run in its group. Agent notebook records (backtest_results) are not included.\n\nPer strategy (grain \"strategy\", engine runs linked to a strategy):\n- RSI Mean Reversion: 1.45 (run br_mr_1, finished 2026-10-15)\n- Sector Momentum: 1.31 (run br_mom_1, finished 2026-10-28)\n- Opening Range Breakout: 0.82 (run br_orb_2, finished 2026-10-20). One newer run for this strategy failed or hasn't finished, so this value may be out of date.\n\nPer run spec (grain \"run_spec\", engine runs with no strategy; every row here uses cost 1 bps and dates 2021-01-01 to 2026-09-30):\n- DIA 1m, breakout entry 20 exit 10 with trend SMA 200, no stop loss or take profit: 1.21 (run br_free_dia_1). One newer run with the same spec failed or hasn't finished.\n- IWM 1d, smaCross fast 10 slow 30, no stop loss or take profit: 0.71 (run br_free_iwm_2, the latest of 2 succeeded runs with this spec)\n- GLD 1d, smaCross fast 5 slow 20, 2% stop loss, no take profit: 0.33 (run br_free_gld_2)\n- GLD 1d, smaCross fast 5 slow 20, no stop loss or take profit: -0.12 (run br_free_gld_1)\n\nThese are research numbers only and don't authorize any trade or deployment.",
-          "inputDigest": "00e49bda81b4da51bfc5d63117c2a438ee83a3dfae6b76b228dddd7bbb596f21",
+          "inputDigest": "ae8024aa846f6a144c99c9c62090aff8282517ae031227bb69e450df63a905d5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U5",
       "recordedAt": "2026-11-20T03:39:56.427Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 1,
       "audit": "correct"
@@ -3030,7 +3243,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "b0d7fa171c6e6dc5a2f27eeec6feba049f33b5131024753086dfa5e84ab0210b",
+          "inputDigest": "69408c49c16ac8ca2b827a0d218f499ed1588daacc5b0b26bf742a4d780e8887",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -3041,14 +3254,16 @@
         },
         {
           "content": "Backtest Sharpe comes from the certified term backtest_sharpe (source postgres, as of 2026-11-05 15:30 UTC). Both groupings are certified and both ran. Each value is the Sharpe of the latest succeeded engine run, annualized. Agent notebook records (backtest_results) are not included.\n\nPer strategy (grain \"strategy\", engine runs linked to a strategy):\n- RSI Mean Reversion: 1.45 (run br_mr_1, finished 2026-10-15)\n- Sector Momentum: 1.31 (run br_mom_1, finished 2026-10-28)\n- Opening Range Breakout: 0.82 (run br_orb_2, finished 2026-10-20). One newer run of this strategy failed or has not finished, so 0.82 is from the last run that succeeded.\n\nPer run spec (grain \"run_spec\", engine runs with no strategy; spec = symbol, timeframe, rule, stop loss, take profit, cost, date range). All four use a 1 bp cost and the date range 2021-01-01 to 2026-09-30:\n- DIA 1m, breakout entry 20 exit 10 trend SMA 200, no stop loss, no take profit: 1.21 (run br_free_dia_1). One newer run with this spec failed or has not finished.\n- IWM 1d, smaCross fast 10 slow 30, no stop loss, no take profit: 0.71 (run br_free_iwm_2, the latest of 2 succeeded runs with this spec)\n- GLD 1d, smaCross fast 5 slow 20, 2% stop loss, no take profit: 0.33 (run br_free_gld_2)\n- GLD 1d, smaCross fast 5 slow 20, no stop loss, no take profit: -0.12 (run br_free_gld_1)\n\nThe two GLD rows count as separate specs because their stop loss differs. These are research figures only and do not authorize any trading.",
-          "inputDigest": "914adeb52054a2aeb10dd4a1d4c7c9bd6e53b31acefc7ac181806762bfc0b056",
+          "inputDigest": "6a202c27e776a1f842cef26b38db6d35fad5b9ee1672c43cfab69ac961dcc9a0",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U5",
       "recordedAt": "2026-11-20T03:39:57.469Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 2,
       "audit": "correct"
@@ -3058,7 +3273,7 @@
       "completions": [
         {
           "content": "",
-          "inputDigest": "b0d7fa171c6e6dc5a2f27eeec6feba049f33b5131024753086dfa5e84ab0210b",
+          "inputDigest": "69408c49c16ac8ca2b827a0d218f499ed1588daacc5b0b26bf742a4d780e8887",
           "toolCalls": [
             {
               "arguments": "{\"term\":\"backtest_sharpe\"}",
@@ -3069,14 +3284,16 @@
         },
         {
           "content": "Here are the backtest Sharpe values from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC). Both groupings are certified and both ran, so none are waiting for certification. Each value is from the latest succeeded engine run in its group. Agent notebook records are left out.\n\nPer strategy (grain \"strategy\", engine runs linked to a strategy):\n- RSI Mean Reversion: 1.45 (run br_mr_1, finished 2026-10-15)\n- Sector Momentum: 1.31 (run br_mom_1, finished 2026-10-28)\n- Opening Range Breakout: 0.82 (run br_orb_2, finished 2026-10-20). There is 1 newer run that hasn't succeeded (failed, queued or running), so this value may be out of date.\n\nPer run spec (grain \"run_spec\", engine runs with no strategy; a spec is symbol, timeframe, rule, stop loss, take profit, cost and date range). All four use a cost of 1 bp and the dates 2021-01-01 to 2026-09-30:\n- DIA 1m, breakout entry 20 exit 10 with a 200-day trend SMA, no stop or target: 1.21 (run br_free_dia_1, finished 2026-10-18, 1 succeeded run). There is 1 newer run that hasn't succeeded.\n- IWM 1d, SMA cross fast 10 slow 30, no stop or target: 0.71 (run br_free_iwm_2, finished 2026-10-25, 2 succeeded runs in this spec)\n- GLD 1d, SMA cross fast 5 slow 20, 2% stop loss: 0.33 (run br_free_gld_2, finished 2026-11-01)\n- GLD 1d, SMA cross fast 5 slow 20, no stop: -0.12 (run br_free_gld_1, finished 2026-10-30)\n\nThe two GLD rows count as separate run specs because their stop losses differ.\n\nThe Sharpe values are annualized. They are research results only and don't authorize any trading or deployment.",
-          "inputDigest": "5c4fe98ff8066388ec71d9b9b3f89b30653ef55318da5cb78240343f0a1fb3a2",
+          "inputDigest": "a028ccf4151615227b6af2c69bbd50e0abfd6fbac6d3a41835d510b44423d6b5",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
+      "promptFormat": "158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba",
       "question": "U5",
       "recordedAt": "2026-11-20T03:40:04.482Z",
+      "toolList": "4dd4323c6225fafc4bd88070c92c8337e036c588a62a67ab61d06360ad879d76",
       "tools": ["terms_query({\"term\":\"backtest_sharpe\"})"],
       "trial": 3,
       "audit": "correct"
