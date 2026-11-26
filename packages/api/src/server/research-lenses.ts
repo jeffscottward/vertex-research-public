@@ -533,12 +533,12 @@ const mapFailure = (
 // Unexpected and gateway failures are reported as a semantic event with the
 // request context, so a 502/503 from a lens is never silent. Reporting never
 // fails the request.
-const reportLensFailure = (
+const reportLensFailure = async (
   context: ApiContext,
   procedure: "rotationMatrix" | "deepValue" | "deepValueScore",
   error: unknown,
   attributes: Readonly<Record<string, string>> = {}
-): void => {
+): Promise<void> => {
   if (context.semanticEvents === undefined) return;
   const code = error instanceof ResearchLensError ? error.code : null;
   // NOT_FOUND and NOT_CONFIGURED are typed answers, not failures.
@@ -564,14 +564,11 @@ const reportLensFailure = (
     outcome: "failure",
     source: "api",
   };
-  const sink = context.semanticEvents;
-  void (async () => {
-    try {
-      await sink.emit(event);
-    } catch {
-      // Reporting never fails the request.
-    }
-  })();
+  try {
+    await context.semanticEvents.emit(event);
+  } catch {
+    // Reporting never fails the request.
+  }
 };
 
 const rotationMatrix = api.researchLenses.rotationMatrix
@@ -584,7 +581,7 @@ const rotationMatrix = api.researchLenses.rotationMatrix
         researchLensOptions
       );
     } catch (error) {
-      reportLensFailure(context, "rotationMatrix", error);
+      await reportLensFailure(context, "rotationMatrix", error);
       throw mapFailure(errors, error, "Rotation matrix request failed");
     }
   });
@@ -598,7 +595,7 @@ const deepValue = api.researchLenses.deepValue
         researchLensOptions
       );
     } catch (error) {
-      reportLensFailure(context, "deepValue", error);
+      await reportLensFailure(context, "deepValue", error);
       throw mapFailure(errors, error, "Deep value request failed");
     }
   });
@@ -613,7 +610,7 @@ const deepValueScore = api.researchLenses.deepValueScore
         { ...researchLensOptions, marketHistory: context.marketHistory ?? null }
       );
     } catch (error) {
-      reportLensFailure(context, "deepValueScore", error, {
+      await reportLensFailure(context, "deepValueScore", error, {
         symbol: input.symbol,
       });
       throw mapFailure(errors, error, "Scoring failed");
