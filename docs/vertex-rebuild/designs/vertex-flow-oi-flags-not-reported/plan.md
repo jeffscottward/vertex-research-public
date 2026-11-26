@@ -77,7 +77,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
 | Risk | Mitigation |
 | --- | --- |
 | New collector inserts `NULL` before DB migration runs (Postgres `23502` rejects the whole print batch) | Follow the QuantVPS migration order (`docs/vertex-rebuild/flow-pipeline.md`): deploy outside 08:30–16:00 ET, pause `vertex-flow.timer`, apply `0098_flow_option_prints_oi_flags.sql` via `psql -v ON_ERROR_STOP=1 --single-transaction`, run a rolled-back write probe as `vertex_research`, deploy `vertex-web.service` + collector, then resume `vertex-flow.timer`. |
-| `.strict()` v1 wire change breaks skewed browser tabs or external `flow.optionPrints` / MCP clients | Web and API deploy together on one origin; open browser tabs reload on restart. The nullable output schemas and `packages/api/openapi.json` document `null` flags and `oiFlagsNotReported`. |
+| `.strict()` v1 wire change breaks skewed browser tabs or external `flow.optionPrints` / MCP clients | Web and API deploy together on one origin; open browser tabs reload on restart. The nullable output schemas and `packages/api/openapi.json` document `null` flags and `oiFlagsNotReported` for oRPC and OpenAPI clients. MCP clients get no output schema, and the MCP tool descriptions are unchanged (deferred, see **MCP descriptions** under Goal). |
 | Rollback to PR #451 code reads rows with `NULL` flags | Safe by DB proof: `flow_option_prints_check` guarantees `NULL` occurs only when `open_interest = 0`, and PR #451's `oiFlags` returns `false` on `openInterest === 0` before reading stored columns. |
 | Restoring `NOT NULL` later fails if `NULL` rows exist | Provide guarded `packages/db/rollback/0098_flow_option_prints_oi_flags.down.sql` that checks for `opening IS NULL OR volume_over_oi IS NULL`, raises an exception if any exist (no silent row mutation), and otherwise restores pre-0098 `flow_option_prints_check` and `SET NOT NULL`. |
 
@@ -99,7 +99,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
   - `packages/api/src/server/flow-snapshot.ts` and `packages/api/src/server/flow-snapshot.test.ts`
   - `packages/api/src/server/flow-option-prints.test.ts`
   - `packages/api/src/flow-option-bubbles-rules.ts` and `packages/api/src/flow-option-bubbles-rules.test.ts`
-  - `packages/api/src/server/mcp.ts`
+  - `packages/api/src/server/mcp.ts` (unchanged; see **MCP descriptions** under Goal)
   - `packages/db/src/schema/flow.ts`
   - `packages/db/migrations/meta/_journal.json` (generated)
   - `packages/db/src/server/flow-migration.test.ts`
