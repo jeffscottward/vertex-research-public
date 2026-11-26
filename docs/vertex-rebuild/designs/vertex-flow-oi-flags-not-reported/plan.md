@@ -152,7 +152,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
 
 ## Acceptance check
 
-- A QuantData row with `openInterest: 0` is stored with `opening = NULL` and `volume_over_oi = NULL` (unit test on `parseOptionPrints`; migration and rollback tests in `flow-migration.test.ts` and `migration-journal.test.ts`).
+- A QuantData row with `openInterest: 0` is stored with `opening = NULL` and `volume_over_oi = NULL` (unit test on `parseOptionPrints`; migration and rollback tests in `flow-migration.test.ts`, `migration-journal.test.ts`, and the real-Postgres `tests/integration/database/flow-option-prints-oi-flags.test.ts`).
 - `flow.snapshot`, `flow.optionPrints`, and `flow.optionBubbles` return `null` flags for `openInterest: 0` prints, pre-migration rows included (unit and contract schema tests on `printView`, `buildFlowOptionPrints`, and `foldOptionBubbles`).
 - `FlowOptionsSummary.oiFlagsNotReported` counts them; `volumeOverOi` and `openingPremiumShare` exclude them (unit test).
 - `/flow` names the state in `OptionsFlowPanel` (`Vol > OI` tile, `Opening share` tile in mixed windows, top-prints `Flags` column) and `FlowOptionBubblesPanel` inspector (web view-model tests).
@@ -183,3 +183,22 @@ order by 1, 2;
 
 - **Confirming pattern (pre-deploy rows):** `oi_zero_opening_false = 0` and `oi_zero_vol_over_oi_false = 0` (equivalently `oi_zero_opening_true = oi_zero - oi_zero_not_reported` and `oi_zero_vol_over_oi_true = oi_zero - oi_zero_not_reported`).
 - **If any day/ticker shows `oi_zero_opening_false > 0` or `oi_zero_vol_over_oi_false > 0`:** QuantData emits valid `false` flags on `open_interest = 0` prints for that ticker/day; open a follow-up to narrow or remove the `openInterest === 0` suppression rule.
+
+### Result (2026-11-26, before migration 0098)
+
+The query ran on QuantVPS (`vertex-postgres`, database `vertex_research_development`) inside a `begin transaction read only` block on 2026-11-26 at 04:08 ET. It covered every stored day and ticker: 20 groups, 2026-11-12 to 2026-11-25, SPX and SPY.
+
+|Measure|Count|
+|---|---|
+|`prints`|282,235|
+|`oi_zero`|15,667|
+|`oi_zero_opening_true`|15,667|
+|`oi_zero_opening_false`|0|
+|`oi_zero_vol_over_oi_true`|15,667|
+|`oi_zero_vol_over_oi_false`|0|
+|`oi_zero_not_reported`|0|
+|`oi_null`|0|
+|`oi_pos`|266,568|
+|`oi_pos_opening_true`|22,458 (8.4%)|
+
+The confirming pattern holds in every group: QuantData sets both flags to `true` on every `open_interest = 0` print. On `open_interest > 0` prints, `opening` is mixed (8.4% `true`), so the flag carries information there; the 6-of-6 `false` result of the 29-print sample above does not hold in general. Only the `open_interest = 0` case is a placeholder. No follow-up to narrow the `openInterest === 0` rule is necessary. `tests/integration/database/flow-option-prints-oi-flags.test.ts` runs `flow_option_prints_check` and the guarded rollback on real Postgres.
