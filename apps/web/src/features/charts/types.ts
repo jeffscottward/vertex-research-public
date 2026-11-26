@@ -78,7 +78,8 @@ export type DisplayCandle = Readonly<{
   high: number;
   low: number;
   close: number;
-  volume: number;
+  // Missing when the source has no volume (forex, stocks in a non-USD currency).
+  volume?: number;
 }>;
 export type ChartPalette = Readonly<{
   foreground: string;

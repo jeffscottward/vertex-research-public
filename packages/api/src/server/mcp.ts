@@ -179,7 +179,14 @@ export const presentOptimization = (
   };
 };
 
+// The agent tool keeps stocks and futures; the procedure marketData/bars also takes forex (CASH).
+// Reason: this tool definition (description and input schema) is part of every recorded Plan-mode model
+// call of the semantic-layer eval (tests/integration/semantic-layer/eval-replay.test.ts). A new value
+// makes all recorded trials stale, so forex for agents comes with a new recording (card
+// vertex-fx-mcp-market-bars).
+const MARKET_BARS_TOOL_SEC_TYPES = ["STK", "FUT", "CONTFUT"] as const;
 const MarketBarsToolInputSchema = MarketBarsInputSchema.safeExtend({
+  secType: z.enum(MARKET_BARS_TOOL_SEC_TYPES).default("STK"),
   lastBars: z
     .number()
     .int()

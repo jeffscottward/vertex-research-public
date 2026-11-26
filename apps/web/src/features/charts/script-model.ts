@@ -66,7 +66,8 @@ export const toScriptBars = (
     low,
     open,
     timestamp,
-    volume,
+    // The script sandbox needs a finite volume; a bar with no volume reads 0.
+    volume: volume ?? 0,
   }));
 
 // True when the run used exactly these bars, this source and these inputs.
