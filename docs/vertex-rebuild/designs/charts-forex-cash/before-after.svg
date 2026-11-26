@@ -1,0 +1,673 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="560"
+  viewBox="0 0 1200 560"
+>
+  <title>Before and after: the Charts forex (CASH) path</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <marker
+      id="arrow-muted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+    </marker>
+    <marker
+      id="arrow-red"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444" />
+    </marker>
+    <marker
+      id="arrow-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#22c55e" />
+    </marker>
+    <marker
+      id="arrow-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#d4a84b" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="560" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="48"
+    y="54"
+    fill="#f8fafc"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="26"
+    font-weight="700"
+  >
+    Vertex Charts · Forex (CASH) Path
+  </text>
+  <text
+    x="48"
+    y="80"
+    fill="#94a3b8"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="14"
+  >
+    vertex-history 1.8.0 (ibapi 10.30.1) live on QuantVPS · Verified EUR.USD /
+    GBP.USD / USD.JPY HTTP 200
+  </text>
+  <line x1="48" y1="98" x2="1152" y2="98" stroke="#1e293b" stroke-width="1.5" />
+
+  <!-- LEFT: BEFORE -->
+  <g transform="translate(48, 122)">
+    <rect
+      width="524"
+      height="398"
+      rx="14"
+      fill="#0f172a"
+      stroke="#334155"
+      stroke-width="1.5"
+    />
+    <circle cx="28" cy="28" r="7" fill="#ef4444" />
+    <text
+      x="46"
+      y="34"
+      fill="#fca5a5"
+      font-family="Public Sans, system-ui, sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      BEFORE · CASH Hidden on Web / API
+    </text>
+
+    <!-- Step 1: Charts Picker -->
+    <g transform="translate(26, 60)">
+      <rect width="180" height="122" rx="10" fill="#1e293b" stroke="#475569" />
+      <text
+        x="14"
+        y="24"
+        fill="#cbd5e1"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="12"
+        font-weight="700"
+      >
+        /charts Picker
+      </text>
+      <rect
+        x="14"
+        y="36"
+        width="152"
+        height="22"
+        rx="4"
+        fill="#0f172a"
+        stroke="#334155"
+      />
+      <text x="22" y="51" fill="#94a3b8" font-family="monospace" font-size="11">
+        STK · FUT · CONTFUT
+      </text>
+      <rect
+        x="14"
+        y="66"
+        width="152"
+        height="22"
+        rx="4"
+        fill="#0f172a"
+        stroke="#334155"
+      />
+      <text x="22" y="81" fill="#94a3b8" font-family="monospace" font-size="11">
+        ES · NQ · SPY · QQQ
+      </text>
+      <rect
+        x="14"
+        y="94"
+        width="152"
+        height="20"
+        rx="4"
+        fill="#2a1215"
+        stroke="#7f1d1d"
+        stroke-dasharray="3 2"
+      />
+      <text
+        x="22"
+        y="108"
+        fill="#f87171"
+        font-family="monospace"
+        font-size="10"
+      >
+        ✕ no Forex / CASH
+      </text>
+    </g>
+
+    <!-- Arrow 1 -> 2 -->
+    <line
+      x1="208"
+      y1="121"
+      x2="256"
+      y2="121"
+      stroke="#ef4444"
+      stroke-width="2.5"
+      marker-end="url(#arrow-red)"
+    />
+
+    <!-- Step 2: oRPC / MCP Gate -->
+    <g transform="translate(264, 60)">
+      <rect
+        width="234"
+        height="122"
+        rx="10"
+        fill="#1e293b"
+        stroke="#991b1b"
+        stroke-width="1.5"
+      />
+      <text
+        x="14"
+        y="24"
+        fill="#fca5a5"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="12"
+        font-weight="700"
+      >
+        MARKET_SEC_TYPES
+      </text>
+      <!-- Stop icon -->
+      <circle
+        cx="44"
+        cy="70"
+        r="22"
+        fill="#450a0a"
+        stroke="#ef4444"
+        stroke-width="2.5"
+      />
+      <line
+        x1="33"
+        y1="59"
+        x2="55"
+        y2="81"
+        stroke="#ef4444"
+        stroke-width="3"
+        stroke-linecap="round"
+      />
+      <line
+        x1="55"
+        y1="59"
+        x2="33"
+        y2="81"
+        stroke="#ef4444"
+        stroke-width="3"
+        stroke-linecap="round"
+      />
+      <text x="78" y="64" fill="#f8fafc" font-family="monospace" font-size="12">
+        secType: CASH
+      </text>
+      <text
+        x="78"
+        y="84"
+        fill="#f87171"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="12"
+      >
+        Rejected at Zod
+      </text>
+      <text
+        x="78"
+        y="102"
+        fill="#94a3b8"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="11"
+      >
+        oRPC + MCP blocked
+      </text>
+    </g>
+
+    <!-- Arrow 2 -> 3 (broken) -->
+    <line
+      x1="381"
+      y1="184"
+      x2="381"
+      y2="232"
+      stroke="#64748b"
+      stroke-width="2"
+      stroke-dasharray="5 5"
+    />
+    <text
+      x="394"
+      y="214"
+      fill="#94a3b8"
+      font-family="Public Sans, system-ui, sans-serif"
+      font-size="11"
+    >
+      unreachable from UI
+    </text>
+
+    <!-- Step 3: Live vertex-history -->
+    <g transform="translate(26, 238)">
+      <rect
+        width="472"
+        height="132"
+        rx="10"
+        fill="#0d1c16"
+        stroke="#166534"
+        stroke-width="1.5"
+      />
+      <circle cx="24" cy="24" r="6" fill="#22c55e" />
+      <text
+        x="38"
+        y="29"
+        fill="#86efac"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="13"
+        font-weight="700"
+      >
+        QuantVPS vertex-history 1.8.0 (ibapi 10.30.1)
+      </text>
+      <!-- Mini FX pills -->
+      <rect
+        x="20"
+        y="48"
+        width="136"
+        height="32"
+        rx="6"
+        fill="#14532d"
+        opacity="0.55"
+      />
+      <text x="34" y="69" fill="#bbf7d0" font-family="monospace" font-size="12">
+        EUR.USD 200 OK
+      </text>
+      <rect
+        x="168"
+        y="48"
+        width="136"
+        height="32"
+        rx="6"
+        fill="#14532d"
+        opacity="0.55"
+      />
+      <text
+        x="182"
+        y="69"
+        fill="#bbf7d0"
+        font-family="monospace"
+        font-size="12"
+      >
+        GBP.USD 200 OK
+      </text>
+      <rect
+        x="316"
+        y="48"
+        width="136"
+        height="32"
+        rx="6"
+        fill="#14532d"
+        opacity="0.55"
+      />
+      <text
+        x="330"
+        y="69"
+        fill="#bbf7d0"
+        font-family="monospace"
+        font-size="12"
+      >
+        USD.JPY 200 OK
+      </text>
+      <text
+        x="20"
+        y="106"
+        fill="#94a3b8"
+        font-family="monospace"
+        font-size="11"
+      >
+        IDEALPRO · MIDPOINT · bars-v2 · volume_unit: null
+      </text>
+    </g>
+  </g>
+
+  <!-- Center Arrow -->
+  <g transform="translate(580, 305)">
+    <line
+      x1="0"
+      y1="16"
+      x2="36"
+      y2="16"
+      stroke="#d4a84b"
+      stroke-width="3.5"
+      marker-end="url(#arrow-gold)"
+    />
+  </g>
+
+  <!-- RIGHT: AFTER -->
+  <g transform="translate(628, 122)">
+    <rect
+      width="524"
+      height="398"
+      rx="14"
+      fill="#0f172a"
+      stroke="#d4a84b"
+      stroke-width="1.5"
+    />
+    <circle cx="28" cy="28" r="7" fill="#22c55e" />
+    <text
+      x="46"
+      y="34"
+      fill="#86efac"
+      font-family="Public Sans, system-ui, sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      AFTER · Forex Bars Live End-to-End
+    </text>
+
+    <!-- Step 1: Charts Picker -->
+    <g transform="translate(26, 60)">
+      <rect width="206" height="142" rx="10" fill="#1e293b" stroke="#d4a84b" />
+      <text
+        x="14"
+        y="24"
+        fill="#fde68a"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="12"
+        font-weight="700"
+      >
+        /charts Picker
+      </text>
+      <rect
+        x="14"
+        y="36"
+        width="178"
+        height="22"
+        rx="4"
+        fill="#0f172a"
+        stroke="#d4a84b"
+      />
+      <text x="22" y="51" fill="#fde68a" font-family="monospace" font-size="11">
+        Forex (CASH) · IDEALPRO
+      </text>
+      <rect
+        x="14"
+        y="64"
+        width="178"
+        height="22"
+        rx="4"
+        fill="#0f172a"
+        stroke="#334155"
+      />
+      <text x="22" y="79" fill="#e2e8f0" font-family="monospace" font-size="11">
+        Data: MIDPOINT only
+      </text>
+      <rect x="14" y="92" width="55" height="20" rx="4" fill="#14532d" />
+      <text
+        x="19"
+        y="106"
+        fill="#bbf7d0"
+        font-family="monospace"
+        font-size="10"
+      >
+        EUR.USD
+      </text>
+      <rect x="75" y="92" width="55" height="20" rx="4" fill="#14532d" />
+      <text
+        x="80"
+        y="106"
+        fill="#bbf7d0"
+        font-family="monospace"
+        font-size="10"
+      >
+        USD.JPY
+      </text>
+      <rect x="136" y="92" width="56" height="20" rx="4" fill="#14532d" />
+      <text
+        x="141"
+        y="106"
+        fill="#bbf7d0"
+        font-family="monospace"
+        font-size="10"
+      >
+        GBP.USD
+      </text>
+      <text
+        x="14"
+        y="130"
+        fill="#94a3b8"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="10"
+      >
+        OrderFlow / Options / JEV hidden
+      </text>
+    </g>
+
+    <!-- Arrow 1 -> 2 -->
+    <line
+      x1="234"
+      y1="116"
+      x2="268"
+      y2="116"
+      stroke="#22c55e"
+      stroke-width="2.5"
+      marker-end="url(#arrow-green)"
+    />
+
+    <!-- Step 2: oRPC contract -->
+    <g transform="translate(276, 60)">
+      <rect
+        width="222"
+        height="142"
+        rx="10"
+        fill="#1e293b"
+        stroke="#22c55e"
+        stroke-width="1.5"
+      />
+      <text
+        x="14"
+        y="24"
+        fill="#86efac"
+        font-family="Public Sans, system-ui, sans-serif"
+        font-size="12"
+        font-weight="700"
+      >
+        oRPC contract (bars)
+      </text>
+      <!-- Bars check -->
+      <circle cx="28" cy="52" r="9" fill="#14532d" stroke="#22c55e" />
+      <path
+        d="M 24 52 L 27 55 L 33 49"
+        fill="none"
+        stroke="#86efac"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <text x="46" y="56" fill="#f8fafc" font-family="monospace" font-size="11">
+        bars: CASH + exchange
+      </text>
+      <!-- MIDPOINT forced -->
+      <circle cx="28" cy="80" r="9" fill="#14532d" stroke="#22c55e" />
+      <path
+        d="M 24 80 L 27 83 L 33 77"
+        fill="none"
+        stroke="#86efac"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+      <text x="46" y="84" fill="#f8fafc" font-family="monospace" font-size="11">
+        forces MIDPOINT
+      </text>
+      <!-- Ticks/Depth rejected -->
+      <circle cx="28" cy="112" r="9" fill="#450a0a" stroke="#ef4444" />
+      <line
+        x1="24"
+        y1="108"
+        x2="32"
+        y2="116"
+        stroke="#f87171"
+        stroke-width="2"
+      />
+      <line
+        x1="32"
+        y1="108"
+        x2="24"
+        y2="116"
+        stroke="#f87171"
+        stroke-width="2"
+      />
+      <text
+        x="46"
+        y="116"
+        fill="#fca5a5"
+        font-family="monospace"
+        font-size="11"
+      >
+        ticks/depth: rejected
+      </text>
+    </g>
+
+    <!-- Arrow 2 -> 3 -->
+    <line
+      x1="387"
+      y1="204"
+      x2="387"
+      y2="232"
+      stroke="#22c55e"
+      stroke-width="2.5"
+      marker-end="url(#arrow-green)"
+    />
+
+    <!-- Step 3: Rendered FX Candlestick Chart -->
+    <g transform="translate(26, 238)">
+      <rect
+        width="472"
+        height="132"
+        rx="10"
+        fill="#0b1324"
+        stroke="#334155"
+        stroke-width="1.5"
+      />
+      <text
+        x="16"
+        y="24"
+        fill="#fde68a"
+        font-family="monospace"
+        font-size="12"
+        font-weight="700"
+      >
+        EUR.USD · 1D · IDEALPRO · MIDPOINT (v = null)
+      </text>
+      <!-- Grid lines -->
+      <line
+        x1="16"
+        y1="45"
+        x2="456"
+        y2="45"
+        stroke="#1e293b"
+        stroke-width="1"
+      />
+      <line
+        x1="16"
+        y1="75"
+        x2="456"
+        y2="75"
+        stroke="#1e293b"
+        stroke-width="1"
+      />
+      <line
+        x1="16"
+        y1="105"
+        x2="456"
+        y2="105"
+        stroke="#1e293b"
+        stroke-width="1"
+      />
+      <!-- Candlesticks (illustrative verified precision 1.09xx) -->
+      <g stroke-width="2">
+        <line x1="50" y1="54" x2="50" y2="100" stroke="#22c55e" />
+        <rect x="44" y="64" width="12" height="24" fill="#22c55e" rx="1" />
+        <line x1="88" y1="46" x2="88" y2="86" stroke="#22c55e" />
+        <rect x="82" y="54" width="12" height="20" fill="#22c55e" rx="1" />
+        <line x1="126" y1="50" x2="126" y2="94" stroke="#ef4444" />
+        <rect x="120" y="58" width="12" height="24" fill="#ef4444" rx="1" />
+        <line x1="164" y1="62" x2="164" y2="104" stroke="#ef4444" />
+        <rect x="158" y="72" width="12" height="20" fill="#ef4444" rx="1" />
+        <line x1="202" y1="56" x2="202" y2="96" stroke="#22c55e" />
+        <rect x="196" y="66" width="12" height="18" fill="#22c55e" rx="1" />
+        <line x1="240" y1="48" x2="240" y2="88" stroke="#22c55e" />
+        <rect x="234" y="56" width="12" height="22" fill="#22c55e" rx="1" />
+        <line x1="278" y1="44" x2="278" y2="82" stroke="#22c55e" />
+        <rect x="272" y="50" width="12" height="20" fill="#22c55e" rx="1" />
+        <line x1="316" y1="48" x2="316" y2="86" stroke="#ef4444" />
+        <rect x="310" y="54" width="12" height="18" fill="#ef4444" rx="1" />
+        <line x1="354" y1="40" x2="354" y2="76" stroke="#22c55e" />
+        <rect x="348" y="46" width="12" height="20" fill="#22c55e" rx="1" />
+      </g>
+      <!-- Price axis labels -->
+      <text
+        x="396"
+        y="49"
+        fill="#94a3b8"
+        font-family="monospace"
+        font-size="11"
+      >
+        1.1010
+      </text>
+      <text
+        x="396"
+        y="79"
+        fill="#d4a84b"
+        font-family="monospace"
+        font-size="11"
+      >
+        1.0967
+      </text>
+      <text
+        x="396"
+        y="109"
+        fill="#94a3b8"
+        font-family="monospace"
+        font-size="11"
+      >
+        1.0920
+      </text>
+      <rect x="390" y="14" width="66" height="16" rx="3" fill="#1e293b" />
+      <text
+        x="403"
+        y="26"
+        fill="#cbd5e1"
+        font-family="monospace"
+        font-size="10"
+      >
+        MOCK
+      </text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <text
+    x="48"
+    y="542"
+    fill="#64748b"
+    font-family="Public Sans, system-ui, sans-serif"
+    font-size="12"
+  >
+    Read-only historical bars · No orders, arming, risk settings, or live
+    trading unit changes
+  </text>
+</svg>
