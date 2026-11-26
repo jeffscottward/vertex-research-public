@@ -219,6 +219,12 @@ describe("MarketRegimeSection", () => {
     expect(container.querySelectorAll("[data-regime-etf]")).toHaveLength(4);
     expect(container.querySelector("[data-regime-stale-banner]")).toBeNull();
     expect(container.querySelector("[data-regime-mixed-drivers]")).toBeNull();
+    // Pillar detail and scope are visible text, not hover-only.
+    expect(container.textContent).toContain("NYSE Breadth-90 IDLE.");
+    expect(container.textContent).toContain("Market-wide");
+    expect(
+      container.querySelectorAll('[data-regime-etf] th[scope="row"]')
+    ).toHaveLength(4);
     expect(container.textContent).toContain(REGIME_RESEARCH_ONLY_NOTE);
     expect(onStatusChange).toHaveBeenLastCalledWith("ready");
     expect(onBusyChange).toHaveBeenLastCalledWith(false);

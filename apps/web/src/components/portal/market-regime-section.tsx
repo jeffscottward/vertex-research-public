@@ -97,7 +97,14 @@ const PillarCell = ({
       </div>
       <div className="text-[11px] text-muted-foreground tabular-nums">
         {cell.asOf ?? "no as-of"}
-        {cell.ageLabel === null ? "" : ` (${cell.ageLabel})`} · {cell.source}
+        {cell.ageLabel === null ? "" : ` (${cell.ageLabel})`} ·{" "}
+        {cell.scopeLabel} · {cell.source}
+      </div>
+      <div
+        className="text-[11px] text-muted-foreground"
+        data-pillar-detail="true"
+      >
+        {cell.detail}
       </div>
     </div>
   </TableCell>
@@ -281,9 +288,12 @@ export const MarketRegimeSection = ({
                   data-regime-row-stale={row.hasStaleInputs ? "true" : "false"}
                   key={row.symbol}
                 >
-                  <TableCell className="align-top font-semibold">
+                  <TableHead
+                    className="h-auto whitespace-normal align-top font-semibold"
+                    scope="row"
+                  >
                     <TickerLink symbol={row.symbol} />
-                  </TableCell>
+                  </TableHead>
                   <TableCell className="align-top">
                     <div className="space-y-1">
                       <StatusBadge status={row.summary.tone}>

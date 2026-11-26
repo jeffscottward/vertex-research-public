@@ -59,6 +59,8 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // The option-chain collector reads live chains (optionsChain.expiries, optionsChain.chain) and
 // stores snapshots with a write key (optionsChain.ingestSnapshot), and research agents read
 // stored snapshots with a read key (optionsChain.snapshot).
+// Research agents read the unified market regime view with a read key (marketRegime.get, research
+// only: Postgres and loopback reads, no order path).
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
