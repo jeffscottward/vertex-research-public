@@ -148,7 +148,7 @@ The rule compares the tool list of a trial with the current tool list.
 |State of a trial|Condition|Valid?|What to record|
 |---|---|---|---|
 |exact|The trial saw the current list (same list id).|Yes|-|
-|stale|A tool that the trial calls differs. Or the recording does not hold the tool list of the trial. Or the question has exact trials, and each of them calls a tool that differs for this trial.|No|This trial.|
+|stale|A tool that the trial calls differs. Or the recording does not hold the tool list of the trial. Or the question has exact trials that are valid in every other check, and each of them calls a tool that differs for this trial.|No|This trial.|
 |drifted|No tool that the trial calls differs, and the trial has a witness.|Yes|-|
 |needs witness|No tool that the trial calls differs, and the question has no exact trial that is valid in every other check.|No|One trial of the question.|
 
@@ -197,7 +197,7 @@ The cost preview is the recorder itself: with `--expect=0` it prints its selecti
 - **One recording model.** `RECORDING_MODEL` in `recording.ts` is `anthropic/claude-opus-5-5`. The recorder is the authority: it checks the model id of every reply and stores this id only. The replay test checks the file. The session flag only selects the model, and the check call of the bridge only avoids a run that would stop at its first reply. A change of the model is a full recording by rule: the constant changes in the commit of that recording, and `stale` then selects every trial.
 - **A reply from another model** is not transient. The trial is not stored, and the recorder starts no further trial. A trial that is running ends as usual.
 - **A fault** (`{key, fault}` on stdin, or a model function that throws) fails that trial only. A line on stdin that is not a reply and not a fault, or a closed stdin, fails every request that waits for a reply.
-- **A write after each trial.** First the master-rules freeze, if the run froze a new search since its last write. Then the recording: read the file again, merge the one trial, write a temporary file, rename. A killed run keeps its finished trials. The replay of a `stale` selection can also freeze a search; the run writes it before its first trial, also when it records nothing.
+- **A write after each trial.** First the master-rules freeze, if the run froze a new search since its last write. Then the recording: read the file again, merge the one trial, write a temporary file, rename. A killed run keeps its finished trials. The replay of a `stale` selection can also freeze a search; the run writes it before its first trial, also when it records nothing (but not when it stops at `--expect`).
 - **Another writer.** A grading step that read the file before the run and writes it whole during the run deletes trials of the run. The recorder cannot prevent that, because the grading scripts are not in the repository. At its end the recorder checks that every trial it stored is still in the file, and reports a missing one as failed. The rule for jobs stays: do not grade while a recording runs.
 - **A run of every question** replaces trials as they finish. Only when it stored every trial does it drop all other trials of the file (trials of removed questions, or trial numbers above the trials argument).
 - **`--expect=<n>`.** The recorder stops before the first model request when its selection has another size. It prints the selection and stores nothing. `--expect=0` shows what a `stale` run would record, with no model call.
@@ -223,7 +223,7 @@ The cost preview is the recorder itself: with `--expect=0` it prints its selecti
 
 ### Version 2 files
 
-`upgrade` is a selector of `record.ts` with no model call. It replays each trial that has no `toolList` and compares the old digest over tool list and messages. A match proves that the current tool list is the list that the model saw. The trial then gets the current list id, the message digests of the replay and the current prompt format. A trial that does not match is kept as it is; it is stale, and `stale` records it. The command changes no other field of a trial. In the header it sets `schemaVersion`, the tool lists and the note of the recorder, also when it kept every trial. A second run changes nothing. It ends with exit code 1 when it kept a trial. The base commit replays, so all 90 trials of the committed file are upgraded in this change.
+`upgrade` is a selector of `record.ts` with no model call. It replays each trial that has no `toolList` and compares the old digest over tool list and messages. A match proves that the current tool list is the list that the model saw. The trial then gets the current list id, the message digests of the replay and the current prompt format. A trial that does not match is kept as it is; it is stale, and `stale` records it. The command changes no other field of a trial. In the header it sets `schemaVersion`, the tool lists and the note of the recorder, also when it kept every trial, and it writes the trials in question order (as every write of the recorder does). A second run changes nothing. It ends with exit code 1 when it kept a trial. The base commit replays, so all 90 trials of the committed file are upgraded in this change.
 
 The prompt format of the 90 upgraded trials is not read from the old file, which has no such field. It rests on the comparison of the two bridges: the prompt code of the Python bridge of 2026-11-20 and of 2026-11-26 is the same text, and the TypeScript bridge reproduces its output for the fixed request byte for byte.
 
@@ -317,7 +317,7 @@ The prompt format of the 90 upgraded trials is not read from the old file, which
 
 - **Pros**: smaller reviews; the recorder faults could merge first.
 - **Cons**: both parts change the same functions of the same files; a first commit without tool lists would need interim types that the second commit removes.
-- **Reason for Rejection**: Rejected by author: one commit with code, tests, recording and documents is the smallest change that builds.
+- **Reason for Rejection**: Rejected by author: one commit with code, tests, recording and documents is the smallest change that builds. Review fixes follow as further commits.
 
 ---
 
@@ -339,7 +339,7 @@ The prompt format of the 90 upgraded trials is not read from the old file, which
 
 ### Rollout and rollback
 
-- This change lands with no drifted trial. A revert of the commit restores code and recording together with no model call.
+- This change lands with no drifted trial. A revert of the merge commit of the pull request restores code and recording together with no model call.
 - A branch that holds a version 2 recording and merges this change takes its own recording file whole in the merge (no hand merge of the JSON), runs `bun run eval:semantic:record -- 3 6 upgrade`, formats the file with Biome and commits it. The replay test fails on `schemaVersion` 2 until then.
 - The `upgrade` selector and the version 2 digest stay until no open branch holds a version 2 recording. The branch of card `vertex-fx-mcp-market-bars` (`ws/let-the-mcp-tool-market-bars`) is the one known today. A follow-up card removes them.
 
@@ -364,7 +364,7 @@ No new data class and no secret. The recorder reads only synthetic eval data. Th
 
 ## Detailed Implementation Plan
 
-One pull request with one commit (Alternative O). Checks of the commit: `bun run check`, `bun run test:operations`, and `bun run test:integration`.
+One pull request. The change is one commit (Alternative O). The fixes that the code review and the drift report of that commit asked for follow as further commits of the same pull request. Checks of each commit: `bun run check`, `bun run test:operations`, and `bun run test:integration`.
 
 ### Files
 
@@ -379,10 +379,10 @@ One pull request with one commit (Alternative O). Checks of the commit: `bun run
 |`tests/integration/semantic-layer/recorder.test.ts`, `tests/integration/semantic-layer/bridge.test.ts`|Create|Add the tests of the test plan.|
 |`tests/integration/semantic-layer/recording.test.ts`|Modify|Add the tests of the test plan. Remove the block for `assertTrialsHaveModelAndDate` and the version 1 case of `mergeRecording`.|
 |`tests/integration/semantic-layer/eval-replay.test.ts`|Modify|One `replayRecording` call in `beforeAll`; each trial test reads its verdict from the result. New checks: model id equals `RECORDING_MODEL`; no answer starts with `BRIDGE FAILURE`; the header holds exactly the tool lists that trials name.|
-|`tests/integration/semantic-layer/eval-recording.fixture.json`|Modify|Output of `upgrade`, then `bunx --bun --no-install biome format --write` on the file.|
-|`package.json`|Modify|`"eval:semantic:record": "bun tests/integration/semantic-layer/record-session.ts"`. The wrapper `scripts/with-test-env.ts` moves into `startRecorder`.|
+|`tests/integration/semantic-layer/eval-recording.fixture.json`|Modify|Replace the file with the output of `upgrade`, then run `bunx --bun --no-install biome format --write` on it.|
+|`package.json`|Modify|Set the script to `"eval:semantic:record": "bun tests/integration/semantic-layer/record-session.ts"`. The wrapper `scripts/with-test-env.ts` moves into `startRecorder`.|
 |`knip.jsonc`|Modify|Add `omp` to `ignoreBinaries`. Add `tests/integration/semantic-layer/bridge.ts` to the entry list beside `record.ts` (the kernel loads it; no file imports it). `record-session.ts` needs no entry: the package script names it.|
-|`packages/api/src/server/assistant-runtime.ts`|Modify|Comment of `ASSISTANT_DEFERRED_TOOL_PATTERN` only: a trial names the tool list it saw; a new tool that no trial calls needs one new trial for each question.|
+|`packages/api/src/server/assistant-runtime.ts`|Modify|Change only the comment of `ASSISTANT_DEFERRED_TOOL_PATTERN`: a trial names the tool list it saw; a new tool that no trial calls needs one new trial for each question.|
 |`docs/vertex-rebuild/agent-semantic-layer.md`|Modify|Rewrite the paragraph "What CI proves and what it does not" (the tool rule, the limit; the sentence "If a run fails, nothing is written" and the command list go). Add the section "How to record". Add the note "Recording format 2026-11-26".|
 |`docs/vertex-rebuild/designs/eval-recording-cost/plan.md`, `before-after.svg`, `witness-rule.svg`, `record-flow.svg`, `goldfish_review_report.md`, `review-findings.svg` (same folder)|Create|Add this plan, its figures, the review report and its figure.|
 
@@ -403,7 +403,7 @@ calledTools(trial: Pick<RecordedTrial, "completions">): Set<string>;
 toolVerdicts(
   recording: { toolLists?: Record<string, ToolList>; trials: readonly RecordedTrial[] },
   current: IdentifiedToolList,
-  isWitness?: (trial: RecordedTrial) => boolean // default: every exact trial; the replay passes "replays unchanged"
+  isWitness?: (trial: RecordedTrial) => boolean // default: every exact trial; the replay passes "valid in every other check"
 ): Map<string, ToolVerdict>; // key "<question>.<trial>"
 selectWitnesses(
   trials: readonly RecordedTrial[],
@@ -482,7 +482,7 @@ Each message on stdout is one line: the word `@@EVAL`, one space, one JSON objec
 |`finished`|`count` (trials in the file), `recorded` (list of keys), `failed` (object: key to reason), `notStarted` (list of keys). The last line of a recording run.|
 |`upgraded`|`upgraded` (number), `kept` (object: key to reason). The last line of an `upgrade` run.|
 
-Each line on stdin is one JSON object: a reply `{ "key", "content", "toolCalls": [{ "name", "arguments" }], "model" }` (all four fields required; `arguments` is an object or JSON text and can be absent) or a fault `{ "key", "fault": "<text>" }`. A line for a key with no waiting request is written to stderr and dropped.
+Each line on stdin is one JSON object: a reply `{ "key", "content", "toolCalls": [{ "name", "arguments" }], "model" }` (all four fields required; `arguments` is the arguments object or its JSON text and can be absent; the recorder passes any other JSON value to the turn as JSON text, and the turn refuses it as it does in production) or a fault `{ "key", "fault": "<text>" }`. For a line whose key has no waiting request, the recorder writes a notice with the key to stderr and drops the line.
 
 ### Commands and literal values
 
@@ -495,7 +495,7 @@ Each line on stdin is one JSON object: a reply `{ "key", "content", "toolCalls":
 - The verdict: `runBridge` writes the word `STATS`, one space and the JSON text of its `BridgeStats` into its log when it ends. `record-session.ts` prints the last such line and exits with its `rc` (1 when `rc` is no number or the line is missing).
 - Timeouts: bridge deadline 3000 s, eval cell 3300 s, session process 3600 s.
 - The prompt pin: the fixed request is the constant `PROBE` in `bridge.test.ts` (non-ASCII text, two tool calls, tool results, a nested schema, an empty list and object, a fraction). The hash is `sha256(system + "\n\0\n" + prompt)` = `158f1e99d3a322715b69164490e8135dd08648ddcfb7b7e1f97f6c342dc865ba`, computed from the output of the Python bridge for that request. `buildPrompt` writes the tool list as `JSON.stringify(tools, null, 1)` with every UTF-16 code unit above 127 as a `\uXXXX` escape (what Python `json.dumps(tools, indent=1)` writes); message contents are copied as they are.
-- Constants of the bridge: 4 tries for each call. The bridge note is copied from the Python bridge without a change. So is the reply schema: `REPLY_SCHEMA` is written as JSON text to keep its key order, and a test compares it with the JSON text of the Python schema. A reply whose attempts name no model counts as a failed try. Tool call arguments are read as the Python bridge read them: JSON text is parsed; no value and an empty text are no arguments; blank text and an object are passed on. After the recorder was killed or ended, the bridge makes no further model call for it.
+- Constants of the bridge: 4 tries for each call. The bridge note is copied from the Python bridge without a change. So is the reply schema: `REPLY_SCHEMA` is written as JSON text to keep its key order, and a test compares it with the JSON text of the Python schema. A reply whose attempts name no model counts as a failed try. Tool call arguments are read as the Python bridge read them: JSON text is parsed; no value, an empty text and an empty list are no arguments; every other value is passed on. After the recorder was killed or ended, the bridge makes no further model call for it.
 
 ### Test plan
 
@@ -523,17 +523,17 @@ Each line on stdin is one JSON object: a reply `{ "key", "content", "toolCalls":
 - The recorded list differs in `market_bars`: `replayRecording` judges all 90 trials as "needs witness", and `stale` selects 30 trials, the oldest of each question, each with the witness reason of its question. After the run `replayRecording` gives 30 exact and 60 drifted trials and no stale one. A second `stale` run selects no trial.
 - One trial has another prompt format and one another model id: `stale` selects these two with these reasons.
 - The recorded list differs in `drift_status`: `stale` selects its 6 callers with the reason "the definition of a tool that the trial calls changed" and one trial of each of the 28 other questions.
-- `upgradeRecording` turns two version 2 trials into trials that are byte-equal to the committed ones; a second run changes nothing; a trial with a wrong digest is kept, with the reason.
-- `parseBridgeLine` reads a reply, a fault and a call with no arguments. It refuses a line that is not JSON, a reply with no `model`, a reply with no `key`, and arguments that are a list.
+- `upgradeRecording` turns two version 2 trials into trials that are byte-equal to the committed ones; a second run changes nothing and asks for no write; a trial with a wrong digest is kept, with the reason, and the file is still written with `schemaVersion` 3.
+- `parseBridgeLine` reads a reply, a fault and a call with no arguments; arguments that are a list reach the turn as JSON text. It refuses a line that is not JSON, a reply with no `model`, and a reply with no `key`.
 
 `tests/integration/semantic-layer/bridge.test.ts` (no database; scripted `completion()` and scripted recorder process):
 
 - `buildPrompt`: the transcript text of the fixed request; its hash equals `RECORDING_PROMPT_FORMAT` and the literal hash above; a request with no tools ends with `[]`.
 - `REPLY_SCHEMA` has the JSON text of the Python schema.
-- `parseModelReply` takes the reply object; finds it in plain text, in a code fence and inside other text; reads missing, empty and blank arguments as the Python bridge did. It refuses text that is not JSON, an object with no `content`, a call with no name, arguments that are not JSON, and `toolCalls` that is no list.
+- `parseModelReply` takes the reply object; finds it in plain text, in a code fence and inside other text; reads missing, empty and blank arguments and an empty list as the Python bridge did, and passes a list and `null` on. It refuses text that is not JSON, an object with no `content`, a call with no name, arguments that are not JSON, and `toolCalls` that is no list.
 - `bridge.ts` imports only `node:` modules.
-- `runBridge`: another session model, then the recorder is not started; a request is answered with the reply and the model id, and the first try carries the schema; a failed call is asked again with no schema; four failed tries give a fault and no answer text; a protocol line that is not JSON kills the recorder; so does the deadline; after a kill no further try is made for a request; a recorder that ends with no last message gives `recorder-ended-early`; a log file that exists is refused.
-- `record-session.ts`: the options are read; a log path keeps an equals sign and a relative one becomes absolute; `upgrade` and `--expect=0` need no model; an unknown question id, a zero count, an unknown option and `--expect` with no number are refused; the session arguments hold `--model` with `RECORDING_MODEL` and the cell with the options; the verdict is the last `STATS` line of a log, and a log with none or with a broken one gives no verdict.
+- `runBridge`: another session model, then the recorder is not started; a request is answered with the reply and the model id, and the first try carries the schema; a failed call is asked again with no schema; four failed tries give a fault and no answer text; a protocol line that is not JSON kills the recorder; so does the deadline; after a kill no further try is made for a request, and the try that was running is no error of the run; a recorder that ends with no last message gives `recorder-ended-early`; a log file that exists is refused.
+- `record-session.ts`: the options are read; a log file that exists is refused for a run that needs the model; a log path keeps an equals sign and a relative one becomes absolute; `upgrade` and `--expect=0` need no model; an unknown question id, a zero count, an unknown option and `--expect` with no number are refused; the session arguments hold `--model` with `RECORDING_MODEL` and the cell with the options; the verdict is the last `STATS` line of a log, and a log with none or with a broken one gives no verdict.
 
 `tests/integration/semantic-layer/eval-replay.test.ts`: the three new checks of the file table, on the committed recording.
 

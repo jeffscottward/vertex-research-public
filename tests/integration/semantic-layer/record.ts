@@ -22,7 +22,8 @@
 //   ids:     those questions.
 //   stale:   every recorded trial that must be recorded again, every missing trial, and one witness
 //            trial for each question whose trials all saw an older tool list. With nothing to record
-//            it writes nothing.
+//            it does not write the recording; it writes the master-rules freeze when its replay
+//            froze a search.
 //   upgrade: no model call; writes a version 2 recording in the current format (recorder.ts).
 //   --expect=<n>: the run stops before the first model request when it selects another number of
 //            trials than n. It prints the selection, stores nothing and ends with exit code 1. With
@@ -111,11 +112,7 @@ if (selection.kind === "upgrade") {
       JSON.parse(before) as Recording,
       NOTE
     );
-    // Also written when no trial was upgraded: the file then gets schemaVersion 3, and `stale`
-    // records its trials. A file that is in the current format already is left as it is.
-    if (result.upgraded.length > 0 || Object.keys(result.kept).length > 0) {
-      writeRecording(RECORDING, result.recording);
-    }
+    if (result.changed) writeRecording(RECORDING, result.recording);
     send({
       kept: result.kept,
       type: "upgraded",

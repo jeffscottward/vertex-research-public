@@ -87,23 +87,30 @@ describe("parseModelReply", () => {
     }
   });
 
-  it("reads no arguments and an empty text as an empty object, and keeps blank text and an object", () => {
-    // The earlier bridge did the same (Python: `args or {}`); the turn reads blank text as no arguments.
+  it("reads no arguments, an empty text and an empty list as an empty object, and passes every other value on", () => {
+    // The earlier bridge did the same (Python: `args or {}`). The turn reads blank text as no
+    // arguments and refuses a value that is no object.
     expect(
       parseModelReply({
         content: "",
         toolCalls: [
           { name: "a" },
           { arguments: "", name: "a2" },
+          { arguments: [], name: "a3" },
           { arguments: " ", name: "b" },
           { arguments: { c: 1 }, name: "c" },
+          { arguments: "[1]", name: "d" },
+          { arguments: "null", name: "e" },
         ],
       }).toolCalls
     ).toEqual([
       { arguments: {}, name: "a" },
       { arguments: {}, name: "a2" },
+      { arguments: {}, name: "a3" },
       { arguments: " ", name: "b" },
       { arguments: { c: 1 }, name: "c" },
+      { arguments: [1], name: "d" },
+      { arguments: null, name: "e" },
     ]);
   });
 
@@ -416,15 +423,20 @@ describe("runBridge", () => {
     // Every reply is unusable, so a live recorder would get four tries.
     const { calls, completion } = completionOf(["OK", "I cannot answer"]);
 
-    const { recorder } = await runWith(completion, async (process) => {
+    const { recorder, stats } = await runWith(completion, async (process) => {
       process.print(REQUEST);
       process.print("@@EVAL {broken");
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    // The check call and the one try that was running.
+    // The check call and the one try that was running. That try is no error of the run and
+    // writes no line after the statistics.
     expect(calls).toHaveLength(2);
     expect(recorder.written).toEqual([]);
+    expect(stats.errors).toBe(0);
+    expect(readFileSync(log, "utf8").trimEnd().split("\n").at(-1)).toMatch(
+      /^STATS /u
+    );
   });
 
   it("kills the recorder at the deadline", async () => {
@@ -466,12 +478,18 @@ describe("runBridge", () => {
 
 describe("the recording session", () => {
   const NOW = new Date("2026-11-26T08:00:00.000Z");
+  // No log file exists, whatever the temporary directory of the machine holds.
+  const parse = (argv: readonly string[]) =>
+    parseSessionArgs(argv, NOW, () => false);
 
   it("reads the options and passes the recorder arguments on", () => {
-    const options = parseSessionArgs(
-      ["--expect=30", "--log=/tmp/run.log", "3", "4", "stale"],
-      NOW
-    );
+    const options = parse([
+      "--expect=30",
+      "--log=/tmp/run.log",
+      "3",
+      "4",
+      "stale",
+    ]);
     expect(options).toEqual({
       deadlineSeconds: 3000,
       expectSelected: 30,
@@ -480,37 +498,38 @@ describe("the recording session", () => {
       recorderArgs: ["3", "4", "stale"],
     });
     expect(recorderArgsOf(options)).toEqual(["--expect=30", "3", "4", "stale"]);
-    expect(parseSessionArgs([], NOW).log).toBe(
+    expect(parse([]).log).toBe(
       join(tmpdir(), "semantic-eval-record-2026-11-26T08-00-00-000Z.log")
     );
   });
 
   it("keeps a log path with an equals sign and makes a relative one absolute", () => {
-    expect(parseSessionArgs(["--log=/tmp/a=b.log"], NOW).log).toBe(
-      "/tmp/a=b.log"
-    );
-    expect(parseSessionArgs(["--log=run.log"], NOW).log).toBe(
-      join(process.cwd(), "run.log")
-    );
+    expect(parse(["--log=/tmp/a=b.log"]).log).toBe("/tmp/a=b.log");
+    expect(parse(["--log=run.log"]).log).toBe(join(process.cwd(), "run.log"));
   });
 
   it("needs no model for upgrade and for --expect=0", () => {
-    expect(parseSessionArgs(["3", "6", "upgrade"], NOW).needsModel).toBe(false);
+    expect(parse(["3", "6", "upgrade"]).needsModel).toBe(false);
+    expect(parse(["--expect=0", "3", "4", "stale"]).needsModel).toBe(false);
+    expect(parse(["3", "4", "stale"]).needsModel).toBe(true);
+  });
+
+  it("refuses a log file that exists for a run that needs the model, and takes it for a run that needs none", () => {
+    const exists = (): boolean => true;
+    expect(() =>
+      parseSessionArgs(["--log=/tmp/run.log", "3", "4", "stale"], NOW, exists)
+    ).toThrow("The log file /tmp/run.log exists");
     expect(
-      parseSessionArgs(["--expect=0", "3", "4", "stale"], NOW).needsModel
+      parseSessionArgs(["--log=/tmp/run.log", "3", "6", "upgrade"], NOW, exists)
+        .needsModel
     ).toBe(false);
-    expect(parseSessionArgs(["3", "4", "stale"], NOW).needsModel).toBe(true);
   });
 
   it("refuses a wrong argument before any session starts", () => {
-    expect(() => parseSessionArgs(["3", "4", "Q99"], NOW)).toThrow(
-      "Unknown question id: Q99"
-    );
-    expect(() => parseSessionArgs(["0"], NOW)).toThrow("positive whole number");
-    expect(() => parseSessionArgs(["--fast"], NOW)).toThrow("Unknown option");
-    expect(() => parseSessionArgs(["--expect=many"], NOW)).toThrow(
-      "Unknown option"
-    );
+    expect(() => parse(["3", "4", "Q99"])).toThrow("Unknown question id: Q99");
+    expect(() => parse(["0"])).toThrow("positive whole number");
+    expect(() => parse(["--fast"])).toThrow("Unknown option");
+    expect(() => parse(["--expect=many"])).toThrow("Unknown option");
   });
 
   it("starts the session with the recording model and one eval cell that runs the bridge", () => {

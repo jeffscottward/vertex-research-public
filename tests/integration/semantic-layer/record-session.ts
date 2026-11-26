@@ -9,12 +9,13 @@
 //   --expect=<n>  passed to the recorder: the run stops before the first model request when it
 //                 selects another number of trials than n (state the planned number for a `stale` run).
 //   --log=<file>  the log of the bridge; default a new file in the temporary directory.
-// The bridge ends its log with one line "STATS " + its statistics (bridge.ts, BridgeStats); `rc` in
-// it is the exit code of the recorder and `last` its last message with the failed trials. This
-// command prints that line and reads its verdict from it, not from the reply text of the session:
-// the session is a model that follows one instruction. The bridge refuses a log file that exists, so
-// a session that runs the cell twice records once.
-// Exit code: the exit code of the recorder (1 when the log has no statistics); 2 for wrong arguments.
+// The bridge writes one line "STATS " + its statistics (bridge.ts, BridgeStats) into its log when it
+// ends; `rc` in it is the exit code of the recorder and `last` its last message with the failed
+// trials. This command prints the last such line and reads its verdict from it, not from the reply
+// text of the session: the session is a model that follows one instruction. The bridge refuses a log
+// file that exists, so a session that runs the cell twice records once.
+// Exit code: the exit code of the recorder (1 when the log has no statistics); 2 for wrong arguments
+// and for a log file that exists.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -78,10 +79,15 @@ export const sessionArgs = (options: SessionOptions): string[] => [
   `Call the eval tool exactly once with language "js", timeout ${options.deadlineSeconds + 300} and exactly this code, then reply with only the line of the output that starts with RESULT, verbatim, and nothing else. Do not change the code and do not run anything else, also not when it fails; in that case reply with the error text.\n\n${cellCode(options)}`,
 ];
 
-/** Reads the arguments of this command. Throws on a wrong recorder argument, before any model call. */
+/**
+ * Reads the arguments of this command. Throws on a wrong recorder argument and, for a run that needs
+ * the model, on a log file that exists (the bridge would refuse it, and the verdict of the command
+ * would then be the one of the earlier run). Both before any model call.
+ */
 export const parseSessionArgs = (
   argv: readonly string[],
-  now: Date
+  now: Date,
+  exists: (path: string) => boolean = existsSync
 ): SessionOptions => {
   const flags = argv.filter((arg) => arg.startsWith("--"));
   const recorderArgs = argv.filter((arg) => !arg.startsWith("--"));
@@ -112,11 +118,15 @@ export const parseSessionArgs = (
     selectors,
     EVAL_QUESTIONS.map((question) => question.id)
   );
+  const needsModel = selection.kind !== "upgrade" && expectSelected !== 0;
+  if (needsModel && exists(log)) {
+    throw new Error(`The log file ${log} exists: one log file for each run.`);
+  }
   return {
     deadlineSeconds: 3000,
     ...(expectSelected === undefined ? {} : { expectSelected }),
     log,
-    needsModel: selection.kind !== "upgrade" && expectSelected !== 0,
+    needsModel,
     recorderArgs,
   };
 };
@@ -166,14 +176,6 @@ if (import.meta.main) {
       }
     );
     process.exit(recorder.status ?? 1);
-  }
-  // The bridge refuses a log that exists; without this check the verdict below would be the one
-  // of the earlier run.
-  if (existsSync(options.log)) {
-    console.error(
-      `The log file ${options.log} exists: one log file for each run.`
-    );
-    process.exit(2);
   }
   console.info(`bridge log: ${options.log}`);
   // The session starts in the temporary directory, so it loads no project context.

@@ -42,10 +42,9 @@ const BridgeReplySchema = z.object({
   model: z.string().min(1),
   toolCalls: z.array(
     z.object({
-      // The arguments object, or its JSON text. Absent means no arguments.
-      arguments: z
-        .union([z.string(), z.record(z.string(), z.unknown())])
-        .optional(),
+      // The arguments object, or its JSON text; absent means no arguments. Any other JSON value
+      // is passed to the turn as JSON text, and the turn refuses it as it does in production.
+      arguments: z.unknown().optional(),
       name: z.string().min(1),
     })
   ),
@@ -461,7 +460,8 @@ export const recordRun = async (
  * still matches that digest and the final answer is the recorded one, the model saw the current tool
  * list, so the trial gets the id of that list and the message digests of the replay. A trial that does
  * not match is kept as it is: it is stale and `stale` records it. Deterministic: no date and no other
- * field changes, and a second run changes nothing.
+ * field of a trial changes, and a second run changes nothing. The header gets the tool lists and the
+ * note, and the trials are in question order (as after every write of the recorder).
  */
 export const upgradeRecording = async (
   backend: EvalBackend,
@@ -473,6 +473,12 @@ export const upgradeRecording = async (
     recording: Recording;
     upgraded: readonly string[];
     kept: Readonly<Record<string, string>>;
+    /**
+     * True when the file must be written: a trial was upgraded, or a version 2 trial was kept (the
+     * file then gets schemaVersion 3, and `stale` records that trial). False for a file that is in
+     * the current format already.
+     */
+    changed: boolean;
   }>
 > => {
   const byId = new Map(questions.map((question) => [question.id, question]));
@@ -524,6 +530,7 @@ export const upgradeRecording = async (
     upgraded.push(key);
   }
   return {
+    changed: upgraded.length > 0 || Object.keys(kept).length > 0,
     kept,
     recording: mergeRecording(
       { ...recording, trials },

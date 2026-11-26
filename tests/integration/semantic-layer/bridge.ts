@@ -161,12 +161,13 @@ export const parseModelReply = (output: unknown): ModelReply => {
       }
       const text: unknown = "arguments" in call ? call.arguments : undefined;
       return {
-        // As the earlier bridge: JSON text is parsed; nothing, an empty text and every other empty
-        // value are no arguments; a blank text and an object are passed on.
+        // As the earlier bridge (Python `json.loads(args) if args.strip() else (args or {})`): JSON
+        // text is parsed; nothing, an empty text and an empty list are no arguments; every other
+        // value is passed on, and the turn refuses arguments that are no object.
         arguments:
           typeof text === "string" && text.trim() !== ""
             ? (JSON.parse(text) as unknown)
-            : text || {},
+            : (Array.isArray(text) && text.length === 0 ? null : text) || {},
         name: call.name,
       };
     }),
@@ -401,6 +402,8 @@ export const runBridge = async (
         }
         return;
       } catch (error) {
+        // A try that ends after the recorder is gone is no error of the run.
+        if (over) return;
         counts.errors += 1;
         lastError = error instanceof Error ? error.message : String(error);
         log(`ERROR ${request.key} attempt ${attempt}: ${lastError}`);

@@ -31,6 +31,7 @@ import { EVAL_QUESTIONS } from "./questions.ts";
 import {
   parseBridgeLine,
   type RecordRunOptions,
+  replyToCompletion,
   type RunMessage,
   recordRun,
   type TrialModel,
@@ -589,6 +590,7 @@ describe("upgradeRecording", () => {
 
     expect(result.upgraded).toEqual(["Q1.1", "Q13.2"]);
     expect(result.kept).toEqual({});
+    expect(result.changed).toBe(true);
     // Byte-equal to the committed trials, field order included.
     expect(JSON.stringify(result.recording.trials)).toBe(
       JSON.stringify([stored(COMMITTED, "Q1.1"), stored(COMMITTED, "Q13.2")])
@@ -603,6 +605,8 @@ describe("upgradeRecording", () => {
       String(COMMITTED["note"])
     );
     expect(again.upgraded).toEqual([]);
+    // A file in the current format is not written again.
+    expect(again.changed).toBe(false);
     expect(JSON.stringify(again.recording)).toBe(
       JSON.stringify(result.recording)
     );
@@ -632,6 +636,10 @@ describe("upgradeRecording", () => {
     );
 
     expect(result.upgraded).toEqual([]);
+    // The file is written although no trial was upgraded: it gets schemaVersion 3, so that a
+    // stale run can record the kept trial.
+    expect(result.changed).toBe(true);
+    expect(result.recording.schemaVersion).toBe(3);
     expect(result.kept).toEqual({
       "Q1.1":
         "the input of model call 0 changed (tool definitions, system prompt, question or a tool result)",
@@ -658,17 +666,21 @@ describe("parseBridgeLine", () => {
     });
   });
 
-  it("takes a call with no arguments and refuses arguments that are no object and no text", () => {
+  it("takes a call with no arguments, and passes arguments that are no object on as JSON text for the turn to refuse", () => {
     expect(
       parseBridgeLine(
         '{"key":"k","content":"","toolCalls":[{"name":"terms_list"}],"model":"m"}'
       )
     ).toMatchObject({ toolCalls: [{ name: "terms_list" }] });
-    expect(() =>
-      parseBridgeLine(
-        '{"key":"k","content":"","toolCalls":[{"name":"terms_list","arguments":[1]}],"model":"m"}'
+    const reply = parseBridgeLine(
+      '{"key":"Q1.1#0","content":"","toolCalls":[{"name":"terms_list","arguments":[1]},{"name":"terms_list","arguments":null}],"model":"m"}'
+    );
+    if ("fault" in reply) throw new Error("a reply was expected");
+    expect(
+      replyToCompletion("Q1.1#0", reply).toolCalls.map(
+        (call) => call.function.arguments
       )
-    ).toThrow("bridge line is not {key, content");
+    ).toEqual(["[1]", "{}"]);
   });
 
   it("refuses a line that is not JSON, a reply with no model and a reply with no key", () => {

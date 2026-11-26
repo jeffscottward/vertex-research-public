@@ -38,7 +38,7 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 - The count check `--expect` moved from the bridge into the recorder; `--expect=0` shows a selection with no model call (Z5, D5).
 - The recorder reports a stored trial that another program deleted during the run (D4, K4).
 - Two branches that change tools at the same time: a rule and a journey (K1, D2).
-- One commit, not three (R5, B1, B2).
+- One commit for the change, not three (R5, B1, B2). Review fixes follow as further commits.
 - The plan gained the interfaces, the protocol table and the literal commands (R1, R2).
 
 ## Prioritized Findings & AI Suggestions
@@ -66,10 +66,10 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 |D4|design critic (stage 7)|Major|A grader that writes the whole file deletes trials of the run.|PROPOSE FIX|Report at the end of the run plus the rule for jobs. No lock file: the grading scripts are not in the repository.|
 |D5|design critic (stage 7)|Major|Exit code through the launch chain, the model as launcher, trials in flight, no dry run for `--expect`.|PROPOSE FIX|"The bridge", risk table, CUJ 3, `--expect=0`.|
 |S1|structural (stage 7)|Major|The state table is not the full rule.|PROPOSE FIX|With C2.|
-|S2|structural (stage 7)|Major|"Witness" and the states are used before their definition.|PROPOSE FIX|Terms extended; each figure stands in the section that it shows.|
+|S2|structural (stage 7)|Major|"Witness" and the states are used before their definition.|PROPOSE FIX|Terms extended; each figure stands in the section that it shows (the first figure stays at the top, by the workspace rule for plans).|
 |Y1|style (stage 7)|Major|"Three ways" has no basis.|PROPOSE FIX|Overview names them.|
 |Y2|style (stage 7)|Major|"Rejected by author:" carries no information.|CONTEST|Kept: `egm-draft` step 4 requires this form for author decisions.|
-|Y3|style (stage 7)|Major|One bullet holds four facts; "proved" for a hand count.|PROPOSE FIX|Split; "stated".|
+|Y3|style (stage 7)|Major|One bullet holds four facts; "proved" for a hand count.|PROPOSE FIX|The bullet is now five sentences; "stated" replaces "proved".|
 |Y4|style (stage 7)|Major|"Cannot be pushed" is absolute.|PROPOSE FIX|The block is gone (Z1).|
 |Y5|style (stage 7)|Major|"30 questions sample a broad effect" has no meaning.|PROPOSE FIX|Dropped.|
 |Y6|style (stage 7)|Major|The age bound holds only with a run after each change.|PROPOSE FIX|Precondition stated.|
@@ -77,11 +77,11 @@ Three findings were fixed in part and say so in their row: K4 (no circuit breake
 |Y8|style (stage 7)|Major|An instruction for the operator inside an architecture bullet.|PROPOSE FIX|One statement in "Another writer"; the step is in the eval document.|
 |R3|implementation readiness (stage 9)|Major|The digest byte recipe is missing.|PROPOSE FIX|"What a trial stores": tool digest, list id and the text that the message digest hashes.|
 |R4|implementation readiness (stage 9)|Major|The prompt pin cannot be written from the plan.|PROPOSE FIX|Request, hash, concatenation and escaping rule given.|
-|R5|implementation readiness (stage 9)|Major|Commit 1 is not self-contained; tests are not assigned to commits.|PROPOSE FIX|One commit (Alternative O).|
+|R5|implementation readiness (stage 9)|Major|Commit 1 is not self-contained; tests are not assigned to commits.|PROPOSE FIX|One commit for the change (Alternative O); review fixes follow as further commits.|
 |R6|implementation readiness (stage 9)|Major|Edge behavior is left open (trials in flight, `assertCurrentFormat`, `upgrade`, model name).|PROPOSE FIX|"The recorder", "Commands and literal values", file table.|
 |R7|implementation readiness (stage 9)|Major|Test plan gaps.|PROPOSE FIX|Replay checks listed; cases written out. (The tool-list test was removed later, see E1.)|
-|B1|codebase details (stage 9)|Major|`runTrial` returns a type that arrives in a later commit.|PROPOSE FIX|One commit.|
-|B2|codebase details (stage 9)|Major|Test cases cannot pass in commit 1.|PROPOSE FIX|One commit.|
+|B1|codebase details (stage 9)|Major|`runTrial` returns a type that arrives in a later commit.|PROPOSE FIX|One commit for the change.|
+|B2|codebase details (stage 9)|Major|Test cases cannot pass in commit 1.|PROPOSE FIX|One commit for the change.|
 |B3|codebase details (stage 9)|Major|Symbols with no stated fate (`staleReason`, `toCompletion`, model name, reason strings).|PROPOSE FIX|File table.|
 |B4|codebase details (stage 9)|Major|Session, bridge and recorder commands are not given.|PROPOSE FIX|"Commands and literal values".|
 |B5|codebase details (stage 9)|Major|The pinned prompt hash and the non-ASCII rule are not in the plan.|PROPOSE FIX|Given.|
@@ -167,8 +167,14 @@ Total of both rounds: 110 findings; 106 fixed in the plan, 1 contested, 3 declin
 
 ## After the implementation
 
-A drift report (this plan against the code) and a code review, each by a new agent with no history of the job, ran on the first commit `4d4e5d2a6`.
+A drift report (this plan against the code) and a code review ran on the first commit `4d4e5d2a6`, and again on the fix commit `818120818`. Each ran in a new agent with no history of the job.
 
-- Code review: 1 major finding, 4 minor findings, 4 nits; verdict "changes needed". The major one: a `stale` run did not write a search that the replay of its own selection froze.
-- Drift report: 19 differences between the plan and the code, and 7 rows of this report whose text did not match the plan.
-- All were fixed in the second commit, in the code or in the text. Code fixes: the freeze is written before the first trial; a missing trial counts as the witness of its question; `upgrade` writes a file in which it upgraded no trial; the reply schema keeps the key order of the Python bridge and a test compares it; an empty arguments text is read as no arguments; the command refuses a log file that exists; the bridge makes no model call for a recorder that is gone.
+|Round|Check|Result|
+|---|---|---|
+|1, on `4d4e5d2a6`|Code review|1 major finding, 4 minor findings, 4 nits; verdict "changes needed". The major one: a `stale` run did not write a search that the replay of its own selection froze.|
+|1, on `4d4e5d2a6`|Drift report|19 differences between the plan and the code, and 7 rows of this report whose text did not match the plan.|
+|2, on `818120818`|Code review|All 9 findings fixed; verdict "approve". New: 1 minor finding and 3 nits.|
+|2, on `818120818`|Drift report|23 of the 26 differences resolved, 3 open (2 in part); 7 new ones from the fix commit.|
+
+- Code fixes of the second commit: the freeze is written before the first trial; a missing trial counts as the witness of its question; `upgrade` writes a file in which it upgraded no trial; the reply schema keeps the key order of the Python bridge and a test compares it; an empty arguments text is read as no arguments; the command refuses a log file that exists; the bridge makes no model call for a recorder that is gone.
+- Fixes of the third commit: tool call arguments that are no object reach the turn as before (the second commit had made the recorder refuse them and end the run); an empty list is read as no arguments; a try that ends after a kill is not counted; the two conditions that had no test (a log file that exists, the write of `upgrade`) have tests; the open and new differences of the second drift report are corrected in the plan, in this report and in the eval document.
