@@ -19,7 +19,7 @@ Summary: Frozen single-rule (`N = 1`) baseline for large bullish options premium
 |2|Frozen signal (`top10-500k`, `N = 1`): on each complete session, tickers with `bullish_premium >= $500,000`, bullish share `>= 70%` and `trade_count >= 3` qualify; a ticker with a daily bar on or before the session must also pass the liquidity filter (as-printed close `>= $5`, 20-day median dollar volume `>= $10M`), and a ticker without such a bar keeps its rank but cannot be traded. The top 10 by net bullish premium (`bullish_premium - bearish_premium`) are the events (`18,269` qualifying ticker-sessions; `2,770` top-10 events; `140` entries, because the 10 slots stay full for 20 sessions).|Pre-registered (`plan-pr7.md`)|
 |3|Entry alignment (zero look-ahead): complete sessions settle after midnight; entry occurs at the next trading day open (`d > session_date`).|Pre-registered (`plan-pr7.md`)|
 |4|Portfolio accounting: equal-weight 10-slot event portfolio (`w = 0.10` per slot, no same-ticker overlap), holding period `H = 20` trading days, exit at close of the `20`-th trading day held, measured in excess of SPY at `10 bps` per side.|Pre-registered (`plan-pr7.md`)|
-|5|History gate: verdict stays `needs-more-data` with `oosCagr = null` and `oosSharpe = null` until at least `24` calendar months (`>= 490` complete sessions) exist. Full evaluation unlocks on `2027-10-16`.|Pre-registered (`plan-pr7.md`)|
+|5|History gate: verdict stays `needs-more-data` with `oosCagr = null` and `oosSharpe = null` until at least `24` calendar months (`>= 490` trading sessions) exist. Full evaluation unlocks on `2027-10-16`.|Pre-registered (`plan-pr7.md`)|
 
 ## Code and tests
 

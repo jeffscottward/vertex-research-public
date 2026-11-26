@@ -359,6 +359,8 @@ def fetch_congress_history(out_dir: Path, email: str, ledger_2026: list[dict[str
     all_purchases: list[dict[str, Any]] = json.loads(cong_2026_path.read_text(encoding="utf-8"))
     if not all_purchases:
         raise RuntimeError(f"{cong_2026_path} holds no purchase rows; run --only postgres-congress again")
+    if any("asset_type" not in row for row in all_purchases):
+        raise RuntimeError(f"{cong_2026_path} has rows without asset_type; run --only postgres-congress again")
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_house = pool.submit(_fetch_chamber_history, "congress-house", "house", windows, chunks_dir, env)

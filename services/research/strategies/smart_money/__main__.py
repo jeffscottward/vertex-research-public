@@ -137,6 +137,10 @@ def load_form4_jsonl(path: Path) -> list[Form4Purchase]:
 
 
 def load_congress_jsonl(path: Path) -> list[CongressPurchase]:
+    rows = _read_event_rows(path)
+    if any("asset_type" not in r for r in rows):
+        # A file from an older collector has no asset type, and option rows would count as stock buys.
+        raise ValueError(f"{path} has rows without asset_type; run scripts/smart-money-pr7/fetch_data.py again")
     return [
         CongressPurchase(
             chamber=str(r["chamber"]),
@@ -152,7 +156,7 @@ def load_congress_jsonl(path: Path) -> list[CongressPurchase]:
             amends=bool(r.get("amends", False)),
             asset_type=str(r["asset_type"]) if r.get("asset_type") else None,
         )
-        for r in _read_event_rows(path)
+        for r in rows
     ]
 
 

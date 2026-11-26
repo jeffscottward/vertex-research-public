@@ -461,6 +461,7 @@ def test_end_to_end_cli_emits_three_strict_study_documents(tmp_path: Path) -> No
             "amount_low": 50001,
             "amount_high": 100000,
             "amends": False,
+            "asset_type": "ST",
         }
     ]
     (data_dir / "congress_trades.jsonl").write_text("\n".join(json.dumps(r) for r in [*congress, _IDLE_CONGRESS_ROW]) + "\n", encoding="utf-8")
@@ -665,6 +666,7 @@ _IDLE_CONGRESS_ROW: dict[str, Any] = {
     "ticker": "IDLE",
     "transaction_type": "sale",
     "filed_on": "2026-11-20",
+    "asset_type": None,
 }
 _IDLE_PREMIUM_ROW: dict[str, Any] = {
     "session_date": "2020-01-02",
@@ -2715,6 +2717,16 @@ def test_jsonl_loaders_skip_blank_lines_and_default_optional_fields(tmp_path: Pa
         CongressPurchase("senate", "uuid-1", "Sen. Member Beta", None, "ZETA", "purchase", None, date(2024, 3, 12), None, None, False, None),
     ]
 
+    # Every Congress row needs the asset_type key (null is a value): without it an option row
+    # would count as a stock purchase.
+    keyless = tmp_path / "congress_old.jsonl"
+    _write_jsonl(keyless, [{**_IDLE_CONGRESS_ROW, "asset_type": "ST"}, {k: v for k, v in _IDLE_CONGRESS_ROW.items() if k != "asset_type"}])
+    with pytest.raises(ValueError) as raised:
+        load_congress_jsonl(keyless)
+    assert str(raised.value) == f"{keyless} has rows without asset_type; run scripts/smart-money-pr7/fetch_data.py again"
+    _write_jsonl(keyless, [{**_IDLE_CONGRESS_ROW, "asset_type": None}])
+    assert [row.asset_type for row in load_congress_jsonl(keyless)] == [None]
+
     premium_path = write_lines(
         "premium.jsonl",
         [
@@ -2956,6 +2968,7 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
             "filed_on": filed_on.isoformat(),
             "amount_low": 1001,
             "amount_high": 15000,
+            "asset_type": "ST",
             **extra,
         }
 
@@ -3280,6 +3293,7 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
             "filed_on": days[filed].isoformat(),
             "amount_low": low,
             "amount_high": None,
+            "asset_type": None,
         }
 
     _write_event_files(
@@ -4105,7 +4119,11 @@ def test_collector_congress_history_needs_the_2026_export_and_labels_its_ledger(
     export.write_text("[]", encoding="utf-8")
     with pytest.raises(RuntimeError, match="congress_2026.json holds no purchase rows"):
         run(ledger_2026)
-    export.write_text(json.dumps([{"chamber": "house", "ticker": "ZETA", "filed_on": "2026-02-03"}]), encoding="utf-8")
+    # An export of an older collector has no asset type; a null asset type is a value.
+    export.write_text(json.dumps([{"chamber": "house", "ticker": "ZETA", "asset_type": "ST"}, {"chamber": "house", "ticker": "ZETA"}]), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="congress_2026.json has rows without asset_type; run --only postgres-congress again"):
+        run(ledger_2026)
+    export.write_text(json.dumps([{"chamber": "house", "ticker": "ZETA", "filed_on": "2026-02-03", "asset_type": None}]), encoding="utf-8")
     with pytest.raises(RuntimeError, match="the 2026 Congress export is missing"):
         run([])
     assert chamber_calls == [] and not (tmp_path / "congress_trades.jsonl").exists()
@@ -4118,7 +4136,7 @@ def test_collector_congress_history_needs_the_2026_export_and_labels_its_ledger(
     ]
     # The 2026 rows come first, then the House history, then the Senate history.
     assert [json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines()] == [
-        {"chamber": "house", "ticker": "ZETA", "filed_on": "2026-02-03"},
+        {"chamber": "house", "ticker": "ZETA", "filed_on": "2026-02-03", "asset_type": None},
         {"chamber": "house", "ticker": "ACME", "filed_on": "2023-05-20"},
         {"chamber": "senate", "ticker": "ACME", "filed_on": "2023-05-20"},
     ]
@@ -4294,3 +4312,215 @@ def test_collector_fetch_bars_keeps_the_cache_and_raises_when_a_ticker_failed(
         fetch_data._fetch_bars(["NEW1", "FAIL", "NEW2"], bars_dir, first_day, "bars")
     assert (bars_dir / "NEW1.csv").exists() and (bars_dir / "NEW2.csv").exists()
     assert not (bars_dir / "FAIL.csv").exists()
+
+
+def test_collector_form4_file_appears_only_after_the_last_quarter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fetch_data = _collector()
+    quarters = [(2024, 1), (2024, 2)]
+    monkeypatch.setattr(fetch_data, "_sec_quarters", lambda: quarters)
+    monkeypatch.setattr(fetch_data.time, "sleep", lambda _seconds: None)
+    zips_dir = tmp_path / "sec_zips"
+    zips_dir.mkdir()
+    for year, quarter in quarters:
+        (zips_dir / f"{year}q{quarter}_form345.zip").write_bytes(b"z" * 1000)  # large enough: no download
+
+    def no_download(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("a cached quarter must not be downloaded")
+
+    monkeypatch.setattr(fetch_data.urllib.request, "urlopen", no_download)
+    rows_by_zip = {
+        "2024q1_form345.zip": [
+            Form4Purchase("q1-a", date(2024, 1, 15), date(2024, 1, 12), "123", "ACME", "900001|900002", "Director", "common", 100.0, 20.5, 400.0, True),
+            Form4Purchase("q1-b", date(2024, 2, 1), None, "123", "ACME", "900003", "", "ordinary", 5.0, 21.0, None),
+        ],
+        "2024q2_form345.zip": [Form4Purchase("q2-a", date(2024, 4, 2), date(2024, 4, 1), "456", "ZETA", "900004", "Officer", "common", 7.0, 3.0, 0.0)],
+    }
+    failing: set[str] = {"2024q2_form345.zip"}
+    parsed: list[str] = []
+
+    def fake_parse(zip_path: Path) -> list[Form4Purchase]:
+        parsed.append(zip_path.name)
+        if zip_path.name in failing:
+            raise zipfile.BadZipFile("File is not a zip file")
+        return rows_by_zip[zip_path.name]
+
+    monkeypatch.setattr(fetch_data, "parse_sec_form4_zip", fake_parse)
+    final = tmp_path / "form4_purchases.jsonl"
+    final.write_text("old history\n", encoding="utf-8")
+
+    # The second quarter fails: the error goes up, and the file of the last good run is untouched.
+    with pytest.raises(zipfile.BadZipFile):
+        fetch_data.fetch_sec_form4(tmp_path, "contact@example.com")
+    assert parsed == ["2024q1_form345.zip", "2024q2_form345.zip"]
+    assert final.read_text(encoding="utf-8") == "old history\n"
+
+    # Every quarter parses: the file holds the rows of both quarters in order, and no partial file is left.
+    failing.clear()
+    assert fetch_data.fetch_sec_form4(tmp_path, "contact@example.com") == final
+    assert [json.loads(line) for line in final.read_text(encoding="utf-8").splitlines()] == [
+        {
+            "accession_number": "q1-a",
+            "filing_date": "2024-01-15",
+            "transaction_date": "2024-01-12",
+            "issuer_cik": "123",
+            "ticker": "ACME",
+            "owner_group_key": "900001|900002",
+            "role_text": "Director",
+            "security": "common",
+            "shares": 100.0,
+            "price": 20.5,
+            "holding_before": 400.0,
+            "is_10b5_1": True,
+        },
+        {
+            "accession_number": "q1-b",
+            "filing_date": "2024-02-01",
+            "transaction_date": None,
+            "issuer_cik": "123",
+            "ticker": "ACME",
+            "owner_group_key": "900003",
+            "role_text": "",
+            "security": "ordinary",
+            "shares": 5.0,
+            "price": 21.0,
+            "holding_before": None,
+            "is_10b5_1": False,
+        },
+        {
+            "accession_number": "q2-a",
+            "filing_date": "2024-04-02",
+            "transaction_date": "2024-04-01",
+            "issuer_cik": "456",
+            "ticker": "ZETA",
+            "owner_group_key": "900004",
+            "role_text": "Officer",
+            "security": "common",
+            "shares": 7.0,
+            "price": 3.0,
+            "holding_before": 0.0,
+            "is_10b5_1": False,
+        },
+    ]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["form4_purchases.jsonl", "sec_zips"]
+    # The runner's loader reads the file back as the same purchases.
+    assert load_form4_jsonl(final) == [*rows_by_zip["2024q1_form345.zip"], *rows_by_zip["2024q2_form345.zip"]]
+
+    # A quarter that is not cached (or is too small to be a real file) is downloaded once and kept.
+    requests: list[tuple[str, str | None]] = []
+
+    class Response:
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"d" * 2000
+
+    def fake_urlopen(request: Any, timeout: float) -> Response:
+        requests.append((request.full_url, request.get_header("User-agent")))
+        return Response()
+
+    monkeypatch.setattr(fetch_data.urllib.request, "urlopen", fake_urlopen)
+    (zips_dir / "2024q2_form345.zip").write_bytes(b"z" * 999)
+    fetch_data.fetch_sec_form4(tmp_path, "contact@example.com")
+    assert [url for url, _agent in requests] == [fetch_data.SEC_ZIP_URL.format(year=2024, q=2)]
+    assert requests[0][1] == fetch_data._sec_user_agent("contact@example.com")
+    assert (zips_dir / "2024q2_form345.zip").read_bytes() == b"d" * 2000
+
+    # A download that fails three times stops the run and names the URL; the last good file stays.
+    def failing_urlopen(request: Any, timeout: float) -> Response:
+        requests.append((request.full_url, None))
+        raise fetch_data.urllib.error.URLError("no route")
+
+    monkeypatch.setattr(fetch_data.urllib.request, "urlopen", failing_urlopen)
+    (zips_dir / "2024q1_form345.zip").unlink()
+    before = final.read_text(encoding="utf-8")
+    with pytest.raises(RuntimeError, match="Failed downloading .*2024q1_form345.zip: .*no route"):
+        fetch_data.fetch_sec_form4(tmp_path, "contact@example.com")
+    assert len(requests) == 1 + 3
+    assert final.read_text(encoding="utf-8") == before
+
+
+def test_collector_main_runs_the_chosen_steps_and_saves_metadata_after_each(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch_data = _collector()
+    calls: list[tuple[Any, ...]] = []
+    meta_path_of: dict[str, Path] = {}
+
+    def saved_keys() -> list[str]:
+        """The keys of metadata.json on disk at the moment a step starts."""
+        path = meta_path_of["path"]
+        return sorted(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else []
+
+    def step(name: str, result: Any) -> Any:
+        def fake(*args: Any) -> Any:
+            calls.append((name, *args, saved_keys()))
+            return result
+
+        return fake
+
+    ledger = [{"chamber": "house", "status": "parsed", "reason": "", "cnt": 3}]
+    monkeypatch.setattr(fetch_data, "_load_contact_email", lambda: "contact@example.com")
+    monkeypatch.setattr(fetch_data, "fetch_sec_form4", step("sec", None))
+    monkeypatch.setattr(fetch_data, "export_market_premium", step("premium-export", None))
+    monkeypatch.setattr(fetch_data, "export_congress_2026", step("congress-export", {"ledger_2026": ledger}))
+    monkeypatch.setattr(fetch_data, "fetch_congress_history", step("congress", (Path("unused"), {"congress_ledger": {"house:2026:parsed:": 3}})))
+    monkeypatch.setattr(fetch_data, "fetch_daily_bars", step("bars", {"universe_requested": 600}))
+    monkeypatch.setattr(fetch_data, "fetch_premium_bars", step("premium-bars", {"premium_bars_extra_cached": 4}))
+    monkeypatch.setattr(fetch_data, "fetch_event_bars", step("event-bars", {"event_bars_extra_cached": 5}))
+
+    def run(only: str | None, start_meta: dict[str, Any] | None) -> tuple[list[tuple[Any, ...]], dict[str, Any] | None]:
+        out_dir = tmp_path / f"run-{len(list(tmp_path.iterdir()))}" / "nested"
+        meta_path = out_dir / "metadata.json"
+        meta_path_of["path"] = meta_path
+        if start_meta is not None:
+            out_dir.mkdir(parents=True)
+            meta_path.write_text(json.dumps(start_meta), encoding="utf-8")
+        calls.clear()
+        monkeypatch.setattr(sys, "argv", ["fetch_data.py", "--out-dir", str(out_dir), *(["--only", only] if only else [])])
+        assert fetch_data.main() == 0
+        assert out_dir.is_dir()
+        steps = [(name, *(arg for arg in rest if arg != out_dir)) for name, *rest in calls]
+        return steps, json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else None
+
+    email = "contact@example.com"
+    old = {"kept": 1}
+    # The steps without metadata leave the file alone.
+    assert run("sec", None) == ([("sec", email, [])], None)
+    # postgres-congress exports the Congress tables only; postgres exports the premium table too.
+    assert run("postgres-congress", old) == ([("congress-export", ["kept"])], {"kept": 1, "ledger_2026": ledger})
+    assert run("postgres", old) == ([("premium-export", ["kept"]), ("congress-export", ["kept"])], {"kept": 1, "ledger_2026": ledger})
+    # congress passes the stored 2026 ledger on and drops the key of an older version of the script.
+    stored = {"kept": 1, "ledger_2026": ledger, "congress_scanned_summary": {"house": 1}}
+    assert run("congress", stored) == (
+        [("congress", email, ledger, ["congress_scanned_summary", "kept", "ledger_2026"])],
+        {"kept": 1, "ledger_2026": ledger, "congress_ledger": {"house:2026:parsed:": 3}},
+    )
+    assert run("bars", old) == ([("bars", ["kept"])], {"kept": 1, "universe_requested": 600})
+    assert run("premium-bars", old) == ([("premium-bars", ["kept"])], {"kept": 1, "premium_bars_extra_cached": 4})
+    assert run("event-bars", old) == ([("event-bars", ["kept"])], {"kept": 1, "event_bars_extra_cached": 5})
+
+    # Without --only every step runs in order. Each step that returns metadata is saved before the
+    # next step starts, so a later failure loses nothing; the ledger of this run reaches the history step.
+    steps, meta = run(None, None)
+    assert steps == [
+        ("sec", email, []),
+        ("premium-export", []),
+        ("congress-export", []),
+        ("congress", email, ledger, ["ledger_2026"]),
+        ("bars", ["congress_ledger", "ledger_2026"]),
+        ("premium-bars", ["congress_ledger", "ledger_2026", "universe_requested"]),
+        ("event-bars", ["congress_ledger", "ledger_2026", "premium_bars_extra_cached", "universe_requested"]),
+    ]
+    assert meta == {
+        "ledger_2026": ledger,
+        "congress_ledger": {"house:2026:parsed:": 3},
+        "universe_requested": 600,
+        "premium_bars_extra_cached": 4,
+        "event_bars_extra_cached": 5,
+    }
+    # Without a stored ledger the history step gets an empty one (and refuses it itself).
+    assert run("congress", None)[0] == [("congress", email, [], [])]
