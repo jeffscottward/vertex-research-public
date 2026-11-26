@@ -50,6 +50,7 @@ Robustness checks on the primary trial (`all-buys`, `H = 20`):
 - **OOS event count (bar `>= 100`):** **PASS** — `238` OOS entries over `500` sessions (`2024-11-23`..`2026-11-23`).
 - **Cost stress (`0 / 10 / 20 bps` per side):** **FAIL** — OOS Sharpe `0.217` (`0 bps`), `0.013` (`10 bps`), `-0.192` (`20 bps`).
 - **One event per trade, and skips:** `9,335` trades from `9,915` purchase rows (`453` rows are further lots of a trade inside the same filing and were summed into it; `127` trades of later filings were dropped); `583` overlap, `3,675` capacity, `74` illiquid, `4,426` missing Yahoo Finance bars, `9` exits truncated at window end.
+- **Post-hoc full-universe check (not in the verdict):** after the first look at the out-of-sample window, the primary trial was also run without the 600-ticker cap, on bars for `3,153` tickers. Result: `240` OOS events, OOS excess Sharpe `-0.385`, `DSR = 0.033` at `N = 13`; whole-sample `577` trades, Sharpe `-0.298`. This run counts as one more trial; a pass would have needed a new holdout.
 - **Benchmark:** SPY buy-and-hold over `2022-01-01`..`2026-11-23` had `+10.25%` CAGR, Sharpe `+0.645`, max drawdown `-24.50%`.
 
 ## Limits

@@ -87,6 +87,8 @@ Decision:
 * The runner runs the primary trial of each gated study once more on all bars (`H = 20`, `10 bps` per side, same window and split) and reports it in one robustness row, "Post-hoc: full event universe (not in the verdict)", with its out-of-sample events and Sharpe and a deflated Sharpe ratio at `N + 1` trials. Signal 1 builds its events again on all bars, because its price guard needs bars.
 * A pass in this row does not change the verdict. It would be a reason to pre-register a new study on a new holdout.
 
+Result (run `2026-11-25`): the collector found history for `2,685` of the `3,964` further tickers, so the check ran on `3,153` tickers. Insider primary trial: `164` OOS events, OOS excess Sharpe `-0.354`, DSR `0.011` at `N = 13`. Congress primary trial: `240` OOS events, OOS excess Sharpe `-0.385`, DSR `0.033` at `N = 13`. Both fail without the cap as well, so the verdicts do not depend on the cap.
+
 ## 2. Three Signal Definitions
 
 ### Signal 1: `insider-purchase-confirmation` (Insider Buys + Cluster Variant)

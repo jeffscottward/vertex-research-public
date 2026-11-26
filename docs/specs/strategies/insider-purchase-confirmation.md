@@ -77,6 +77,7 @@ Robustness checks on the primary trial (`cluster-3p-10d`, `H = 20`):
 - **Cost stress (`0 / 10 / 20 bps` per side):** **PASS** — OOS Sharpe `1.065` (`0 bps`), `0.956` (`10 bps`), `0.846` (`20 bps`).
 - **Post-2023 Rule 10b5-1 exclusion sensitivity (diagnostic):** excluding `3,026` flagged `10b5-1` rows yields OOS Sharpe `0.823` across `75` OOS events.
 - **Skips:** `56` overlap, `32` capacity, `2,350` illiquid, `6` truncated exits at window end.
+- **Post-hoc full-universe check (not in the verdict):** after the first look at the out-of-sample window, the primary trial was also run without the 600-ticker cap, on bars for `3,153` tickers (every ticker with a cluster event or a Congress purchase that Yahoo Finance has history for; `1,279` of the `3,964` further tickers have none). Result: `164` OOS events, OOS excess Sharpe `-0.354`, `DSR = 0.011` at `N = 13`; whole-sample `830` trades, Sharpe `+0.110`. The wider universe passes the event-count bar and fails the other bars, so the cap does not hide an edge. This run counts as one more trial; a pass would have needed a new holdout.
 - **Benchmark:** SPY buy-and-hold over the full window had `+14.01%` CAGR, Sharpe `+0.823`, max drawdown `-33.72%`.
 
 ## Limits
