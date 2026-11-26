@@ -2,14 +2,18 @@ import {
   FLOW_TAPE_SPEED_RULES,
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
+  FlowLiveDomSchema,
+  FlowOptionBubblesSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
+  FlowTradeBubblesSchema,
   GreekHeatmapOutputSchema,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OPTION_BUBBLES_RULES,
   OpenbbIvHistoryOutputSchema,
   OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
@@ -31,9 +35,13 @@ import {
 } from "./core.ts";
 import {
   labFlowHedgingPressure,
+  labFlowLiveDom,
+  labFlowLiveDomStream,
+  labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
+  labFlowTradeBubbles,
 } from "./flow.ts";
 import {
   labBars,
@@ -491,6 +499,59 @@ describe("lab flow strike heatmap", () => {
   });
 });
 
+describe("lab flow trade bubbles", () => {
+  it("produces schema-valid ES and NQ price candles and deep trade bubbles", () => {
+    const es = labFlowTradeBubbles("ES", 120);
+    expect(FlowTradeBubblesSchema.parse(es)).toEqual(es);
+    expect(es.symbol).toBe("ES");
+    expect(es.candles).toHaveLength(120);
+    expect(es.bubbles.length).toBeGreaterThan(10);
+    expect(es.rules.deepTradeLimit).toBe(40);
+
+    const nq = labFlowTradeBubbles("NQ", 60);
+    expect(FlowTradeBubblesSchema.parse(nq)).toEqual(nq);
+    expect(nq.symbol).toBe("NQ");
+    expect(nq.candles).toHaveLength(60);
+    expect(nq.rules.deepTradeLimit).toBe(10);
+  });
+});
+
+describe("lab flow option bubbles", () => {
+  it.each([100_000, 250_000, 500_000, 1_000_000] as const)(
+    "SPY (floor $%i): schema-valid bubbles, price path, open gap, and unplotted print",
+    (minPremiumUsd) => {
+      const response = labFlowOptionBubbles("SPY", minPremiumUsd);
+      expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+      expect(response.rules).toEqual(OPTION_BUBBLES_RULES);
+      expect(response).toMatchObject({
+        minPremiumUsd,
+        session: "2026-10-30",
+        symbol: "SPY",
+        ticker: "SPY",
+      });
+      expect(response.pricePoints.length).toBeGreaterThan(20);
+      expect(response.bubbles.length).toBeGreaterThan(0);
+      expect(response.unread?.ranges).toBe(1);
+      expect(response.gaps).toHaveLength(1);
+    }
+  );
+
+  it("ES: SPX options with larger prints, zero unplotted prints, and no open gap", () => {
+    const response = labFlowOptionBubbles("ES");
+    expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      minPremiumUsd: 250_000,
+      session: "2026-10-30",
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    expect(response.bubbles.length).toBeGreaterThan(0);
+    expect(response.totals.unplottedBubbles).toBe(0);
+    expect(response.gaps).toHaveLength(0);
+  });
+});
+
 describe("lab IV rank / percentile history", () => {
   it("produces schema-valid 1Y and 3M proxy curves for Core 7 ETFs", () => {
     const spy1y = labIvHistory("spy", 252);
@@ -514,5 +575,44 @@ describe("lab IV rank / percentile history", () => {
     expect(nvda.basis).toBeNull();
     expect(nvda.points).toEqual([]);
     expect(nvda.own.sessions).toBe(0);
+  });
+});
+
+describe("lab flow live DOM fixture", () => {
+  it("produces schema-valid ES and NQ frames and aborts the fixture stream cleanly", async () => {
+    const es = labFlowLiveDom("ES", 900);
+    expect(FlowLiveDomSchema.parse(es)).toEqual(es);
+    expect(es.contract).toBe("ESZ6");
+    expect(es.source).toBe("live_stream");
+
+    const nqReset = labFlowLiveDom("NQ", 300, 1_763_900_000);
+    expect(FlowLiveDomSchema.parse(nqReset)).toEqual(nqReset);
+    expect(nqReset.since).toBe(1_763_900_000);
+
+    const ac = new AbortController();
+    const events: string[] = [];
+    for await (const event of labFlowLiveDomStream(
+      "ES",
+      900,
+      null,
+      ac.signal
+    )) {
+      events.push(event.type);
+      ac.abort();
+    }
+    expect(events).toEqual(["frame"]);
+
+    const preAborted = new AbortController();
+    preAborted.abort();
+    const events2: string[] = [];
+    for await (const event of labFlowLiveDomStream(
+      "NQ",
+      900,
+      null,
+      preAborted.signal
+    )) {
+      events2.push(event.type);
+    }
+    expect(events2).toEqual(["frame"]);
   });
 });

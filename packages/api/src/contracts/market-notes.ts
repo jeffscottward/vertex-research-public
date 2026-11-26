@@ -355,7 +355,11 @@ export const MARKET_NOTES_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Market note not found", status: 404 },
-  STORAGE_ERROR: { message: "Market notes storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Market notes storage could not be used: it is not configured on this server, or the database request failed. Reload to check whether any change was saved, then retry.",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

@@ -5,7 +5,12 @@ import {
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
+import { FeatureFlagsProvider } from "../components/feature-flags-provider.tsx";
 import { ThemeController } from "../components/theme-controller.tsx";
+import {
+  type FeatureFlagsServerSnapshot,
+  getServerFeatureFlagSnapshot,
+} from "../lib/server-feature-flags.ts";
 import { dispatchInternalOrpcRequest } from "../lib/server-internal-dispatch.ts";
 import {
   loadTrustedThemeOncePerRequest,
@@ -53,6 +58,7 @@ export const themeRootAttributes = (
 export interface RootDocumentProps {
   readonly children: ReactNode;
   readonly cookieStatus?: ThemeCookieStatus;
+  readonly initialFeatureFlags?: FeatureFlagsServerSnapshot;
   readonly initialTheme: Readonly<AnonymousThemePreference>;
   readonly scriptNonce?: string | undefined;
   readonly themeAuthority?: ThemeAuthority;
@@ -61,6 +67,7 @@ export interface RootDocumentProps {
 export const RootDocument = ({
   cookieStatus = "missing",
   children,
+  initialFeatureFlags,
   initialTheme,
   scriptNonce,
   themeAuthority = "anonymous",
@@ -76,15 +83,22 @@ export const RootDocument = ({
         <script nonce={scriptNonce} src={THEME_BOOTSTRAP_PATH} />
       </head>
       <body>
-        <ThemeController
-          initialPreference={initialTheme}
-          themeAuthority={themeAuthority}
+        <FeatureFlagsProvider
+          allowClientOverrides={
+            initialFeatureFlags?.allowClientOverrides ?? false
+          }
+          envOverrides={initialFeatureFlags?.envOverrides}
         >
-          <a className="skip-link" href="#main-content">
-            Skip to main content
-          </a>
-          {children}
-        </ThemeController>
+          <ThemeController
+            initialPreference={initialTheme}
+            themeAuthority={themeAuthority}
+          >
+            <a className="skip-link" href="#main-content">
+              Skip to main content
+            </a>
+            {children}
+          </ThemeController>
+        </FeatureFlagsProvider>
       </body>
     </html>
   );
@@ -123,9 +137,11 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         })
       ),
   });
+  const initialFeatureFlags = getServerFeatureFlagSnapshot();
   return (
     <RootDocument
       cookieStatus={resolvedTheme.cookie.status}
+      initialFeatureFlags={initialFeatureFlags}
       initialTheme={resolvedTheme.preference}
       scriptNonce={scriptNonce}
       themeAuthority={resolvedTheme.authority}

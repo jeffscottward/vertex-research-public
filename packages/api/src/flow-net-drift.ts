@@ -5,7 +5,10 @@
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import { z } from "zod";
 
-import type { FlowExpiryPart, FlowOptionTicker } from "./contracts/flow.ts";
+import type {
+  FlowExpiryPart,
+  FlowIndexOptionTicker,
+} from "./contracts/flow.ts";
 
 const NET_DRIFT_MAX_BUCKETS = 1500;
 const MINUTE_MS = 60_000;
@@ -70,7 +73,7 @@ export type FlowNetDriftBucket = Readonly<{
 /** One stored bucket; the property names and types equal those of the repository record. */
 export type FlowNetDriftRow = FlowNetDriftBucket &
   Readonly<{
-    ticker: FlowOptionTicker;
+    ticker: FlowIndexOptionTicker;
     part: FlowExpiryPart;
     filterProfile: string;
   }>;

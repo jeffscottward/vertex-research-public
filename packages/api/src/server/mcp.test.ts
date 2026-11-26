@@ -71,6 +71,7 @@ describe("MCP tool registry", () => {
       "master_rules_search",
       "flow_snapshot",
       "flow_control",
+      "flow_option_prints",
       "openbb_status",
       "openbb_vol_context",
       "openbb_iv_history",
@@ -83,6 +84,7 @@ describe("MCP tool registry", () => {
       "openbb_congress_trades",
       "openbb_smart_money_ranking",
       "openbb_insider_clusters",
+      "openbb_13f_changes",
       "market_notes_list",
       "strategies_list",
       "strategies_get",
@@ -1047,3 +1049,56 @@ describe("procedureResultFromResponse", () =>
       await procedureResultFromResponse(new Response("x", { status: 502 }))
     ).toEqual({ code: "ERROR", message: "HTTP 502", ok: false, status: 502 });
   }));
+
+describe("openbb_13f_changes MCP presenter", () => {
+  it("caps presented rows at 50, truncates long strings, and rejects invalid shapes", () => {
+    const tool = MCP_TOOLS.find((entry) => entry.name === "openbb_13f_changes");
+    expect(tool?.readOnly).toBe(true);
+    const present = tool?.present;
+    expect(present).toBeTypeOf("function");
+    expect(present?.({ bad: true }, {})).toEqual({
+      changes: [],
+      context:
+        "13F changes omitted: the response did not match the 13F changes schema.",
+    });
+    const longName = "A".repeat(200);
+    const rows = Array.from({ length: 55 }, (_, idx) => ({
+      accessionNumber: `0001193125-26-${String(idx).padStart(6, "0")}`,
+      change: "added" as const,
+      cusip: "037833100",
+      delayDays: 42,
+      filedOn: "2026-11-11",
+      filerCik: "1067983",
+      filerName: longName,
+      issuer: "Apple Inc.",
+      optionType: "" as const,
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: 100,
+      previousValue: 10_000,
+      shares: 200,
+      symbol: "AAPL",
+      value: 20_000,
+    }));
+    const presented = present?.(
+      {
+        changes: rows,
+        coverage: {
+          filersWithTwoBooks: 10,
+          lastOkAt: "2026-11-23T12:00:00.000Z",
+          lastRunAt: "2026-11-23T12:00:00.000Z",
+          lastStatus: "ok",
+          overdue: false,
+          overdueSince: null,
+          totalFilers: 23,
+        },
+        delay: "45 days",
+        receivedAt: "2026-11-23T12:00:00.000Z",
+        source: "SEC 13F-HR",
+      },
+      {}
+    ) as { changes: unknown[]; changesOmitted: number };
+    expect(presented.changes).toHaveLength(50);
+    expect(presented.changesOmitted).toBe(5);
+  });
+});

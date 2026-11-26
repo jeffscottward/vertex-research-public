@@ -24,6 +24,7 @@ import type {
   ChartMarker,
   ChartStudies,
   DisplayCandle,
+  ExpectedMoveCone,
   ScriptLayer,
   SeriesPane,
 } from "./types.ts";
@@ -49,6 +50,8 @@ export type ChartWorkstationProps = Readonly<{
   pricePrecision: number;
   studies: ChartStudies;
   markers: readonly ChartMarker[];
+  // Optional forward ±1σ expected move cone overlay; null clears it.
+  expectedMove?: ExpectedMoveCone | null;
   // One histogram pane under the candles; missing or null means none.
   seriesPane?: SeriesPane | null;
   factory: CandleRendererFactory;
@@ -131,6 +134,7 @@ export const ChartWorkstation = ({
   pricePrecision,
   studies,
   markers,
+  expectedMove,
   seriesPane,
   factory,
   captions,
@@ -234,6 +238,14 @@ export const ChartWorkstation = ({
     }
     return;
   }, [renderer, seriesPane]);
+  useEffect(() => {
+    try {
+      renderer?.setExpectedMove?.(expectedMove ?? null);
+    } catch {
+      setStatus("Expected move cone could not be drawn on the chart.");
+    }
+    return;
+  }, [renderer, expectedMove]);
   // A script from the Quant assistant: the stored copy first, then the command's own.
   const requests = useRef(0);
   const takePendingScript = useCallback(
@@ -466,6 +478,7 @@ export const ChartWorkstation = ({
                 ...(studies.extra ?? []).map((id) => VERTEX_STUDIES[id].label),
                 ...(studies.panes ?? []),
                 markers.length > 0 ? `Trade markers (${markers.length})` : null,
+                expectedMove ? `Expected move (${expectedMove.expiry})` : null,
               ]
                 .filter((entry): entry is string => entry !== null)
                 .map((entry) => (

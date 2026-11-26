@@ -10,6 +10,7 @@ import { SectorRotationChanges } from "../../components/portal/sector-rotation-c
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
 import type { DecisionInbox, ExperienceScope } from "./ports.ts";
 import { serverClock } from "./research-chat-status.ts";
+import { continuityStateLabel, freshnessStatusLabel } from "./status-labels.ts";
 import {
   EmptyCollection,
   ExperienceFrame,
@@ -212,8 +213,8 @@ const actionableInbox = (
     items.push({
       key: "continuity:attention",
       kind: "continuity",
-      title: `Continuity: ${continuity.state}`,
-      detail: `Freshness ${continuity.freshness.status} · evaluated ${continuity.evaluatedAt} · high-water ${continuity.highWaterSequence} · owner epoch ${continuity.ownerEpoch}. New risk remains inhibited. This page cannot reconcile or repair the native-owner stream.`,
+      title: `Continuity: ${continuityStateLabel(continuity.state)}`,
+      detail: `Freshness ${freshnessStatusLabel(continuity.freshness.status)} · evaluated ${continuity.evaluatedAt} · high-water ${continuity.highWaterSequence} · owner epoch ${continuity.ownerEpoch}. New risk remains inhibited. This page cannot reconcile or repair the native-owner stream.`,
       identity: continuity.streamId,
       digest: continuity.highWaterEventHash,
       href: "/portfolio#continuity",

@@ -509,13 +509,13 @@ describe("OptionsAnalyticsPanel", () => {
 
   it("shows section messages, rate limits and errors", async () => {
     const empty = fixture({
-      rateLimited: true,
       exposure: {
         ...fixture().exposure,
         gexExpiry: null,
         maxPain: null,
         totalGex: null,
       },
+      rateLimited: true,
       retryAfterSeconds: null,
       volatility: {
         ...fixture().volatility,
@@ -569,7 +569,7 @@ describe("OptionsAnalyticsPanel", () => {
               fail = reject;
             })
           : Promise.resolve(
-              fixture({ retryAfterSeconds: 9, rateLimited: true })
+              fixture({ rateLimited: true, retryAfterSeconds: 9 })
             );
       },
     });
@@ -583,6 +583,35 @@ describe("OptionsAnalyticsPanel", () => {
       fail(new Error("late"));
     });
     return expect(view.textContent).toContain("retry in about 9 s");
+  });
+
+  it("renders unavailable QuantData HTTP 401/403 sections as role=alert with owner credential rotation notice", async () => {
+    const view = await render({
+      snapshot: async () =>
+        fixture({
+          flow: {
+            ...fixture().flow,
+            message:
+              "QuantData orderFlow: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).",
+            status: "unavailable",
+          },
+          volatility: {
+            ...fixture().volatility,
+            message: "QuantData termStructure: HTTP 503.",
+            status: "unavailable",
+          },
+        }),
+    });
+    const authAlert = view.querySelector("[data-auth-error]");
+    expect(authAlert?.getAttribute("role")).toBe("alert");
+    expect(authAlert?.textContent).toContain("HTTP 401");
+    expect(authAlert?.textContent).toContain(
+      "Owner action required: rotate the upstream provider credential"
+    );
+    const alerts = [...view.querySelectorAll('[role="alert"]')];
+    expect(alerts.some((el) => el.textContent?.includes("HTTP 503"))).toBe(
+      true
+    );
   });
 
   it("uses the browser gateway by default", async () => {

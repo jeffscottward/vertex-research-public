@@ -31,6 +31,7 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import { leakageCheckStatusLabel } from "./status-labels.ts";
 import type {
   ExperienceJobPort,
   ExperienceReviewPort,
@@ -850,7 +851,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
               <ul>
                 {backtest.value.leakageChecks.map((check) => (
                   <li key={check.kind}>
-                    {check.kind}: {check.status} ·{" "}
+                    {check.kind}: {leakageCheckStatusLabel(check.status)} ·{" "}
                     {check.evidenceId ?? "No evidence reference"}
                   </li>
                 ))}

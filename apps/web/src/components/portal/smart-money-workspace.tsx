@@ -1,6 +1,10 @@
 "use client";
 
 import type {
+  CongressTradesFeedOutput,
+  OpenbbChanges13fOutput,
+  OpenbbInsiderClustersOutput,
+  OpenbbStatusOutput,
   SmartMoneyRankingOutput,
   SmartMoneyRankingRow,
   SmartMoneySessionWindow,
@@ -52,6 +56,13 @@ import {
   type SmartMoneySettings,
   SORTS,
 } from "./smart-money-params.ts";
+import {
+  type SectionLoadState,
+  SmartMoney13fChangesPanel,
+  SmartMoneyCongressPanel,
+  SmartMoneyFreshnessStrip,
+  SmartMoneyInsiderClustersPanel,
+} from "./smart-money-sections.tsx";
 
 // Smart money, PR 2: market-wide options premium from large trades (at least $100,000 each),
 // summed per ticker from QuantData gainers-losers captures. The server ranks and filters.
@@ -429,8 +440,25 @@ export const SmartMoneyWorkspace = ({
     ticker: initial?.ticker ?? ALL_TICKERS,
   }));
   const [tickerDraft, setTickerDraft] = useState(settings.ticker);
+  const [congressPurchasesOnly, setCongressPurchasesOnly] = useState(true);
   const [state, setState] = useState<RankingState>({ type: "loading" });
+  const [statusState, setStatusState] = useState<
+    SectionLoadState<OpenbbStatusOutput>
+  >({ type: "loading" });
+  const [insidersState, setInsidersState] = useState<
+    SectionLoadState<OpenbbInsiderClustersOutput>
+  >({ type: "loading" });
+  const [congressState, setCongressState] = useState<
+    SectionLoadState<CongressTradesFeedOutput>
+  >({ type: "loading" });
+  const [changes13fState, setChanges13fState] = useState<
+    SectionLoadState<OpenbbChanges13fOutput>
+  >({ type: "loading" });
   const latest = useRef(0);
+  const latestStatus = useRef(0);
+  const latestInsiders = useRef(0);
+  const latestCongress = useRef(0);
+  const latest13f = useRef(0);
 
   const load = useCallback(
     async (query: SmartMoneySettings) => {
@@ -451,10 +479,75 @@ export const SmartMoneyWorkspace = ({
     [gateway]
   );
 
+  const runSection = useCallback(
+    async <T,>(
+      ref: { current: number },
+      set: (next: SectionLoadState<T>) => void,
+      loader: () => Promise<T>
+    ) => {
+      ref.current += 1;
+      const request = ref.current;
+      set({ type: "loading" });
+      let next: SectionLoadState<T>;
+      try {
+        next = { data: await loader(), type: "ready" };
+      } catch (error: unknown) {
+        next = { message: describeResearchLensFailure(error), type: "error" };
+      }
+      if (request !== ref.current) return;
+      set(next);
+    },
+    []
+  );
+
+  const loadStatus = useCallback(() => {
+    const fn = gateway.status;
+    if (fn !== undefined) void runSection(latestStatus, setStatusState, fn);
+  }, [gateway, runSection]);
+
+  const loadInsiders = useCallback(
+    (ticker: string) => {
+      const fn = gateway.insiderClusters;
+      if (fn !== undefined)
+        void runSection(latestInsiders, setInsidersState, () => fn(ticker));
+    },
+    [gateway, runSection]
+  );
+
+  const loadCongress = useCallback(
+    (ticker: string) => {
+      const fn = gateway.congressFeed;
+      if (fn !== undefined)
+        void runSection(latestCongress, setCongressState, () => fn(ticker));
+    },
+    [gateway, runSection]
+  );
+
+  const loadChanges13f = useCallback(
+    (ticker: string) => {
+      const fn = gateway.changes13f;
+      if (fn !== undefined)
+        void runSection(latest13f, setChanges13fState, () => fn(ticker));
+    },
+    [gateway, runSection]
+  );
+
   useEffect(() => {
     void load(settings);
     return;
   }, [load, settings]);
+
+  useEffect(() => {
+    void loadStatus();
+    return;
+  }, [loadStatus]);
+
+  useEffect(() => {
+    void loadInsiders(settings.ticker);
+    void loadCongress(settings.ticker);
+    void loadChanges13f(settings.ticker);
+    return;
+  }, [loadInsiders, loadCongress, loadChanges13f, settings.ticker]);
 
   useEffect(() => {
     // Only this page's keys change; foreign params such as ?theme= survive.
@@ -513,12 +606,45 @@ export const SmartMoneyWorkspace = ({
           ))}
         </select>
       </label>
+    </div>
+  );
+
+  const refreshAll = () => {
+    void load(settings);
+    void loadStatus();
+    void loadInsiders(settings.ticker);
+    void loadCongress(settings.ticker);
+    void loadChanges13f(settings.ticker);
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        actions={
+          <Button
+            disabled={state.type === "loading"}
+            onClick={refreshAll}
+            size="sm"
+          >
+            <RefreshCw aria-hidden="true" className="size-4" />
+            Refresh
+          </Button>
+        }
+        description="Market-wide lists of where large traders, insiders, Congress members, and 13F filers put their money, each with its own delay. Research only; no blended score and no trade signals."
+        status={<RankingStatus state={state} />}
+        title="Smart money"
+      />
+
+      {gateway.status === undefined ? null : (
+        <SmartMoneyFreshnessStrip state={statusState} />
+      )}
+
       <form
         aria-label="Ticker filter"
-        className="flex w-full items-center gap-2 text-sm sm:w-auto"
+        className="flex w-full flex-wrap items-center gap-2 text-sm"
         onSubmit={applyTicker}
       >
-        <label className="flex min-w-0 flex-1 items-center gap-2">
+        <label className="flex min-w-0 items-center gap-2">
           <span>Ticker</span>
           <input
             autoCapitalize="characters"
@@ -535,26 +661,6 @@ export const SmartMoneyWorkspace = ({
           Apply
         </Button>
       </form>
-    </div>
-  );
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        actions={
-          <Button
-            disabled={state.type === "loading"}
-            onClick={() => void load(settings)}
-            size="sm"
-          >
-            <RefreshCw aria-hidden="true" className="size-4" />
-            Refresh
-          </Button>
-        }
-        description="Market-wide lists of where large traders put their money. Research only; these lists are not trade signals."
-        status={<RankingStatus state={state} />}
-        title="Smart money"
-      />
 
       <Panel
         flush
@@ -596,14 +702,41 @@ export const SmartMoneyWorkspace = ({
           orders.
         </p>
       </Panel>
-      <p className="text-sm">
-        <a
-          className="inline-flex min-h-11 items-center underline underline-offset-4"
-          href="/insider-clusters"
-        >
-          Insider cluster buys (SEC Form 4)
-        </a>
-      </p>
+
+      {gateway.insiderClusters === undefined ? (
+        <p className="text-sm">
+          <a
+            className="inline-flex min-h-11 items-center underline underline-offset-4"
+            href="/insider-clusters"
+          >
+            Insider cluster buys (SEC Form 4)
+          </a>
+        </p>
+      ) : (
+        <SmartMoneyInsiderClustersPanel
+          onRetry={() => void loadInsiders(settings.ticker)}
+          state={insidersState}
+          ticker={settings.ticker}
+        />
+      )}
+
+      {gateway.congressFeed === undefined ? null : (
+        <SmartMoneyCongressPanel
+          onModeChange={setCongressPurchasesOnly}
+          onRetry={() => void loadCongress(settings.ticker)}
+          purchasesOnly={congressPurchasesOnly}
+          state={congressState}
+          ticker={settings.ticker}
+        />
+      )}
+
+      {gateway.changes13f === undefined ? null : (
+        <SmartMoney13fChangesPanel
+          onRetry={() => void loadChanges13f(settings.ticker)}
+          state={changes13fState}
+          ticker={settings.ticker}
+        />
+      )}
     </div>
   );
 };

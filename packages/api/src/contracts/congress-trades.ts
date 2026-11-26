@@ -7,6 +7,7 @@ import {
   OPENBB_CONGRESS_HOLDERS,
   OPENBB_CONGRESS_TRANSACTION_TYPES,
   OPENBB_CONGRESS_UNPARSED_REASONS,
+  OPENBB_JOB_METADATA,
   OPENBB_RUN_STATUSES,
 } from "./openbb.ts";
 
@@ -17,8 +18,9 @@ import {
 
 export const CONGRESS_TRADE_WINDOWS = [7, 30, 90] as const;
 export const CONGRESS_TRADES_MAX_ROWS = 5000;
-/** A run older than this many hours makes a chamber overdue. */
-export const CONGRESS_TRADES_OVERDUE_HOURS = 30;
+/** A run older than this many hours makes a chamber overdue (from OPENBB_JOB_METADATA). */
+export const CONGRESS_TRADES_OVERDUE_HOURS =
+  OPENBB_JOB_METADATA["congress-house"].maxAgeHours;
 
 const text = (max: number) => z.string().max(max);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
@@ -111,7 +113,11 @@ export const CongressTradesFeedOutputSchema = z.object({
 
 export const CONGRESS_TRADES_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Congress trade storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Congress trade storage: database request failed; no filings were read; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   UNAVAILABLE: {
     message: "Congress trade storage not configured",

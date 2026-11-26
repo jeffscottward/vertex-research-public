@@ -1,6 +1,8 @@
 import {
   blackScholes,
+  computeOptionsExpectedMove,
   daysToExpiry,
+  expiryCloseMs,
   type MarketBarsInput,
   type MarketBarsOutput,
   type OptionContract,
@@ -8,6 +10,7 @@ import {
   type OptionsChainExpiriesOutput,
   type OptionsChainInput,
   type OptionsChainOutput,
+  type OptionsExpectedMoveInput,
   yearsToExpiry,
 } from "@darkfactory/api";
 
@@ -24,7 +27,10 @@ import type { OptionsChainGateway } from "./options-chain-client.ts";
 export const FAKE_NOW = new Date("2026-11-04T15:00:00.000Z");
 const RATE = 0.04;
 
-type FakeOptions = Readonly<{ now?: Date }>;
+type FakeOptions = Readonly<{
+  now?: Date;
+  spotFor?: (symbol: string) => number;
+}>;
 
 const MODULUS = 2_147_483_647;
 
@@ -87,7 +93,8 @@ const fakeExpiries = (now: Date): string[] => {
 
 const quoteFields = (
   symbol: string,
-  now: Date
+  now: Date,
+  spot: number
 ): OptionsChainExpiriesOutput => ({
   currency: "USD",
   expiries: fakeExpiries(now).map((date) => ({
@@ -103,7 +110,7 @@ const quoteFields = (
     { message: null, source: "ibkr", status: "used" },
     { message: null, source: "yahoo", status: "used" },
   ],
-  spot: fakeSpot(symbol),
+  spot,
   spotSource: "quantdata",
   symbol,
 });
@@ -190,6 +197,7 @@ export const createFakeOptionsChainGateway = (
   options: FakeOptions = {}
 ): OptionsChainGateway => {
   const now = options.now ?? FAKE_NOW;
+  const spotOf = options.spotFor ?? fakeSpot;
   const check = (symbol: string): string => {
     const upper = symbol.trim().toUpperCase();
     if (upper === "FAIL")
@@ -198,71 +206,72 @@ export const createFakeOptionsChainGateway = (
       throw failure("NOT_FOUND", `No listed options for ${upper} (dummy)`);
     return upper;
   };
+  const readChain = ({ symbol, expiry }: OptionsChainInput) =>
+    Promise.resolve().then(() => {
+      const upper = check(symbol);
+      const spot = spotOf(upper);
+      const fields = quoteFields(upper, now, spot);
+      const match =
+        expiry === undefined
+          ? fields.expiries.find(
+              (item) => expiryCloseMs(item.date) > now.getTime()
+            )
+          : fields.expiries.find((item) => item.date === expiry);
+      if (match === undefined)
+        throw failure(
+          "NOT_FOUND",
+          `No ${upper} options expire on ${expiry} (dummy)`
+        );
+      const selected = match.date;
+      const step = strikeStep(spot);
+      const center = Math.round(spot / step) * step;
+      const strikes = Array.from(
+        { length: 41 },
+        (_, index) => center + (index - 20) * step
+      ).filter((strike) => strike > 0);
+      const output: OptionsChainOutput = {
+        ...fields,
+        assumptions: {
+          dayCount: "act/365",
+          dividendYield: 0,
+          model: "black-scholes-european",
+          riskFreeRate: RATE,
+        },
+        dte: match.dte,
+        expiry: selected,
+        flowFirstPageOnly: false,
+        notes: [
+          "DUMMY DATA for the lab and tests. These are not market quotes.",
+          "Greeks are calculated with Black-Scholes (European exercise): risk-free rate 4.00 % (fixed assumption), dividend yield 0.00 %.",
+        ],
+        rows: strikes.map((strike) => {
+          const near = Math.abs(strike - center) <= 6 * step;
+          return {
+            call: fakeContract(
+              upper,
+              selected,
+              "call",
+              strike,
+              spot,
+              now,
+              near
+            ),
+            put: fakeContract(upper, selected, "put", strike, spot, now, near),
+            strike,
+          };
+        }),
+      };
+      return output;
+    });
   return Object.freeze({
-    chain: ({ symbol, expiry }: OptionsChainInput) =>
+    chain: readChain,
+    expectedMove: (input: OptionsExpectedMoveInput) =>
+      readChain(input).then((chain) => computeOptionsExpectedMove(chain, now)),
+    expiries: ({ symbol }: OptionsChainExpiriesInput) =>
       Promise.resolve().then(() => {
         const upper = check(symbol);
-        const fields = quoteFields(upper, now);
-        const match = fields.expiries.find(
-          (item) => expiry === undefined || item.date === expiry
-        );
-        if (match === undefined)
-          throw failure(
-            "NOT_FOUND",
-            `No ${upper} options expire on ${expiry} (dummy)`
-          );
-        const selected = match.date;
-        const spot = fakeSpot(upper);
-        const step = strikeStep(spot);
-        const center = Math.round(spot / step) * step;
-        const strikes = Array.from(
-          { length: 41 },
-          (_, index) => center + (index - 20) * step
-        ).filter((strike) => strike > 0);
-        const output: OptionsChainOutput = {
-          ...fields,
-          assumptions: {
-            dayCount: "act/365",
-            dividendYield: 0,
-            model: "black-scholes-european",
-            riskFreeRate: RATE,
-          },
-          dte: match.dte,
-          expiry: selected,
-          flowFirstPageOnly: false,
-          notes: [
-            "DUMMY DATA for the lab and tests. These are not market quotes.",
-            "Greeks are calculated with Black-Scholes (European exercise): risk-free rate 4.00 % (fixed assumption), dividend yield 0.00 %.",
-          ],
-          rows: strikes.map((strike) => {
-            const near = Math.abs(strike - center) <= 6 * step;
-            return {
-              call: fakeContract(
-                upper,
-                selected,
-                "call",
-                strike,
-                spot,
-                now,
-                near
-              ),
-              put: fakeContract(
-                upper,
-                selected,
-                "put",
-                strike,
-                spot,
-                now,
-                near
-              ),
-              strike,
-            };
-          }),
-        };
-        return output;
+        return quoteFields(upper, now, spotOf(upper));
       }),
-    expiries: ({ symbol }: OptionsChainExpiriesInput) =>
-      Promise.resolve().then(() => quoteFields(check(symbol), now)),
   });
 };
 
@@ -272,9 +281,9 @@ const BAR_STEP_SECONDS: Readonly<
   "1 day": 86_400,
   "1 hour": 3600,
   "1 min": 60,
+  "5 mins": 300,
   "15 mins": 900,
   "30 mins": 1800,
-  "5 mins": 300,
 };
 
 /** Dummy IBKR-shaped bars: a seeded random walk ending at the fake spot. */

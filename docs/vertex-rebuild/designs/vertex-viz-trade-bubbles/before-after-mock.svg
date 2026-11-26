@@ -1,0 +1,931 @@
+<svg
+  aria-label="Before and after comparison of big futures trade bubbles on /flow (MOCK)"
+  height="680"
+  role="img"
+  viewBox="0 0 1200 680"
+  width="1200"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bgGrad" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="panelBg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#151c29" />
+      <stop offset="100%" stop-color="#0f1520" />
+    </linearGradient>
+    <linearGradient id="accentGold" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#d4a74b" />
+      <stop offset="100%" stop-color="#f3cf7a" />
+    </linearGradient>
+    <marker
+      id="arrowGold"
+      markerHeight="8"
+      markerWidth="8"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#e2b857" />
+    </marker>
+  </defs>
+
+  <!-- Canvas background -->
+  <rect fill="url(#bgGrad)" height="680" rx="16" width="1200" />
+
+  <!-- Top header bar -->
+  <text
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+    x="36"
+    y="44"
+  >
+    Vertex /flow — Big Futures Trades as Bubbles on Price Chart (F10 · ES &amp;
+    NQ)
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+    x="36"
+    y="68"
+  >
+    Stored flow_large_trades (IBKR streamed tape) + flow_minutes OHLC/VWAP ·
+    Research view only · Dark &amp; Light · 375–1440 px
+  </text>
+  <!-- MOCK pill -->
+  <rect
+    fill="#7c2d12"
+    height="28"
+    rx="6"
+    stroke="#f97316"
+    stroke-width="1.5"
+    width="80"
+    x="1084"
+    y="24"
+  />
+  <text
+    fill="#fed7aa"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="1124"
+    y="43"
+  >
+    MOCK
+  </text>
+
+  <!-- ==================== BEFORE PANEL (LEFT) ==================== -->
+  <rect
+    fill="url(#panelBg)"
+    height="548"
+    rx="12"
+    stroke="#263042"
+    stroke-width="1.5"
+    width="440"
+    x="36"
+    y="96"
+  />
+  <rect
+    fill="#1e293b"
+    height="24"
+    rx="5"
+    stroke="#475569"
+    stroke-width="1"
+    width="96"
+    x="52"
+    y="114"
+  />
+  <text
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="100"
+    y="130"
+  >
+    BEFORE
+  </text>
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="15"
+    font-weight="600"
+    x="160"
+    y="131"
+  >
+    Deep trades buried in rows / L2 grid
+  </text>
+
+  <!-- Miniature stylized old view: plain list + sparse L2 dots -->
+  <rect
+    fill="#0c111b"
+    height="195"
+    rx="8"
+    stroke="#1f2a3d"
+    stroke-width="1"
+    width="400"
+    x="56"
+    y="156"
+  />
+  <text
+    fill="#64748b"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+    x="72"
+    y="180"
+  >
+    FLOW CONTROL · TEXT LOG ONLY (NO PRICE CHART)
+  </text>
+  <!-- Stylized table rows -->
+  <g font-family="ui-monospace, monospace" font-size="11">
+    <rect fill="#131b29" height="24" rx="4" width="372" x="70" y="194" />
+    <text fill="#94a3b8" x="80" y="210">14:18:04</text>
+    <text fill="#4ade80" x="165" y="210">BUY</text>
+    <text fill="#cbd5e1" x="225" y="210">84 cts</text>
+    <text fill="#94a3b8" x="315" y="210">5814.50</text>
+
+    <rect fill="#0f1724" height="24" rx="4" width="372" x="70" y="224" />
+    <text fill="#94a3b8" x="80" y="240">14:24:19</text>
+    <text fill="#f87171" x="165" y="240">SELL</text>
+    <text fill="#cbd5e1" x="225" y="240">162 cts</text>
+    <text fill="#94a3b8" x="315" y="240">5819.75</text>
+
+    <rect fill="#131b29" height="24" rx="4" width="372" x="70" y="254" />
+    <text fill="#94a3b8" x="80" y="270">14:31:52</text>
+    <text fill="#4ade80" x="165" y="270">BUY</text>
+    <text fill="#cbd5e1" x="225" y="270">120 cts</text>
+    <text fill="#94a3b8" x="315" y="270">5816.25</text>
+
+    <rect fill="#0f1724" height="24" rx="4" width="372" x="70" y="284" />
+    <text fill="#94a3b8" x="80" y="300">14:39:11</text>
+    <text fill="#f87171" x="165" y="300">SELL</text>
+    <text fill="#cbd5e1" x="225" y="300">68 cts</text>
+    <text fill="#94a3b8" x="315" y="300">5813.00</text>
+
+    <text
+      fill="#64748b"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+      text-anchor="middle"
+      x="256"
+      y="334"
+    >
+      Hard to see clusters at highs, lows, or VWAP
+    </text>
+  </g>
+
+  <!-- Stylized L2 dependency gap graphic -->
+  <rect
+    fill="#0c111b"
+    height="175"
+    rx="8"
+    stroke="#1f2a3d"
+    stroke-dasharray="5 4"
+    stroke-width="1"
+    width="400"
+    x="56"
+    y="372"
+  />
+  <text
+    fill="#64748b"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+    x="72"
+    y="396"
+  >
+    LIQUIDITY HEATMAP · DEPENDS ON 7-DAY L2 DEPTH
+  </text>
+  <!-- Empty dashed chart icon -->
+  <line
+    stroke="#334155"
+    stroke-width="1.5"
+    x1="90"
+    x2="420"
+    y1="490"
+    y2="490"
+  />
+  <line stroke="#334155" stroke-width="1.5" x1="90" x2="90" y1="420" y2="490" />
+  <circle cx="170" cy="462" fill="#4ade80" fill-opacity="0.35" r="4" />
+  <circle cx="265" cy="442" fill="#f87171" fill-opacity="0.35" r="4" />
+  <circle cx="340" cy="458" fill="#4ade80" fill-opacity="0.35" r="4" />
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    text-anchor="middle"
+    x="256"
+    y="520"
+  >
+    No dedicated OHLC + VWAP price chart or side/size bubble filters
+  </text>
+
+  <!-- Bottom before caption -->
+  <text
+    fill="#f87171"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+    x="256"
+    y="592"
+  >
+    Missing: spatial cluster view of 730-day flow_large_trades on price
+  </text>
+
+  <!-- Transition arrow -->
+  <line
+    marker-end="url(#arrowGold)"
+    stroke="url(#accentGold)"
+    stroke-width="3.5"
+    x1="484"
+    x2="528"
+    y1="370"
+    y2="370"
+  />
+
+  <!-- ==================== AFTER PANEL (RIGHT) ==================== -->
+  <rect
+    fill="url(#panelBg)"
+    height="548"
+    rx="12"
+    stroke="#d4a74b"
+    stroke-width="1.75"
+    width="626"
+    x="538"
+    y="96"
+  />
+  <rect
+    fill="#14532d"
+    height="24"
+    rx="5"
+    stroke="#22c55e"
+    stroke-width="1"
+    width="88"
+    x="556"
+    y="114"
+  />
+  <text
+    fill="#bbf7d0"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="600"
+    y="130"
+  >
+    AFTER
+  </text>
+  <text
+    fill="#f8fafc"
+    font-family="system-ui, sans-serif"
+    font-size="15"
+    font-weight="700"
+    x="656"
+    y="131"
+  >
+    Big futures trades (ES) · Price + Area-Scaled Bubbles
+  </text>
+
+  <!-- Filter chips & status pills -->
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <rect
+      fill="#052e16"
+      height="24"
+      rx="12"
+      stroke="#22c55e"
+      stroke-width="1"
+      width="96"
+      x="556"
+      y="150"
+    />
+    <text fill="#86efac" text-anchor="middle" x="604" y="166">
+      Streamed tape
+    </text>
+
+    <rect
+      fill="#172554"
+      height="24"
+      rx="12"
+      stroke="#38bdf8"
+      stroke-width="1"
+      width="86"
+      x="660"
+      y="150"
+    />
+    <text fill="#bae6fd" text-anchor="middle" x="703" y="166">ES ≥ 40 cts</text>
+
+    <!-- Side filter pills -->
+    <rect fill="#f8fafc" height="24" rx="5" width="46" x="820" y="150" />
+    <text fill="#0f172a" font-weight="700" text-anchor="middle" x="843" y="166">
+      All
+    </text>
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="5"
+      stroke="#334155"
+      width="44"
+      x="870"
+      y="150"
+    />
+    <text fill="#cbd5e1" text-anchor="middle" x="892" y="166">Buy</text>
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="5"
+      stroke="#334155"
+      width="44"
+      x="918"
+      y="150"
+    />
+    <text fill="#cbd5e1" text-anchor="middle" x="940" y="166">Sell</text>
+
+    <!-- Size filter pills -->
+    <rect fill="#f8fafc" height="24" rx="5" width="54" x="974" y="150" />
+    <text
+      fill="#0f172a"
+      font-weight="700"
+      text-anchor="middle"
+      x="1001"
+      y="166"
+    >
+      All 1×
+    </text>
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="5"
+      stroke="#334155"
+      width="52"
+      x="1032"
+      y="150"
+    />
+    <text fill="#cbd5e1" text-anchor="middle" x="1058" y="166">≥ 2×</text>
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="5"
+      stroke="#334155"
+      width="52"
+      x="1088"
+      y="150"
+    />
+    <text fill="#cbd5e1" text-anchor="middle" x="1114" y="166">≥ 3×</text>
+  </g>
+
+  <!-- Main SVG price + bubbles chart canvas -->
+  <rect
+    fill="#0b1019"
+    height="292"
+    rx="8"
+    stroke="#253247"
+    stroke-width="1"
+    width="590"
+    x="556"
+    y="186"
+  />
+
+  <!-- Horizontal price grid & labels -->
+  <g stroke="#1e293b" stroke-dasharray="3 3" stroke-width="1">
+    <line x1="614" x2="1128" y1="214" y2="214" />
+    <line x1="614" x2="1128" y1="268" y2="268" />
+    <line x1="614" x2="1128" y1="322" y2="322" />
+    <line x1="614" x2="1128" y1="376" y2="376" />
+    <line x1="614" x2="1128" y1="430" y2="430" />
+  </g>
+  <g
+    fill="#64748b"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    text-anchor="end"
+  >
+    <text x="608" y="218">5824.00</text>
+    <text x="608" y="272">5820.00</text>
+    <text x="608" y="326">5816.00</text>
+    <text x="608" y="380">5812.00</text>
+    <text x="608" y="434">5808.00</text>
+  </g>
+  <g
+    fill="#64748b"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    text-anchor="middle"
+  >
+    <text x="634" y="466">14:00</text>
+    <text x="752" y="466">14:15</text>
+    <text x="870" y="466">14:30</text>
+    <text x="988" y="466">14:45</text>
+    <text x="1106" y="466">15:00</text>
+  </g>
+
+  <!-- Stylized 1-minute candlesticks -->
+  <g stroke-width="1.2">
+    <!-- Rising leg -->
+    <line stroke="#22c55e" x1="636" x2="636" y1="382" y2="416" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="18"
+      stroke="#22c55e"
+      width="10"
+      x="631"
+      y="390"
+    />
+    <line stroke="#22c55e" x1="664" x2="664" y1="364" y2="396" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="20"
+      stroke="#22c55e"
+      width="10"
+      x="659"
+      y="370"
+    />
+    <line stroke="#22c55e" x1="692" x2="692" y1="340" y2="378" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="22"
+      stroke="#22c55e"
+      width="10"
+      x="687"
+      y="346"
+    />
+    <line stroke="#22c55e" x1="720" x2="720" y1="322" y2="356" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="18"
+      stroke="#22c55e"
+      width="10"
+      x="715"
+      y="328"
+    />
+    <line stroke="#22c55e" x1="748" x2="748" y1="304" y2="338" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="20"
+      stroke="#22c55e"
+      width="10"
+      x="743"
+      y="310"
+    />
+    <line stroke="#22c55e" x1="776" x2="776" y1="286" y2="318" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="18"
+      stroke="#22c55e"
+      width="10"
+      x="771"
+      y="292"
+    />
+    <line stroke="#22c55e" x1="804" x2="804" y1="256" y2="298" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="26"
+      stroke="#22c55e"
+      width="10"
+      x="799"
+      y="264"
+    />
+    <!-- Top rejection & pullback -->
+    <line stroke="#ef4444" x1="832" x2="832" y1="244" y2="282" />
+    <rect
+      fill="#ef4444"
+      fill-opacity="0.4"
+      height="18"
+      stroke="#ef4444"
+      width="10"
+      x="827"
+      y="256"
+    />
+    <line stroke="#ef4444" x1="860" x2="860" y1="264" y2="306" />
+    <rect
+      fill="#ef4444"
+      fill-opacity="0.4"
+      height="24"
+      stroke="#ef4444"
+      width="10"
+      x="855"
+      y="274"
+    />
+    <line stroke="#ef4444" x1="888" x2="888" y1="292" y2="334" />
+    <rect
+      fill="#ef4444"
+      fill-opacity="0.4"
+      height="24"
+      stroke="#ef4444"
+      width="10"
+      x="883"
+      y="300"
+    />
+    <!-- Absorption bounce off VWAP -->
+    <line stroke="#22c55e" x1="916" x2="916" y1="306" y2="344" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="22"
+      stroke="#22c55e"
+      width="10"
+      x="911"
+      y="312"
+    />
+    <line stroke="#22c55e" x1="944" x2="944" y1="288" y2="322" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="20"
+      stroke="#22c55e"
+      width="10"
+      x="939"
+      y="294"
+    />
+    <line stroke="#22c55e" x1="972" x2="972" y1="274" y2="306" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="16"
+      stroke="#22c55e"
+      width="10"
+      x="967"
+      y="280"
+    />
+    <line stroke="#22c55e" x1="1000" x2="1000" y1="252" y2="288" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="22"
+      stroke="#22c55e"
+      width="10"
+      x="995"
+      y="258"
+    />
+    <line stroke="#22c55e" x1="1028" x2="1028" y1="234" y2="268" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="18"
+      stroke="#22c55e"
+      width="10"
+      x="1023"
+      y="242"
+    />
+    <line stroke="#ef4444" x1="1056" x2="1056" y1="238" y2="264" />
+    <rect
+      fill="#ef4444"
+      fill-opacity="0.4"
+      height="12"
+      stroke="#ef4444"
+      width="10"
+      x="1051"
+      y="244"
+    />
+    <line stroke="#22c55e" x1="1084" x2="1084" y1="226" y2="256" />
+    <rect
+      fill="#22c55e"
+      fill-opacity="0.4"
+      height="16"
+      stroke="#22c55e"
+      width="10"
+      x="1079"
+      y="232"
+    />
+  </g>
+
+  <!-- VWAP dashed line -->
+  <polyline
+    fill="none"
+    points="636,396 692,368 748,342 804,316 860,308 916,312 972,300 1028,284 1084,272"
+    stroke="#38bdf8"
+    stroke-dasharray="5 4"
+    stroke-width="2"
+  />
+
+  <!-- Crosshair on selected big buy bubble -->
+  <line
+    stroke="#e2e8f0"
+    stroke-dasharray="3 3"
+    stroke-opacity="0.55"
+    x1="916"
+    x2="916"
+    y1="202"
+    y2="444"
+  />
+  <line
+    stroke="#e2e8f0"
+    stroke-dasharray="3 3"
+    stroke-opacity="0.38"
+    x1="614"
+    x2="1128"
+    y1="324"
+    y2="324"
+  />
+
+  <!-- Area-scaled BUY bubbles (solid green ring) and SELL bubbles (dashed red ring) -->
+  <!-- Buy 84 @ 14:06 -->
+  <circle
+    cx="692"
+    cy="356"
+    fill="#22c55e"
+    fill-opacity="0.30"
+    r="14"
+    stroke="#22c55e"
+    stroke-width="2"
+  />
+  <text
+    fill="#ecfdf5"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    font-weight="700"
+    text-anchor="middle"
+    x="692"
+    y="360"
+  >
+    84
+  </text>
+
+  <!-- Buy 62 @ 14:15 -->
+  <circle
+    cx="748"
+    cy="318"
+    fill="#22c55e"
+    fill-opacity="0.30"
+    r="11"
+    stroke="#22c55e"
+    stroke-width="1.8"
+  />
+
+  <!-- Sell 162 @ 14:24 (top rejection) -->
+  <circle
+    cx="832"
+    cy="256"
+    fill="#ef4444"
+    fill-opacity="0.30"
+    r="22"
+    stroke="#ef4444"
+    stroke-dasharray="4 2"
+    stroke-width="2.2"
+  />
+  <text
+    fill="#fef2f2"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="832"
+    y="260"
+  >
+    162
+  </text>
+
+  <!-- Sell 78 @ 14:28 -->
+  <circle
+    cx="860"
+    cy="288"
+    fill="#ef4444"
+    fill-opacity="0.30"
+    r="13"
+    stroke="#ef4444"
+    stroke-dasharray="4 2"
+    stroke-width="2"
+  />
+  <text
+    fill="#fef2f2"
+    font-family="ui-monospace, monospace"
+    font-size="9.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="860"
+    y="292"
+  >
+    78
+  </text>
+
+  <!-- Selected Buy 195 @ 14:35 (VWAP bounce) -->
+  <circle
+    cx="916"
+    cy="324"
+    fill="#22c55e"
+    fill-opacity="0.44"
+    r="24"
+    stroke="#22c55e"
+    stroke-width="2.5"
+  />
+  <circle
+    cx="916"
+    cy="324"
+    fill="none"
+    r="28"
+    stroke="#f8fafc"
+    stroke-width="1.75"
+  />
+  <text
+    fill="#ffffff"
+    font-family="ui-monospace, monospace"
+    font-size="11.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="916"
+    y="328"
+  >
+    195
+  </text>
+
+  <!-- Buy 112 @ 14:46 -->
+  <circle
+    cx="1000"
+    cy="266"
+    fill="#22c55e"
+    fill-opacity="0.30"
+    r="17"
+    stroke="#22c55e"
+    stroke-width="2"
+  />
+  <text
+    fill="#ecfdf5"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    font-weight="700"
+    text-anchor="middle"
+    x="1000"
+    y="270"
+  >
+    112
+  </text>
+
+  <!-- Sell 54 @ 14:52 -->
+  <circle
+    cx="1056"
+    cy="248"
+    fill="#ef4444"
+    fill-opacity="0.30"
+    r="10"
+    stroke="#ef4444"
+    stroke-dasharray="4 2"
+    stroke-width="1.8"
+  />
+
+  <!-- Legend + Pinned Inspector strip -->
+  <g font-family="system-ui, sans-serif" font-size="11">
+    <circle
+      cx="566"
+      cy="496"
+      fill="#22c55e"
+      fill-opacity="0.35"
+      r="5"
+      stroke="#22c55e"
+      stroke-width="1.8"
+    />
+    <text fill="#cbd5e1" x="577" y="500">Buy (solid ring)</text>
+    <circle
+      cx="688"
+      cy="496"
+      fill="#ef4444"
+      fill-opacity="0.35"
+      r="5"
+      stroke="#ef4444"
+      stroke-dasharray="3 1.5"
+      stroke-width="1.8"
+    />
+    <text fill="#cbd5e1" x="699" y="500">Sell (dashed ring)</text>
+    <line
+      stroke="#38bdf8"
+      stroke-dasharray="4 3"
+      stroke-width="2"
+      x1="822"
+      x2="844"
+      y1="496"
+      y2="496"
+    />
+    <text fill="#cbd5e1" x="850" y="500">1m VWAP</text>
+    <text fill="#94a3b8" x="928" y="500">Area ∝ contracts</text>
+  </g>
+
+  <!-- Pinned inspector -->
+  <rect
+    fill="#111a28"
+    height="36"
+    rx="6"
+    stroke="#334155"
+    stroke-width="1"
+    width="590"
+    x="556"
+    y="514"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="ui-monospace, monospace"
+    font-size="11.5"
+    x="570"
+    y="536"
+  >
+    14:35:08 ET · Buy 195 contracts (4.9×) at 5,815.75 · quote-signed · streamed
+  </text>
+
+  <!-- Bottom stat strip -->
+  <g font-family="ui-monospace, monospace">
+    <rect
+      fill="#0d1421"
+      height="62"
+      rx="6"
+      stroke="#1e293b"
+      width="138"
+      x="556"
+      y="562"
+    />
+    <text
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10.5"
+      x="568"
+      y="582"
+    >
+      Shown prints
+    </text>
+    <text fill="#f8fafc" font-size="15" font-weight="700" x="568" y="608">
+      7 prints
+    </text>
+
+    <rect
+      fill="#0d1421"
+      height="62"
+      rx="6"
+      stroke="#1e293b"
+      width="142"
+      x="706"
+      y="562"
+    />
+    <text
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10.5"
+      x="718"
+      y="582"
+    >
+      Buy / Sell cts
+    </text>
+    <text fill="#4ade80" font-size="14" font-weight="700" x="718" y="608">
+      453
+    </text>
+    <text fill="#64748b" font-size="14" x="752" y="608">/</text>
+    <text fill="#f87171" font-size="14" font-weight="700" x="766" y="608">
+      294
+    </text>
+
+    <rect
+      fill="#0d1421"
+      height="62"
+      rx="6"
+      stroke="#1e293b"
+      width="134"
+      x="860"
+      y="562"
+    />
+    <text
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10.5"
+      x="872"
+      y="582"
+    >
+      Net deep cts
+    </text>
+    <text fill="#4ade80" font-size="15" font-weight="700" x="872" y="608">
+      +159
+    </text>
+
+    <rect
+      fill="#0d1421"
+      height="62"
+      rx="6"
+      stroke="#1e293b"
+      width="140"
+      x="1006"
+      y="562"
+    />
+    <text
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10.5"
+      x="1018"
+      y="582"
+    >
+      Largest print
+    </text>
+    <text fill="#f8fafc" font-size="13.5" font-weight="700" x="1018" y="608">
+      Buy 195
+    </text>
+  </g>
+</svg>

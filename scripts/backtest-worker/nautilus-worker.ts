@@ -37,7 +37,7 @@
 // is never printed.
 
 import { spawn } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { accessSync, constants, readFileSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import {
@@ -70,11 +70,10 @@ export const AGENT_KEY_WINDOW_MS = 60_000;
 export const REQUEST_BUDGET = AGENT_KEY_LIMIT / 4;
 /**
  * Quiet pause: two limiter windows plus a margin (125 s). The worker sends nothing for this long.
- * The other client of the shared key is the Autopilot tick (vertex-autopilot.timer:
- * OnUnitActiveSec=1min plus the run time, one request per tick). With one tick inside the pause,
- * the two gaps add up to 125 s, so one is over 60 s; with two ticks, the gap between them is over
- * 60 s. Either way the count resets. It depends on ticks being more than 60 s apart with one
- * request each; a separate worker key is the robust fix (the owner chose to reuse the Autopilot key).
+ * On QuantVPS the other every-minute clients of the shared key (vertex-autopilot.timer and
+ * vertex-flow.timer) align on OnCalendar=*-*-* *:*:00 (AccuracySec=1s) so restart-when-idle keeps
+ * a >35 s quiet window; a separate worker key remains the robust fix for the 60 s limiter window
+ * (the owner chose to reuse the Autopilot key).
  */
 export const QUIET_PAUSE_MS = 2 * AGENT_KEY_WINDOW_MS + 5000;
 /**
@@ -150,6 +149,8 @@ export type RunCommand = (
 ) => Promise<CommandOutcome>;
 
 export type NautilusWorkerIo = Readonly<{
+  /** Whether `path` resolves to an executable regular file (isExecutableFile). */
+  canExecute: (path: string) => boolean;
   env: Readonly<Record<string, string | undefined>>;
   post: (url: string, init: RequestInit) => Promise<Response>;
   runCommand: RunCommand;
@@ -255,6 +256,33 @@ export const fileAgeMs = (path: string): number | null => {
   } catch {
     return null;
   }
+};
+
+/** Whether `path` (following symlinks) is an executable regular file. */
+export const isExecutableFile = (path: string): boolean => {
+  try {
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Thrown when the configured Nautilus Python binary is absent or not executable. */
+class MissingPythonError extends Error {
+  constructor(python: string) {
+    super(
+      `VERTEX_NAUTILUS_PYTHON (${python}) is missing or not executable; run infra/research-worker/setup-nautilus-venv.sh`
+    );
+    this.name = "MissingPythonError";
+  }
+}
+
+/** Refuses to claim or run when the configured Nautilus Python binary is absent or not executable. */
+const assertPythonExecutable = (config: Config, io: NautilusWorkerIo): void => {
+  if (!io.canExecute(config.python))
+    throw new MissingPythonError(config.python);
 };
 
 /** The restart lock: held by another process, free, or not known (with the reason). */
@@ -412,23 +440,23 @@ const readConfig = (env: NautilusWorkerIo["env"]): Config => {
   return {
     apiKey: required(env, "VERTEX_AGENT_API_KEY"),
     budget: { requests: 0 },
+    idleMaxMs,
+    idleMs,
+    origin: new URL(required(env, "VERTEX_ORIGIN")).origin,
     pauseFile: stateFileOf(
       env,
       "VERTEX_WORKER_PAUSE_FILE",
       "vertex-nautilus-worker.pause"
     ),
+    processes,
+    python: required(env, "VERTEX_NAUTILUS_PYTHON"),
+    quietPauseMs,
+    requestBudget,
     restartLock: stateFileOf(
       env,
       "VERTEX_WORKER_RESTART_LOCK",
       "vertex-web-restart.lock"
     ),
-    processes,
-    quietPauseMs,
-    requestBudget,
-    idleMaxMs,
-    idleMs,
-    origin: new URL(required(env, "VERTEX_ORIGIN")).origin,
-    python: required(env, "VERTEX_NAUTILUS_PYTHON"),
   };
 };
 
@@ -880,11 +908,12 @@ const runPart = async (
   });
 };
 
-/** One claim cycle. Throws on an API error of claim. */
+/** One claim cycle. Throws when Python is missing or on an API error of claim. */
 const workOnce = async (
   config: Config,
   io: NautilusWorkerIo
 ): Promise<Cycle> => {
+  assertPythonExecutable(config, io);
   const { batch } = BacktestRunEngineClaimOutputSchema.parse(
     await call(config, io, "backtestRuns/engine/claim", {
       engine: BACKTEST_RUN_NAUTILUS_ENGINE,
@@ -934,13 +963,15 @@ const workOnce = async (
   return { failure, found: true };
 };
 
-/** Class of a thrown cycle error for the alert line: the HTTP status or the error name. */
+/** Class of a thrown cycle error for the alert line: the HTTP status, missing python or error name. */
 const errorClass = (error: unknown): string =>
   error instanceof ApiError
     ? `HTTP ${error.status}`
-    : error instanceof Error
-      ? error.name
-      : "unknown error";
+    : error instanceof MissingPythonError
+      ? "missing python"
+      : error instanceof Error
+        ? error.name
+        : "unknown error";
 
 /** Posts one line to the optional chat endpoint ({channel, text}); never throws. */
 const postAlert = async (io: NautilusWorkerIo, text: string): Promise<void> => {
@@ -979,8 +1010,8 @@ const quiet = async (
 
 /** Failed cycles in a row and whether this incident was alerted. */
 interface AlertState {
-  failures: number;
   alerted: boolean;
+  failures: number;
 }
 
 /** One alert per incident (ALERT_AFTER_FAILURES failed cycles in a row), one recovery line after. */
@@ -1042,9 +1073,9 @@ const waitAfter = async (
 
 /** Whether the worker is paused, and which notes were already logged. */
 interface PauseState {
+  lockProblemLogged: boolean;
   paused: boolean;
   staleLogged: boolean;
-  lockProblemLogged: boolean;
 }
 
 /** The pause reason of the pause file, or null; logs a stale file once. */
@@ -1121,16 +1152,19 @@ export const runNautilusWorker = async (
   argv: readonly string[],
   io: NautilusWorkerIo
 ): Promise<number> => {
+  const once = argv.includes("--once");
   let config: Config;
   try {
     const unknown = argv.filter((arg) => arg !== "--once");
     if (unknown.length > 0) throw new Error(`Unknown argument ${unknown[0]}`);
     config = readConfig(io.env);
+    // In --once mode, fail immediately (even if paused); daemon mode checks before every claim
+    // inside the loop so a missing venv posts the 3-cycle alert and auto-recovers once created.
+    if (once) assertPythonExecutable(config, io);
   } catch (error) {
     io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
     return 1;
   }
-  const once = argv.includes("--once");
   const alerts: AlertState = { alerted: false, failures: 0 };
   const pause: PauseState = {
     lockProblemLogged: false,

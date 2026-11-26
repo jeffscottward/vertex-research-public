@@ -277,6 +277,10 @@ describe("agent API key scope", () => {
       "flow.snapshot",
       "flow.control",
       "flow.events",
+      "flow.optionPrints",
+      "connectivity.health",
+      "connectivity.checkAlerts",
+      "connectivity.recordAlertChat",
       "breadth90.collect",
       "breadth90.get",
       "goLiveDrafts.collect",
@@ -299,6 +303,7 @@ describe("agent API key scope", () => {
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["flow", "control"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["flow", "events"])).toBe(true);
+    expect(isAgentApiKeyProcedurePath(["flow", "optionPrints"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(
       true
     );
