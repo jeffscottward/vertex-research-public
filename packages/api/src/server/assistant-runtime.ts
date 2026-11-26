@@ -103,7 +103,8 @@ const isForbidden = (tool: CatalogueTool): boolean => {
  * list. The assistant reads active market notes from its system prompt instead (marketNotes on
  * the turn input).
  */
-export const ASSISTANT_DEFERRED_TOOL_PATTERN = /^(?:openbb_|market_notes_)/u;
+export const ASSISTANT_DEFERRED_TOOL_PATTERN =
+  /^(?:openbb_|market_notes_|flow_option_prints$)/u;
 
 const isConfirmTool = (name: string): boolean =>
   ASSISTANT_CONFIRM_TOOLS.includes(name);

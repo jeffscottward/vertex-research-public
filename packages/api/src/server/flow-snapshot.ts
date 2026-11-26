@@ -12,7 +12,8 @@ import {
   type FlowConfluence,
   type FlowFactor,
   type FlowFreshness,
-  type FlowOptionTicker,
+  type FlowIndexOptionTicker,
+  type FlowOptionPrintSymbol,
   type FlowSampleStatus,
   type FlowSnapshot,
   type FlowSnapshotSource,
@@ -23,10 +24,12 @@ import {
 import { IV_TERM_REGIMES } from "../contracts/options-analytics.ts";
 import {
   FLOW_INSTRUMENTS,
+  FLOW_OPTION_STREAMS,
   type FlowBookRow,
   type FlowEventRow,
   type FlowInstrument,
   type FlowMinuteRow,
+  isFlowSymbol,
 } from "../flow-features.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
 import { newYorkClock } from "../signal-alerts.ts";
@@ -35,7 +38,7 @@ import { marketSession, newYorkParts } from "./gex-context.ts";
 /** Is this source's market open now (New York wall time; holidays are not modelled)? */
 export const flowSessionOpen = (
   source: FlowSource,
-  symbol: FlowSymbol,
+  symbol: FlowOptionPrintSymbol,
   now: Date
 ): boolean => {
   const parts = newYorkParts(now);
@@ -50,13 +53,21 @@ export const flowSessionOpen = (
       minutes >= 9 * 60 + 30 &&
       minutes < 16 * 60 + 20
     );
-  if (source === "options" || source === "gex")
+  if (source === "options")
+    return (
+      day !== "Sat" &&
+      day !== "Sun" &&
+      minutes >= 9 * 60 + 30 &&
+      minutes < FLOW_OPTION_STREAMS[symbol].closeMinuteEt
+    );
+  if (source === "gex")
     return (
       day !== "Sat" &&
       day !== "Sun" &&
       minutes >= 9 * 60 + 30 &&
       minutes < 16 * 60 + 15
     );
+  if (!isFlowSymbol(symbol)) return false;
   if (FLOW_INSTRUMENTS[symbol].session === "stock")
     return marketSession(now) !== "closed";
   // CME Globex equity futures: Sunday 18:00 to Friday 17:00, daily break 17:00-18:00.
@@ -84,9 +95,11 @@ export const FLOW_TAPE_STALE_SECONDS = 180;
 /** The stale limit of one source of one symbol: the tape limit for streamed ticks. */
 export const flowStaleSeconds = (
   source: FlowSource,
-  symbol: FlowSymbol
+  symbol: FlowOptionPrintSymbol
 ): number =>
-  source === "ticks" && FLOW_INSTRUMENTS[symbol].ticks === "stream"
+  source === "ticks" &&
+  isFlowSymbol(symbol) &&
+  FLOW_INSTRUMENTS[symbol].ticks === "stream"
     ? FLOW_TAPE_STALE_SECONDS
     : FLOW_STALE_SECONDS[source];
 
@@ -124,7 +137,7 @@ export const flowSessionDate = (now: Date): string => {
 };
 
 export type FlowSampleRow = Readonly<{
-  symbol: FlowSymbol;
+  symbol: FlowOptionPrintSymbol;
   source: FlowSource;
   at: Date;
   status: FlowSampleStatus;
@@ -135,7 +148,7 @@ export type FlowSampleRow = Readonly<{
 export type FlowGexRow = Readonly<{
   symbol: FlowSymbol;
   at: Date;
-  ticker: FlowOptionTicker;
+  ticker: FlowIndexOptionTicker;
   spot: number | null;
   basis: number | null;
   // The stored words of `flow_gex.regime` and `flow_gex.iv_regime`: a row can hold a word
@@ -185,7 +198,12 @@ const freshnessState = (
 
 /** The freshness row of one source of the symbol, from the newest samples. */
 export const buildSourceFreshness = (
-  rows: Pick<FlowSnapshotRows, "latest" | "latestOk" | "now" | "symbol">,
+  rows: Readonly<{
+    latest: readonly FlowSampleRow[];
+    latestOk: readonly FlowSampleRow[];
+    now: Date;
+    symbol: FlowOptionPrintSymbol;
+  }>,
   source: FlowSnapshotSource
 ): FlowFreshness => {
   const ok = rows.latestOk.find((sample) => sample.source === source);
@@ -490,7 +508,7 @@ const premiumWhere = (
   keep: (print: FlowOptionPrintRow) => boolean
 ): number => sumOf(prints.filter(keep), (print) => print.premium);
 
-const printView = (
+export const printView = (
   print: FlowOptionPrintRow
 ): FlowSnapshot["optionsFlow"]["topPrints"][number] => ({
   at: iso(print.tradedAt),
@@ -685,13 +703,11 @@ const flowNotes = (symbol: FlowSymbol): string[] => {
   const tape =
     instrument.ticks === "none"
       ? [
-          `Trades and option prints are not collected for ${symbol}; this view shows depth and GEX only.`,
+          `Trades are not collected for ${symbol}; this view shows depth, options flow and GEX.`,
         ]
       : [
           tickNote(instrument),
-          instrument.sources.includes("options")
-            ? "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData."
-            : `Trade side: quote rule, then tick rule. Option prints are not collected for ${symbol}.`,
+          "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData.",
         ];
   return [
     ...tape,

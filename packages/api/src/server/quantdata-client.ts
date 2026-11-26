@@ -1,12 +1,15 @@
 // Read-only QuantData HTTP client (port of Gamma Forge QuantDataProvider).
 // - POST JSON with a bearer key; the key and URL never appear in messages.
 // - One request start per `minIntervalMs` (default 1 s) per client, serialized.
-// - At most `maxRequestsPerMinute` (default 30) request starts in any 60 s window. The budget,
-//   the quota wait and the cooldown live in this client, so they hold per server instance
-//   (one `vite preview` process on QuantVPS); keep the key out of other deployments.
+// - At most `maxRequestsPerMinute` (default 54) request starts in any 60 s window. Measured over
+//   10 trading days (2026-11-10 to 2026-11-23): market-watch-gex peaks at 122 req / 60 s at the
+//   open, leaving 240 - 122 - 60 (25% margin) = 58 req / 60 s; cap 54 keeps 64 req / 60 s (26.7%)
+//   margin while allowing 48 collector starts + 6 reserved for /charts. The budget, the quota wait
+//   and the cooldown live in this client, so they hold per server instance (one `vite preview`
+//   process on QuantVPS); keep the key out of other deployments.
 // - QuantData allows 240 requests per 60 s per user, shared by every key and job on the
 //   account (the market-watch-bot GEX and flow jobs use the same key). When a response
-//   reports fewer than `quotaReserve` (default 120) requests left (X-RateLimit-Remaining),
+//   reports fewer than `quotaReserve` (default 60, 25% of 240) requests left (X-RateLimit-Remaining),
 //   the client waits until X-RateLimit-Reset (held to 1-60 s, else 60 s) so those jobs keep
 //   headroom. A low reading counts only when the counter is live: it fell since the previous
 //   response, or the response is HTTP 429. QuantData was seen to send a constant
@@ -40,8 +43,8 @@ const MAX_COOLDOWN_S = 3600;
 const MAX_CACHE_ENTRIES = 200;
 const WINDOW_S = 60;
 const WINDOW_MS = WINDOW_S * 1000;
-export const DEFAULT_MAX_PER_MINUTE = 30;
-const DEFAULT_QUOTA_RESERVE = 120;
+export const DEFAULT_MAX_PER_MINUTE = 54;
+const DEFAULT_QUOTA_RESERVE = 60;
 const WHOLE_NUMBER = /^\d+$/u;
 
 export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;

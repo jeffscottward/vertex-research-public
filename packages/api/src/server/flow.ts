@@ -25,6 +25,7 @@ import {
   type FlowLiveDomParsedInput,
   type FlowLiveDomStreamParsedInput,
   type FlowOptionBubblesParsedInput,
+  type FlowOptionPrintsParsedInput,
   type FlowPutCallRatioInput,
   type FlowSnapshot,
   type FlowSnapshotParsedInput,
@@ -80,6 +81,10 @@ import {
   buildFlowOptionBubbles,
   type FlowOptionBubblesRows,
 } from "./flow-option-bubbles.ts";
+import {
+  buildFlowOptionPrints,
+  readFlowOptionPrintsRows,
+} from "./flow-option-prints.ts";
 import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
@@ -871,6 +876,22 @@ const liveDomStream = api.flow.liveDomStream
     );
   });
 
+const optionPrints = api.flow.optionPrints
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowOptionPrintsRows(
+        repository,
+        input as FlowOptionPrintsParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowOptionPrints, rows);
+  });
+
 const tradeBubbles = api.flow.tradeBubbles
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -896,6 +917,7 @@ export const flowRouter = {
   liveDom,
   liveDomStream,
   optionBubbles,
+  optionPrints,
   putCallRatio,
   snapshot,
   strikeHeatmap,
