@@ -309,7 +309,7 @@ const HeatmapGrid = ({
                   data-strike-row={row.strike}
                 >
                   <TableHead
-                    className="sticky left-0 z-10 h-auto bg-background px-2 py-1.5 text-right font-medium font-mono tabular-nums"
+                    className="sticky left-0 z-10 h-auto whitespace-normal bg-background px-2 py-1.5 text-right font-medium font-mono tabular-nums"
                     scope="row"
                   >
                     <span>{formatStrike(row.strike)}</span>
@@ -384,7 +384,7 @@ const HeatmapGrid = ({
               data-heatmap-footer=""
             >
               <TableHead
-                className="sticky left-0 z-10 h-auto bg-muted px-2 py-1.5 text-right font-medium text-muted-foreground"
+                className="sticky left-0 z-10 h-auto whitespace-normal bg-muted px-2 py-1.5 text-right font-medium text-muted-foreground"
                 scope="row"
               >
                 Expiry net
