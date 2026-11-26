@@ -25,7 +25,7 @@ Cause: `chainSummary` in `apps/web/src/features/stock-detail/stock-detail-worksp
 - **Side:** the calls, or the puts, of the returned chain. `OiSide` in the code holds three numbers for a side: `contracts` (contracts in the returned chain), `reported` (contracts with an OI value) and `total` (the sum of the OI values).
 - **Complete:** a side is complete when it has contracts and every one has an OI value. A chain is complete when both sides are. (The baseline code had a predicate `complete`; this change replaces it with `covered`.)
 - **Coverage:** `reported / contracts` of a side. A side is **covered** when it has contracts and its coverage is 50% or more. A chain is covered when both sides are.
-- **Second source:** the option-chain data of the public Nasdaq site. The measurement uses it to check the contracts with no OI value. The app does not use it.
+- **Second source:** the option-chain data of the public Nasdaq site. The measurement uses it to check the contracts with no OI value. The app does not use it. Nasdaq and Yahoo probably take open interest from the same clearing data, so the second source corroborates the values of the app; it is not an independent count.
 
 ## Goals and non-goals
 
@@ -107,7 +107,7 @@ The 48 chains by the coverage of their lower side:
 
 Findings:
 
-- **In the chains of listed expiries, a contract with no OI value has no open interest on record.** The 44 chains hold 289 contracts with no OI value. The second source shows no value for all 289. For the contracts whose OI the app took from Yahoo, the second source shows the same number for 5,438 of 5,624. The ratio of the reported OI is therefore the ratio of the whole chain: the move is 0.00% for all 26 incomplete chains of listed expiries that have a ratio.
+- **In the chains of listed expiries, a contract with no OI value has no open interest on record.** The 44 chains hold 289 contracts with no OI value. The second source shows no value for all 289. For the contracts whose OI the app took from Yahoo, the second source shows the same number for 5,438 of 5,624. This corroborates that the ratio of the reported OI is the ratio of the whole chain: the move is 0.00% for all 26 incomplete chains of listed expiries that have a ratio.
 - **A chain with almost no OI values is a different case.** For the expiry that ended that day, Yahoo sent no OI values, and the returned chains hold 0 or 1 value per side from Quant Data. The second source still shows open interest for 723 of these 826 contracts. NVDA 2026-11-25 has one call value and one put value; their ratio is 1.23, and the ratio with the second-source values is 0.68 (a move of 44.97%). The three chains of the newly listed expiry 2026-12-09 have 0 or 1 OI value and no ratio under any rule.
 - **The two cases are far apart.** The lower-side coverage is 1.2% or less in the 7 chains of the second case and 88.2% or more in 40 chains of the first case. One chain lies between them: PLTR 2029-06-15, with 26 of 33 calls and 8 of 20 puts.
 
@@ -116,6 +116,7 @@ Choice: 50% of each side. The floor only has to separate the two cases, and ever
 Limits of this choice:
 
 - Coverage counts contracts. It is a proxy for "a source sent the OI of this chain"; it does not prove that a contract with no OI value has no open interest.
+- The second source is corroboration, not proof: a gap in the clearing data that both sources use would show as "no value" in both.
 - The sparse chain PLTR 2029-06-15 stays `No ratio`, although the second source confirms its ratio of the reported OI.
 - A side with very few contracts passes at 1 of 2.
 - The first version of this plan chose 95% with a neighbour estimate (each contract with no OI value was given the OI of its larger neighbour strike). The second source showed that this estimate overstates: for QQQ 2026-11-27 it gave a possible move of 32.8% from six puts that have no open interest on record.
