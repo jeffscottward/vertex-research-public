@@ -95,7 +95,11 @@ export type GexWallLevelsInput =
       putWall: number | null;
       flip: number | null;
     }>
-  | Readonly<{ kind: "missing"; code: "gex_missing"; detail: string }>;
+  | Readonly<{
+      kind: "missing";
+      code: "gex_missing" | "ticker_mismatch";
+      detail: string;
+    }>;
 
 /** One settled point of a cumulative net drift series (FlowNetDriftPoint). */
 export type GexDriftPoint = Readonly<{

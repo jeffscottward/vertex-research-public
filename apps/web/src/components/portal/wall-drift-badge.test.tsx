@@ -373,5 +373,8 @@ describe("StockWallDrift", () => {
     );
     // LAB_NOW is in the past, so real time makes the lab GEX and drift stale.
     expect(read(container)?.getAttribute("data-wall-drift")).toBe("no-data");
+    expect(
+      container.querySelector("[data-wall-drift-reason]")?.textContent
+    ).toBe("GEX levels are older than 30 min; press Refresh to reload");
   });
 });

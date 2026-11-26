@@ -166,10 +166,10 @@ span, buckets, changes, gross, price), the two shares, a descriptive reason and 
   without `flowControl` gives "net drift not loaded: this page does not load flow.control".
 - Badge (`WallDriftBadge`): a heading (`h2` on `/flow`, `h3` inside the `/stock` panel) that labels the section, a
   status pill (Hold success, Break risk warning, No read neutral, No data info), "Unvalidated: study accruing ·
-  research only", a context line that is always present ("Put wall 600 · above flip 590", "No wall in band" or "Wall
+  research only" on its own line, a context line that is always present ("Put wall 600 · above flip 590", "No wall in band" or "Wall
   not read"), a reason clamped to two lines, and an "About this read" disclosure (44 px summary) with the full reason,
-  the help text and the input times in New York time. The box reserves 144 px so loading, no-data and graded states do
-  not move the page.
+  the help text and the input times in New York time. The box reserves 160 px so loading, no-data and graded states do
+  not move the page. On `/stock`, a stale read adds "press Refresh to reload".
 
 ## Risks and Mitigations
 

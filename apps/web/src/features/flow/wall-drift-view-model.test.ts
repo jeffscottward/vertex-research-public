@@ -306,7 +306,7 @@ describe("stockWallDriftView", () => {
         LAB_NOW
       )
     ).toMatchObject({
-      code: "gex_missing",
+      code: "ticker_mismatch",
       reason: "options analytics is for spy, not QQQ",
     });
   });

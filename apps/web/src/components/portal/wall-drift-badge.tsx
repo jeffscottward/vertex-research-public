@@ -34,7 +34,7 @@ export const WallDriftBadge = ({
   return (
     <section
       aria-labelledby={headingId}
-      className="grid min-h-36 content-start gap-1 rounded-md border border-border px-3 py-2"
+      className="grid min-h-40 content-start gap-1 rounded-md border border-border px-3 py-2"
       data-wall-drift={view.read}
       data-wall-drift-code={view.code ?? ""}
       data-wall-drift-ticker={view.ticker ?? ""}
@@ -44,10 +44,10 @@ export const WallDriftBadge = ({
           Wall × drift{view.ticker === null ? "" : ` · ${view.ticker}`}
         </Heading>
         <StatusBadge status={view.tone}>{view.label}</StatusBadge>
-        <span className="text-muted-foreground text-xs">
-          {WALL_DRIFT_STUDY_STATUS} · research only
-        </span>
       </div>
+      <p className="text-muted-foreground text-xs">
+        {WALL_DRIFT_STUDY_STATUS} · research only
+      </p>
       <p
         className="min-h-4 text-muted-foreground text-xs tabular-nums"
         data-wall-drift-context=""

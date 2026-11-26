@@ -6,6 +6,11 @@
 **Gate:** "Auto accept" (standing owner rule of 2026-11-13): every PROPOSE FIX is applied; CONTEST and DECLINE stay as
 recorded here. No finding needed a fact only the owner has (no ESCALATE).
 
+**Process note:** the brainstorm lenses ran as separate tool-less model calls from the synthesizer, because that
+subagent could not start its own subagents ([concepts_brief.md](concepts_brief.md)); the consolidated review above ran
+as eight fresh-context `egm-*` subagents. Dispositions are given per consolidated item; the stage reports hold every
+raw finding.
+
 **Counts:** 24 PROPOSE FIX (applied, plus the Nits), 4 CONTEST, 2 DECLINE (moved to Future Improvements).
 
 | Id | Disposition | What changed or why not |

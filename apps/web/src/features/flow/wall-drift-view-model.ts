@@ -41,7 +41,7 @@ export type WallDriftView = Readonly<{
   reason: string;
   /** The collector message of the ticker's net drift, shown with a no-data read. */
   collectorNote: string | null;
-  /** Input times and sources for the tooltip. */
+  /** Input times and sources for the About disclosure. */
   inputs: string;
   rulesVersion: string;
 }>;
@@ -232,7 +232,7 @@ export const stockWallDriftView = (
       gradeGexWallDrift({
         drift,
         levels: {
-          code: "gex_missing",
+          code: "ticker_mismatch",
           detail: `options analytics is for ${symbol}, not ${ticker}`,
           kind: "missing",
         },
@@ -250,5 +250,12 @@ export const stockWallDriftView = (
     spot,
     ticker,
   };
-  return viewOf(gradeGexWallDrift({ drift, levels, now }), note);
+  const read = gradeGexWallDrift({ drift, levels, now });
+  // /stock reloads only on Refresh, so an aged read names that next step.
+  return viewOf(
+    read.code === "gex_stale" || read.code === "drift_stale"
+      ? { ...read, reason: `${read.reason}; press Refresh to reload` }
+      : read,
+    note
+  );
 };

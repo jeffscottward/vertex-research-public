@@ -54,7 +54,7 @@ How the lenses ran:
 - **Separate model calls instead.** Each lens ran as its own call with no tools and no history (`completion`, tier `slow`), with its persona file from `agents/` as the system prompt.
 - **Shared evidence.** Because the lenses had no tools, the synthesizer read the repository first. It gave every lens the same 12 verified facts (E1–E12, listed in [Appendix A](#appendix-a-evidence-given-to-every-lens)) and the full text of the draft rule file.
 - **Checking.** The synthesizer checked each lens claim against the code. Two claims were wrong; they are corrected in [Synthesizer corrections](#synthesizer-corrections).
-- **Raw reports.** The raw lens reports are in `/tmp/egm-gexdrift-yzeuki7_/` on this machine, outside the repository. They are temporary.
+- **Raw reports.** The raw lens reports were kept outside the repository and were temporary.
 
 ## Analysis
 
