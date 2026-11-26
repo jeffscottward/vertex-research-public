@@ -58,7 +58,8 @@ const MAX_FLOW_ROWS = 25;
 
 type State =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput }>
+  // `symbol` is the symbol that was asked for; the prop can already name the next one.
+  | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput; symbol: string }>
   | Readonly<{ type: "error"; code: string; message: string }>;
 
 const pct = (value: number | null): string =>
@@ -588,7 +589,8 @@ export const OptionsAnalyticsPanel = ({
     setState({ type: "loading" });
     try {
       const data = await gateway.snapshot({ flowHours: hours, symbol });
-      if (mine === generation.current) setState({ data, type: "ready" });
+      if (mine === generation.current)
+        setState({ data, symbol, type: "ready" });
     } catch (error) {
       if (mine === generation.current)
         setState({ type: "error", ...describeMarketDataFailure(error) });
@@ -676,13 +678,17 @@ export const OptionsAnalyticsPanel = ({
             section={state.data.exposure}
             spot={state.data.spot}
           />
-          {/* Mounted after the snapshot answered, so its term-structure request is a cache hit. */}
-          <GreekHeatmapPanel
-            gateway={gateway}
-            initialTab={heatmapTab}
-            onTabChange={setHeatmapTab}
-            symbol={symbol}
-          />
+          {/* Mounted only after the snapshot of this symbol answered, so its term-structure
+              request is a cache hit. On a symbol change the old snapshot is still on screen
+              for one render; the heatmap must not ask for the new symbol then. */}
+          {state.symbol === symbol ? (
+            <GreekHeatmapPanel
+              gateway={gateway}
+              initialTab={heatmapTab}
+              onTabChange={setHeatmapTab}
+              symbol={symbol}
+            />
+          ) : null}
           <StrikeProfilesPanel snapshot={state.data} />
           <Flow section={state.data.flow} />
           <details className="text-muted-foreground text-xs">

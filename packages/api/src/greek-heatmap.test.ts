@@ -914,29 +914,34 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
       },
       () => NOW
     );
-    const api = apiFor(session("operator"), config);
-    const snapshot = await api.optionsAnalytics.snapshot({ symbol: "SPY" });
-    const heatmap = await api.optionsAnalytics.greekHeatmap({ symbol: "SPY" });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(snapshot.rateLimited).toBe(false);
-    expect(heatmap.rateLimited).toBe(false);
-    expect(heatmap.status).toBe("ok");
+    try {
+      const api = apiFor(session("operator"), config);
+      const snapshot = await api.optionsAnalytics.snapshot({ symbol: "SPY" });
+      const heatmap = await api.optionsAnalytics.greekHeatmap({
+        symbol: "SPY",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(snapshot.rateLimited).toBe(false);
+      expect(heatmap.rateLimited).toBe(false);
+      expect(heatmap.status).toBe("ok");
 
-    // A second uncached symbol in the same 60 s finds one start: it gets answers that name the
-    // rate limit and a retry time, and the client sends nothing more to QuantData.
-    const second = await api.optionsAnalytics.snapshot({ symbol: "QQQ" });
-    const secondHeatmap = await api.optionsAnalytics.greekHeatmap({
-      symbol: "QQQ",
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(FLOW_QUANTDATA_CALLER_RESERVE);
-    expect(second.rateLimited).toBe(true);
-    expect(second.retryAfterSeconds).toBe(60);
-    expect(secondHeatmap.rateLimited).toBe(true);
-    expect(secondHeatmap.retryAfterSeconds).toBe(60);
-    expect(secondHeatmap.status).toBe("failed");
-    expect(secondHeatmap.metrics.gex.message).toContain(
-      "requests per minute is used"
-    );
-    setOptionsAnalyticsForTesting({});
+      // A second uncached symbol in the same 60 s finds one start: it gets answers that name the
+      // rate limit and a retry time, and the client sends nothing more to QuantData.
+      const second = await api.optionsAnalytics.snapshot({ symbol: "QQQ" });
+      const secondHeatmap = await api.optionsAnalytics.greekHeatmap({
+        symbol: "QQQ",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(FLOW_QUANTDATA_CALLER_RESERVE);
+      expect(second.rateLimited).toBe(true);
+      expect(second.retryAfterSeconds).toBe(60);
+      expect(secondHeatmap.rateLimited).toBe(true);
+      expect(secondHeatmap.retryAfterSeconds).toBe(60);
+      expect(secondHeatmap.status).toBe("failed");
+      expect(secondHeatmap.metrics.gex.message).toContain(
+        "requests per minute is used"
+      );
+    } finally {
+      setOptionsAnalyticsForTesting({});
+    }
   });
 });

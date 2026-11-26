@@ -195,8 +195,8 @@ export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
  * window (withCallerReserve). One uncached /charts or /stock symbol costs 5 starts (snapshot:
  * term-structure, open interest, order flow; Greek heatmap: two heat-map calls on the cached
  * term-structure), so one such load per 60 s always fits. A second uncached symbol in the same
- * window fits only when the collector left starts unused; if not, its sections report the rate
- * limit with a retry time and no request is sent.
+ * window fits only when the collector left starts unused; requests beyond the free starts are
+ * not sent, and those sections report the rate limit with a retry time.
  */
 export const FLOW_QUANTDATA_CALLER_RESERVE = 6;
 /** One GEX estimate sends three QuantData requests; one estimate runs per run. */

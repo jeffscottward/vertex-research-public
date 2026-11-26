@@ -22,6 +22,7 @@ beforeAll(() => {
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
+  vi.restoreAllMocks();
 });
 
 const mount = async (element: ReactElement) => {
@@ -477,7 +478,6 @@ describe("GreekHeatmapPanel", () => {
     const [request] = fetchSpy.mock.calls[0] ?? [];
     const url = request instanceof Request ? request.url : String(request);
     expect(url).toContain("optionsAnalytics/greekHeatmap");
-    fetchSpy.mockRestore();
   });
 
   it("starts on the tab the parent passes and reports each tab change", async () => {

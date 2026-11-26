@@ -531,6 +531,50 @@ describe("OptionsAnalyticsPanel", () => {
     return expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
   });
 
+  it("asks for the heatmap of a new symbol only after the snapshot of that symbol answered", async () => {
+    let release: (value: OptionsAnalyticsOutput) => void = () => undefined;
+    const greekHeatmap = vi.fn(async (input: { symbol: string }) =>
+      labGreekHeatmap(input.symbol)
+    );
+    const snapshot = vi
+      .fn<(input: OptionsAnalyticsInput) => Promise<OptionsAnalyticsOutput>>()
+      .mockResolvedValueOnce(fixture())
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          })
+      );
+    const view = await render({ greekHeatmap, snapshot });
+    expect(greekHeatmap.mock.calls).toEqual([[{ symbol: "NVDA" }]]);
+
+    // The symbol changes while the NVDA snapshot is on screen and the AAPL snapshot is pending.
+    await act(async () => {
+      root?.render(
+        <OptionsAnalyticsPanel
+          gateway={{ greekHeatmap, snapshot }}
+          symbol="AAPL"
+        />
+      );
+    });
+    expect(snapshot).toHaveBeenLastCalledWith({
+      flowHours: 24,
+      symbol: "AAPL",
+    });
+    expect(greekHeatmap.mock.calls).toEqual([[{ symbol: "NVDA" }]]);
+
+    await act(async () => {
+      release(fixture({ symbol: "AAPL" }));
+    });
+    expect(greekHeatmap.mock.calls).toEqual([
+      [{ symbol: "NVDA" }],
+      [{ symbol: "AAPL" }],
+    ]);
+    return expect(
+      view.querySelector("[data-greek-heatmap]")?.getAttribute("data-symbol")
+    ).toBe("AAPL");
+  });
+
   it("shows section messages, rate limits and errors", async () => {
     const empty = fixture({
       exposure: {

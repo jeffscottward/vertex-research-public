@@ -26,8 +26,8 @@ Each metric reports its own status (`ok`, `empty`, or `failed`) and cause messag
 
 Request budget (base cap of 2026-11-25: 54 request starts per 60 s in `quantdata-client.ts`, of which the flow collector leaves `FLOW_QUANTDATA_CALLER_RESERVE = 6` free for `/charts` and `/stock` reads):
 
-- The portal asks for the heatmap after `optionsAnalytics.snapshot` answered, so `term-structure` is a cache hit. One uncached symbol costs 5 starts: 3 for the snapshot and 2 for the heatmap. Before the heatmap it cost 3.
-- One uncached symbol per 60 s always fits inside the reserve of 6. A second uncached symbol in the same window fits only when the collector left starts unused (a live collector tick uses at most 32 of its 48). If it does not fit, the client sends no request, the affected sections show the rate limit with a retry time, and the answer stays HTTP 200.
+- The portal asks for the heatmap only after `optionsAnalytics.snapshot` of the same symbol answered, so `term-structure` is a cache hit. One uncached symbol costs 5 starts: 3 for the snapshot and 2 for the heatmap. Before the heatmap it cost 3. The count holds for reads in sequence. The client has no in-flight de-duplication, so an identical read that starts while the first one is still open (for example the Expected move read on `/charts`) can repeat a start; this is true with and without the heatmap.
+- One uncached symbol per 60 s always fits inside the reserve of 6. A second uncached symbol in the same window fits only when the collector left starts unused (a live collector tick uses at most 32 of its 48). Requests beyond the free starts are not sent: those sections show the rate limit with a retry time, and the answer stays HTTP 200.
 - The total cap does not change, so the heatmap cannot raise the load on the QuantData account (240 requests per 60 s, shared with the market-watch jobs).
 - `packages/api/src/greek-heatmap.test.ts` pins the count of 5 starts against the reserve.
 
