@@ -138,7 +138,7 @@ The card also reported that chain OI cells showed a dash near the money while th
 
 ### Code review, round 1 (fresh-context reviewer, 2026-11-25)
 
-The reviewer read the full diff at `ae774345`. Verdict: 2 major and 2 minor findings, all fixed in the next commit.
+The reviewer read the full diff of the branch before these fixes. Verdict: 2 major and 2 minor findings, all fixed in the next commit.
 
 - Major: the first version of the test rewrite had removed the tests of the other three tiles (price, strike and IV of a full chain; a chain without price and strikes; a strike without IV), and the not-ready tests checked only the Put/call OI fields. Fixed: the tests are back and assert every field.
 - Minor: `OI for the selected expiry` and `No contracts for the selected expiry` spoke for the whole expiry. Fixed: `OI reported for all N calls and M puts in the returned chain` and `No contracts in the returned chain`.
