@@ -100,7 +100,9 @@ export const buildMarketBarsUrl = (
     currency: input.currency.toUpperCase(),
     barSize: input.barSize,
     duration: input.duration,
-    whatToShow: input.whatToShow,
+    // IBKR has no TRADES data for forex; CASH is always MIDPOINT. The history service applies the same
+    // rule; it is repeated here so that the contract does not depend on an upstream side effect.
+    whatToShow: input.secType === "CASH" ? "MIDPOINT" : input.whatToShow,
     useRTH: input.useRTH ? "1" : "0",
   });
   if (input.contractMonth !== undefined)
@@ -510,7 +512,7 @@ const toMarketBarsOutput = (
 ): MarketBarsOutput => {
   // Bars v1 and v2 (history-answer.ts): v2 volume as sent when its unit is shares or contracts; v1 stock,
   // index and Forex volume is null (ibapi 9.81 stock volume has no fixed unit). The /charts request echo
-  // keeps its narrower lists (STK, FUT, CONTFUT; TRADES, MIDPOINT; no end date).
+  // keeps its narrower lists (STK, FUT, CONTFUT, CASH; TRADES, MIDPOINT; no end date), so it refuses IND.
   const document = parseHistoryBarsAnswer(raw, "v1-or-v2");
   const request =
     document === null
