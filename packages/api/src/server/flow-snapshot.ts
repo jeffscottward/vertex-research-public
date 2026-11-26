@@ -31,7 +31,11 @@ import {
   type FlowMinuteRow,
   isFlowSymbol,
 } from "../flow-features.ts";
-import type { FlowOptionPrintRow } from "../flow-options.ts";
+import {
+  type FlowOptionPrintRow,
+  oiFlags,
+  oiFlagsKnown,
+} from "../flow-options.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import { marketSession, newYorkParts } from "./gex-context.ts";
 
@@ -518,7 +522,6 @@ export const printView = (
   expiry: print.expiry,
   goldenSweep: print.goldenSweep,
   moneyness: contractValue(FLOW_MONEYNESS, print.moneyness, "not_reported"),
-  opening: print.opening,
   premium: print.premium,
   price: print.price,
   right: print.right,
@@ -527,7 +530,7 @@ export const printView = (
   size: print.size,
   strike: print.strike,
   unusual: print.unusual,
-  volumeOverOi: print.volumeOverOi,
+  ...oiFlags(print),
 });
 
 /** Options flow of the window: premium by right, sentiment, aggressor side and print type. */
@@ -554,9 +557,10 @@ export const buildOptionsSummary = (
     blocks: countWhere((print) => print.consolidation === "block"),
     bullishPremium: where((print) => print.sentiment === "bullish"),
     callPremium: call,
+    // Share of the premium whose Opening flag is known (open interest not 0); null without any.
     openingPremiumShare: ratio(
-      where((print) => print.opening),
-      total
+      where((print) => oiFlags(print).opening),
+      where(oiFlagsKnown)
     ),
     otmPremiumShare: ratio(
       where((print) => print.moneyness === "otm"),
@@ -573,7 +577,7 @@ export const buildOptionsSummary = (
       .map(printView),
     trades: prints.length,
     unusual: countWhere((print) => print.unusual),
-    volumeOverOi: countWhere((print) => print.volumeOverOi),
+    volumeOverOi: countWhere((print) => oiFlags(print).volumeOverOi),
     zeroDtePremiumShare: ratio(
       where((print) => print.dte !== null && print.dte < 1),
       total

@@ -662,6 +662,37 @@ describe("buildOptionsSummary", () => {
       zeroDtePremiumShare: null,
     });
   });
+
+  it("does not count Quant Data flags of prints with open interest 0", () => {
+    // Card vertex-flow-print-flags-oi-zero: Quant Data sets Opening and Vol > OI on every print
+    // whose open interest is 0, so those flags are not known.
+    const summary = buildOptionsSummary("SPY", [
+      printRow(MON_10_00, { id: "a", openInterest: 0, premium: 4000 }),
+      printRow(MON_10_00, { id: "b", openInterest: 50, premium: 1000 }),
+      printRow(MON_10_00, {
+        id: "c",
+        openInterest: 50,
+        opening: false,
+        premium: 3000,
+        volumeOverOi: false,
+      }),
+    ]);
+    expect(summary.volumeOverOi).toBe(1);
+    expect(summary.openingPremiumShare).toBeCloseTo(1000 / 4000);
+    expect(summary.topPrints[0]).toMatchObject({
+      opening: false,
+      premium: 4000,
+      volumeOverOi: false,
+    });
+  });
+
+  it("returns a null opening share when no print has a known flag", () => {
+    const summary = buildOptionsSummary("SPY", [
+      printRow(MON_10_00, { openInterest: 0 }),
+    ]);
+    expect(summary.openingPremiumShare).toBeNull();
+    expect(summary.volumeOverOi).toBe(0);
+  });
 });
 
 describe("buildGexView", () => {

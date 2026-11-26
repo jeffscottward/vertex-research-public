@@ -208,9 +208,20 @@ describe("flow view model", () => {
       zeroDtePremiumShare: null,
     });
     expect(metricValue(empty, "Put/call premium")).toBe("no call premium");
-    for (const label of ["OTM share", "0DTE share", "Opening share"]) {
+    for (const label of ["OTM share", "0DTE share"]) {
       expect(metricValue(empty, label)).toBe("no option premium");
     }
+    // Premium but no known Opening flag: every print reported open interest 0.
+    expect(metricValue(empty, "Opening share")).toBe(
+      "no Opening flag: every print reports open interest 0"
+    );
+    const noPremium = optionsMetrics({
+      ...spy.optionsFlow,
+      callPremium: 0,
+      openingPremiumShare: null,
+      putPremium: 0,
+    });
+    expect(metricValue(noPremium, "Opening share")).toBe("no option premium");
   });
 
   it("formats top option prints with their flags", () => {

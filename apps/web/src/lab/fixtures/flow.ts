@@ -1869,6 +1869,7 @@ export const labFlowOptionBubbles = (
       id: `lab-bub-${symbol.toLowerCase()}-${idx + 1}`,
       iv: spy ? 17.8 : 16.4,
       moneyness: item.strikeDelta === 0 ? "atm" : "otm",
+      openInterest: 5000,
       opening: item.opening === true,
       premium: item.premium,
       price: optionPrice,
