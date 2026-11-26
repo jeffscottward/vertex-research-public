@@ -696,7 +696,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "flow_snapshot",
     title: "Order flow + options flow snapshot",
     description:
-      "Read-only flow pipeline view for SPY, QQQ, ES or NQ (minutes 15-390, default 120): per-minute order flow (delta, CVD, VWAP, covered seconds; ES and NQ from the streamed tape, SPY from sampled ticks), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI, oiFlagsNotReported count and the largest prints; opening and volumeOverOi are null when the print reports open interest 0), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Stream coverage says that the stream was live; it is not checked against a second source. QQQ has no trades and no option prints; NQ has no option prints. Research only; not a trade signal.",
+      "Read-only flow pipeline view for SPY, QQQ, ES or NQ (minutes 15-390, default 120): per-minute order flow (delta, CVD, VWAP, covered seconds; ES and NQ from the streamed tape, SPY from sampled ticks), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Stream coverage says that the stream was live; it is not checked against a second source. QQQ has no trades and no option prints; NQ has no option prints. Research only; not a trade signal.",
     procedure: "flow/snapshot",
     input: FlowSnapshotInputSchema,
     readOnly: true,
@@ -714,7 +714,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "flow_option_prints",
     title: "Live options order-flow prints (6 tickers)",
     description:
-      "Read-only stored intraday options order-flow prints for SPY, SPX, QQQ, NDX, IWM or NVDA (windowMinutes 5-390, default 60; limit 1-200, default 50): full-window call/put/bullish/bearish premium, sweep/block/golden-sweep/unusual counts, newest prints (opening and volumeOverOi are null when the print reports open interest 0), per-ticker freshness and unreadRanges (open flow_option_gaps count). Source: QuantData order-flow/consolidated, collected every ~2 minutes during US options hours (09:30-16:15 ET for SPY, SPX, QQQ, NDX, IWM; 09:30-16:00 ET for NVDA). When unreadRanges > 0, busy ranges are still catching up in flow_option_gaps. Research input only; never a trade signal.",
+      "Read-only stored intraday options order-flow prints for SPY, SPX, QQQ, NDX, IWM or NVDA (windowMinutes 5-390, default 60; limit 1-200, default 50): full-window call/put/bullish/bearish premium, sweep/block/golden-sweep/unusual counts, newest prints, per-ticker freshness and unreadRanges (open flow_option_gaps count). Source: QuantData order-flow/consolidated, collected every ~2 minutes during US options hours (09:30-16:15 ET for SPY, SPX, QQQ, NDX, IWM; 09:30-16:00 ET for NVDA). When unreadRanges > 0, busy ranges are still catching up in flow_option_gaps. Research input only; never a trade signal.",
     procedure: "flow/optionPrints",
     input: FlowOptionPrintsInputSchema,
     readOnly: true,
