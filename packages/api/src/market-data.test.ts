@@ -201,14 +201,23 @@ describe("marketData config and URL", () => {
     );
   });
 
-  it("rejects forex (CASH) bars; the web/API side does not expose it", () =>
-    expect(
-      MarketBarsInputSchema.safeParse({
-        exchange: "IDEALPRO",
-        secType: "CASH",
-        symbol: "EUR",
-      }).success
-    ).toBe(false));
+  it("forces MIDPOINT for forex on IDEALPRO", () => {
+    const missingExchange = MarketBarsInputSchema.safeParse({
+      secType: "CASH",
+      symbol: "EUR",
+    });
+    expect(missingExchange.error?.issues.map((issue) => issue.message)).toEqual(
+      ["Futures and forex need an exchange, for example CME or IDEALPRO"]
+    );
+    return expect(
+      buildMarketBarsUrl(
+        BASE,
+        input({ exchange: "idealpro", secType: "CASH", symbol: "eur" })
+      )
+    ).toBe(
+      `${BASE}/bars?symbol=EUR&secType=CASH&exchange=IDEALPRO&currency=USD&barSize=1+day&duration=1+Y&whatToShow=MIDPOINT&useRTH=1`
+    );
+  });
 });
 
 describe("marketData fetch", () => {
@@ -348,12 +357,13 @@ describe("marketData fetch", () => {
         ),
       })
       .parse(read("expected.json"));
-    // /charts can only ask for STK, FUT and CONTFUT (its request echo refuses IND and CASH); the parser
-    // itself is checked against every sample in server/history-answer.test.ts.
+    // /charts can ask for STK, FUT, CONTFUT and CASH (its request echo refuses IND); the parser itself
+    // is checked against every sample in server/history-answer.test.ts.
     const charts = readdirSync(fixtures).filter(
-      (name) => name.startsWith("bars-") && !/-(ind|cash)\.json$/.test(name)
+      (name) => name.startsWith("bars-") && !name.endsWith("-ind.json")
     );
-    expect(charts.length).toBe(Object.keys(expected.cases).length - 2);
+    expect(charts).toContain("bars-v2-cash.json");
+    expect(charts.length).toBe(Object.keys(expected.cases).length - 1);
     for (const file of charts) {
       const want = expected.cases[file.replace(/\.json$/, "")]?.charts;
       expect(want?.accepted, file).toBe(true);
@@ -642,6 +652,15 @@ describe("market_bars MCP tool", () =>
     );
     expect(call).toHaveBeenCalledWith("marketData/bars", { symbol: "SPY" });
     expect(result["isError"]).toBe(false);
+    // The agent tool keeps stocks and futures (mcp.ts says why); the procedure itself takes forex.
+    const forexResult = await callMcpTool(
+      "market_bars",
+      { exchange: "IDEALPRO", secType: "CASH", symbol: "EUR" },
+      call
+    );
+    expect(forexResult["isError"]).toBe(true);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(tool?.description).toContain("secType STK|FUT|CONTFUT,");
     const presented = presentMarketBars(
       { bars: [{ t: 1 }, { t: 2 }], count: 2 },
       1
@@ -737,14 +756,20 @@ describe("marketData ticks and depth input", () => {
   });
 
   it("rejects forex (CASH) for ticks and depth", () => {
+    // With or without an exchange: one issue, and no hint to add an exchange.
     for (const schema of [MarketTicksInputSchema, MarketDepthInputSchema])
-      expect(
-        schema.safeParse({
-          exchange: "IDEALPRO",
-          secType: "CASH",
-          symbol: "EUR",
-        }).success
-      ).toBe(false);
+      for (const exchange of [{ exchange: "IDEALPRO" }, {}])
+        expect(
+          schema
+            .safeParse({ ...exchange, secType: "CASH", symbol: "EUR" })
+            .error?.issues.map(({ message, path }) => ({ message, path }))
+        ).toEqual([
+          {
+            message:
+              "Forex (CASH) has bars only: IBKR gives no ticks or depth for it",
+            path: ["secType"],
+          },
+        ]);
   });
 
   it("needs an exchange for futures and allows a contract month for FUT only", () => {
