@@ -23,6 +23,8 @@ import {
   OPENBB_PRICE_SERIES_KINDS,
   OPENBB_VOL_INDEX_IDS,
   type Openbb13fChange,
+  type OpenbbMacroOutput,
+  type OpenbbVolContextOutput,
   openbbBlockedRetryAt,
   openbbIsPriceSeriesId,
   SEC_FORM4_DEFAULT_DAYS,
@@ -86,8 +88,8 @@ const NY_DATE = new Intl.DateTimeFormat("en-CA", {
 });
 
 /** Calendar date in New York (`YYYY-MM-DD`) shifted by `days`. */
-const nyDate = (days = 0, from?: string): string => {
-  const base = from ?? NY_DATE.format(clock());
+const nyDate = (days = 0, from?: string, now: Date = clock()): string => {
+  const base = from ?? NY_DATE.format(now);
   return new Date(Date.parse(`${base}T00:00:00Z`) + days * DAY_MS)
     .toISOString()
     .slice(0, 10);
@@ -451,79 +453,112 @@ const status = api.openbb.status
     };
   });
 
+/** Reads OpenBB vol context from Postgres; shared by openbb.volContext and marketRegime.get. */
+export const readOpenbbVolContext = async (
+  openbb: OpenbbRepository,
+  series: MarketDailySeriesRepository,
+  asOf: string | null = null,
+  now: Date = clock()
+): Promise<OpenbbVolContextOutput> => {
+  const [loaded, curveDates, ivRows, term] = await Promise.all([
+    series.loadSeries(OPENBB_VOL_INDEX_IDS, {
+      from: nyDate(-VOL_INDEX_LOOKBACK_DAYS, asOf ?? undefined, now),
+      ...(asOf === null ? {} : { to: asOf }),
+    }),
+    openbb.vxCurveDates(asOf, VX_EARLIER_SESSIONS + 1),
+    openbb.optionIvDaily(OPENBB_CORE7, asOf, OPENBB_IV_PERCENTILE_SESSIONS),
+    openbb.optionIvTermLatest(asOf),
+  ]);
+  const closesCutoff = nyDate(-CLOSES_LOOKBACK_DAYS, asOf ?? undefined, now);
+  const indices = OPENBB_VOL_INDEX_IDS.flatMap((id) => {
+    const columns = loaded.get(id);
+    const date = columns?.dates.at(-1);
+    return columns === undefined || date === undefined || date < closesCutoff
+      ? []
+      : [{ close: columns.close.at(-1) as number, date, id }];
+  });
+  const close = (id: string) => indices.find((index) => index.id === id);
+  const latestDate = curveDates[0];
+  const earlierDate = curveDates[VX_EARLIER_SESSIONS];
+  const curveRows = await openbb.vxCurve(
+    [latestDate, earlierDate].filter((day) => day !== undefined)
+  );
+  const curve = (day: string | undefined) =>
+    day === undefined
+      ? null
+      : {
+          asOf: day,
+          points: curveRows
+            .filter((row) => row.asOf === day)
+            .map(({ contractMonth, price }) => ({ contractMonth, price })),
+        };
+  const ivOneYear = openbbIvOneYear(OPENBB_CORE7, ivRows, loaded);
+  const ivDaily = OPENBB_CORE7.flatMap((underlying) => {
+    const rows = ivRows.filter((row) => row.underlying === underlying);
+    const latest = rows.at(-1);
+    if (latest === undefined) return [];
+    const { source: _source, ...publicRow } = latest;
+    return [
+      {
+        ...publicRow,
+        historyState: openbbIvHistoryState(rows),
+        ivPercentile: openbbIvPercentile(rows),
+        sessions: rows.length,
+      },
+    ];
+  });
+  const dates = [
+    ...indices.map((index) => index.date),
+    ...ivDaily.map((row) => row.asOf),
+    ...curveDates.slice(0, 1),
+  ].sort();
+  return {
+    asOf: dates.at(-1) ?? null,
+    indices,
+    ivDaily,
+    ivOneYear,
+    ratios: {
+      vix3mVix6m: ratio(close("VIX3M"), close("VIX6M")),
+      vix9dVix: ratio(close("VIX9D"), close("VIX")),
+      vixVix3m: ratio(close("VIX"), close("VIX3M")),
+    },
+    term,
+    vxCurve: { earlier: curve(earlierDate), latest: curve(latestDate) },
+  };
+};
+
+/** Reads OpenBB macro series and points from Postgres; shared by openbb.macro and marketRegime.get. */
+export const readOpenbbMacro = async (
+  openbb: OpenbbRepository,
+  ids: readonly string[] | null = null,
+  fromInput?: string,
+  now: Date = clock()
+): Promise<OpenbbMacroOutput> => {
+  const from = fromInput ?? nyDate(-DEFAULT_HISTORY_DAYS, undefined, now);
+  const series = await openbb.macroSeries(ids);
+  const points = await openbb.macroPoints(
+    series.map((row) => row.id),
+    from
+  );
+  return {
+    from,
+    series: series.map((row) => ({
+      ...row,
+      points: points
+        .filter((point) => point.seriesId === row.id)
+        .map(({ date, value }) => ({ date, value })),
+    })),
+  };
+};
+
 const volContext = api.openbb.volContext
   .use(requireOperator)
-  .handler(async ({ context, input, errors }) => {
+  .handler(({ context, input, errors }) => {
     const { openbb, series } = repositoriesFor(
       context,
       errors as unknown as Failures
     );
-    const asOf = input.asOf ?? null;
-    const [loaded, curveDates, ivRows, term] = await Promise.all([
-      series.loadSeries(OPENBB_VOL_INDEX_IDS, {
-        from: nyDate(-VOL_INDEX_LOOKBACK_DAYS, asOf ?? undefined),
-        ...(asOf === null ? {} : { to: asOf }),
-      }),
-      openbb.vxCurveDates(asOf, VX_EARLIER_SESSIONS + 1),
-      openbb.optionIvDaily(OPENBB_CORE7, asOf, OPENBB_IV_PERCENTILE_SESSIONS),
-      openbb.optionIvTermLatest(asOf),
-    ]);
-    const closesCutoff = nyDate(-CLOSES_LOOKBACK_DAYS, asOf ?? undefined);
-    const indices = OPENBB_VOL_INDEX_IDS.flatMap((id) => {
-      const columns = loaded.get(id);
-      const date = columns?.dates.at(-1);
-      return columns === undefined || date === undefined || date < closesCutoff
-        ? []
-        : [{ close: columns.close.at(-1) as number, date, id }];
-    });
-    const close = (id: string) => indices.find((index) => index.id === id);
-    const latestDate = curveDates[0];
-    const earlierDate = curveDates[VX_EARLIER_SESSIONS];
-    const curveRows = await openbb.vxCurve(
-      [latestDate, earlierDate].filter((day) => day !== undefined)
-    );
-    const curve = (day: string | undefined) =>
-      day === undefined
-        ? null
-        : {
-            asOf: day,
-            points: curveRows
-              .filter((row) => row.asOf === day)
-              .map(({ contractMonth, price }) => ({ contractMonth, price })),
-          };
-    const ivOneYear = openbbIvOneYear(OPENBB_CORE7, ivRows, loaded);
-    const ivDaily = OPENBB_CORE7.flatMap((underlying) => {
-      const rows = ivRows.filter((row) => row.underlying === underlying);
-      const latest = rows.at(-1);
-      if (latest === undefined) return [];
-      const { source: _source, ...publicRow } = latest;
-      return [
-        {
-          ...publicRow,
-          historyState: openbbIvHistoryState(rows),
-          ivPercentile: openbbIvPercentile(rows),
-          sessions: rows.length,
-        },
-      ];
-    });
-    const dates = [
-      ...indices.map((index) => index.date),
-      ...ivDaily.map((row) => row.asOf),
-      ...curveDates.slice(0, 1),
-    ].sort();
-    return {
-      asOf: dates.at(-1) ?? null,
-      indices,
-      ivDaily,
-      ivOneYear,
-      ratios: {
-        vix3mVix6m: ratio(close("VIX3M"), close("VIX6M")),
-        vix9dVix: ratio(close("VIX9D"), close("VIX")),
-        vixVix3m: ratio(close("VIX"), close("VIX3M")),
-      },
-      term,
-      vxCurve: { earlier: curve(earlierDate), latest: curve(latestDate) },
-    };
+    return readOpenbbVolContext(openbb, series, input.asOf ?? null);
   });
 
 const ivHistory = api.openbb.ivHistory
@@ -581,23 +616,9 @@ const cot = api.openbb.cot
 
 const macro = api.openbb.macro
   .use(requireOperator)
-  .handler(async ({ context, input, errors }) => {
+  .handler(({ context, input, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
-    const from = input.from ?? nyDate(-DEFAULT_HISTORY_DAYS);
-    const series = await openbb.macroSeries(input.ids ?? null);
-    const points = await openbb.macroPoints(
-      series.map((row) => row.id),
-      from
-    );
-    return {
-      from,
-      series: series.map((row) => ({
-        ...row,
-        points: points
-          .filter((point) => point.seriesId === row.id)
-          .map(({ date, value }) => ({ date, value })),
-      })),
-    };
+    return readOpenbbMacro(openbb, input.ids ?? null, input.from);
   });
 
 const events = api.openbb.events
