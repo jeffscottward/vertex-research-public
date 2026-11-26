@@ -27,13 +27,15 @@ Research only. The module reads only the rows that the caller passes in. It does
 not download the dataset, contact a venue, read an account, place or simulate
 orders, or grant trading authority. Prices are implied probabilities in whole
 cents (1..99). Dataset rights: the code is MIT; the pre-collected dataset has no
-separate license statement (see docs/vertex-rebuild/upstream-candidates-20261030.md).
+separate license statement and is not used (see docs/vertex-rebuild/upstream-candidates-20261030.md).
 
 Unit: one trade gives two positions (both sides), so ``total_trades`` (the
 upstream column name) counts positions. Each position has weight 1; contract
-count and notional are not used. Test status: synthetic rows only; the same
-synthetic rows gave the same buckets and scores as the upstream code at the
-commit above (differential run, 2026-11-15). No run on the real dataset yet.
+count and notional are not used. Test status: the same synthetic rows gave the
+same buckets and scores as the upstream code at the commit above (differential
+run, 2026-11-15). First real-row run: Polymarket fills and resolutions from
+public Polygon logs, read through providers.prediction_market_parquet
+(docs/vertex-rebuild/prediction-market-onchain-sample.md, Results). Kalshi has no real-row run.
 """
 from __future__ import annotations
 
@@ -303,8 +305,17 @@ def calibration_by_price(positions: Iterable[Position]) -> CalibrationReport:
         bucket = totals.setdefault(position.price_cents, [0, 0])
         bucket[0] += 1
         bucket[1] += 1 if position.won else 0
+    return report_from_totals({price: (total, wins) for price, (total, wins) in totals.items()}, out_of_range)
+
+
+def report_from_totals(totals: Mapping[int, tuple[int, int]], out_of_range: int = 0) -> CalibrationReport:
+    """Report from ``price_cents -> (positions, wins)`` counts of prices 1..99.
+
+    ``calibration_by_price`` counts positions into this form; a resampling
+    caller (for example a bootstrap by market) can sum counts and call it directly.
+    """
     buckets = tuple(PriceBucket(price, total, wins, 100.0 * wins / total)
-                    for price, (total, wins) in sorted(totals.items()))
+                    for price, (total, wins) in sorted(totals.items()) if total > 0)
     total_trades = sum(bucket.total_trades for bucket in buckets)
     if total_trades == 0:
         return CalibrationReport((), 0, None, None, None, out_of_range)
