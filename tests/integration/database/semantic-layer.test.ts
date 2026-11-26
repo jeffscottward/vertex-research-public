@@ -104,9 +104,9 @@ describe("semantic layer (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
-  it("seeds the certified terms (0056 + 0097 smart money), the uncertified trend and flow control terms, all SQL attributes, and eleven joins on real columns", async () => {
+  it("seeds the certified terms (0056 + 0098 smart money), the uncertified trend and flow control terms, all SQL attributes, and eleven joins on real columns", async () => {
     const catalog = await repository.catalog();
-    // Migration 0056 seeds ten certified terms; 0074 and 0081 add five and three uncertified ones; 0097 adds five certified smart-money terms.
+    // Migration 0056 seeds ten certified terms; 0074 and 0081 add five and three uncertified ones; 0098 adds five certified smart-money terms.
     expect(
       catalog.terms.map((term) => [term.id, term.source, term.certified])
     ).toEqual([
@@ -161,28 +161,28 @@ describe("semantic layer (Postgres)", () => {
         "run_spec",
         "eval fixture (stands in for the owner)",
       ],
-      ["congress_trades", "congress_trades", "filing_trade", "migration 0097"],
+      ["congress_trades", "congress_trades", "filing_trade", "migration 0098"],
       ["deployment_request", "deployment_request", "request", "migration 0056"],
       ["drift_level", "drift_level", "monitor", "migration 0056"],
       [
         "insider_cluster_buys",
         "insider_cluster_buys",
         "issuer_cluster",
-        "migration 0097",
+        "migration 0098",
       ],
       [
         "institutional_13f_changes",
         "institutional_13f_changes",
         "filer_position",
-        "migration 0097",
+        "migration 0098",
       ],
       [
         "large_options_premium_ranking",
         "large_options_premium_ranking",
         "ticker",
-        "migration 0097",
+        "migration 0098",
       ],
-      ["short_volume", "short_volume", "ticker_session", "migration 0097"],
+      ["short_volume", "short_volume", "ticker_session", "migration 0098"],
       [
         "strategy_gate_pass",
         "strategy_gate_pass",

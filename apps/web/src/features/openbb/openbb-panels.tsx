@@ -44,6 +44,7 @@ import {
   formatPercent,
   formatSignedCompact,
   ivBasisText,
+  ivHistoryText,
   ivPanelDate,
   ivSourceNotice,
   ivStandingText,
@@ -376,6 +377,7 @@ const MarketsBlocks = ({
               (row) =>
                 row.asOf === null ? NOT_COLLECTED : formatNumber(row.gammaFlip),
             ],
+            ["IV history", (row) => ivHistoryText(row)],
             [
               "Call / put wall",
               (row) =>

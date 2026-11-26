@@ -13,7 +13,7 @@ from typing import Any
 
 from .. import options_math, yahoo_chains
 from ..context import CORE7, ArgumentError, Context
-from ..rows import VOL_INDEX_IDS
+from ..rows import VOL_INDEX_IDS, row_problem
 from ..upstream import UpstreamError
 from ..values import iso_date, num, parse_day, rounded, weekdays
 
@@ -302,6 +302,7 @@ def chain_rows(ctx: Context, symbol: str, payload: Any) -> tuple[list[dict[str, 
         ctx.warn(f"cboe chain {symbol}: no unexpired contracts")
         return [], []
     day_row, term_rows = options_math.summarize(symbol, as_of, spot, contracts)
+    day_row["source"] = "cboe"
     return [day_row], term_rows
 
 
@@ -428,6 +429,10 @@ async def _yahoo_fallback(
         if not contracts:
             raise ValueError("no unexpired contracts")
         day_row, term_rows = options_math.summarize(s, as_of, spot, contracts)
+        day_row["source"] = "yahoo_fallback"
+        problem = row_problem("option_iv_daily", day_row)
+        if problem:
+            raise ValueError(f"Yahoo daily row is invalid: {problem}")
         term.extend(term_rows)
         ctx.warn(
             f"{source}: {first.message}; {YAHOO_FALLBACK_NOTE} "

@@ -67,7 +67,7 @@ export const semanticTerms = pgTable(
 );
 
 /**
- * What one row of a SQL attribute stands for (migrations 0058 and 0097). A term has at most one
+ * What one row of a SQL attribute stands for (migrations 0058 and 0098). A term has at most one
  * attribute per grain. The backtest terms have two: `strategy` (latest succeeded engine run per
  * linked strategy) and `run_spec` (latest succeeded engine run per run spec: symbol, timeframe,
  * rule, stop loss, take profit, cost and date range, for runs with no strategy). The other

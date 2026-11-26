@@ -265,7 +265,7 @@ describe("0058_semantic_unlinked_runs migration", () => {
     expect(migration).toContain(
       `ALTER TABLE "semantic_sql_attributes" ADD COLUMN "grain" text DEFAULT 'strategy' NOT NULL;`
     );
-    // 0058 added the initial five grains; 0097 widened the check constraint to ten grains.
+    // 0058 added the initial five grains; 0098 widened the check constraint to ten grains.
     expect(migration).toContain(
       `ADD CONSTRAINT "semantic_sql_attributes_grain_check" CHECK ("semantic_sql_attributes"."grain" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor'))`
     );
@@ -355,17 +355,17 @@ describe("0058_semantic_unlinked_runs migration", () => {
   });
 });
 
-describe("0097_semantic_terms_smart_money migration", () => {
+describe("0098_semantic_terms_smart_money migration", () => {
   const migration = readFileSync(
     new URL(
-      "../../migrations/0097_semantic_terms_smart_money.sql",
+      "../../migrations/0098_semantic_terms_smart_money.sql",
       import.meta.url
     ),
     "utf8"
   );
   const rollback = readFileSync(
     new URL(
-      "../../rollback/0097_semantic_terms_smart_money.down.sql",
+      "../../rollback/0098_semantic_terms_smart_money.down.sql",
       import.meta.url
     ),
     "utf8"
@@ -375,7 +375,7 @@ describe("0097_semantic_terms_smart_money migration", () => {
       new URL("../../migrations/meta/_journal.json", import.meta.url),
       "utf8"
     )
-  ) as { entries: { idx: number; tag: string }[] };
+  ) as { entries: { idx: number; tag: string; when: number }[] };
 
   const SMART_MONEY_READER_TABLES = [
     "flow_market_premium",
@@ -461,18 +461,21 @@ describe("0097_semantic_terms_smart_money migration", () => {
       expect(body, `${term.id} as_of column`).toContain(" as as_of");
       expect(body, `${term.id} data_delay column`).toContain(" as data_delay");
     }
-    expect(migration.split("'migration 0097'").length - 1).toBe(15);
+    expect(migration.split("'migration 0098'").length - 1).toBe(15);
   });
 
-  it("is journaled as idx 97 right after 0096", () => {
+  it("is journaled as idx 98 right after 0097 with a newer timestamp", () => {
     const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0097_semantic_terms_smart_money"
+      (entry) => entry.tag === "0098_semantic_terms_smart_money"
     );
-    expect(journal.entries[index]).toMatchObject({ idx: 97 });
+    expect(journal.entries[index]).toMatchObject({ idx: 98 });
     expect(journal.entries[index - 1]).toMatchObject({
-      idx: 96,
-      tag: "0096_strategy_catalog_smart_money_backtests",
+      idx: 97,
+      tag: "0097_common_mikhail_rasputin",
     });
+    expect(journal.entries[index]?.when).toBeGreaterThan(
+      journal.entries[index - 1]?.when ?? 0
+    );
   });
 
   it("has a guarded rollback with BEGIN/COMMIT, certification_note check, grain check and REVOKE SELECT", () => {

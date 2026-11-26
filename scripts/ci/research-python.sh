@@ -52,6 +52,13 @@
 # file under services/openbb (same completeness check). The tests replay recorded upstream
 # payloads and block sockets: no network.
 #
+# Seventh run: the prediction-market suites in services/research/tests/ci-suites-prediction.txt
+# run in a separate virtual environment from
+# services/research/requirements-prediction-linux-py312.lock (base pins plus duckdb 2.0.1 and
+# pycryptodome 4.6.0) with VERTEX_REQUIRE_PREDICTION=1, so a missing package fails instead of
+# skipping. The base run also lists those files and skips them. The tests use a fake JSON-RPC
+# node and synthetic rows: no network.
+#
 # Interpreter: VERTEX_RESEARCH_PYTHON, else python3.12 on PATH. The lock holds
 # CPython 3.12 Linux x86_64 wheels only, so any other version stops the run.
 #
@@ -154,3 +161,5 @@ run_suites tests/ci-suites-services.txt "${research}/requirements-services-linux
   PYTHONPATH="${pythonpath}:${root}/services/kernel-bridge/python:${root}/services/vibe-trading/driver"
 run_suites tests/ci-suites-openbb.txt "${root}/services/openbb/requirements-openbb-linux-py312.lock" \
   PYTHONPATH="${root}/services/openbb"
+run_suites tests/ci-suites-prediction.txt "${research}/requirements-prediction-linux-py312.lock" \
+  VERTEX_REQUIRE_PREDICTION=1

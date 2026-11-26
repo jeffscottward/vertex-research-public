@@ -1,0 +1,128 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 520"
+  role="img"
+  aria-labelledby="ba-title ba-description"
+>
+  <title id="ba-title">
+    OpenBB IV table before and after the history caveat (MOCK)
+  </title>
+  <desc id="ba-description">
+    MOCK. Before: the IV table shows the percentile with no source column.
+    After: each underlying shows an IV history column with Yahoo IV in sample,
+    Cboe only, or Source not verified. Values are fictional.
+  </desc>
+  <style>
+  .t {
+    font-family: "Public Sans", "Manrope", sans-serif;
+    fill: #e6edf5;
+  }
+  .h {
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .k {
+    font-size: 15px;
+    fill: #93a9bf;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .c {
+    font-size: 17px;
+  }
+  .m {
+    font-size: 15px;
+    fill: #93a9bf;
+  }
+  .y {
+    fill: #f2a68b;
+    font-weight: 600;
+  }
+  .g {
+    fill: #7fd1b9;
+    font-weight: 600;
+  }
+  .u {
+    fill: #b5c0cc;
+    font-weight: 600;
+  }
+  .mock {
+    font-size: 18px;
+    font-weight: 800;
+    fill: #101827;
+  }
+  </style>
+  <rect width="1200" height="520" fill="#0d1420" />
+  <rect x="1060" y="20" width="110" height="34" rx="6" fill="#f2c14e" />
+  <text x="1086" y="43" class="t mock">MOCK</text>
+
+  <text x="40" y="60" class="t k">BEFORE</text>
+  <text x="40" y="95" class="t h">IV table</text>
+  <rect
+    x="40"
+    y="120"
+    width="500"
+    height="340"
+    rx="14"
+    fill="#152031"
+    stroke="#2f455a"
+  />
+  <text x="64" y="160" class="t m">Underlying</text>
+  <text x="220" y="160" class="t m">ATM IV 30d</text>
+  <text x="390" y="160" class="t m">IV pctl</text>
+  <path d="M60 176h460" stroke="#2f455a" />
+  <text x="64" y="216" class="t c">SPY</text>
+  <text x="220" y="216" class="t c">15.3%</text>
+  <text x="390" y="216" class="t c">41</text>
+  <text x="64" y="266" class="t c">QQQ</text>
+  <text x="220" y="266" class="t c">19.8%</text>
+  <text x="390" y="266" class="t c">37</text>
+  <text x="64" y="316" class="t c">IWM</text>
+  <text x="220" y="316" class="t c">22.4%</text>
+  <text x="390" y="316" class="t c">55</text>
+  <text x="64" y="410" class="t m">No way to see that some sampled</text>
+  <text x="64" y="434" class="t m">rows came from the Yahoo fallback.</text>
+
+  <path d="M565 290h60" stroke="#93a9bf" stroke-width="3" />
+  <path
+    d="M615 280l14 10-14 10"
+    fill="none"
+    stroke="#93a9bf"
+    stroke-width="3"
+  />
+
+  <text x="650" y="60" class="t k">AFTER</text>
+  <text x="650" y="95" class="t h">IV table with IV history</text>
+  <rect
+    x="650"
+    y="120"
+    width="510"
+    height="340"
+    rx="14"
+    fill="#152031"
+    stroke="#3f8272"
+  />
+  <text x="674" y="160" class="t m">Underlying</text>
+  <text x="800" y="160" class="t m">ATM IV 30d</text>
+  <text x="900" y="160" class="t m">IV pctl</text>
+  <text x="990" y="160" class="t m">IV history</text>
+  <path d="M670 176h470" stroke="#2f455a" />
+  <text x="674" y="216" class="t c">SPY</text>
+  <text x="800" y="216" class="t c">15.3%</text>
+  <text x="900" y="216" class="t c">41</text>
+  <text x="990" y="216" class="t c y">Yahoo IV in sample</text>
+  <text x="674" y="266" class="t c">QQQ</text>
+  <text x="800" y="266" class="t c">19.8%</text>
+  <text x="900" y="266" class="t c">37</text>
+  <text x="990" y="266" class="t c g">Cboe only</text>
+  <text x="674" y="316" class="t c">IWM</text>
+  <text x="800" y="316" class="t c">22.4%</text>
+  <text x="900" y="316" class="t c">55</text>
+  <text x="990" y="316" class="t c u">Source not verified</text>
+  <text x="674" y="410" class="t m">
+    The caveat uses the same 252-row sample
+  </text>
+  <text x="674" y="434" class="t m">
+    as the percentile. IV values do not change.
+  </text>
+</svg>

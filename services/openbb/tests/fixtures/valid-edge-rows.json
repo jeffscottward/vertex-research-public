@@ -15,6 +15,7 @@
       "putOi": 17404,
       "putVolume": 9055,
       "putWall": 375.0,
+      "source": "cboe",
       "underlying": "GLD",
       "underlyingPrice": 1e-9
     },
@@ -61,6 +62,7 @@
       "putOi": 17404,
       "putVolume": 0,
       "putWall": 375.0,
+      "source": "cboe",
       "underlying": "GLD",
       "underlyingPrice": 372.52
     },

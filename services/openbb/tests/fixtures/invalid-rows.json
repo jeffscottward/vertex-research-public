@@ -111,7 +111,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "count above Number.MAX_SAFE_INTEGER"
   },
@@ -132,7 +133,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "negative count"
   },
@@ -153,7 +155,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "fractional count"
   },
@@ -174,7 +177,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "boolean as a count"
   },
@@ -195,7 +199,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "spy",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "lower-case symbol"
   },
@@ -538,7 +543,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "atmIv30d above 10"
   },
@@ -559,7 +565,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 372.52
+      "underlyingPrice": 372.52,
+      "source": "cboe"
     },
     "why": "negative putIv25d30d"
   },
@@ -580,7 +587,8 @@
       "putVolume": 9055,
       "putWall": 375.0,
       "underlying": "GLD",
-      "underlyingPrice": 0
+      "underlyingPrice": 0,
+      "source": "cboe"
     },
     "why": "underlyingPrice zero"
   },

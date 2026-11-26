@@ -45,3 +45,11 @@ modified into this package. indicators.zscore and indicators.realized_volatility
 are independent implementations of standard formulas that follow the gs-quant
 conventions documented in docs/vertex-rebuild/gs-quant.md. Preserve the gs-quant
 distribution's NOTICE and LICENSE files when it is installed.
+
+DuckDB (MIT) and pycryptodome (BSD-2-Clause AND Unlicense AND MIT) are optional,
+separately installed dependencies of the prediction-market modules
+providers/prediction_market_parquet.py, providers/polymarket_chain_sample.py and
+providers/polymarket_chain.py, pinned at 2.0.1 and 4.6.0 in
+requirements-prediction-linux-py312.lock (extra "prediction"). No DuckDB or
+pycryptodome code is copied, vendored or modified into this package. Preserve
+their installed distribution notices.
