@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-labelledby="t d" font-family="Public Sans, Manrope, system-ui, sans-serif">
+  <title id="t">Smart money ranking on a market holiday, before and after</title>
+  <desc id="d">Before: on Thanksgiving 2026-11-26 the ranking showed the holiday session with 2 tickers. After: the collector makes no live capture on an NYSE holiday, so the ranking shows the last trading session, 2026-11-25, with 611 tickers.</desc>
+  <rect width="1200" height="560" fill="#0d0f12"/>
+  <text x="600" y="44" fill="#f4f4f5" font-size="24" font-weight="700" text-anchor="middle">Smart money ranking on a market holiday</text>
+  <text x="600" y="72" fill="#a1a1aa" font-size="15" text-anchor="middle">Seen live on Thanksgiving, 2026-11-26, 18:15 New York</text>
+
+  <!-- shared calendar strip -->
+  <g id="cal-before" transform="translate(60,110)">
+    <text x="0" y="0" fill="#f87171" font-size="18" font-weight="700">BEFORE</text>
+    <g transform="translate(0,20)">
+      <rect x="0" y="0" width="150" height="92" rx="10" fill="#17191d" stroke="#3f3f46"/>
+      <rect x="0" y="0" width="150" height="26" rx="10" fill="#27272a"/>
+      <text x="75" y="19" fill="#d4d4d8" font-size="13" text-anchor="middle">Wed 11-25</text>
+      <text x="75" y="62" fill="#e4e4e7" font-size="26" font-weight="700" text-anchor="middle">611</text>
+      <text x="75" y="82" fill="#a1a1aa" font-size="12" text-anchor="middle">tickers</text>
+      <rect x="170" y="0" width="150" height="92" rx="10" fill="#17191d" stroke="#f87171" stroke-width="3"/>
+      <rect x="170" y="0" width="150" height="26" rx="10" fill="#7f1d1d"/>
+      <text x="245" y="19" fill="#fecaca" font-size="13" text-anchor="middle">Thu 11-26 holiday</text>
+      <text x="245" y="62" fill="#fca5a5" font-size="26" font-weight="700" text-anchor="middle">2</text>
+      <text x="245" y="82" fill="#fca5a5" font-size="12" text-anchor="middle">tickers, partial</text>
+    </g>
+    <!-- arrow from holiday to page -->
+    <path d="M245 118 V150" stroke="#f87171" stroke-width="3" fill="none" marker-end="url(#ar)"/>
+    <!-- page card -->
+    <g transform="translate(0,160)">
+      <rect x="0" y="0" width="480" height="230" rx="14" fill="#14161a" stroke="#3f3f46"/>
+      <text x="24" y="36" fill="#f4f4f5" font-size="17" font-weight="700">/smart-money</text>
+      <text x="456" y="36" fill="#fca5a5" font-size="14" text-anchor="end">newest session 11-26</text>
+      <line x1="24" y1="52" x2="456" y2="52" stroke="#27272a"/>
+      <text x="24" y="92" fill="#d4d4d8" font-size="15">SPX</text>
+      <rect x="80" y="76" width="340" height="22" rx="4" fill="#d4a017"/>
+      <text x="24" y="132" fill="#d4d4d8" font-size="15">RUT</text>
+      <rect x="80" y="116" width="14" height="22" rx="4" fill="#d4a017"/>
+      <rect x="24" y="158" width="432" height="48" rx="8" fill="none" stroke="#3f3f46" stroke-dasharray="6 6"/>
+      <text x="240" y="188" fill="#71717a" font-size="14" text-anchor="middle">no other ticker</text>
+    </g>
+  </g>
+
+  <g id="cal-after" transform="translate(660,110)">
+    <text x="0" y="0" fill="#4ade80" font-size="18" font-weight="700">AFTER</text>
+    <g transform="translate(0,20)">
+      <rect x="0" y="0" width="150" height="92" rx="10" fill="#17191d" stroke="#4ade80" stroke-width="3"/>
+      <rect x="0" y="0" width="150" height="26" rx="10" fill="#14532d"/>
+      <text x="75" y="19" fill="#bbf7d0" font-size="13" text-anchor="middle">Wed 11-25</text>
+      <text x="75" y="62" fill="#86efac" font-size="26" font-weight="700" text-anchor="middle">611</text>
+      <text x="75" y="82" fill="#86efac" font-size="12" text-anchor="middle">tickers, complete</text>
+      <rect x="170" y="0" width="150" height="92" rx="10" fill="#131417" stroke="#3f3f46" stroke-dasharray="6 6"/>
+      <text x="245" y="19" fill="#71717a" font-size="13" text-anchor="middle">Thu 11-26 holiday</text>
+      <text x="245" y="60" fill="#71717a" font-size="20" font-weight="700" text-anchor="middle">closed</text>
+      <text x="245" y="82" fill="#71717a" font-size="12" text-anchor="middle">no live capture</text>
+    </g>
+    <path d="M75 118 V150" stroke="#4ade80" stroke-width="3" fill="none" marker-end="url(#ag)"/>
+    <g transform="translate(0,160)">
+      <rect x="0" y="0" width="480" height="230" rx="14" fill="#14161a" stroke="#3f3f46"/>
+      <text x="24" y="36" fill="#f4f4f5" font-size="17" font-weight="700">/smart-money</text>
+      <text x="456" y="36" fill="#86efac" font-size="14" text-anchor="end">newest session 11-25</text>
+      <line x1="24" y1="52" x2="456" y2="52" stroke="#27272a"/>
+      <g fill="#d4a017">
+        <rect x="80" y="70" width="340" height="16" rx="4"/>
+        <rect x="80" y="94" width="290" height="16" rx="4"/>
+        <rect x="80" y="118" width="236" height="16" rx="4"/>
+        <rect x="80" y="142" width="180" height="16" rx="4"/>
+        <rect x="80" y="166" width="132" height="16" rx="4"/>
+        <rect x="80" y="190" width="96" height="16" rx="4"/>
+      </g>
+      <g fill="#52525b">
+        <rect x="24" y="70" width="40" height="16" rx="4"/>
+        <rect x="24" y="94" width="40" height="16" rx="4"/>
+        <rect x="24" y="118" width="40" height="16" rx="4"/>
+        <rect x="24" y="142" width="40" height="16" rx="4"/>
+        <rect x="24" y="166" width="40" height="16" rx="4"/>
+        <rect x="24" y="190" width="40" height="16" rx="4"/>
+      </g>
+      <text x="456" y="218" fill="#a1a1aa" font-size="13" text-anchor="end">611 tickers (bars: sketch, not data)</text>
+    </g>
+  </g>
+
+  <!-- middle arrow -->
+  <path d="M560 385 H640" stroke="#d4a017" stroke-width="4" fill="none" marker-end="url(#ay)"/>
+
+  <text x="600" y="534" fill="#a1a1aa" font-size="14" text-anchor="middle">The collector captures live only on NYSE trading days (09:30 to 16:15 New York). Research only; no orders.</text>
+
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f87171"/></marker>
+    <marker id="ag" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#4ade80"/></marker>
+    <marker id="ay" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#d4a017"/></marker>
+  </defs>
+</svg>
