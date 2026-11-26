@@ -83,6 +83,13 @@ describe("greek heatmap formatting helpers", () => {
     expect(formatExposure(-450_000)).toBe("−$450K");
     expect(formatExposure(4_250_000)).toBe("+$4.3M");
     expect(formatExposure(-1_850_000_000)).toBe("−$1.85B");
+    // The unit is chosen after rounding: no "$1000", "$1000K" or "$1000.0M".
+    expect(formatExposure(999.4)).toBe("+$999");
+    expect(formatExposure(999.6)).toBe("+$1K");
+    expect(formatExposure(999_499)).toBe("+$999K");
+    expect(formatExposure(999_600)).toBe("+$1.0M");
+    expect(formatExposure(999_949_999)).toBe("+$999.9M");
+    expect(formatExposure(-999_960_000)).toBe("−$1.00B");
 
     expect(formatExposureFull(0)).toBe("$0");
     expect(formatExposureFull(125_400)).toBe("+$125,400");

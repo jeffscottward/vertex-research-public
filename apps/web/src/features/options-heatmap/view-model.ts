@@ -86,15 +86,18 @@ export const GREEK_HEATMAP_TABS: readonly GreekHeatmapTabSpec[] =
 
 const MINUS = "\u2212";
 
-/** Formats a signed exposure value in compact US dollars (`+$4.2M`, `−$180K`, `$0`). */
+/**
+ * Formats a signed exposure value in compact US dollars (`+$4.2M`, `−$180K`, `$0`).
+ * The unit is chosen after rounding, so 999,600 reads `+$1.0M`, not `+$1000K`.
+ */
 export const formatExposure = (value: number | null): string => {
   if (value === null) return "";
   const abs = Math.abs(value);
   if (abs < 0.5) return "$0";
   const sign = value < 0 ? MINUS : "+";
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(0)}K`;
+  if (abs >= 999_950_000) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 999_500) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 999.5) return `${sign}$${(abs / 1e3).toFixed(0)}K`;
   return `${sign}$${abs.toFixed(0)}`;
 };
 

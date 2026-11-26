@@ -149,6 +149,15 @@ describe("GreekHeatmapPanel", () => {
     expect(
       container.querySelector("[data-heatmap-grand-total]")?.textContent
     ).toBe("+$1.0M");
+    // Each strike and the footer label are row headers, so a value cell is announced with its strike.
+    const rowHeader = container.querySelector(
+      '[data-strike-row="610"] th[scope="row"]'
+    );
+    expect(rowHeader?.textContent).toContain("610");
+    expect(
+      container.querySelector('[data-heatmap-footer] th[scope="row"]')
+        ?.textContent
+    ).toBe("Expiry net");
 
     // Click Volume-GEX tab: flip lands directly ON strike 600 ("at" badge) and col 2 total is null.
     const volTab = container.querySelector<HTMLButtonElement>(
@@ -214,7 +223,7 @@ describe("GreekHeatmapPanel", () => {
       expiries: [{ dte: 0, expiry: "2026-11-22" }],
       metrics: {
         charm: metric({
-          expiryTotals: [null],
+          expiryTotals: [],
           grandTotal: null,
           marks: {
             callWall: null,
@@ -222,7 +231,9 @@ describe("GreekHeatmapPanel", () => {
             kingStrike: null,
             putWall: null,
           },
-          rows: [{ strike: 600, total: null, values: [null] }],
+          message: null,
+          rows: [],
+          status: "failed",
         }),
         dex: metric({
           expiryTotals: [],
@@ -257,7 +268,8 @@ describe("GreekHeatmapPanel", () => {
             kingStrike: null,
             putWall: null,
           },
-          message: "QuantData heatMap: HTTP 422.",
+          message:
+            "QuantData heatMap: HTTP 403 (access forbidden — check QUANTDATA_API_KEY or subscription).",
           rows: [],
           status: "failed",
         }),
@@ -304,24 +316,40 @@ describe("GreekHeatmapPanel", () => {
       container.querySelector("[data-heatmap-grand-total]")?.textContent
     ).toBe("no exposure");
 
-    // Switch to VEX (failed with explicit message) and DEX (empty with null message -> fallback text).
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[data-heatmap-tab="vex"]')
-        ?.click();
-    });
-    expect(
-      container.querySelector("[data-heatmap-metric-status]")?.textContent
-    ).toContain("HTTP 422");
-
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('[data-heatmap-tab="dex"]')
-        ?.click();
-    });
-    expect(
-      container.querySelector("[data-heatmap-metric-status]")?.textContent
-    ).toContain("No Greek exposure rows returned for this metric.");
+    const openTab = async (id: string) => {
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(`[data-heatmap-tab="${id}"]`)
+          ?.click();
+      });
+      return container.querySelector("[data-heatmap-metric-status]");
+    };
+    // VEX failed with a rejected key: an alert with the owner action, as in the other sections.
+    const vex = await openTab("vex");
+    expect(vex?.getAttribute("data-heatmap-metric-status")).toBe("failed");
+    const authAlert = vex?.querySelector("[data-auth-error]");
+    expect(authAlert?.getAttribute("role")).toBe("alert");
+    expect(authAlert?.textContent).toContain("HTTP 403");
+    expect(authAlert?.textContent).toContain(
+      "Owner action required: rotate the upstream provider credential"
+    );
+    // Charm failed without a message: an alert with the fallback text and no owner action.
+    const charm = await openTab("charm");
+    const plainAlert = charm?.querySelector('[role="alert"]');
+    expect(plainAlert?.textContent).toBe(
+      "QuantData did not answer for this metric."
+    );
+    expect(plainAlert?.hasAttribute("data-auth-error")).toBe(false);
+    // DEX and Vol-GEX are empty: a status line, never an alert.
+    const dex = await openTab("dex");
+    expect(dex?.getAttribute("role")).toBe("status");
+    expect(dex?.textContent).toBe(
+      "No Greek exposure rows returned for this metric."
+    );
+    const volume = await openTab("volumeGex");
+    expect(volume?.getAttribute("role")).toBe("status");
+    expect(volume?.textContent).toBe("No volume today.");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
 
     // Rate limit with null retryAfterSeconds and null spot.
     await act(async () => {
@@ -330,7 +358,6 @@ describe("GreekHeatmapPanel", () => {
           gateway={gatewayOf(async () =>
             fixture({ rateLimited: true, retryAfterSeconds: null, spot: null })
           )}
-          reloadToken={1}
           symbol="QQQ"
         />
       );
@@ -358,7 +385,7 @@ describe("GreekHeatmapPanel", () => {
       call += 1;
       if (call === 1) return first.promise;
       if (call === 2) return second.promise;
-      return Promise.resolve(fixture());
+      return Promise.resolve(fixture({ spot: 222.22 }));
     });
 
     const { container, root } = await mount(
@@ -390,15 +417,20 @@ describe("GreekHeatmapPanel", () => {
         <GreekHeatmapPanel gateway={gatewayOf(greekHeatmap)} symbol="AAPL" />
       );
     });
+    await act(async () => undefined);
+    expect(container.textContent).toContain("Spot $222.22");
+    // The late NVDA answer must not replace the AAPL answer that is on screen.
     await act(async () => {
-      second.resolve(fixture({ symbol: "NVDA" }));
+      second.resolve(fixture({ spot: 111.11, symbol: "NVDA" }));
     });
     await act(async () => undefined);
-    expect(
-      container
-        .querySelector("[data-greek-heatmap]")
-        ?.getAttribute("data-symbol")
-    ).toBe("AAPL");
+    expect(container.textContent).toContain("Spot $222.22");
+    expect(container.textContent).not.toContain("Spot $111.11");
+    expect(greekHeatmap.mock.calls).toEqual([
+      [{ symbol: "SPY" }],
+      [{ symbol: "NVDA" }],
+      [{ symbol: "AAPL" }],
+    ]);
 
     // Trigger real error and click Retry.
     let attempt = 0;
@@ -431,9 +463,53 @@ describe("GreekHeatmapPanel", () => {
     expect(
       retryView.container.querySelector("[data-greek-heatmap-table]")
     ).not.toBeNull();
+  });
 
-    // Exercise createBrowserOptionsAnalyticsGateway().greekHeatmap.
-    const browser = createBrowserOptionsAnalyticsGateway();
-    await browser.greekHeatmap({ symbol: "SPY" }).catch(() => undefined);
+  it("reads the heatmap through the browser gateway", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ json: fixture() }));
+    const answer = await createBrowserOptionsAnalyticsGateway().greekHeatmap({
+      symbol: "SPY",
+    });
+    expect(answer.symbol).toBe("SPY");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [request] = fetchSpy.mock.calls[0] ?? [];
+    const url = request instanceof Request ? request.url : String(request);
+    expect(url).toContain("optionsAnalytics/greekHeatmap");
+    fetchSpy.mockRestore();
+  });
+
+  it("starts on the tab the parent passes and reports each tab change", async () => {
+    const onTabChange = vi.fn();
+    const { container } = await mount(
+      <GreekHeatmapPanel
+        gateway={gatewayOf(async () => fixture())}
+        initialTab="vex"
+        onTabChange={onTabChange}
+        symbol="SPY"
+      />
+    );
+    const selected = (id: string) =>
+      container
+        .querySelector(`[data-heatmap-tab="${id}"]`)
+        ?.getAttribute("aria-selected");
+    expect(selected("vex")).toBe("true");
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-heatmap-tab="charm"]')
+        ?.click();
+    });
+    expect(selected("charm")).toBe("true");
+    expect(onTabChange).toHaveBeenLastCalledWith("charm");
+    await act(async () => {
+      container
+        .querySelector('[role="tablist"]')
+        ?.dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })
+        );
+    });
+    expect(selected("dex")).toBe("true");
+    expect(onTabChange.mock.calls).toEqual([["charm"], ["dex"]]);
   });
 });

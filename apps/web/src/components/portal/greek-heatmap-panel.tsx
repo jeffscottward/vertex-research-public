@@ -51,6 +51,7 @@ import {
 } from "../../features/options-heatmap/view-model.ts";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
+import { ProviderFailureAlert } from "./provider-failure-alert.tsx";
 
 type State =
   | Readonly<{ type: "loading" }>
@@ -307,10 +308,13 @@ const HeatmapGrid = ({
                   data-king-row={row.isKing ? "" : undefined}
                   data-strike-row={row.strike}
                 >
-                  <TableCell className="sticky left-0 z-10 bg-background px-2 py-1.5 text-right font-medium font-mono tabular-nums">
+                  <TableHead
+                    className="sticky left-0 z-10 h-auto bg-background px-2 py-1.5 text-right font-medium font-mono tabular-nums"
+                    scope="row"
+                  >
                     <span>{formatStrike(row.strike)}</span>
                     <StrikeBadges row={row} view={view} />
-                  </TableCell>
+                  </TableHead>
                   {data.expiries.map((exp, colIndex) => {
                     const value = row.values[colIndex] ?? null;
                     return (
@@ -379,9 +383,12 @@ const HeatmapGrid = ({
               className="border-border border-t-2 bg-muted/40 font-medium"
               data-heatmap-footer=""
             >
-              <TableCell className="sticky left-0 z-10 bg-muted px-2 py-1.5 text-right text-muted-foreground">
+              <TableHead
+                className="sticky left-0 z-10 h-auto bg-muted px-2 py-1.5 text-right font-medium text-muted-foreground"
+                scope="row"
+              >
                 Expiry net
-              </TableCell>
+              </TableHead>
               {data.expiries.map((exp, colIndex) => {
                 const total = view.metric.expiryTotals[colIndex] ?? null;
                 return (
@@ -448,21 +455,29 @@ const HeatmapGrid = ({
 };
 
 export interface GreekHeatmapPanelProps {
-  readonly symbol: string;
   readonly gateway: OptionsAnalyticsGateway;
-  readonly reloadToken?: number;
+  /** The tab shown first. The parent passes the last selected tab, because it mounts this panel again after a reload. */
+  readonly initialTab?: GreekHeatmapMetric;
+  readonly onTabChange?: (tab: GreekHeatmapMetric) => void;
+  readonly symbol: string;
 }
 
 export const GreekHeatmapPanel = ({
   symbol,
   gateway,
-  reloadToken = 0,
+  initialTab = "gex",
+  onTabChange,
 }: GreekHeatmapPanelProps) => {
   const headingId = useId();
   const tabBaseId = useId();
-  const [activeTab, setActiveTab] = useState<GreekHeatmapMetric>("gex");
+  const [activeTab, setActiveTabState] =
+    useState<GreekHeatmapMetric>(initialTab);
   const [state, setState] = useState<State>({ type: "loading" });
   const generation = useRef(0);
+  const setActiveTab = (tab: GreekHeatmapMetric) => {
+    setActiveTabState(tab);
+    onTabChange?.(tab);
+  };
 
   const load = useCallback(async () => {
     const mine = ++generation.current;
@@ -481,7 +496,7 @@ export const GreekHeatmapPanel = ({
     return () => {
       generation.current += 1;
     };
-  }, [load, reloadToken]);
+  }, [load]);
 
   const onTabListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const current = GREEK_HEATMAP_TABS.findIndex((tab) => tab.id === activeTab);
@@ -614,10 +629,19 @@ export const GreekHeatmapPanel = ({
                     <HeatmapMarksBar spot={state.data.spot} view={view} />
                     <HeatmapGrid data={state.data} view={view} />
                   </>
+                ) : view.metric.status === "failed" ? (
+                  <div data-heatmap-metric-status="failed">
+                    <ProviderFailureAlert
+                      message={
+                        view.metric.message ??
+                        "QuantData did not answer for this metric."
+                      }
+                    />
+                  </div>
                 ) : (
                   <p
                     className="rounded-md border border-border p-3 text-muted-foreground text-xs"
-                    data-heatmap-metric-status={view.metric.status}
+                    data-heatmap-metric-status="empty"
                     role="status"
                   >
                     {view.metric.message ??

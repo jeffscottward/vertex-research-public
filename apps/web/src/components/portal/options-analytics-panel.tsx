@@ -4,6 +4,7 @@ import {
   type ExposureSection,
   type FlowSection,
   type GexContext,
+  type GreekHeatmapMetric,
   IV_SKEW_TARGET_DELTAS,
   OPTIONS_FLOW_HOURS,
   type OptionsAnalyticsOutput,
@@ -577,7 +578,8 @@ export const OptionsAnalyticsPanel = ({
     () => supplied ?? createBrowserOptionsAnalyticsGateway()
   );
   const [hours, setHours] = useState<number>(24);
-  const [reloadToken, setReloadToken] = useState<number>(0);
+  // Kept here because the heatmap is mounted again after each reload of the snapshot.
+  const [heatmapTab, setHeatmapTab] = useState<GreekHeatmapMetric>("gex");
   const [state, setState] = useState<State>({ type: "loading" });
   const generation = useRef(0);
 
@@ -640,10 +642,7 @@ export const OptionsAnalyticsPanel = ({
           <button
             className="h-11 rounded-md border border-border px-4 text-sm disabled:opacity-60"
             disabled={state.type === "loading"}
-            onClick={() => {
-              setReloadToken((count) => count + 1);
-              void load();
-            }}
+            onClick={() => void load()}
             type="button"
           >
             Refresh
@@ -677,9 +676,11 @@ export const OptionsAnalyticsPanel = ({
             section={state.data.exposure}
             spot={state.data.spot}
           />
+          {/* Mounted after the snapshot answered, so its term-structure request is a cache hit. */}
           <GreekHeatmapPanel
             gateway={gateway}
-            reloadToken={reloadToken}
+            initialTab={heatmapTab}
+            onTabChange={setHeatmapTab}
             symbol={symbol}
           />
           <StrikeProfilesPanel snapshot={state.data} />

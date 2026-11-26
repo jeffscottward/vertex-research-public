@@ -14,7 +14,7 @@ import {
   it,
   vi,
 } from "vitest";
-
+import { labGreekHeatmap } from "../../lab/fixtures/market.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
@@ -505,6 +505,30 @@ describe("OptionsAnalyticsPanel", () => {
     });
     expect(snapshot).toHaveBeenCalledTimes(4);
     return expect(view.querySelector("[data-spot-row]")).toBeNull();
+  });
+
+  it("reads the heatmap once per snapshot load and keeps the selected heatmap tab", async () => {
+    const greekHeatmap = vi.fn(async () => labGreekHeatmap("NVDA"));
+    const snapshot = vi.fn(async () => fixture());
+    const view = await render({ greekHeatmap, snapshot });
+    const tab = (id: string) =>
+      view.querySelector<HTMLButtonElement>(`[data-heatmap-tab="${id}"]`);
+    expect(greekHeatmap).toHaveBeenCalledTimes(1);
+    expect(tab("gex")?.getAttribute("aria-selected")).toBe("true");
+    await act(async () => {
+      tab("vex")?.click();
+    });
+    expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
+
+    const refresh = [...view.querySelectorAll("button")].find(
+      (button) => button.textContent === "Refresh"
+    );
+    await act(async () => {
+      refresh?.click();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    expect(greekHeatmap).toHaveBeenCalledTimes(2);
+    return expect(tab("vex")?.getAttribute("aria-selected")).toBe("true");
   });
 
   it("shows section messages, rate limits and errors", async () => {
