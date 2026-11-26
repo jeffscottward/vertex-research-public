@@ -128,7 +128,7 @@ In scope: the priority order of one field, the adapter rule, their tests, the ch
 Not in scope:
 
 - The stored prints (table `flow_option_prints`, written by `parseOptionPrints` in `packages/api/src/flow-options.ts`). The column `open_interest` keeps the raw value. A search for `openInterest` and `open_interest` in `packages/api/src` and `packages/db/src` found no reader of that column.
-- The flags Opening and Vol > OI on the Flow page. They are Quant Data's own flags (`isOpeningPosition`, `isVolumeGreaterThanOpenInterest`). The second signal above suggests that they are wrong for the same contracts. A change needs proof from the stored prints and a new state "not known" in the API schema and in a table. Follow-up card: vertex-flow-print-flags-oi-zero.
+- The flags Opening and Vol > OI on the Flow page. They are Quant Data's own flags (`isOpeningPosition`, `isVolumeGreaterThanOpenInterest`). The second signal above suggests that they are wrong for the same contracts. A change needs proof from the stored prints and a third state of each flag (the provider value is not used) in the API schema and in a table; the repository's status language rule does not allow a vague state name. Follow-up card: vertex-flow-print-flags-oi-zero.
 - Strike profiles, GEX and max pain on `/charts`. They read the open-interest-by-strike endpoint (option E). For SPY strike 700 it returned calls 43,925 and puts 223,749 (all expiries together) in the same check.
 
 ## Acceptance checks
