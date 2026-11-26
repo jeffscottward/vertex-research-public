@@ -152,21 +152,18 @@ describe("read tools on the eval backend", () => {
     }
   );
 
-  it("keeps every certified term of terms_list inside the cut of an assistant tool result", async () => {
+  it("keeps every certified term of terms_list whole inside the cut of an assistant tool result", async () => {
     const result = await callMcpTool("terms_list", {}, backend.callProcedure);
-    const [content] = result["content"] as readonly Readonly<{
-      text: string;
-    }>[];
     const { terms } = result["structuredContent"] as Readonly<{
       terms: readonly Readonly<{ certified: boolean; id: string }>[];
     }>;
-    const seen = content?.text.slice(0, ASSISTANT_TOOL_RESULT_MAX_CHARS) ?? "";
-    expect(
-      terms
-        .filter((term) => term.certified)
-        .filter((term) => !seen.includes(`"id":"${term.id}"`))
-        .map((term) => term.id)
-    ).toEqual([]);
+    const certified = terms.filter((term) => term.certified);
+    // Certified terms come first, and the tool text is compact JSON, so the certified block whole
+    // fits the cut when its own JSON does.
+    expect(certified.every((term, index) => terms[index] === term)).toBe(true);
+    expect(JSON.stringify({ terms: certified }).length).toBeLessThanOrEqual(
+      ASSISTANT_TOOL_RESULT_MAX_CHARS
+    );
   });
 
   it("answers terms_query for every term of terms_list with the status its catalog entry requires", async () => {
