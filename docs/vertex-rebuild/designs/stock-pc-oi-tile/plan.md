@@ -10,7 +10,7 @@
 
 The Put/call OI tile puts a long “No put/call ratio…” explanation in the `StatCard` value slot. `StatCard` renders the value as `text-2xl`; its description is muted `text-sm`. The tile should show a formatted ratio when one is valid, or the two words `No ratio` otherwise. Put the reason and coverage counts in the muted description.
 
-“Selected expiry” means the expiry selected in the options-chain control. OI counts describe the contracts in the chain response currently shown.
+The chain on the page belongs to the expiry selected in the options-chain control. Every detail text speaks for "the returned chain": the contracts in the chain response currently shown, which can be fewer than the expiry lists.
 
 Quant Data derives OI from order-flow prints, reads only the first provider page, and sets OI to `null` when no print reports it. The merge preserves that null when Yahoo has no value. Merged PR #372 labels null chain cells “no OI” with the title “Open interest not sent by the source”. Keep that table behavior.
 
@@ -31,9 +31,9 @@ Quant Data derives OI from order-flow prints, reads only the first provider page
 
 | Chain state | Large value | Muted detail |
 | --- | --- | --- |
-| All listed call and put contracts report OI; call OI is positive and put OI is positive | Formatted put/call OI ratio | OI for the selected expiry |
-| All listed call and put contracts report OI; call OI is positive and put OI total is zero | `0.00` | OI for the selected expiry |
-| No call or put contracts are listed | `No ratio` | No contracts for the selected expiry |
+| All listed call and put contracts report OI; call OI is positive and put OI is positive | Formatted put/call OI ratio | OI reported for all N calls and M puts in the returned chain |
+| All listed call and put contracts report OI; call OI is positive and put OI total is zero | `0.00` | OI reported for all N calls and M puts in the returned chain |
+| No call or put contracts are listed | `No ratio` | No contracts in the returned chain |
 | Contracts on both sides, no OI values reported | `No ratio` | OI reported for 0 of N calls and 0 of M puts in the returned chain |
 | Some OI values are reported, but one or more listed contracts lack OI | `No ratio` | OI reported for C of N calls and P of M puts in the returned chain |
 | No call contracts; put contracts are listed | `No ratio` | No call contracts; OI reported for P of M puts in the returned chain |
@@ -64,10 +64,10 @@ Quant Data derives OI from order-flow prints, reads only the first provider page
 
 ## Acceptance checks
 
-1. A complete chain with positive call OI shows the formatted numeric ratio in the value slot. This includes zero reported put OI, which shows `0.00`. The detail identifies OI for the selected expiry.
+1. A complete chain with positive call OI shows the formatted numeric ratio in the value slot. This includes zero reported put OI, which shows `0.00`. The detail gives the number of calls and puts behind the ratio.
 2. No contracts, only one side of contracts, no reported OI, incomplete coverage, both sides reported as zero, and complete zero-call OI produce the value and distinct detail shown in the table above. Coverage counts use the returned chain only.
 3. Loading, timeout/no-answer, and request-error states show `No ratio` as the Put/call OI value and retain their distinct status in muted detail.
-4. Component tests assert both the value and muted detail that `chainKpis` returns for every state in the table, and check the rendered `StatCard` slots (first and second `dd`) for the loading and no-answer states. The Playwright regression in `tests/e2e/stock-detail.spec.ts` mocks null OI on `/stock/NVDA?tab=options`, checks the exact `No ratio` value and returned-chain coverage string, and confirms the table still shows “no OI”.
+4. Component tests assert both the value and muted detail that `chainKpis` returns for every state in the table, and check the rendered `StatCard` slots (first and second `dd`) for the loading and no-answer states. The tests of the other three tiles stay: every field of the not-ready states, the price, strike and IV values of a full chain, the texts for a chain without price and strikes, and the text for a strike without IV. The Playwright regression in `tests/e2e/stock-detail.spec.ts` mocks null OI on `/stock/NVDA?tab=options`, checks the exact `No ratio` value and returned-chain coverage string, and confirms the table still shows “no OI”.
 5. At 375, 768, 1024, and 1440 px, the Playwright check confirms the detail stays inside the tile. At 375 px, it also confirms that the detail wraps. Page-level overflow from the existing options-chain table is recorded as a separate limitation, not a KPI acceptance check.
 6. The UI-only change does not alter API output, OI null semantics, provider requests, pagination, orders, or risk behavior.
 
@@ -82,8 +82,8 @@ Quant Data derives OI from order-flow prints, reads only the first provider page
 1. Extend `ChainKpis` with separate `putCallOiValue` and `putCallOiDetail` fields. Render them in the Put/call OI `StatCard` value and muted-description slots. Keep the price, expiry, strike, and IV fields unchanged.
 2. For every non-ready chain, set the value to `No ratio` and set the detail to the existing `chainNotReadyText(state)`. This keeps the existing loading, configured-timeout, and request-failure messages.
 3. For a ready chain, apply these rules in order:
-   - If `summary.putCallOi !== null`, show `summary.putCallOi.toFixed(2)` and `OI for the selected expiry`. This includes complete calls with positive OI and a reported put total of zero; the value is `0.00`.
-   - If both `calls.contracts` and `puts.contracts` are zero, show `No ratio` and `No contracts for the selected expiry`.
+   - If `summary.putCallOi !== null`, show `summary.putCallOi.toFixed(2)` and `OI reported for all N calls and M puts in the returned chain`. This includes complete calls with positive OI and a reported put total of zero; the value is `0.00`.
+   - If both `calls.contracts` and `puts.contracts` are zero, show `No ratio` and `No contracts in the returned chain`.
    - If `calls.contracts` is zero, show `No ratio` and `No call contracts; OI reported for P of M puts in the returned chain`, where P=`puts.reported` and M=`puts.contracts`. If `puts.contracts` is zero, show `No ratio` and `No put contracts; OI reported for C of N calls in the returned chain`, where C=`calls.reported` and N=`calls.contracts`.
    - If both sides have contracts and one or both sides have a contract with no reported OI (this includes 0 reported on both sides), show `No ratio` and `OI reported for C of N calls and P of M puts in the returned chain`, using each side's `reported/contracts` counts. One code branch covers these states.
    - If both sides are complete and both totals are zero, show `No ratio` and `Reported call and put OI totals are 0`.
@@ -127,14 +127,23 @@ The card also reported that chain OI cells showed a dash near the money while th
 
 | Check | Result |
 | --- | --- |
-| `pnpm exec vitest run --config vitest.config.ts --project unit apps/web/src/features/stock-detail/stock-detail-workspace.test.tsx apps/web/src/status-language.test.ts` | Passed: 2 files, 25 tests. The allow list is the same as on the base. |
+| `pnpm exec vitest run --config vitest.config.ts --project unit apps/web/src/features/stock-detail/stock-detail-workspace.test.tsx apps/web/src/status-language.test.ts` | Passed: 2 files, 27 tests (after the review fixes). The allow list is the same as on the base. |
 | `bun run build` | Passed (exit 0). |
-| `pnpm run test:e2e -- tests/e2e/stock-detail.spec.ts` (this form ran the whole browser suite) | Passed: 139 tests, 2 skipped. The 4 stock-detail tests passed. |
+| `pnpm run test:e2e -- tests/e2e/stock-detail.spec.ts` (this form ran the whole browser suite) | Passed: 139 tests, 2 skipped. The 4 stock-detail tests passed, and passed again after the review fixes (`pnpm exec playwright test tests/e2e/stock-detail.spec.ts --project=e2e` under `scripts/with-test-env.ts`, after a new build). |
 | `bun run verify:prepush`, steps format, lint, auth schema, OpenAPI, typecheck and docs check | Passed. |
 | `bun run verify:prepush`, steps `test:gateway`, `test:unit` (the jobs package) and `test:operations` | Not passed in the sandbox of this job. The job ran in a user namespace that shows root-owned directories with another owner, and three trust checks refuse that: `services/gateway/test_infrastructure_probe.py` (10 of 29 tests), `packages/jobs` (98 tests in 1 file, "OMP git executable is unavailable") and `scripts/graph/system.test.ts` with `scripts/vertex-config/reviewed-apply.test.ts` ("temporary base is unsafe"). No failing file is in this change. The gate must pass on a host without that sandbox before the push; the hosted checks then decide. |
 | `bun run test:contract` | Passed: 57 files, 654 tests. |
 | `pnpm exec vitest run --config vitest.config.ts --project operations scripts/init/leftovers.test.ts` | Passed: 5 tests, after a home path was removed from this plan. |
 | Live trace of the table against the chain response | 0 differing cells (section "Chain OI cells: display or data"). |
+
+### Code review, round 1 (fresh-context reviewer, 2026-11-25)
+
+The reviewer read the full diff at `ae774345`. Verdict: 2 major and 2 minor findings, all fixed in the next commit.
+
+- Major: the first version of the test rewrite had removed the tests of the other three tiles (price, strike and IV of a full chain; a chain without price and strikes; a strike without IV), and the not-ready tests checked only the Put/call OI fields. Fixed: the tests are back and assert every field.
+- Minor: `OI for the selected expiry` and `No contracts for the selected expiry` spoke for the whole expiry. Fixed: `OI reported for all N calls and M puts in the returned chain` and `No contracts in the returned chain`.
+- Minor: no test had one side without contracts and the other side partly reported. Fixed: two cases added.
+- Not changed (design notes): the value reads `No ratio` while the chain loads, with `Loading…` as the detail; the one-line check of the value in the browser test stays as a layout guard.
 
 ## Files and evidence
 
