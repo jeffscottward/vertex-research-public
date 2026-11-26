@@ -4,6 +4,7 @@ import {
   type MarketBarSize,
 } from "@darkfactory/api";
 import type { ChartMarker, DisplayCandle } from "./types.ts";
+import { NO_VOLUME_LABEL, volumeField } from "./volume.ts";
 import type { ChartType } from "./workstation.ts";
 
 // Matches the KLine adapter validator cap (validDisplayCandles).
@@ -57,7 +58,8 @@ export type DisplayCandleResult = Readonly<{
 
 const MAX_DISPLAY_VALUE = 1_000_000_000_000;
 
-// t (epoch seconds) -> ms; null volume -> 0; high/low widened to contain open and close.
+// t (epoch seconds) -> ms; null volume stays missing (no volume, not 0);
+// high/low widened to contain open and close.
 export const barsToDisplayCandles = (
   bars: readonly MarketBar[],
   limit = DISPLAY_CANDLE_LIMIT
@@ -65,8 +67,8 @@ export const barsToDisplayCandles = (
   const candles: DisplayCandle[] = [];
   let skipped = 0;
   for (const bar of bars) {
-    const volume = bar.v ?? 0;
-    const values = [bar.o, bar.h, bar.l, bar.c, volume];
+    const volume = bar.v ?? undefined;
+    const values = [bar.o, bar.h, bar.l, bar.c, volume ?? 0];
     const previous = candles.at(-1);
     if (
       !(
@@ -88,7 +90,7 @@ export const barsToDisplayCandles = (
       high: Math.max(bar.h, bar.o, bar.c),
       low: Math.min(bar.l, bar.o, bar.c),
       close: bar.c,
-      volume,
+      ...volumeField(volume),
     });
   }
   const dropped = Math.max(0, candles.length - limit);
@@ -216,7 +218,7 @@ export const heikinAshi = (
       low: Math.min(bar.low, open, close),
       open,
       timestamp: bar.timestamp,
-      volume: bar.volume,
+      ...volumeField(bar.volume),
     });
   }
   return out;
@@ -243,7 +245,13 @@ export const dataWindowRows = (
     { label: "High", value: bar.high.toFixed(precision) },
     { label: "Low", value: bar.low.toFixed(precision) },
     { label: "Close", value: bar.close.toFixed(precision) },
-    { label: "Volume", value: bar.volume.toLocaleString("en-US") },
+    {
+      label: "Volume",
+      value:
+        bar.volume === undefined
+          ? NO_VOLUME_LABEL
+          : bar.volume.toLocaleString("en-US"),
+    },
   ];
   if (previousClose !== undefined && previousClose !== 0) {
     const change = bar.close - previousClose;

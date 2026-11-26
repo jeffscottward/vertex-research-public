@@ -1855,3 +1855,112 @@ describe("createFlowRepository recentSamples", () => {
     expect(double.operations[48]?.limit).toBe(20);
   });
 });
+
+describe("flow repository readOptionTape", () => {
+  const samplePrint: FlowOptionPrintRecord = {
+    ask: 5.2,
+    bid: 5.1,
+    consolidation: "sweep",
+    dte: 10,
+    expiry: "2026-12-04",
+    goldenSweep: true,
+    id: "p-iwm-1",
+    iv: 0.24,
+    moneyness: "otm",
+    moneynessPct: 1.5,
+    openInterest: 1200,
+    opening: true,
+    premium: 250_000,
+    price: 5.2,
+    right: "call",
+    sentiment: "bullish",
+    side: "above_ask",
+    size: 480,
+    strike: 230,
+    symbol: "IWM",
+    ticker: "IWM",
+    tradedAt: new Date("2026-11-23T15:00:00.000Z"),
+    underlyingPrice: 226.5,
+    unusual: true,
+    volume: 1500,
+    volumeOverOi: true,
+  };
+
+  it("reads full-window aggregates and bounded newest prints for added option tickers", async () => {
+    const summaryRow = {
+      bearishPremium: 80_000,
+      blocks: 2,
+      bullishPremium: 420_000,
+      callPremium: 400_000,
+      goldenSweeps: 1,
+      putPremium: 100_000,
+      sweeps: 5,
+      trades: 12,
+      unusualCount: 4,
+    };
+    const double = createDouble([[summaryRow], [samplePrint]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    const result = await repository.readOptionTape({
+      from,
+      limit: 50,
+      symbol: "IWM",
+      to,
+    });
+    expect(result).toEqual({
+      prints: [samplePrint],
+      summary: summaryRow,
+    });
+    expect(double.operations).toHaveLength(2);
+    expect(double.operations[0]?.table).toBe(flowOptionPrints);
+    expect(double.operations[1]?.table).toBe(flowOptionPrints);
+    expect(double.operations[1]?.limit).toBe(50);
+  });
+
+  it("returns zero totals when the aggregate query yields no row", async () => {
+    const double = createDouble([[], []]);
+    const repository = createFlowRepository(double.database);
+    const result = await repository.readOptionTape({
+      from: new Date("2026-11-23T14:00:00.000Z"),
+      limit: 20,
+      symbol: "NVDA",
+      to: new Date("2026-11-23T15:00:00.000Z"),
+    });
+    expect(result).toEqual({
+      prints: [],
+      summary: {
+        bearishPremium: 0,
+        blocks: 0,
+        bullishPremium: 0,
+        callPremium: 0,
+        goldenSweeps: 0,
+        putPremium: 0,
+        sweeps: 0,
+        trades: 0,
+        unusualCount: 0,
+      },
+    });
+  });
+
+  it("rejects non-positive or non-integer limits", async () => {
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionTape({
+        from: new Date("2026-11-23T14:00:00.000Z"),
+        limit: 0,
+        symbol: "IWM",
+        to: new Date("2026-11-23T15:00:00.000Z"),
+      })
+    ).rejects.toThrow("readOptionTape limit must be a positive integer.");
+    await expect(
+      repository.readOptionTape({
+        from: new Date("2026-11-23T14:00:00.000Z"),
+        limit: 1.5,
+        symbol: "IWM",
+        to: new Date("2026-11-23T15:00:00.000Z"),
+      })
+    ).rejects.toThrow("readOptionTape limit must be a positive integer.");
+  });
+});

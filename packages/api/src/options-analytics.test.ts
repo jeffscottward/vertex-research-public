@@ -285,26 +285,26 @@ describe("quantdata client", () => {
       minIntervalMs: 0,
       now: () => clock,
     });
-    for (let index = 0; index < 24; index += 1) {
+    for (let index = 0; index < 48; index += 1) {
       clock = index * 100;
       expect(
         await client.request("orderFlow", { index }, 1, undefined, 6)
       ).toMatchObject({ ok: true });
     }
-    clock = 3000;
+    clock = 5000;
     expect(
-      await client.request("netDrift", { index: 24 }, 1, undefined, 6)
+      await client.request("netDrift", { index: 48 }, 1, undefined, 6)
     ).toEqual({
       message:
         "QuantData netDrift: 6 request starts per minute are kept free for other callers.",
       ok: false,
       reason: "reserved",
-      retryAfterSeconds: 57,
+      retryAfterSeconds: 55,
     });
-    expect(await client.request("orderFlow", { index: 24 }, 1)).toMatchObject({
+    expect(await client.request("orderFlow", { index: 48 }, 1)).toMatchObject({
       ok: true,
     });
-    expect(doFetch).toHaveBeenCalledTimes(25);
+    expect(doFetch).toHaveBeenCalledTimes(49);
     return expect(client.freeStarts()).toBe(5);
   });
 
@@ -529,9 +529,9 @@ describe("quantdata client", () => {
     return expect(client.cooldownSeconds()).toBe(55);
   });
 
-  it("defaults to 30 requests per minute and a reserve of 120", async () => {
+  it("defaults to 54 requests per minute and a reserve of 60", async () => {
     let clock = 0;
-    let remaining = "120";
+    let remaining = "60";
     const doFetch = vi.fn<QuantDataFetch>(async () =>
       json({ data: 1 }, { headers: { "x-ratelimit-remaining": remaining } })
     );
@@ -540,11 +540,11 @@ describe("quantdata client", () => {
       minIntervalMs: 0,
       now: () => clock,
     });
-    for (let index = 0; index < 31; index += 1)
+    for (let index = 0; index < 55; index += 1)
       await client.request("orderFlow", { index }, 1);
-    expect(doFetch).toHaveBeenCalledTimes(30);
+    expect(doFetch).toHaveBeenCalledTimes(54);
     clock = 60_000;
-    remaining = "119";
+    remaining = "59";
     await client.request("orderFlow", { index: 99 }, 1);
     return expect(client.cooldownSeconds()).toBe(60);
   });
@@ -1351,10 +1351,9 @@ describe("stored prints for the strike profiles", () => {
   it("maps an options ticker to the flow symbol that stores its prints", () => {
     expect(storedPrintsSymbol("SPY")).toBe("SPY");
     expect(storedPrintsSymbol("SPX")).toBe("ES");
-    // The collector stores no QQQ or NDX prints (no "options" source).
-    expect(storedPrintsSymbol("QQQ")).toBeNull();
-    expect(storedPrintsSymbol("NDX")).toBeNull();
-    return expect(storedPrintsSymbol("NVDA")).toBeNull();
+    expect(storedPrintsSymbol("QQQ")).toBe("QQQ");
+    expect(storedPrintsSymbol("NDX")).toBe("NQ");
+    return expect(storedPrintsSymbol("AAPL")).toBeNull();
   });
 
   it("reads every stored print of the window with the page's print filter", async () => {
@@ -1813,13 +1812,13 @@ describe("optionsAnalytics.snapshot procedure", () => {
       symbol: "SPY",
       to: NOW,
     });
-    // QQQ prints are not stored: the page prints stay.
-    const qqq = await apiFor(
+    // AAPL prints are not stored: the page prints stay.
+    const aapl = await apiFor(
       session("operator"),
       config,
       repository
-    ).optionsAnalytics.snapshot({ symbol: "QQQ" });
-    expect(qqq.strikeProfiles.flow.source).toBe("quantdata_page");
+    ).optionsAnalytics.snapshot({ symbol: "AAPL" });
+    expect(aapl.strikeProfiles.flow.source).toBe("quantdata_page");
     expect(repository.readOptionStrikeTotals).toHaveBeenCalledTimes(1);
     // A failed read keeps the page prints.
     const failing = {

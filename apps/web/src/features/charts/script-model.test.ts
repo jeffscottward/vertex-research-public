@@ -66,6 +66,14 @@ describe("script panel model", () => {
     expect(bars).toEqual([
       { close: 2, high: 3, low: 1, open: 2, timestamp: 1000, volume: 5 },
     ]));
+  it("gives scripts a volume of 0 for a bar with no volume", () =>
+    expect(
+      toScriptBars([
+        { close: 2, high: 3, id: "fx", low: 1, open: 2, timestamp: 1000 },
+      ])
+    ).toEqual([
+      { close: 2, high: 3, low: 1, open: 2, timestamp: 1000, volume: 0 },
+    ]));
   it("builds layers only when every applied script ran on these bars", () => {
     const first = entry("l1");
     const second = entry("l2", "");

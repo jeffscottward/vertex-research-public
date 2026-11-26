@@ -936,10 +936,11 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-not-collected]")?.textContent
     ).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+      "Not collected for QQQ: trades. The IBKR budget goes to ES, NQ and SPY."
     );
     await click(button(container, "NQ"));
     await idle(container);
+    expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
     await click(button(container, "ES"));
     await idle(container);
     expect(controlCalls.map((call) => call.group)).toEqual([
@@ -1429,9 +1430,13 @@ describe("FlowWorkspace hedging pressure panel", () => {
         expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
       );
       expect(panel(container)).toBeNull();
-      expect(
-        container.querySelector("[data-flow-not-collected]")?.textContent
-      ).toContain("option prints");
+      if (symbol === "QQQ") {
+        expect(
+          container.querySelector("[data-flow-not-collected]")?.textContent
+        ).toContain("trades");
+      } else {
+        expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
+      }
     }
     expect(hedgingCalls).toEqual([
       { symbol: "SPY" },
