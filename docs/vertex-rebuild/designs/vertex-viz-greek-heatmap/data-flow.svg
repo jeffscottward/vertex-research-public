@@ -1,0 +1,149 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1040 300"
+  role="img"
+  aria-label="Data flow for optionsAnalytics.greekHeatmap: QuantData term-structure and heat-map endpoints through greek-heatmap-engine to GreekHeatmapPanel on /charts and /stock Analytics"
+>
+  <defs>
+    <style>
+    .bg {
+      fill: #09090b;
+    }
+    .box {
+      fill: #111114;
+      stroke: #27272a;
+      stroke-width: 1.5;
+      rx: 8;
+    }
+    .accent {
+      fill: #14191f;
+      stroke: #38bdf8;
+      stroke-width: 1.5;
+      rx: 8;
+    }
+    .gold {
+      fill: #1c1608;
+      stroke: #eab308;
+      stroke-width: 1.5;
+      rx: 8;
+    }
+    .title {
+      fill: #fafafa;
+      font:
+        700 15px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .label {
+      fill: #f4f4f5;
+      font:
+        600 12px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    .mono {
+      fill: #d4d4d8;
+      font:
+        500 10.5px ui-monospace,
+        SFMono-Regular,
+        monospace;
+    }
+    .muted {
+      fill: #a1a1aa;
+      font:
+        500 10.5px ui-sans-serif,
+        system-ui,
+        sans-serif;
+    }
+    </style>
+  </defs>
+  <rect class="bg" width="1040" height="300" />
+  <text class="title" x="28" y="34">
+    Data Flow · optionsAnalytics.greekHeatmap (Read-Only Research)
+  </text>
+
+  <!-- QuantData Sources -->
+  <rect class="box" x="28" y="58" width="250" height="62" />
+  <text class="label" x="42" y="80">QuantData term-structure</text>
+  <text class="mono" x="42" y="98">spot + per-expiry IV (300s cache)</text>
+  <text class="muted" x="42" y="112">
+    Shared with optionsAnalytics.snapshot
+  </text>
+
+  <rect class="box" x="28" y="134" width="250" height="58" />
+  <text class="label" x="42" y="156">QuantData heat-map (OI)</text>
+  <text class="mono" x="42" y="174">NET_OPEN_INTEREST (300s cache)</text>
+
+  <rect class="box" x="28" y="206" width="250" height="58" />
+  <text class="label" x="42" y="228">QuantData heat-map (Vol)</text>
+  <text class="mono" x="42" y="246">NET_VOLUME (60s cache)</text>
+
+  <!-- Arrows to engine -->
+  <line
+    x1="278"
+    y1="89"
+    x2="338"
+    y2="148"
+    stroke="#52525b"
+    stroke-width="1.8"
+  />
+  <line
+    x1="278"
+    y1="163"
+    x2="338"
+    y2="163"
+    stroke="#52525b"
+    stroke-width="1.8"
+  />
+  <line
+    x1="278"
+    y1="235"
+    x2="338"
+    y2="178"
+    stroke="#52525b"
+    stroke-width="1.8"
+  />
+  <polygon points="338,158 348,163 338,168" fill="#a1a1aa" />
+
+  <!-- Pure Math Engine -->
+  <rect class="gold" x="350" y="70" width="295" height="184" />
+  <text class="label" x="366" y="94">greek-heatmap-engine.ts</text>
+  <text class="mono" x="366" y="114">callGreeks() from gex-context.ts</text>
+  <text class="muted" x="366" y="136">
+    • Up to 10 nearest expiries, own T &amp; IV
+  </text>
+  <text class="muted" x="366" y="154">
+    • 5 metrics: GEX, VEX, Charm, DEX, Vol-GEX
+  </text>
+  <text class="muted" x="366" y="172">• Marks: King, Call Wall, Put Wall</text>
+  <text class="muted" x="366" y="190">
+    • Per-expiry ±30% spot-sweep Gamma Flip
+  </text>
+  <text class="muted" x="366" y="208">
+    • Pins all mark strikes into 25-row ladder
+  </text>
+  <text class="mono" x="366" y="232">GET /options-analytics/greek-heatmap</text>
+
+  <!-- Arrow to UI -->
+  <line x1="645" y1="163" x2="705" y2="163" stroke="#38bdf8" stroke-width="2" />
+  <polygon points="705,157 716,163 705,169" fill="#38bdf8" />
+
+  <!-- Portal UI -->
+  <rect class="accent" x="718" y="70" width="294" height="184" />
+  <text class="label" x="734" y="94">GreekHeatmapPanel</text>
+  <text class="mono" x="734" y="114">Inside OptionsAnalyticsPanel</text>
+  <text class="muted" x="734" y="136">
+    • Mounted on /charts &amp; /stock Analytics
+  </text>
+  <text class="muted" x="734" y="154">
+    • Instant 5-tab switch (0 extra fetches)
+  </text>
+  <text class="muted" x="734" y="172">• Sticky Strike col (375–1440 px)</text>
+  <text class="muted" x="734" y="190">
+    • Diverging CSS tokens (dark &amp; light)
+  </text>
+  <text class="muted" x="734" y="208">
+    • Badges + dividers (never color-only)
+  </text>
+  <text class="mono" x="734" y="232">UI Lab: /lab/charts &amp; /lab/stock</text>
+</svg>

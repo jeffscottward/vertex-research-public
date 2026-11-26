@@ -34,7 +34,7 @@ export type OpenInterestRow = Readonly<{
   putOpenInterest: number;
 }>;
 
-const toNumber = (value: unknown): number | null => {
+export const toNumber = (value: unknown): number | null => {
   const parsed =
     typeof value === "number"
       ? value
@@ -44,7 +44,7 @@ const toNumber = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const entries = (value: unknown): [string, unknown][] =>
+export const entries = (value: unknown): [string, unknown][] =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? Object.entries(value)
     : [];
@@ -62,7 +62,7 @@ export const ivDecimal = (value: unknown): number | null => {
   return decimal <= MAX_IV ? decimal : null;
 };
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const daysUntil = (expiry: string, today: string): number =>
   Math.round(

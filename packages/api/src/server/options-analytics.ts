@@ -4,6 +4,8 @@ import { implement } from "@orpc/server";
 import { appContract } from "../contract.ts";
 import type { FlowSymbol } from "../contracts/flow.ts";
 import type {
+  GreekHeatmapOutput,
+  GreekHeatmapParsedInput,
   OptionsAnalyticsOutput,
   OptionsAnalyticsParsedInput,
 } from "../contracts/options-analytics.ts";
@@ -17,6 +19,10 @@ import {
   flowStaleSeconds,
 } from "./flow-snapshot.ts";
 import { buildGexContext, newYorkDate } from "./gex-context.ts";
+import {
+  buildGreekHeatmap,
+  parseHeatMapCounts,
+} from "./greek-heatmap-engine.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   exposure,
@@ -247,6 +253,95 @@ export const buildOptionsAnalytics = async (
   };
 };
 
+// A heat-map answer that cannot be used; null for a usable or a "no data" answer.
+const heatMapFailure = (result: QuantDataResult): string | null => {
+  // HTTP 422 is QuantData's "data-unavailable": an answer without rows, so the metric is empty.
+  if (!result.ok) return result.httpStatus === 422 ? null : result.message;
+  const kind = result.body["type"];
+  if (kind !== undefined && kind !== "contract")
+    return "QuantData heatMap: unexpected response type.";
+  return null;
+};
+
+/**
+ * Strike-by-expiry Greek exposure heatmap (optionsAnalytics.greekHeatmap).
+ * Reuses the cached term-structure request and adds two QuantData heat-map calls
+ * (NET_OPEN_INTEREST and NET_VOLUME). Research only.
+ * Budget: the portal asks for the heatmap after the snapshot answered, so an uncached symbol
+ * costs 3 snapshot starts + 2 heat-map starts = 5, inside FLOW_QUANTDATA_CALLER_RESERVE (6).
+ */
+export const buildOptionsGreekHeatmap = async (
+  input: GreekHeatmapParsedInput,
+  deps: Deps
+): Promise<GreekHeatmapOutput> => {
+  const now = deps.now();
+  const today = newYorkDate(now);
+  const { symbol } = input;
+  const filter = { filter: { ticker: symbol } };
+  const chainResult = await deps.client.request(
+    "termStructure",
+    filter,
+    CHAIN_TTL_MS
+  );
+  const spot = quantDataStockPrice(chainResult);
+  const chainRows = chainResult.ok
+    ? parseChain(chainResult.data, today).rows
+    : [];
+  const needsHeatMap =
+    chainResult.ok && spot !== null && spot > 0 && chainRows.length > 0;
+  const oiResult = needsHeatMap
+    ? await deps.client.request(
+        "heatMap",
+        { ...filter, dataMode: "NET_OPEN_INTEREST" },
+        CHAIN_TTL_MS
+      )
+    : null;
+  const volumeResult = needsHeatMap
+    ? await deps.client.request(
+        "heatMap",
+        { ...filter, dataMode: "NET_VOLUME" },
+        FLOW_TTL_MS
+      )
+    : null;
+
+  const results = [chainResult, oiResult, volumeResult].filter(
+    (result): result is QuantDataResult => result !== null
+  );
+  const rateLimited = results.some(
+    (result) => !result.ok && result.reason === "rate_limited"
+  );
+  const wait = Math.max(
+    deps.client.cooldownSeconds(),
+    ...results.map((result) =>
+      result.ok ? 0 : (result.retryAfterSeconds ?? 0)
+    )
+  );
+  const oiFailure = oiResult === null ? null : heatMapFailure(oiResult);
+  const volumeFailure =
+    volumeResult === null ? null : heatMapFailure(volumeResult);
+
+  return buildGreekHeatmap({
+    chainFailure: chainResult.ok ? null : chainResult.message,
+    chainRows,
+    oiCounts:
+      oiResult?.ok && oiFailure === null
+        ? parseHeatMapCounts(oiResult.data, today)
+        : [],
+    oiFailure,
+    rateLimited,
+    receivedAt: now.toISOString(),
+    retryAfterSeconds: rateLimited ? Math.ceil(wait) : null,
+    spot,
+    symbol,
+    today,
+    volumeCounts:
+      volumeResult?.ok && volumeFailure === null
+        ? parseHeatMapCounts(volumeResult.data, today)
+        : [],
+    volumeFailure,
+  });
+};
+
 /** The flow instrument whose collector stores the option prints of `ticker`; null when none does. */
 export const storedPrintsSymbol = (ticker: string): FlowSymbol | null =>
   Object.values(FLOW_INSTRUMENTS).find(
@@ -423,5 +518,15 @@ const snapshot = api.optionsAnalytics.snapshot
       return output;
     }
   });
+const greekHeatmap = api.optionsAnalytics.greekHeatmap
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const config = context.quantData ?? null;
+    if (config === null) throw errors.NOT_CONFIGURED();
+    return await buildOptionsGreekHeatmap(input, {
+      client: quantDataClientFor(config),
+      now: clock,
+    });
+  });
 
-export const optionsAnalyticsRouter = { snapshot };
+export const optionsAnalyticsRouter = { greekHeatmap, snapshot };
