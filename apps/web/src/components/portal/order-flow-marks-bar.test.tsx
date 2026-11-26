@@ -87,6 +87,11 @@ describe("OrderFlowMarksBar", () => {
         "unsupported",
         "NVDA STK",
       ],
+      [
+        { secType: "CASH", symbol: "EUR", type: "unsupported" },
+        "unsupported",
+        "Order-flow marks are not available for forex (CASH).",
+      ],
       [{ type: "loading" }, "loading", "Loading stored order-flow marks"],
       [{ type: "forbidden" }, "forbidden", "Operator access required"],
       [

@@ -146,6 +146,14 @@ describe("lab market fixtures", () => {
     });
   });
 
+  it("quotes CASH pairs on MIDPOINT without volume", () => {
+    const output = labBarsOutput({ secType: "CASH", symbol: "EUR" });
+    expect(output.request.whatToShow).toBe("MIDPOINT");
+    expect(output.bars.every((bar) => bar.v === null)).toBe(true);
+    expect(MarketBarsOutputSchema.parse(output)).toEqual(output);
+    expect(labBarsOutput({ symbol: "SPY" }).bars[0]?.v).toBeGreaterThan(0);
+  });
+
   it("follows the requested bar size and contract", () => {
     const output = labBarsOutput({
       barSize: "1 hour",

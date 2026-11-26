@@ -377,7 +377,7 @@ describe("ChartsWorkspace", () => {
     });
   });
 
-  it("offers stock and futures sec types, exchange presets and quick picks", async () => {
+  it("offers stock, futures and forex sec types, exchange presets and quick picks", async () => {
     const base = output();
     const market = marketGateway(async (input) => ({
       ...base,
@@ -389,7 +389,7 @@ describe("ChartsWorkspace", () => {
         symbol: input.symbol,
       },
     }));
-    await mount(
+    const container = await mount(
       <ChartsWorkspace
         backtests={backtestsGateway()}
         flowEvents={pendingFlowEventsGateway()}
@@ -400,39 +400,88 @@ describe("ChartsWorkspace", () => {
     );
     const exchange = () =>
       document.querySelector<HTMLInputElement>('input[aria-label="Exchange"]')!;
+    const dataOptions = () =>
+      [...select("Data").options].map((option) => option.value);
     expect(
       [...select("Security type").options].map((option) => option.value)
-    ).toEqual(["STK", "FUT", "CONTFUT"]);
-    expect([...select("Data").options].map((option) => option.value)).toEqual([
-      "TRADES",
-      "MIDPOINT",
-    ]);
-    await change(select("Data"), "MIDPOINT");
+    ).toEqual(["STK", "FUT", "CONTFUT", "CASH"]);
+    expect(
+      [...select("Security type").options].map((option) => option.text)
+    ).toContain("Forex (CASH)");
+    expect(dataOptions()).toEqual(["TRADES", "MIDPOINT"]);
+    // Forex is MIDPOINT only on IDEALPRO; the operator's own Data choice comes back after forex.
+    await change(select("Security type"), "CASH");
+    expect(exchange().value).toBe("IDEALPRO");
+    expect(dataOptions()).toEqual(["MIDPOINT"]);
+    expect(select("Data").value).toBe("MIDPOINT");
+    await change(select("Security type"), "FUT");
+    expect(exchange().value).toBe("CME");
+    await change(select("Security type"), "CASH");
+    await change(select("Security type"), "STK");
+    expect(exchange().value).toBe("SMART");
+    expect(dataOptions()).toEqual(["TRADES", "MIDPOINT"]);
+    expect(select("Data").value).toBe("TRADES");
     // A custom venue survives a sec type switch; presets follow it.
     await change(exchange(), "ARCA");
     await change(select("Security type"), "FUT");
+    expect(exchange().value).toBe("ARCA");
+    await change(select("Security type"), "CASH");
     expect(exchange().value).toBe("ARCA");
     await change(select("Security type"), "STK");
     expect(exchange().value).toBe("ARCA");
     await change(exchange(), "CME");
     await change(select("Security type"), "STK");
     expect(exchange().value).toBe("SMART");
-    expect(select("Data").value).toBe("MIDPOINT");
 
     expect(
       [...select("Quick pick").options].slice(1).map((option) => option.value)
-    ).toEqual(["ES (E-mini S&P)", "NQ (E-mini Nasdaq)", "SPY", "QQQ"]);
-    await change(select("Quick pick"), "ES (E-mini S&P)");
+    ).toEqual([
+      "ES (E-mini S&P)",
+      "NQ (E-mini Nasdaq)",
+      "SPY",
+      "QQQ",
+      "EUR.USD",
+      "USD.JPY",
+      "GBP.USD",
+    ]);
+    const panelTitle = () =>
+      container.querySelector("[data-chart-panel] h2")?.textContent;
+    await change(select("Quick pick"), "USD.JPY");
     expect(select("Quick pick").value).toBe("");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith({
+      barSize: "1 day",
+      currency: "JPY",
+      duration: "1 Y",
+      exchange: "IDEALPRO",
+      secType: "CASH",
+      symbol: "USD",
+      useRTH: true,
+      whatToShow: "MIDPOINT",
+    });
+    // The title names the pair, not the base currency alone.
+    expect(panelTitle()).toBe("USD.JPY · 1D");
+    // Forex has no ticks or depth: no order flow panel, and the marks line does not point to one.
+    expect(container.querySelector("[data-order-flow]")).toBeNull();
+    expect(
+      container.querySelector('[data-flow-marks-status="unsupported"]')
+        ?.textContent
+    ).toBe("Order-flow marks are not available for forex (CASH).");
+
+    await change(select("Quick pick"), "ES (E-mini S&P)");
     await submit();
     expect(market.bars).toHaveBeenLastCalledWith(
       expect.objectContaining({
         exchange: "CME",
         secType: "CONTFUT",
         symbol: "ES",
-        whatToShow: "MIDPOINT",
+        whatToShow: "TRADES",
       })
     );
+    expect(panelTitle()).toBe("ES · 1D");
+    expect(container.querySelector("[data-order-flow]")).not.toBeNull();
+    await change(select("Data"), "MIDPOINT");
+    expect(select("Data").value).toBe("MIDPOINT");
     // An unknown pick changes nothing.
     await change(select("Quick pick"), "BTC");
     expect(symbolInput().value).toBe("ES");
