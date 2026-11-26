@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  classifyConnectivityMessage,
   type ExposureSection,
   type FlowSection,
   type GexContext,
@@ -35,6 +34,7 @@ import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
+import { ProviderFailureAlert } from "./provider-failure-alert.tsx";
 import { StrikeProfilesPanel } from "./strike-profiles-panel.tsx";
 
 // Per-symbol options research panel on /charts and the stock page: IV term structure, skew
@@ -108,9 +108,6 @@ const SectionShell = ({
   readonly children?: ReactNode;
 }) => {
   const unavailable = status === "unavailable" && message !== null;
-  const authFailed =
-    unavailable &&
-    classifyConnectivityMessage(message).category === "auth_failed";
   return (
     <section
       aria-labelledby={id}
@@ -121,19 +118,7 @@ const SectionShell = ({
         {title}
       </h3>
       {message === null ? null : unavailable ? (
-        <div
-          className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs"
-          data-auth-error={authFailed ? "" : undefined}
-          role="alert"
-        >
-          <p className="font-medium text-destructive">{message}</p>
-          {authFailed ? (
-            <p className="mt-1 text-muted-foreground">
-              Owner action required: rotate the upstream provider credential
-              (never auto-rotated).
-            </p>
-          ) : null}
-        </div>
+        <ProviderFailureAlert message={message} />
       ) : (
         <p className="text-muted-foreground text-xs" role="status">
           {message}
