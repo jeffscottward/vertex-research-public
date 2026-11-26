@@ -150,6 +150,7 @@ def load_congress_jsonl(path: Path) -> list[CongressPurchase]:
             amount_low=float(r["amount_low"]) if r.get("amount_low") is not None else None,
             amount_high=float(r["amount_high"]) if r.get("amount_high") is not None else None,
             amends=bool(r.get("amends", False)),
+            asset_type=str(r["asset_type"]) if r.get("asset_type") else None,
         )
         for r in _read_event_rows(path)
     ]
@@ -167,6 +168,22 @@ def load_premium_jsonl(path: Path) -> list[MarketPremiumRow]:
         )
         for r in _read_event_rows(path)
     ]
+
+
+MAX_EVENT_FILE_LAG_DAYS = 14
+
+
+def _require_events_through(newest: date, window_end: date, path: Path) -> None:
+    """Stop when an event file ends well before the study window does.
+
+    The verdict gate counts out-of-sample sessions on the benchmark, so a file that ends early
+    (a collector run that stopped) would still show a full holdout with too few events.
+    """
+    if (window_end - newest).days > MAX_EVENT_FILE_LAG_DAYS:
+        raise ValueError(
+            f"{path} ends on {newest.isoformat()}, more than {MAX_EVENT_FILE_LAG_DAYS} days before the window end "
+            f"{window_end.isoformat()}; run scripts/smart-money-pr7/fetch_data.py again"
+        )
 
 
 def _spy_benchmark_stats(
@@ -487,25 +504,41 @@ class RunContext:
 
 
 POST_HOC_CHECK = "Post-hoc: full event universe (not in the verdict)"
-POST_HOC_GAP = (
-    "Post-hoc full-universe check",
+POST_HOC_VARIANT = "post-hoc-full-universe"
+POST_HOC_GAP_NAME = "Post-hoc full-universe check"
+POST_HOC_GAP_RUN = (
     "The 600-ticker cap was chosen by whole-sample event counts. After the first look at the out-of-sample window, "
     "the primary trial was also run on every ticker with an event. That result is in the robustness rows. It is not "
-    "the verdict: it counts as one more trial, and a pass there would need a new holdout.",
+    "the verdict: it counts as one more trial, and a pass there would need a new holdout."
 )
+POST_HOC_GAP_NOT_RUN = (
+    "The 600-ticker cap was chosen by whole-sample event counts. The primary trial was not run on a wider universe "
+    "in this run, because the collector's bars_events folder has no bars."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PostHocRun:
+    robustness_row: dict[str, Any]
+    gap: tuple[str, str]
+    summary: dict[str, Any] | None  # None when the run did not happen
+    trial: TrialRecord | None  # logged with the counted trials, marked by its variant name
+
+    def trials_after(self, gated: Sequence[TrialRecord]) -> tuple[TrialRecord, ...]:
+        return (*gated, self.trial) if self.trial is not None else tuple(gated)
 
 
 def _post_hoc_full_universe(
     ctx: RunContext, study: GatedStudy, events: Sequence[SignalEvent] | None
-) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """The primary trial without the 600-ticker cap: one robustness row and its summary.
+) -> PostHocRun:
+    """The primary trial without the 600-ticker cap: a robustness row, a gap row, a summary and a trial.
 
     The trading knowledge base advised (2026-11-25) to keep the pre-registered capped result as the
     verdict and to report this run as a post-hoc deviation that counts as one more trial.
     """
     if ctx.full_bars is None or events is None:
         row = {"check": POST_HOC_CHECK, "pass": None, "result": "Not run: the collector's bars_events folder has no bars."}
-        return row, None
+        return PostHocRun(row, (POST_HOC_GAP_NAME, POST_HOC_GAP_NOT_RUN), None, None)
     window = study.window
     result = simulate_event_portfolio(
         events,
@@ -523,13 +556,21 @@ def _post_hoc_full_universe(
         n_trials,
     )
     dsr_text = f"{dsr.probability:.3f}" if dsr else "unavailable"
+    requested = ctx.meta.get("event_bars_extra_requested")
+    cached = ctx.meta.get("event_bars_extra_cached")
+    history = (
+        f" ({cached} of {requested} further tickers have history)"
+        if isinstance(requested, int) and isinstance(cached, int)
+        else ""
+    )
     row = {
         "check": POST_HOC_CHECK,
         "pass": None,
         "result": (
-            f"Bars for {len(ctx.full_bars)} tickers: {result.oos.trades} OOS events, OOS Sharpe {result.oos.sharpe:.3f}, "
-            f"DSR {dsr_text} at N={n_trials}; whole-sample trades {result.whole.trades}, Sharpe {result.whole.sharpe:.3f}. "
-            "A pass here would need a new holdout."
+            f"Bars for {len(ctx.full_bars)} tickers{history}: {result.oos.trades} OOS events, "
+            f"OOS Sharpe {result.oos.sharpe:.3f}, DSR {dsr_text} at N={n_trials}; whole-sample trades "
+            f"{result.whole.trades}, Sharpe {result.whole.sharpe:.3f}. No 20 bps stress run. A pass here would need "
+            "a new holdout."
         ),
     }
     summary = {
@@ -541,7 +582,8 @@ def _post_hoc_full_universe(
         "whole_trades": result.whole.trades,
         "whole_sharpe": round(result.whole.sharpe, 4),
     }
-    return row, summary
+    trial = _to_trial(study.study_id, POST_HOC_VARIANT, PRIMARY_HOLDING_DAYS, DEFAULT_COST_BPS, False, result)
+    return PostHocRun(row, (POST_HOC_GAP_NAME, POST_HOC_GAP_RUN), summary, trial)
 
 
 @dataclass(frozen=True, slots=True)
@@ -556,6 +598,7 @@ def _insider_study(ctx: RunContext) -> StudyOutput:
     window = StudyWindow(start=date(2016, 1, 1), end=date(2026, 3, 31), oos_start=date(2024, 4, 1))
     form4_path = ctx.data_dir / "form4_purchases.jsonl"  # json-data-ignore: collector output on the research machine, outside the repository; the app never reads it
     purchases = load_form4_jsonl(form4_path)
+    _require_events_through(max(p.filing_date for p in purchases), window.end, form4_path)
     variants, diag = build_signal1_variants(purchases, ctx.bars)
     study = run_gated_study(
         study_id=study_id,
@@ -578,7 +621,7 @@ def _insider_study(ctx: RunContext) -> StudyOutput:
         oos_start=window.oos_start,
     )
 
-    post_hoc_row, post_hoc_summary = _post_hoc_full_universe(
+    post_hoc = _post_hoc_full_universe(
         ctx,
         study,
         build_signal1_variants(purchases, ctx.full_bars)[0][SIGNAL1_PRIMARY] if ctx.full_bars is not None else None,
@@ -674,7 +717,7 @@ def _insider_study(ctx: RunContext) -> StudyOutput:
                     f"outside_window={primary.skipped_outside_window}"
                 ),
             },
-            post_hoc_row,
+            post_hoc.robustness_row,
         ],
         rules=[
             ("Universe", "146 liquid stocks + event tickers (capped at 600); point-in-time as-traded close >= $5 (later splits undone) and 20d median dollar vol >= $10M.", "plan-pr7.md"),
@@ -686,7 +729,7 @@ def _insider_study(ctx: RunContext) -> StudyOutput:
         gaps=[
             ("Universe cap & survivorship", ctx.universe_note),
             ("Cluster events outside the bar universe", coverage),
-            POST_HOC_GAP,
+            post_hoc.gap,
             (
                 "Form 4 rows outside the bar universe",
                 f"{diag['ticker_without_bars']} of {diag['raw_purchases']} code-P Form 4 rows are in tickers without "
@@ -728,16 +771,18 @@ def _insider_study(ctx: RunContext) -> StudyOutput:
         "n_trials": len(study.trials),
         "baseline_oos_events": baseline.oos.trades,
         "baseline_oos_sharpe": round(baseline.oos.sharpe, 4),
-        "post_hoc_full_universe": post_hoc_summary,
+        "post_hoc_full_universe": post_hoc.summary,
     }
-    return StudyOutput(document, summary, study.trials)
+    return StudyOutput(document, summary, post_hoc.trials_after(study.trials))
 
 
 def _congress_study(ctx: RunContext) -> StudyOutput:
     study_id = "smart-money-congress-buys"
     window = StudyWindow(start=date(2022, 1, 1), end=date(2026, 11, 23), oos_start=date(2024, 11, 23))
     congress_path = ctx.data_dir / "congress_trades.jsonl"  # json-data-ignore: collector output on the research machine, outside the repository; the app never reads it
-    variants, diag = build_signal2_variants(load_congress_jsonl(congress_path))
+    congress_rows = load_congress_jsonl(congress_path)
+    _require_events_through(max(r.filed_on for r in congress_rows), window.end, congress_path)
+    variants, diag = build_signal2_variants(congress_rows)
     study = run_gated_study(
         study_id=study_id,
         variants=variants,
@@ -749,7 +794,7 @@ def _congress_study(ctx: RunContext) -> StudyOutput:
     )
     primary = study.primary
     large = study.results[("large-50k", PRIMARY_HOLDING_DAYS)]
-    post_hoc_row, post_hoc_summary = _post_hoc_full_universe(ctx, study, variants[SIGNAL2_PRIMARY])
+    post_hoc = _post_hoc_full_universe(ctx, study, variants[SIGNAL2_PRIMARY])
 
     spy_cagr, spy_sharpe, spy_dd = _spy_benchmark_stats(ctx.spy_bars, window.start, window.end)
     document = build_study_document(
@@ -816,14 +861,14 @@ def _congress_study(ctx: RunContext) -> StudyOutput:
                 "check": "Deduplication & Capacity Skips",
                 "pass": None,
                 "result": (
-                    f"trades={diag['deduped_purchases']} (merged {diag['same_filing_lots_merged']} same-filing lots, "
-                    f"dropped {diag['later_filings_dropped']} later filings); "
+                    f"trades={diag['deduped_purchases']} (dropped {diag['option_rows_dropped']} option rows, merged "
+                    f"{diag['same_filing_lots_merged']} same-filing lots, dropped {diag['later_filings_dropped']} later filings); "
                     f"overlap={primary.skipped_overlap}, capacity={primary.skipped_capacity}, "
                     f"illiquid={primary.skipped_illiquid}, missing_bars={primary.skipped_missing_bars}, "
                     f"outside_window={primary.skipped_outside_window}"
                 ),
             },
-            post_hoc_row,
+            post_hoc.robustness_row,
         ],
         rules=[
             ("Source", "House Clerk electronic PTR PDFs and Senate eFD electronic PTR HTML (2022–2026); parsed via vertex_openbb.jobs.congress. Pre-2022 House PDFs use legacy Wingdings/small-caps fonts.", "plan-pr7.md"),
@@ -836,16 +881,21 @@ def _congress_study(ctx: RunContext) -> StudyOutput:
             ("STOCK Act reporting delay", "Members may disclose up to 45 days after execution; entry strictly follows filed_on."),
             *_congress_coverage_gaps(ctx.meta),
             ("Universe cap & survivorship", ctx.universe_note),
-            POST_HOC_GAP,
+            post_hoc.gap,
             (
                 "Events outside the bar universe",
                 f"{primary.skipped_missing_bars} primary events had no bar on the entry day (ticker outside the bar "
                 f"universe or not trading); {primary.truncated_exits} exits were truncated.",
             ),
             ("House amendments", "House Clerk yearly index does not flag amendments; earliest filed_on deduplication mitigates re-disclosures."),
+            (
+                "Option rows excluded",
+                f"{diag['option_rows_dropped']} purchase rows report an option (House OP, Senate Stock Option), puts "
+                "included. They carry the ticker of the underlying stock and are not stock purchases, so they are dropped.",
+            ),
         ],
         notes=(
-            f"Raw Congress purchase rows: {diag['raw_rows']}; trades after merging lots and dropping later filings: "
+            f"Raw Congress purchase rows: {diag['raw_rows']}; trades after dropping option rows, merging lots and dropping later filings: "
             f"{diag['deduped_purchases']}. "
             f"Primary trial (all-buys, H=20): whole trades={primary.whole.trades}, OOS trades={primary.oos.trades}."
         ),
@@ -857,9 +907,9 @@ def _congress_study(ctx: RunContext) -> StudyOutput:
         "oos_sharpe": round(primary.oos.sharpe, 4),
         "dsr": round(study.dsr.probability, 4) if study.dsr else None,
         "n_trials": len(study.trials),
-        "post_hoc_full_universe": post_hoc_summary,
+        "post_hoc_full_universe": post_hoc.summary,
     }
-    return StudyOutput(document, summary, study.trials)
+    return StudyOutput(document, summary, post_hoc.trials_after(study.trials))
 
 
 def _premium_study(ctx: RunContext) -> StudyOutput:
@@ -882,7 +932,9 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
         events,
         bars,
         ctx.spy_bars,
-        PortfolioConfig(holding_days=PRIMARY_HOLDING_DAYS, cost_bps=DEFAULT_COST_BPS, require_liquidity=False),
+        # The liquidity check repeats the one of the ranking for tickers with bars. It also stops a
+        # ticker whose first bar is the entry day: its liquidity was unknown when it was ranked.
+        PortfolioConfig(holding_days=PRIMARY_HOLDING_DAYS, cost_bps=DEFAULT_COST_BPS),
         start_day=start,
         end_day=end,
         oos_start=None,
@@ -898,8 +950,9 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
     months = (end - start).days / 30.4375
     unlock = _add_years(start, 2).isoformat()
     reason = (
-        f"Insufficient history: {diag['complete_sessions']} complete QuantData sessions "
-        f"({start.isoformat()} to {end.isoformat()}, ~{months:.1f} months < 24-month holdout required). "
+        f"Insufficient history: {primary.whole.days} trading sessions ({diag['complete_sessions']} complete QuantData "
+        f"sessions in the source, {start.isoformat()} to {end.isoformat()}, ~{months:.1f} months < 24-month holdout "
+        f"of {MIN_OOS_SESSIONS} sessions). "
         f"Rule {SIGNAL3_VARIANT} (H=20) is frozen at N = 1 with zero parameter sweep; full evaluation unlocks on {unlock}. "
         f"Descriptive baseline over observed window: {primary.whole.trades} entries, excess Sharpe {primary.whole.sharpe:.3f}."
     )
@@ -943,7 +996,10 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
             {
                 "check": f"24-Month OOS History Requirement (>= {MIN_OOS_SESSIONS} sessions)",
                 "pass": False,
-                "result": f"{diag['complete_sessions']} complete sessions ({start}..{end}); unlocks {unlock}.",
+                "result": (
+                    f"{primary.whole.days} trading sessions ({diag['complete_sessions']} complete sessions in the source, "
+                    f"{start}..{end}); unlocks {unlock}."
+                ),
             },
             {
                 "check": "Zero OOS Parameter Sweep (Frozen Rule N = 1)",
@@ -963,7 +1019,8 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
                 "pass": None,
                 "result": (
                     f"events: overlap={primary.skipped_overlap}, capacity={primary.skipped_capacity}, "
-                    f"missing_bars={primary.skipped_missing_bars}, outside_window={primary.skipped_outside_window}; "
+                    f"missing_bars={primary.skipped_missing_bars}, no_bar_before_entry={primary.skipped_illiquid}, "
+                    f"outside_window={primary.skipped_outside_window}; "
                     f"ticker-sessions before ranking: without_bars={diag['premium_rows_without_bars']}, "
                     f"illiquid={diag['premium_rows_illiquid']}"
                 ),
@@ -976,14 +1033,14 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
             ("Execution", f"Next trading day open; equal-weight 10 slots; H=20; 10 bps/side; excess return over SPY. Unlocks for full verdict on {unlock}.", "plan-pr7.md"),
         ],
         gaps=[
-            ("History below 2-year holdout", f"QuantData exposes ~1 year of history ({start}..{end}, {diag['complete_sessions']} complete sessions). Verdict stays needs-more-data until {unlock}."),
+            ("History below 2-year holdout", f"QuantData exposes ~1 year of history ({start}..{end}: {primary.whole.days} trading sessions; the source marks {diag['complete_sessions']} sessions complete, exchange holidays with index rows included). Verdict stays needs-more-data until {unlock}."),
             ("Trade-side taxonomy", "QuantData bullish premium aggregates calls bought at ask and puts sold at bid; option-side decomposition is not present in gainers-losers."),
             ("Intraday vs EOD capture", "Complete sessions settle after midnight; entries occur at next session open (zero look-ahead)."),
             (
                 "Top-10 tickers without bars",
                 f"{diag['top10_events_without_bars']} of {diag['selected_top10_events']} top-10 events are in tickers "
-                "without daily bars (index options and tickers Yahoo Finance has no history for). They keep their "
-                "rank and count as missing-bar events.",
+                "without a daily bar on or before the session (index options and tickers Yahoo Finance has no history "
+                "for). They keep their rank and are not traded.",
             ),
             (
                 "Slot capacity",
@@ -993,7 +1050,7 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
             ),
         ],
         notes=(
-            f"Complete sessions: {diag['complete_sessions']} ({start}..{end}). "
+            f"Trading sessions: {primary.whole.days}; complete sessions in the source: {diag['complete_sessions']} ({start}..{end}). "
             f"Rule frozen at N = 1 (top10-500k, H=20); full evaluation unlocks {unlock}."
         ),
     )
@@ -1001,6 +1058,7 @@ def _premium_study(ctx: RunContext) -> StudyOutput:
         "verdict": verdict,
         "reason": reason,
         "complete_sessions": diag["complete_sessions"],
+        "trading_sessions": primary.whole.days,
         "baseline_entries": primary.whole.trades,
         "baseline_sharpe": round(primary.whole.sharpe, 4),
         "n_trials": 1,

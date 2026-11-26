@@ -96,7 +96,10 @@ def fetch_sec_form4(out_dir: Path, email: str) -> Path:
     ua = _sec_user_agent(email)
 
     total_rows = 0
-    with jsonl_path.open("w", encoding="utf-8") as out_fh:
+    # Written under a temporary name: a failed quarter must not leave a partial file that the
+    # runner would read as the whole history.
+    partial_path = jsonl_path.with_name(jsonl_path.name + ".partial")
+    with partial_path.open("w", encoding="utf-8") as out_fh:
         for year, q in _sec_quarters():
             zpath = zips_dir / f"{year}q{q}_form345.zip"
             if not zpath.exists() or zpath.stat().st_size < 1000:
@@ -138,6 +141,7 @@ def fetch_sec_form4(out_dir: Path, email: str) -> Path:
                 )
             total_rows += len(rows)
             print(f"[sec] {year}q{q}: {len(rows)} code-P common/ordinary rows (cum {total_rows})", flush=True)
+    partial_path.replace(jsonl_path)
     return jsonl_path
 
 
@@ -161,8 +165,8 @@ def _ssh_psql_jsonl(sql: str, what: str) -> list[dict[str, Any]]:
     return rows
 
 
-def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]:
-    # 1. flow_market_premium joined with complete sessions
+def export_market_premium(out_dir: Path) -> Path:
+    """flow_market_premium rows of complete sessions (read-only export)."""
     prem_sql = """
         SELECT
             p.session_date::text AS session_date,
@@ -182,8 +186,11 @@ def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]
         for r in prem_rows:
             fh.write(json.dumps(r, separators=(",", ":")) + "\n")
     print(f"[pg] exported {len(prem_rows)} flow_market_premium rows", flush=True)
+    return prem_path
 
-    # 2. 2026 Congress parsed purchases + filing ledger counts
+
+def export_congress_2026(out_dir: Path) -> dict[str, Any]:
+    """Parsed 2026 Congress purchases and the 2026 filing ledger (read-only export)."""
     cong_sql = """
         SELECT
             t.chamber AS chamber,
@@ -191,6 +198,7 @@ def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]
             t.member AS member,
             t.holder AS holder,
             t.ticker AS ticker,
+            t.asset_type AS asset_type,
             t.transaction_type AS transaction_type,
             t.transaction_date::text AS transaction_date,
             t.filed_on::text AS filed_on,
@@ -219,7 +227,7 @@ def export_quantvps_postgres(out_dir: Path) -> tuple[Path, Path, dict[str, Any]]
     """
     ledger_2026 = _ssh_psql_jsonl(ledger_sql, "2026 Congress filing ledger")
     print(f"[pg] exported {len(cong_2026)} 2026 Congress purchases; ledger groups={len(ledger_2026)}", flush=True)
-    return prem_path, cong_2026_path, {"ledger_2026": ledger_2026}
+    return {"ledger_2026": ledger_2026}
 
 
 def _month_windows(start_year: int, end_year: int) -> list[tuple[str, str]]:
@@ -310,6 +318,7 @@ def _fetch_chamber_history(
                     "member": t.get("member") or "",
                     "holder": t.get("holder"),
                     "ticker": str(t["ticker"]).upper(),
+                    "asset_type": t.get("assetType"),
                     "transaction_type": "purchase",
                     "transaction_date": t.get("transactionDate"),
                     "filed_on": t["filedOn"],
@@ -342,10 +351,14 @@ def fetch_congress_history(out_dir: Path, email: str, ledger_2026: list[dict[str
     for row in ledger_2026:
         ledger_counts[(row["chamber"], "2026", row["status"], row["reason"])] += int(row["cnt"])
 
-    all_purchases: list[dict[str, Any]] = []
+    # The 2026 rows and their ledger come from the QuantVPS export; without them the history
+    # would end in 2025 and still look complete.
     cong_2026_path = out_dir / "congress_2026.json"
-    if cong_2026_path.exists():
-        all_purchases.extend(json.loads(cong_2026_path.read_text(encoding="utf-8")))
+    if not cong_2026_path.exists() or not ledger_2026:
+        raise RuntimeError("the 2026 Congress export is missing; run --only postgres-congress first")
+    all_purchases: list[dict[str, Any]] = json.loads(cong_2026_path.read_text(encoding="utf-8"))
+    if not all_purchases:
+        raise RuntimeError(f"{cong_2026_path} holds no purchase rows; run --only postgres-congress again")
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_house = pool.submit(_fetch_chamber_history, "congress-house", "house", windows, chunks_dir, env)
@@ -664,7 +677,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--only",
-        choices=["all", "sec", "postgres", "congress", "bars", "premium-bars", "event-bars"],
+        choices=["all", "sec", "postgres", "postgres-congress", "congress", "bars", "premium-bars", "event-bars"],
         default="all",
     )
     args = parser.parse_args()
@@ -677,8 +690,9 @@ def main() -> int:
     if args.only in ("all", "sec"):
         fetch_sec_form4(args.out_dir, email)
     if args.only in ("all", "postgres"):
-        _, _, pg_meta = export_quantvps_postgres(args.out_dir)
-        meta.update(pg_meta)
+        export_market_premium(args.out_dir)
+    if args.only in ("all", "postgres", "postgres-congress"):
+        meta.update(export_congress_2026(args.out_dir))
         meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     if args.only in ("all", "congress"):
         _, cong_meta = fetch_congress_history(args.out_dir, email, meta.get("ledger_2026", []))

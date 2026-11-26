@@ -5,6 +5,7 @@ Synthetic fixtures only (public repository). Pure stdlib + services/research mod
 from __future__ import annotations
 
 import csv
+import functools
 import hashlib
 import importlib.util
 import inspect
@@ -14,6 +15,7 @@ import math
 import runpy
 import statistics
 import sys
+import threading
 import zipfile
 from ast import Import, ImportFrom, parse, walk
 from datetime import UTC, date, datetime, timedelta
@@ -46,8 +48,12 @@ from strategies.smart_money import document as document_module
 from strategies.smart_money import engine as engine_module
 from strategies.smart_money.__main__ import (
     POST_HOC_CHECK,
-    POST_HOC_GAP,
+    POST_HOC_GAP_NAME,
+    POST_HOC_GAP_NOT_RUN,
+    POST_HOC_GAP_RUN,
+    POST_HOC_VARIANT,
     GatedStudy,
+    PostHocRun,
     RunContext,
     StudyWindow,
     _add_years,
@@ -55,6 +61,7 @@ from strategies.smart_money.__main__ import (
     _gate_robustness_rows,
     _hash_files,
     _post_hoc_full_universe,
+    _require_events_through,
     _sensitivity_rows,
     _spy_benchmark_stats,
     _universe_note,
@@ -90,6 +97,7 @@ from strategies.smart_money.signals import (
     _parse_sec_date,
     _to_alert_bars,
     count_owner_groups,
+    is_option_asset,
 )
 from strategies.trend_trio.study import moments
 
@@ -305,7 +313,7 @@ def test_congress_normalization_and_first_filing_null_safe_dedupe() -> None:
         CongressPurchase("house", "20010002", "Hon. Alice Roe", None, "MSFT", "purchase", None, date(2024, 6, 5), 1001, 15000),
     ]
     deduped, counts = dedupe_congress_purchases(rows)
-    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 1}
+    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 1, "option_rows_dropped": 0}
     assert len(deduped) == 4
     nvda_self = [r for r in deduped if r.ticker == "NVDA" and r.holder == "self"]
     assert len(nvda_self) == 1
@@ -438,7 +446,7 @@ def test_end_to_end_cli_emits_three_strict_study_documents(tmp_path: Path) -> No
         }
         for i in range(3)
     ]
-    (data_dir / "form4_purchases.jsonl").write_text("\n".join(json.dumps(r) for r in form4) + "\n", encoding="utf-8")
+    (data_dir / "form4_purchases.jsonl").write_text("\n".join(json.dumps(r) for r in [*form4, _IDLE_FORM4_ROW]) + "\n", encoding="utf-8")
 
     congress = [
         {
@@ -455,7 +463,7 @@ def test_end_to_end_cli_emits_three_strict_study_documents(tmp_path: Path) -> No
             "amends": False,
         }
     ]
-    (data_dir / "congress_trades.jsonl").write_text("\n".join(json.dumps(r) for r in congress) + "\n", encoding="utf-8")
+    (data_dir / "congress_trades.jsonl").write_text("\n".join(json.dumps(r) for r in [*congress, _IDLE_CONGRESS_ROW]) + "\n", encoding="utf-8")
 
     premium = [
         {
@@ -638,10 +646,11 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 # One row per event file that loads but makes no event: a lone purchase in a ticker without bars,
-# a sale, and a complete session whose only row is below the premium floor.
+# a sale, and a complete session whose only row is below the premium floor. The Form 4 row and the
+# Congress row are dated at the end of their study windows, so the files count as complete.
 _IDLE_FORM4_ROW: dict[str, Any] = {
     "accession_number": "idle-1",
-    "filing_date": "2020-01-02",
+    "filing_date": "2026-03-30",
     "issuer_cik": "999",
     "ticker": "IDLE",
     "owner_group_key": "idle",
@@ -655,7 +664,7 @@ _IDLE_CONGRESS_ROW: dict[str, Any] = {
     "member": "Member Idle",
     "ticker": "IDLE",
     "transaction_type": "sale",
-    "filed_on": "2020-01-02",
+    "filed_on": "2026-11-20",
 }
 _IDLE_PREMIUM_ROW: dict[str, Any] = {
     "session_date": "2020-01-02",
@@ -686,9 +695,10 @@ def _write_event_files(
     congress: list[dict[str, Any]] | None = None,
     premium: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Write the three collector event files; a file that is not given holds its idle row."""
-    _write_jsonl(data_dir / "form4_purchases.jsonl", form4 if form4 is not None else [_IDLE_FORM4_ROW])
-    _write_jsonl(data_dir / "congress_trades.jsonl", congress if congress is not None else [_IDLE_CONGRESS_ROW])
+    """Write the three collector event files. The Form 4 and Congress files always end with their
+    idle row; the premium file holds its idle row when no rows are given."""
+    _write_jsonl(data_dir / "form4_purchases.jsonl", [*(form4 or []), _IDLE_FORM4_ROW])
+    _write_jsonl(data_dir / "congress_trades.jsonl", [*(congress or []), _IDLE_CONGRESS_ROW])
     _write_jsonl(data_dir / "market_premium.jsonl", premium if premium is not None else [_IDLE_PREMIUM_ROW])
 
 
@@ -973,6 +983,18 @@ def test_count_owner_groups_merges_cik_sets_that_share_a_member() -> None:
     assert count_owner_groups(["100|200", "300|400", "500", "200|300"]) == 2
     assert count_owner_groups(iter(["100|200|300", "400"])) == 2
 
+    # A key that repeats after its members were joined through another key must not loop:
+    # the union always links group roots. The call runs in a thread so that a loop fails the test.
+    counted: list[int] = []
+    worker = threading.Thread(
+        target=lambda: counted.append(count_owner_groups(["100|200", "200|300", "200|300", "300|100", "400"])),
+        daemon=True,
+    )
+    worker.start()
+    worker.join(timeout=10)
+    assert not worker.is_alive(), "count_owner_groups did not return"
+    assert counted == [2]
+
 
 def test_insider_cluster_window_is_ten_days_and_cooldown_is_fourteen_days() -> None:
     d0 = date(2024, 3, 1)
@@ -1251,7 +1273,7 @@ def test_congress_dedupe_keeps_the_first_filing_and_drops_non_purchases() -> Non
         CongressPurchase("house", "e0", "Member Gamma", "self", "ZETA", "purchase", tx_day, date(2024, 3, 15), 50001, 100000),
     ]
     deduped, counts = dedupe_congress_purchases(rows)
-    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 5}
+    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 5, "option_rows_dropped": 0}
     assert [(r.doc_id, r.chamber, r.ticker, r.filed_on, r.amount_low, r.amends) for r in deduped] == [
         ("d3", "house", "ACME", date(2024, 3, 10), 1001, False),
         ("d6", "senate", "ACME", date(2024, 3, 12), 15001, False),
@@ -1285,7 +1307,7 @@ def test_congress_lots_of_one_filing_are_summed_and_later_filings_do_not_add() -
         CongressPurchase("house", "U2", "Rep. Member Alpha", "self", "UNDT", "purchase", None, filed, 1_001, 15_000),
     ]
     deduped, counts = dedupe_congress_purchases(rows)
-    assert counts == {"same_filing_lots_merged": 5, "later_filings_dropped": 1}
+    assert counts == {"same_filing_lots_merged": 5, "later_filings_dropped": 1, "option_rows_dropped": 0}
     assert [(r.doc_id, r.ticker, r.amount_low, r.amount_high, r.filed_on) for r in deduped] == [
         ("L1", "ACME", 50_001.0, 99_999.0, filed),
         ("X1", "MIXD", 1_001.0, 15_000.0, filed),
@@ -1295,7 +1317,7 @@ def test_congress_lots_of_one_filing_are_summed_and_later_filings_do_not_add() -
     ]
 
     variants, diag = build_signal2_variants(rows)
-    assert diag == {"raw_rows": 11, "deduped_purchases": 5, "same_filing_lots_merged": 5, "later_filings_dropped": 1}
+    assert diag == {"raw_rows": 11, "deduped_purchases": 5, "same_filing_lots_merged": 5, "later_filings_dropped": 1, "option_rows_dropped": 0}
     # The summed lower bound reaches the $50,001 floor that neither lot reaches alone.
     assert variants["large-50k"] == [SignalEvent("ACME", filed, 50_001.0)]
     assert variants["all-buys"] == [
@@ -1320,7 +1342,7 @@ def test_congress_variants_apply_amount_floors_delay_window_and_multi_member_coo
         CongressPurchase("senate", "s2", "Sen. Member Beta", "self", "OMEGA", "purchase", date(2024, 4, 10), date(2024, 4, 1), 1001, 15000),
     ]
     variants, diag = build_signal2_variants(rows)
-    assert diag == {"raw_rows": 7, "deduped_purchases": 7, "same_filing_lots_merged": 0, "later_filings_dropped": 0}
+    assert diag == {"raw_rows": 7, "deduped_purchases": 7, "same_filing_lots_merged": 0, "later_filings_dropped": 0, "option_rows_dropped": 0}
 
     assert variants["multi-member-30d"] == [
         # Second member files 4 days after the first one.
@@ -1345,6 +1367,75 @@ def test_congress_variants_apply_amount_floors_delay_window_and_multi_member_coo
         SignalEvent("ACME", date(2024, 3, 10), 50001.0),
         SignalEvent("ACME", date(2024, 3, 25), 0.0),
     ]
+
+
+def test_congress_option_rows_are_dropped_before_lots_and_filings_are_compared() -> None:
+    assert [is_option_asset(code) for code in ("OP", " op ", "Stock Option", "Call options", "OPTION")] == [True] * 5
+    assert [is_option_asset(code) for code in ("ST", "Stock", "OT", "Corporate Bond", "", None)] == [False] * 6
+
+    tx_day, filed = date(2024, 3, 1), date(2024, 3, 10)
+
+    def row(doc_id: str, ticker: str, asset_type: str | None, low: float, *, filed_on: date = filed) -> CongressPurchase:
+        return CongressPurchase("house", doc_id, "Rep. Member Alpha", "self", ticker, "purchase", tx_day, filed_on, low, None, False, asset_type)
+
+    rows = [
+        # A stock lot and an option lot of the same trade in one filing: the option lot is not added.
+        row("d1", "ACME", "ST", 1_001),
+        row("d1", "ACME", "OP", 50_001),
+        # An option row in an earlier filing does not take the place of the stock purchase.
+        row("d0", "ACME", "Stock Option", 15_001, filed_on=date(2024, 3, 5)),
+        # A ticker that has only option rows makes no event at all.
+        row("d2", "PUTS", "OP", 100_001),
+        # No asset type (older exports) is a stock purchase.
+        row("d3", "ZETA", None, 15_001),
+        # An option row that is not a purchase, or has no usable ticker, is not counted as dropped option.
+        CongressPurchase("house", "d4", "Rep. Member Alpha", "self", "ACME", "sale", tx_day, filed, 1_001, None, False, "OP"),
+    ]
+    deduped, counts = dedupe_congress_purchases(rows)
+    assert counts == {"same_filing_lots_merged": 0, "later_filings_dropped": 0, "option_rows_dropped": 3}
+    assert [(r.doc_id, r.ticker, r.amount_low, r.filed_on, r.asset_type) for r in deduped] == [
+        ("d1", "ACME", 1_001, filed, "ST"),
+        ("d3", "ZETA", 15_001, filed, None),
+    ]
+    variants, diag = build_signal2_variants(rows)
+    assert diag == {"raw_rows": 6, "deduped_purchases": 2, "same_filing_lots_merged": 0, "later_filings_dropped": 0, "option_rows_dropped": 3}
+    assert variants["all-buys"] == [SignalEvent("ZETA", filed, 15_001.0), SignalEvent("ACME", filed, 1_001.0)]
+    assert variants["large-50k"] == []
+
+
+def test_event_files_must_reach_the_end_of_the_study_window(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    end = date(2026, 3, 31)
+    # Up to 14 days before the window end is complete; later than the window end too.
+    assert _require_events_through(end - timedelta(days=14), end, path) is None
+    assert _require_events_through(end, end, path) is None
+    assert _require_events_through(end + timedelta(days=40), end, path) is None
+    with pytest.raises(ValueError) as raised:
+        _require_events_through(end - timedelta(days=15), end, path)
+    assert str(raised.value) == (
+        f"{path} ends on 2026-03-16, more than 14 days before the window end 2026-03-31; "
+        "run scripts/smart-money-pr7/fetch_data.py again"
+    )
+
+    # The runner checks the newest Form 4 filing against 2026-03-31 and the newest Congress
+    # filing against 2026-11-23, whatever the order of the rows.
+    data_dir = tmp_path / "data"
+    (data_dir / "bars").mkdir(parents=True)
+    days = _make_trading_days(date(2024, 1, 2), 60)
+    _write_bars_csv(data_dir / "bars" / "SPY.csv", _make_bars(days, start_price=200.0, volume=50_000_000.0))
+
+    def run(form4_newest: str, congress_newest: str) -> dict[str, Any]:
+        _write_event_files(data_dir)
+        _write_jsonl(data_dir / "form4_purchases.jsonl", [{**_IDLE_FORM4_ROW, "filing_date": form4_newest}, {**_IDLE_FORM4_ROW, "filing_date": "2020-01-02"}])
+        _write_jsonl(data_dir / "congress_trades.jsonl", [{**_IDLE_CONGRESS_ROW, "filed_on": congress_newest}, {**_IDLE_CONGRESS_ROW, "filed_on": "2020-01-02"}])
+        return run_all_studies(data_dir=data_dir, out_dir=tmp_path / "out", ran=date(2026, 11, 25), commit="0123abc")
+
+    with pytest.raises(ValueError, match="form4_purchases.jsonl ends on 2026-03-16, more than 14 days before the window end 2026-03-31"):
+        run("2026-03-16", "2026-11-09")
+    with pytest.raises(ValueError, match="congress_trades.jsonl ends on 2026-11-08, more than 14 days before the window end 2026-11-23"):
+        run("2026-03-17", "2026-11-08")
+    assert not (tmp_path / "out").exists()
+    assert sorted(run("2026-03-17", "2026-11-09")["summaries"]) == sorted(STUDY_IDS)
 
 
 def test_congress_variant_boundaries_are_inclusive() -> None:
@@ -1433,6 +1524,11 @@ def test_signal3_ranks_by_net_premium_and_keeps_the_inclusive_floors() -> None:
     with_bars = ("HEDGED", "CLEAN", "TAIL", "FLOOR", "SHARE", "BELOW", "UNDER", "TWO", *fillers)
     bars = {sym: _make_bars(days, start_price=100.0, volume=500_000.0) for sym in with_bars}
     bars["EMPTY"] = []  # a ticker that is listed but has no bar is a ticker without bars
+    # FRESH and NEWER are new listings. FRESH has its first bar on the session day: it has bars, and
+    # one bar is too few for the liquidity test. NEWER has its first bar one session later: on the
+    # session day it is a ticker without bars, so it keeps its rank (the last one here).
+    bars["FRESH"] = _make_bars(days[26:], start_price=100.0, volume=500_000.0)
+    bars["NEWER"] = _make_bars(days[27:], start_price=100.0, volume=500_000.0)
     rows = [
         # Net premium: INDEX 2.4M (no bars), CLEAN 2.0M, HEDGED 1.8M, F9..F1 1.09M..1.01M, TAIL 0.9M.
         # Bullish premium alone would put HEDGED first and TAIL fourth.
@@ -1449,6 +1545,8 @@ def test_signal3_ranks_by_net_premium_and_keeps_the_inclusive_floors() -> None:
         MarketPremiumRow(next_day, "UNDER", 499_999.99, 0.0, 3),
         MarketPremiumRow(next_day, "TWO", 500_000.0, 0.0, 2),
         MarketPremiumRow(next_day, "EMPTY", 600_000.0, 0.0, 3),
+        MarketPremiumRow(next_day, "FRESH", 5_000_000.0, 0.0, 9),
+        MarketPremiumRow(next_day, "NEWER", 300_000.0 + 200_000.0, 150_000.0, 9),
     ]
     events, diag = build_signal3_events(rows, bars)
     assert events == [
@@ -1459,18 +1557,19 @@ def test_signal3_ranks_by_net_premium_and_keeps_the_inclusive_floors() -> None:
         SignalEvent("EMPTY", next_day, 600_000.0),
         SignalEvent("FLOOR", next_day, 500_000.0),
         SignalEvent("SHARE", next_day, 400_000.0),
+        SignalEvent("NEWER", next_day, 350_000.0),
     ]
     # The ticker without bars takes one of the ten places: F2, F1 and TAIL are cut.
     assert len([e for e in events if e.trigger_day == sday]) == 10
-    # INDEX and EMPTY count in both "without bars" counters.
+    # INDEX, EMPTY and NEWER count in both "without bars" counters; FRESH fails the liquidity test.
     assert diag == {
         "complete_sessions": 2,
         "non_complete_rows_skipped": 0,
-        "qualifying_ticker_sessions": 16,
-        "premium_rows_without_bars": 2,
-        "top10_events_without_bars": 2,
-        "premium_rows_illiquid": 0,
-        "selected_top10_events": 13,
+        "qualifying_ticker_sessions": 17,
+        "premium_rows_without_bars": 3,
+        "top10_events_without_bars": 3,
+        "premium_rows_illiquid": 1,
+        "selected_top10_events": 14,
     }
 
 
@@ -2597,6 +2696,7 @@ def test_jsonl_loaders_skip_blank_lines_and_default_optional_fields(tmp_path: Pa
                 "amount_low": 0,
                 "amount_high": 15000,
                 "amends": True,
+                "asset_type": "OP",
             },
             {
                 "chamber": "senate",
@@ -2606,12 +2706,13 @@ def test_jsonl_loaders_skip_blank_lines_and_default_optional_fields(tmp_path: Pa
                 "ticker": "ZETA",
                 "transaction_type": "purchase",
                 "filed_on": "2024-03-12",
+                "asset_type": "",
             },
         ],
     )
     assert load_congress_jsonl(congress_path) == [
-        CongressPurchase("house", "20010001", "Hon. Member Alpha", "spouse", "ACME", "purchase", date(2024, 3, 1), date(2024, 3, 10), 0.0, 15000.0, True),
-        CongressPurchase("senate", "uuid-1", "Sen. Member Beta", None, "ZETA", "purchase", None, date(2024, 3, 12), None, None, False),
+        CongressPurchase("house", "20010001", "Hon. Member Alpha", "spouse", "ACME", "purchase", date(2024, 3, 1), date(2024, 3, 10), 0.0, 15000.0, True, "OP"),
+        CongressPurchase("senate", "uuid-1", "Sen. Member Beta", None, "ZETA", "purchase", None, date(2024, 3, 12), None, None, False, None),
     ]
 
     premium_path = write_lines(
@@ -2810,6 +2911,8 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
     # DUP is in both bar directories: liquid in bars/, thin in bars_premium/. The main bars win.
     _write_bars_csv(bars_dir / "DUP.csv", _make_bars(days, start_price=50.0, volume=2_000_000.0))
     _write_bars_csv(premium_bars_dir / "DUP.csv", _make_bars(days, start_price=50.0, volume=10.0))
+    # LATE has its first bar on days[67], one session after its premium row.
+    _write_bars_csv(bars_dir / "LATE.csv", _make_bars(days[67:], start_price=50.0, volume=2_000_000.0))
     # EXTRA has bars only in bars_premium/ (a premium ticker outside the 600-ticker cap).
     _write_bars_csv(premium_bars_dir / "EXTRA.csv", _make_bars(days, start_price=50.0, volume=2_000_000.0))
     meta = {"universe_requested": 600, "bars_not_found": ["GONE1", "GONE2"], "congress_ledger": _SYNTHETIC_LEDGER}
@@ -2865,6 +2968,8 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
         congress("doc-3", days[75], days[80]),
         # Filed on the last benchmark session: no entry day.
         congress("doc-2", days[110], days[-1]),
+        # An option purchase (House code OP) is not a stock purchase: dropped before everything else.
+        congress("doc-5", days[40], days[44], asset_type="OP"),
     ]
 
     def premium(session: date, ticker: str, bullish: float = 800_000, **extra: Any) -> dict[str, Any]:
@@ -2879,6 +2984,9 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
         premium(days[62], "HALT"),
         premium(days[64], "DUP"),
         premium(days[66], "EXTRA"),
+        premium(days[66], "LATE"),
+        # A complete session of the source on a Saturday (no trading session): its entry day is days[65].
+        premium(date(2025, 8, 30), "ACME"),
         premium(days[75], "ACME", session_status="partial"),
     ]
     _write_event_files(data_dir, form4=form4_rows, congress=congress_rows, premium=premium_rows)
@@ -2937,10 +3045,10 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
     for call in simulate_calls[15:29]:
         assert (call["start_day"], call["end_day"], call["oos_start"]) == (s2_window.start, s2_window.end, s2_window.oos_start)
     premium_run = simulate_calls[29]
-    assert premium_run["config"] == PortfolioConfig(holding_days=20, cost_bps=10.0, require_liquidity=False)
+    assert premium_run["config"] == PortfolioConfig(holding_days=20, cost_bps=10.0, require_liquidity=True)
     assert (premium_run["start_day"], premium_run["end_day"], premium_run["oos_start"]) == (days[60], days[69], None)
-    assert len(premium_run["events"]) == 15
-    assert sorted(premium_run["bars_by_symbol"]) == ["ACME", "DUP", "EXTRA", "HALT", "SPY", "THIN"]
+    assert len(premium_run["events"]) == 17
+    assert sorted(premium_run["bars_by_symbol"]) == ["ACME", "DUP", "EXTRA", "HALT", "LATE", "SPY", "THIN"]
     assert premium_run["bars_by_symbol"]["DUP"][0].volume == 2_000_000.0
 
     # ---- study 1 ---------------------------------------------------------------------------------
@@ -2973,13 +3081,13 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
         "The out-of-sample event count therefore also reflects the 600-ticker cap."
     )
     assert gap(s1, "Form 4 rows outside the bar universe") == (
-        "12 of 15 code-P Form 4 rows are in tickers without bars and 0 were filed before the first bar of their "
+        "13 of 16 code-P Form 4 rows are in tickers without bars and 0 were filed before the first bar of their "
         "ticker; 0 exits were truncated."
     )
     assert gap(s1, "SEC decimal typos / ticker reuse").startswith("Rejected 0 Form 4 rows whose reported price fell outside [0.25x, 4.0x]")
     assert gap(s1, "Share-volume floor of the confirmation baseline").startswith("The template's 1,000,000-share average-volume floor")
     assert docs[s1]["notes"] == (
-        "Raw code-P Form 4 purchases loaded: 15; cleaned: 3. "
+        "Raw code-P Form 4 purchases loaded: 16; cleaned: 3. "
         "Primary trial (cluster-3p-10d, H=20): whole trades=1, OOS trades=1. "
         "Confirmation baseline (H=20): whole trades=0, OOS trades=0."
     )
@@ -3007,9 +3115,10 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
     )
     # The purchase filed on the last session is outside the window, not a missing bar.
     assert robustness(s2, "Deduplication & Capacity Skips")["result"] == (
-        "trades=3 (merged 1 same-filing lots, dropped 1 later filings); "
+        "trades=3 (dropped 1 option rows, merged 1 same-filing lots, dropped 1 later filings); "
         "overlap=0, capacity=0, illiquid=0, missing_bars=0, outside_window=1"
     )
+    assert gap(s2, "Option rows excluded").startswith("1 purchase rows report an option (House OP, Senate Stock Option)")
     for name, text in _SYNTHETIC_LEDGER_ROWS:
         assert gap(s2, name) == text
     assert "Unparsed PTRs excluded" not in [g["gap"] for g in docs[s2]["gaps"]]
@@ -3017,12 +3126,12 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
         "0 primary events had no bar on the entry day (ticker outside the bar universe or not trading); "
         "0 exits were truncated."
     )
-    universe_note = _universe_note(meta, dict.fromkeys(("SPY", "ACME", "THIN", "HALT", "DUP"), ()))
-    assert "5 of the 600 pre-registered tickers" in universe_note
+    universe_note = _universe_note(meta, dict.fromkeys(("SPY", "ACME", "THIN", "HALT", "DUP", "LATE"), ()))
+    assert "6 of the 600 pre-registered tickers" in universe_note
     assert gap(s1, "Universe cap & survivorship") == universe_note
     assert gap(s2, "Universe cap & survivorship") == universe_note
     assert docs[s2]["notes"] == (
-        "Raw Congress purchase rows: 5; trades after merging lots and dropping later filings: 3. "
+        "Raw Congress purchase rows: 7; trades after dropping option rows, merging lots and dropping later filings: 3. "
         "Primary trial (all-buys, H=20): whole trades=2, OOS trades=2."
     )
 
@@ -3033,53 +3142,56 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
         assert robustness(study_id, POST_HOC_CHECK) == not_run
         assert docs[study_id]["robustness"][-1] == not_run
         assert summaries[study_id]["post_hoc_full_universe"] is None
-        assert gap(study_id, "Post-hoc full-universe check") == POST_HOC_GAP[1]
+        assert gap(study_id, "Post-hoc full-universe check") == POST_HOC_GAP_NOT_RUN
     assert "post_hoc_full_universe" not in summaries[s3]
     assert POST_HOC_CHECK not in [r["check"] for r in docs[s3]["robustness"]]
     assert "Post-hoc full-universe check" not in [g["gap"] for g in docs[s3]["gaps"]]
 
     # ---- study 3 ---------------------------------------------------------------------------------
-    # 15 top-10 events: 10 ACME, 2 NOBAR, HALT, DUP and EXTRA. THIN fails the liquidity test.
-    # ACME enters after the first session and is held to the window end: 8 overlaps, and the event
-    # of the last session has its entry day after the window. NOBAR (twice) and HALT have no bar on
-    # the entry day. DUP and EXTRA enter.
+    # 17 top-10 events: 11 ACME (one of a Saturday session), 2 NOBAR, HALT, DUP, EXTRA and LATE.
+    # THIN fails the liquidity test. ACME enters after the first session and is held to the window
+    # end: 9 overlaps, and the event of the last session has its entry day after the window. NOBAR
+    # (twice) and HALT have no bar on the entry day. LATE has a bar on the entry day but none before
+    # it, so its liquidity is unknown and it is skipped. DUP and EXTRA enter.
     assert summaries[s3]["verdict"] == docs[s3]["verdict"] == "needs-more-data"
     assert summaries[s3]["reason"].startswith(
-        "Insufficient history: 10 complete QuantData sessions (2025-08-25 to 2025-09-05, ~0.4 months < 24-month "
-        "holdout required). Rule top10-500k (H=20) is frozen at N = 1 with zero parameter sweep; full evaluation "
-        "unlocks on 2027-08-25. Descriptive baseline over observed window: 3 entries, excess Sharpe "
+        "Insufficient history: 10 trading sessions (11 complete QuantData sessions in the source, 2025-08-25 to "
+        "2025-09-05, ~0.4 months < 24-month holdout of 490 sessions). Rule top10-500k (H=20) is frozen at N = 1 with "
+        "zero parameter sweep; full evaluation unlocks on 2027-08-25. Descriptive baseline over observed window: "
+        "3 entries, excess Sharpe "
     )
-    assert (summaries[s3]["complete_sessions"], summaries[s3]["baseline_entries"], summaries[s3]["n_trials"]) == (10, 3, 1)
+    assert (summaries[s3]["complete_sessions"], summaries[s3]["trading_sessions"]) == (11, 10)
+    assert (summaries[s3]["baseline_entries"], summaries[s3]["n_trials"]) == (3, 1)
     assert robustness(s3, "24-Month OOS History Requirement (>= 490 sessions)") == {
         "check": "24-Month OOS History Requirement (>= 490 sessions)",
         "pass": False,
-        "result": "10 complete sessions (2025-08-25..2025-09-05); unlocks 2027-08-25.",
+        "result": "10 trading sessions (11 complete sessions in the source, 2025-08-25..2025-09-05); unlocks 2027-08-25.",
     }
     assert robustness(s3, "Forward Event Collection Baseline")["result"] == (
-        "qualifying_ticker_sessions=15, top10_events=15, entries=3"
+        "qualifying_ticker_sessions=17, top10_events=17, entries=3"
     )
     assert robustness(s3, "Slot Overlap, Capacity & Missing-Bar Skips") == {
         "check": "Slot Overlap, Capacity & Missing-Bar Skips",
         "pass": None,
         "result": (
-            "events: overlap=8, capacity=0, missing_bars=3, outside_window=1; "
-            "ticker-sessions before ranking: without_bars=2, illiquid=1"
+            "events: overlap=9, capacity=0, missing_bars=3, no_bar_before_entry=1, outside_window=1; "
+            "ticker-sessions before ranking: without_bars=3, illiquid=1"
         ),
     }
     assert gap(s3, "Top-10 tickers without bars") == (
-        "2 of 15 top-10 events are in tickers without daily bars (index options and tickers Yahoo Finance has no "
-        "history for). They keep their rank and count as missing-bar events."
+        "3 of 17 top-10 events are in tickers without a daily bar on or before the session (index options and "
+        "tickers Yahoo Finance has no history for). They keep their rank and are not traded."
     )
     assert gap(s3, "Slot capacity") == (
-        "The 10 slots stay full for 20 sessions, so 0 of 15 top-10 events were skipped for capacity and 8 because "
+        "The 10 slots stay full for 20 sessions, so 0 of 17 top-10 events were skipped for capacity and 9 because "
         "the ticker was already held."
     )
     assert gap(s3, "History below 2-year holdout") == (
-        "QuantData exposes ~1 year of history (2025-08-25..2025-09-05, 10 complete sessions). "
-        "Verdict stays needs-more-data until 2027-08-25."
+        "QuantData exposes ~1 year of history (2025-08-25..2025-09-05: 10 trading sessions; the source marks 11 "
+        "sessions complete, exchange holidays with index rows included). Verdict stays needs-more-data until 2027-08-25."
     )
     assert docs[s3]["notes"] == (
-        "Complete sessions: 10 (2025-08-25..2025-09-05). "
+        "Trading sessions: 10; complete sessions in the source: 11 (2025-08-25..2025-09-05). "
         "Rule frozen at N = 1 (top10-500k, H=20); full evaluation unlocks 2027-08-25."
     )
     (s3_run,) = docs[s3]["forms"][0]["runs"]
@@ -3090,7 +3202,7 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
     # ---- data hashes: the event file of the study and every bar file it reads ----------------------
     main_bar_paths = sorted(bars_dir.glob("*.csv"))
     premium_bar_paths = sorted(premium_bars_dir.glob("*.csv"))
-    assert len(main_bar_paths) == 5 and len(premium_bar_paths) == 2
+    assert len(main_bar_paths) == 6 and len(premium_bar_paths) == 2
     assert docs[s1]["provenance"]["dataHash"] == _hash_files([data_dir / "form4_purchases.jsonl", *main_bar_paths])
     assert docs[s2]["provenance"]["dataHash"] == _hash_files([data_dir / "congress_trades.jsonl", *main_bar_paths])
     assert docs[s3]["provenance"]["dataHash"] == _hash_files(
@@ -3105,7 +3217,7 @@ def test_study_documents_report_window_skips_ledger_gaps_and_premium_bar_diagnos
     gaps = {g["gap"]: g["choice"] for g in again[s2]["gaps"]}
     assert gaps[_LEDGER_FALLBACK_ROW[0]] == _LEDGER_FALLBACK_ROW[1]
     assert not any(name in gaps for name, _text in _SYNTHETIC_LEDGER_ROWS)
-    assert gaps["Universe cap & survivorship"] == "Daily bars cover 5 tickers (SPY included)."
+    assert gaps["Universe cap & survivorship"] == "Daily bars cover 6 tickers (SPY included)."
     # The data hash of a study covers its event file and the bars it reads: only study 3 reads bars_premium/.
     hashes = {study_id: (docs[study_id]["provenance"]["dataHash"], again[study_id]["provenance"]["dataHash"]) for study_id in STUDY_IDS}
     assert all(old.startswith("sha256:") and len(old) == len("sha256:") + 24 for old, _new in hashes.values())
@@ -3125,30 +3237,38 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
     s1_oos, s2_oos = 64, 234  # first out-of-sample session of study 1 and of study 2
     assert (days[s1_oos], days[s2_oos]) == (date(2024, 4, 1), date(2024, 11, 25))
     acme_rate, zzzz_rate = 0.0005, 0.001
-    acme, zzzz = _growing_bars(days, acme_rate), _growing_bars(days, zzzz_rate)
+    acme, zzzz = _growing_bars(days, acme_rate, volume=2_000_000.0), _growing_bars(days, zzzz_rate)
     spy = _flat_bars(days, price=400.0, volume=50_000_000.0)
     # The capped universe holds SPY and ACME. ZZZZ has events too, but its bars are outside the cap.
     _write_bars_csv(bars_dir / "SPY.csv", spy)
     _write_bars_csv(bars_dir / "ACME.csv", acme)
 
+    def form4(accession: str, filing: date, ticker: str, issuer: str, owner: str, price: float, shares: float = 10, role: str = "Ten percent owner") -> dict[str, Any]:
+        return {
+            "accession_number": accession,
+            "filing_date": filing.isoformat(),
+            "issuer_cik": issuer,
+            "ticker": ticker,
+            "owner_group_key": owner,
+            "role_text": role,
+            "security": "common",
+            "shares": shares,
+            "price": price,
+        }
+
     def cluster(ticker: str, issuer: str, first: int, bars: list[DailyBar]) -> list[dict[str, Any]]:
         """Three owners file on three sessions in a row; the cluster triggers on the third one."""
         return [
-            {
-                "accession_number": f"{ticker}-{first}-{i}",
-                "filing_date": days[first + i].isoformat(),
-                "issuer_cik": issuer,
-                "ticker": ticker,
-                "owner_group_key": f"{ticker}-owner-{i}",
-                "role_text": "Ten percent owner",
-                "security": "common",
-                "shares": 10,
-                "price": bars[first + i].close,
-            }
+            form4(f"{ticker}-{first}-{i}", days[first + i], ticker, issuer, f"{ticker}-owner-{i}", bars[first + i].close)
             for i in range(3)
         ]
 
-    def purchase(doc_id: str, ticker: str, filed: int) -> dict[str, Any]:
+    def director_buy(accession: str, filed: int) -> dict[str, Any]:
+        """A $150,000 purchase by a director: it counts for the confirmation baseline only."""
+        price = acme[filed].close
+        return form4(accession, days[filed], "ACME", "1", accession, price, shares=150_000 / price, role="Director")
+
+    def purchase(doc_id: str, ticker: str, filed: int, low: float = 1001) -> dict[str, Any]:
         return {
             "chamber": "house",
             "doc_id": doc_id,
@@ -3158,49 +3278,88 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
             "transaction_type": "purchase",
             "transaction_date": (days[filed] - timedelta(days=20)).isoformat(),
             "filed_on": days[filed].isoformat(),
-            "amount_low": 1001,
-            "amount_high": 15000,
+            "amount_low": low,
+            "amount_high": None,
         }
 
     _write_event_files(
         data_dir,
-        # Cluster triggers: ACME on days[22] and days[102], ZZZZ on days[32] and days[152].
-        form4=[*cluster("ACME", "1", 20, acme), *cluster("ACME", "1", 100, acme), *cluster("ZZZZ", "2", 30, zzzz), *cluster("ZZZZ", "2", 150, zzzz)],
-        congress=[purchase("a1", "ACME", 50), purchase("a2", "ACME", 240), purchase("z1", "ZZZZ", 60), purchase("z2", "ZZZZ", 250)],
+        form4=[
+            # Cluster triggers: ACME on days[22] and on days[64] (the first out-of-sample day),
+            # ZZZZ on days[32] and days[152].
+            *cluster("ACME", "1", 20, acme),
+            *cluster("ACME", "1", 62, acme),
+            *cluster("ZZZZ", "2", 30, zzzz),
+            *cluster("ZZZZ", "2", 150, zzzz),
+            # A cluster in ACME after the study window (it ends on 2026-03-31).
+            *[form4(f"late-{i}", date(2026, 4, 6 + i), "ACME", "1", f"late-owner-{i}", acme[-1].close) for i in range(3)],
+            # Confirmation-baseline alerts one session after each filing: days[53] and days[201].
+            director_buy("director-1", 52),
+            director_buy("director-2", 200),
+        ],
+        congress=[
+            purchase("a1", "ACME", 50),
+            purchase("a2", "ACME", 150, low=50_001),
+            purchase("a3", "ACME", 240),
+            purchase("z1", "ZZZZ", 60),
+            purchase("z2", "ZZZZ", 250),
+        ],
     )
     # Entry sessions (the session after the trigger) and daily rates, per counted variant of each study.
-    # The rising price confirms the second ACME cluster one session later; the first one has no
-    # 50-day average inside its 30 days. The clusters are worth about $3,000.
+    # Study 1: confirmation baseline, cluster, $100k cluster (none: the clusters are worth about $3,000),
+    # confirmed cluster (the rising price confirms the second cluster one session later; the first one
+    # has no 50-day average inside its 30 days). Study 2: all buys, large buys, fast filings, multi-member.
     s1_id, s2_id, s3_id = STUDY_IDS
     capped_trades = {
-        s1_id: [[], [(23, acme_rate), (103, acme_rate)], [], [(104, acme_rate)]],
-        s2_id: [[(51, acme_rate), (241, acme_rate)], [], [], []],
+        s1_id: [[(54, acme_rate), (202, acme_rate)], [(23, acme_rate), (65, acme_rate)], [], [(66, acme_rate)]],
+        s2_id: [[(51, acme_rate), (151, acme_rate), (241, acme_rate)], [(151, acme_rate)], [], []],
     }
+    primary_index = {s1_id: 1, s2_id: 0}
     full_trades = {
-        s1_id: [(23, acme_rate), (103, acme_rate), (33, zzzz_rate), (153, zzzz_rate)],
-        s2_id: [(51, acme_rate), (241, acme_rate), (61, zzzz_rate), (251, zzzz_rate)],
+        s1_id: [(23, acme_rate), (65, acme_rate), (33, zzzz_rate), (153, zzzz_rate)],
+        s2_id: [(51, acme_rate), (151, acme_rate), (241, acme_rate), (61, zzzz_rate), (251, zzzz_rate)],
     }
     oos_from = {s1_id: s1_oos, s2_id: s2_oos}
+
+    def annual(returns: list[float]) -> float:
+        return _hand_sharpe(returns) * math.sqrt(252)
+
+    def entered(trades: list[tuple[int, float]], holding: int) -> list[tuple[int, float]]:
+        """A ticker that is still held is not entered again (each rate stands for one ticker)."""
+        kept: list[tuple[int, float]] = []
+        for entry, rate in trades:
+            if not any(r == rate and e + holding > entry for e, r in kept):
+                kept.append((entry, rate))
+        return kept
+
+    # At 60 sessions the ACME cluster of days[64] finds ACME still held since session 23.
+    assert entered(capped_trades[s1_id][1], 60) == [(23, acme_rate)]
+    assert all(entered(trades, 20) == trades for study in capped_trades.values() for trades in study)
 
     dsr_calls = _record_calls(monkeypatch, "compute_study_dsr")
     simulate_calls = _record_calls(monkeypatch, "simulate_event_portfolio")
 
-    def run(name: str) -> tuple[dict[str, Any], dict[str, Any], str]:
+    def run(name: str) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
         dsr_calls.clear()
         simulate_calls.clear()
         result = run_all_studies(data_dir=data_dir, out_dir=tmp_path / name, ran=date(2026, 11, 25), commit="0123abc")
         lines = Path(result["studies_jsonl"]).read_text(encoding="utf-8").splitlines()
         docs = {doc["id"]: doc for doc in map(json.loads, lines)}
-        return docs, result["summaries"], Path(result["trials_json"]).read_text(encoding="utf-8")
+        return docs, result["summaries"], json.loads(Path(result["trials_json"]).read_text(encoding="utf-8"))
 
     def post_hoc_row(doc: dict[str, Any]) -> dict[str, Any]:
         (row,) = [r for r in doc["robustness"] if r["check"] == POST_HOC_CHECK]
         return row
 
+    def post_hoc_gap(doc: dict[str, Any]) -> str:
+        (row,) = [g for g in doc["gaps"] if g["gap"] == POST_HOC_GAP_NAME]
+        return row["choice"]
+
     def gated_part(doc: dict[str, Any]) -> dict[str, Any]:
-        """The document without the post-hoc row and without the data hash."""
+        """The document without the post-hoc row, the post-hoc gap and the data hash."""
         kept = dict(doc)
         kept["robustness"] = [r for r in doc["robustness"] if r["check"] != POST_HOC_CHECK]
+        kept["gaps"] = [g for g in doc["gaps"] if g["gap"] != POST_HOC_GAP_NAME]
         kept["provenance"] = {k: v for k, v in doc["provenance"].items() if k != "dataHash"}
         return kept
 
@@ -3209,16 +3368,49 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
     # ---- run 1: no bars_events/ folder -------------------------------------------------------------
     capped_docs, capped_summaries, capped_trials = run("out-capped")
     assert len(dsr_calls) == 2 and len(simulate_calls) == 14 + 1 + 14 + 1
-    for study_id, oos_events, oos_sessions in ((s1_id, 1, 256), (s2_id, 1, 86)):
+    assert len(capped_trials) == 25
+    for study_id, oos_sessions in ((s1_id, 256), (s2_id, 86)):
+        summary = capped_summaries[study_id]
         assert post_hoc_row(capped_docs[study_id]) == not_run
-        assert capped_summaries[study_id]["post_hoc_full_universe"] is None
-        assert (capped_summaries[study_id]["oos_events"], capped_summaries[study_id]["n_trials"]) == (oos_events, 12)
-        assert capped_summaries[study_id]["reason"].startswith(f"Observed history has {oos_sessions} OOS sessions")
+        assert post_hoc_gap(capped_docs[study_id]) == POST_HOC_GAP_NOT_RUN
+        assert summary["post_hoc_full_universe"] is None
+        assert (summary["oos_events"], summary["n_trials"]) == (1, 12)
+        assert summary["reason"].startswith(f"Observed history has {oos_sessions} OOS sessions")
         # The gated out-of-sample Sharpe is the one of the capped universe, by hand.
-        by_hand = _hand_sharpe(_hand_returns(320, capped_trades[study_id][0 if study_id == s2_id else 1], 20)[oos_from[study_id] :])
-        assert math.isclose(capped_summaries[study_id]["oos_sharpe"], by_hand * math.sqrt(252), abs_tol=1e-4)
+        by_hand = annual(_hand_returns(320, capped_trades[study_id][primary_index[study_id]], 20)[oos_from[study_id] :])
+        assert math.isclose(summary["oos_sharpe"], by_hand, abs_tol=1e-4)
     # The two Congress purchases in ZZZZ have no bar in the capped universe.
     assert "missing_bars=2" in next(r for r in capped_docs[s2_id]["robustness"] if r["check"] == "Deduplication & Capacity Skips")["result"]
+
+    # Study 1: the window and the out-of-sample boundary of the cluster coverage text. Two of the
+    # three ACME clusters are in the window; the one of 2024-04-01 is the first out-of-sample day.
+    (coverage,) = [g["choice"] for g in capped_docs[s1_id]["gaps"] if g["gap"] == "Cluster events outside the bar universe"]
+    assert coverage == (
+        "2 of 4 cluster events in the window (1 of 2 tickers) remain after the bar universe and the price guard; "
+        "out of sample 1 of 2. The out-of-sample event count therefore also reflects the 600-ticker cap."
+    )
+    # Study 1: the confirmation baseline is reported at 20 sessions, with its out-of-sample events.
+    baseline_whole = _hand_returns(320, capped_trades[s1_id][0], 20)
+    assert capped_summaries[s1_id]["baseline_oos_events"] == 1
+    assert math.isclose(capped_summaries[s1_id]["baseline_oos_sharpe"], annual(baseline_whole[s1_oos:]), abs_tol=1e-4)
+    assert "Confirmation baseline (H=20): whole trades=2, OOS trades=1." in capped_docs[s1_id]["notes"]
+    baseline_run = capped_docs[s1_id]["forms"][0]["runs"][1]
+    assert (baseline_run["symbol"], baseline_run["trades"]) == ("Confirmation Baseline (H=20)", 2)
+    assert math.isclose(baseline_run["sharpe"], annual(baseline_whole), abs_tol=1e-5)
+    assert math.isclose(baseline_run["oosSharpe"], annual(baseline_whole[s1_oos:]), abs_tol=1e-5)
+    assert not math.isclose(annual(baseline_whole), annual(_hand_returns(320, capped_trades[s1_id][0], 5)), rel_tol=0.05)
+    baseline_row = capped_docs[s1_id]["comparison"][1]
+    assert baseline_row["name"] == "Confirmation baseline (H=20, excess)"
+    assert math.isclose(baseline_row["sharpe"], annual(baseline_whole), abs_tol=1e-5)
+    # Study 2: the large-purchase run is reported at 20 sessions too.
+    large_whole = _hand_returns(320, capped_trades[s2_id][1], 20)
+    large_run = capped_docs[s2_id]["forms"][0]["runs"][1]
+    assert (large_run["symbol"], large_run["trades"]) == ("Large Buys >= $50k (H=20)", 1)
+    assert math.isclose(large_run["sharpe"], annual(large_whole), abs_tol=1e-5)
+    assert not math.isclose(annual(large_whole), annual(_hand_returns(320, capped_trades[s2_id][1], 5)), rel_tol=0.05)
+    large_row = capped_docs[s2_id]["comparison"][1]
+    assert large_row["name"] == "Large >= $50k (H=20, excess)"
+    assert math.isclose(large_row["sharpe"], annual(large_whole), abs_tol=1e-5)
 
     # ---- run 2: a bars_events/ folder without one usable bar is the same as no folder ----------------
     event_bars_dir.mkdir()
@@ -3229,10 +3421,11 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
     # ---- run 3: bars_events/ holds ZZZZ, and a thin copy of ACME that must lose against bars/ACME.csv --
     _write_bars_csv(event_bars_dir / "ZZZZ.csv", zzzz)
     _write_bars_csv(event_bars_dir / "ACME.csv", _flat_bars(days, volume=10.0))
+    # The collector's counts of the further tickers go into the row text.
+    (data_dir / "metadata.json").write_text(json.dumps({"event_bars_extra_cached": 1, "event_bars_extra_requested": 2}), encoding="utf-8")
     full_docs, full_summaries, full_trials = run("out-full")
 
-    # Nothing of the gated study moves: verdict, reason, events, Sharpe, DSR, trials, every document field.
-    assert full_trials == capped_trials
+    # Nothing of the gated study moves: verdict, reason, events, Sharpe, DSR, N, trials, every document field.
     assert full_docs[s3_id] == capped_docs[s3_id]
     assert full_summaries[s3_id] == capped_summaries[s3_id]
     for study_id in (s1_id, s2_id):
@@ -3241,7 +3434,13 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
             k: v for k, v in capped_summaries[study_id].items() if k != "post_hoc_full_universe"
         }
         assert full_docs[study_id]["verdict"] == "needs-more-data"
-        assert [g["choice"] for g in full_docs[study_id]["gaps"] if g["gap"] == POST_HOC_GAP[0]] == [POST_HOC_GAP[1]]
+        assert full_summaries[study_id]["n_trials"] == 12
+        assert post_hoc_gap(full_docs[study_id]) == POST_HOC_GAP_RUN != POST_HOC_GAP_NOT_RUN
+    # The trial log gains one trial per gated study, after its 12 counted trials; it is never the primary.
+    assert len(full_trials) == 27
+    assert [t for t in full_trials if t["variant"] != POST_HOC_VARIANT] == capped_trials
+    assert POST_HOC_VARIANT == "post-hoc-full-universe"
+    assert [(i, t["study_id"]) for i, t in enumerate(full_trials) if t["variant"] == POST_HOC_VARIANT] == [(12, s1_id), (25, s2_id)]
 
     # The post-hoc run: the primary variant at 20 sessions and 10 bps on the bars of both folders.
     assert len(dsr_calls) == 4 and len(simulate_calls) == 14 + 2 + 14 + 1 + 1
@@ -3254,22 +3453,26 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
         s1_id: (date(2016, 1, 1), date(2026, 3, 31), date(2024, 4, 1)),
         s2_id: (date(2022, 1, 1), date(2026, 11, 23), date(2024, 11, 23)),
     }
+    whole_trades = {s1_id: 4, s2_id: 5}
     for index, study_id in enumerate((s1_id, s2_id)):
         gated_call, post_hoc_call = dsr_calls[2 * index], dsr_calls[2 * index + 1]
         simulated = post_hoc_runs[study_id]
         assert simulated["config"] == PortfolioConfig(holding_days=20, cost_bps=10.0)
         assert (simulated["start_day"], simulated["end_day"], simulated["oos_start"]) == windows[study_id]
         assert sorted(simulated["bars_by_symbol"]) == ["ACME", "SPY", "ZZZZ"]
-        assert simulated["bars_by_symbol"]["ACME"][0].volume == 1_000_000.0  # bars/ wins on a duplicate ticker
-        assert sorted({(e.symbol, e.trigger_day) for e in simulated["events"]}) == sorted(
-            ("ACME" if rate == acme_rate else "ZZZZ", days[entry - 1]) for entry, rate in full_trades[study_id]
-        )
+        assert simulated["bars_by_symbol"]["ACME"][0].volume == 2_000_000.0  # bars/ wins on a duplicate ticker
+        in_window = {(e.symbol, e.trigger_day) for e in simulated["events"] if e.trigger_day <= days[-1]}
+        assert in_window == {("ACME" if rate == acme_rate else "ZZZZ", days[entry - 1]) for entry, rate in full_trades[study_id]}
 
-        # By hand: four 20-session trades, two of them out of sample; 12 counted trials plus this run.
+        # By hand: 20-session trades, two of them out of sample; 12 counted trials plus this run.
         whole = _hand_returns(320, full_trades[study_id], 20)
         oos = whole[oos_from[study_id] :]
         own_sharpe = _hand_sharpe(oos)
-        counted = [_hand_sharpe(_hand_returns(320, trades, holding)[oos_from[study_id] :]) for trades in capped_trades[study_id] for holding in (5, 20, 60)]
+        counted = [
+            _hand_sharpe(_hand_returns(320, entered(trades, holding), holding)[oos_from[study_id] :])
+            for trades in capped_trades[study_id]
+            for holding in (5, 20, 60)
+        ]
         assert len(counted) == 12
 
         assert post_hoc_call["n_trials"] == 13 and gated_call["n_trials"] == 12
@@ -3277,7 +3480,7 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
         for got, want in zip(post_hoc_call["primary_oos_returns"], oos, strict=True):
             assert math.isclose(got, want, abs_tol=1e-12)
         sharpes = post_hoc_call["all_trial_per_obs_sharpes"]
-        assert len(sharpes) == 13
+        assert len(sharpes) == 13 and len(gated_call["all_trial_per_obs_sharpes"]) == 12
         assert sharpes[:12] == list(gated_call["all_trial_per_obs_sharpes"])
         for got, want in zip(sharpes, [*counted, own_sharpe], strict=True):
             assert math.isclose(got, want, rel_tol=1e-6, abs_tol=1e-12)
@@ -3291,26 +3494,37 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
             skew=skew,
             kurtosis=raw_kurtosis,
         )
-        oos_sharpe = own_sharpe * math.sqrt(252)
-        whole_sharpe = _hand_sharpe(whole) * math.sqrt(252)
+        oos_sharpe, whole_sharpe = annual(oos), annual(whole)
         assert not math.isclose(oos_sharpe, whole_sharpe, rel_tol=0.01)
         assert post_hoc_row(full_docs[study_id]) == {
             "check": POST_HOC_CHECK,
             "pass": None,
             "result": (
-                f"Bars for 3 tickers: 2 OOS events, OOS Sharpe {oos_sharpe:.3f}, DSR {dsr.probability:.3f} at N=13; "
-                f"whole-sample trades 4, Sharpe {whole_sharpe:.3f}. A pass here would need a new holdout."
+                f"Bars for 3 tickers (1 of 2 further tickers have history): 2 OOS events, OOS Sharpe {oos_sharpe:.3f}, "
+                f"DSR {dsr.probability:.3f} at N=13; whole-sample trades {whole_trades[study_id]}, Sharpe {whole_sharpe:.3f}. "
+                "No 20 bps stress run. A pass here would need a new holdout."
             ),
         }
         assert full_docs[study_id]["robustness"][-1]["check"] == POST_HOC_CHECK
         summary = full_summaries[study_id]["post_hoc_full_universe"]
         assert sorted(summary) == ["dsr", "n_trials", "oos_events", "oos_sharpe", "tickers_with_bars", "whole_sharpe", "whole_trades"]
-        assert (summary["tickers_with_bars"], summary["oos_events"], summary["whole_trades"], summary["n_trials"]) == (3, 2, 4, 13)
+        assert (summary["tickers_with_bars"], summary["oos_events"], summary["whole_trades"], summary["n_trials"]) == (3, 2, whole_trades[study_id], 13)
         assert math.isclose(summary["oos_sharpe"], oos_sharpe, abs_tol=1e-4)
         assert math.isclose(summary["whole_sharpe"], whole_sharpe, abs_tol=1e-4)
         assert math.isclose(summary["dsr"], dsr.probability, abs_tol=1e-4)
         # The capped study has one out-of-sample event; the post-hoc run has two.
         assert full_summaries[study_id]["oos_events"] == 1
+        # Its trial record: events of the out-of-sample period, trades of the whole sample.
+        logged = full_trials[12 + 13 * index]
+        assert (logged["study_id"], logged["variant"], logged["holding_days"], logged["cost_bps"], logged["is_primary"]) == (
+            study_id,
+            POST_HOC_VARIANT,
+            20,
+            10.0,
+            False,
+        )
+        assert (logged["oos_events"], logged["oos_days"], logged["whole_trades"]) == (2, len(oos), whole_trades[study_id])
+        assert math.isclose(logged["oos_annual_sharpe"], oos_sharpe, abs_tol=1e-5)
 
     # The data hash of studies 1 and 2 now covers the event bars too; study 3 does not read them.
     main_paths, event_paths = sorted(bars_dir.glob("*.csv")), sorted(event_bars_dir.glob("*.csv"))
@@ -3324,8 +3538,9 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
     window = StudyWindow(start=days[0], end=days[-1], oos_start=days[100])
     idle = simulate_event_portfolio([], {}, spy, PortfolioConfig(holding_days=20), start_day=days[0], end_day=days[-1], oos_start=days[100])
     study = GatedStudy("synthetic-study", window, ("alpha",), {("alpha", 20): idle}, (), idle, idle, idle, None, "needs-more-data", "Synthetic.")
+    counted_trial = TrialRecord("synthetic-study", "alpha", 20, 10.0, True, 0, 220, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
 
-    def context(full_bars: dict[str, list[DailyBar]] | None) -> RunContext:
+    def context(full_bars: dict[str, list[DailyBar]] | None, meta: dict[str, Any] | None = None) -> RunContext:
         return RunContext(
             data_dir=data_dir,
             ran=date(2026, 11, 25),
@@ -3333,33 +3548,40 @@ def test_post_hoc_full_universe_run_counts_as_one_more_trial_and_leaves_the_verd
             bars={"SPY": spy},
             spy_bars=spy,
             bar_paths=(),
-            meta={},
+            meta=meta or {},
             universe_note="",
             full_bars=full_bars,
             full_bar_paths=(),
         )
 
-    assert _post_hoc_full_universe(context(None), study, []) == (not_run, None)
-    assert _post_hoc_full_universe(context({"SPY": spy, "ZZZZ": zzzz}), study, None) == (not_run, None)
+    skipped = PostHocRun(not_run, (POST_HOC_GAP_NAME, POST_HOC_GAP_NOT_RUN), None, None)
+    assert _post_hoc_full_universe(context(None), study, []) == skipped
+    assert _post_hoc_full_universe(context({"SPY": spy, "ZZZZ": zzzz}), study, None) == skipped
+    assert skipped.trials_after([counted_trial]) == (counted_trial,)
     # No event: constant returns have no DSR. The study has no counted trial here, so N = 0 + 1.
-    row, summary = _post_hoc_full_universe(context({"SPY": spy, "ZZZZ": zzzz}), study, [])
-    assert row == {
-        "check": POST_HOC_CHECK,
-        "pass": None,
-        "result": (
-            "Bars for 2 tickers: 0 OOS events, OOS Sharpe 0.000, DSR unavailable at N=1; "
-            "whole-sample trades 0, Sharpe 0.000. A pass here would need a new holdout."
-        ),
-    }
-    assert summary == {
-        "tickers_with_bars": 2,
-        "oos_events": 0,
-        "oos_sharpe": 0.0,
-        "dsr": None,
-        "n_trials": 1,
-        "whole_trades": 0,
-        "whole_sharpe": 0.0,
-    }
+    # Counts that are not whole numbers are left out of the text.
+    for meta in ({}, {"event_bars_extra_cached": "1", "event_bars_extra_requested": 2}, {"event_bars_extra_cached": 1}):
+        happened = _post_hoc_full_universe(context({"SPY": spy, "ZZZZ": zzzz}, meta), study, [])
+        assert happened.robustness_row == {
+            "check": POST_HOC_CHECK,
+            "pass": None,
+            "result": (
+                "Bars for 2 tickers: 0 OOS events, OOS Sharpe 0.000, DSR unavailable at N=1; "
+                "whole-sample trades 0, Sharpe 0.000. No 20 bps stress run. A pass here would need a new holdout."
+            ),
+        }
+        assert happened.gap == (POST_HOC_GAP_NAME, POST_HOC_GAP_RUN)
+        assert happened.summary == {
+            "tickers_with_bars": 2,
+            "oos_events": 0,
+            "oos_sharpe": 0.0,
+            "dsr": None,
+            "n_trials": 1,
+            "whole_trades": 0,
+            "whole_sharpe": 0.0,
+        }
+        assert happened.trial == TrialRecord("synthetic-study", POST_HOC_VARIANT, 20, 10.0, False, 0, 220, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
+        assert happened.trials_after([counted_trial]) == (counted_trial, happened.trial)
 
 
 def test_runner_stops_on_a_missing_event_file_and_on_premium_rows_without_a_complete_session(tmp_path: Path) -> None:
@@ -3482,6 +3704,10 @@ def test_gated_study_feeds_the_gate_the_primary_out_of_sample_numbers(monkeypatc
     assert (primary.whole.days, primary.whole.trades) == (700, 2)
     assert (primary.oos.days, primary.oos.trades) == (500, 1)
     assert primary.skipped_outside_window == 2
+    # The trial log takes its event count from the out-of-sample period, not from the whole sample.
+    primary_trial = study.trials[1]
+    assert (primary_trial.variant, primary_trial.holding_days, primary_trial.is_primary) == ("alpha", 20, True)
+    assert (primary_trial.oos_events, primary_trial.oos_days, primary_trial.whole_trades) == (1, 500, 2)
     # Out-of-sample sum of one 20-session trade on one of 10 slots: 20 x 0.015% less two cost legs.
     assert math.isclose(sum(study.stress0.oos_excess_returns), (20 * 0.00015) / 10, abs_tol=1e-12)  # +0.0003
     assert math.isclose(sum(primary.oos_excess_returns), (20 * 0.00015 - 2 * 0.0010) / 10, abs_tol=1e-12)  # +0.0001
@@ -3628,20 +3854,27 @@ def test_sensitivity_rows_show_whole_sample_metrics_and_the_oos_result_as_text()
     }
 
 
-def test_collector_chart_rows_undo_only_later_splits() -> None:
+@functools.cache
+def _collector() -> Any:
+    """The collector script, imported by path (it is not a package). No test calls its network code."""
     script = Path(__file__).resolve().parents[3] / "scripts" / "smart-money-pr7" / "fetch_data.py"
     if not script.is_file():
         pytest.skip(f"collector script not found: {script}")
     spec = importlib.util.spec_from_file_location("smart_money_pr7_fetch_data", script)
     assert spec is not None and spec.loader is not None
-    fetch_data = importlib.util.module_from_spec(spec)
+    module = importlib.util.module_from_spec(spec)
     saved_path = list(sys.path)
-    sys.modules[spec.name] = fetch_data
+    sys.modules[spec.name] = module
     try:
-        spec.loader.exec_module(fetch_data)  # the script puts two repository directories on sys.path
+        spec.loader.exec_module(module)  # the script puts two repository directories on sys.path
     finally:
         sys.path[:] = saved_path
         del sys.modules[spec.name]
+    return module
+
+
+def test_collector_chart_rows_undo_only_later_splits() -> None:
+    fetch_data = _collector()
 
     def stamp(day: int) -> int:
         return int(datetime(2024, 1, day, 14, 30, tzinfo=UTC).timestamp())
@@ -3722,3 +3955,342 @@ def test_congress_coverage_gaps_count_every_unparsed_filing_once() -> None:
     assert rows["Other unparsed PTRs excluded"] == "Filings 2022: 7 more filings were not parsed."
     assert "House PTRs with an unknown PDF layout excluded" not in rows
 
+
+def test_collector_refuses_incomplete_congress_chunks() -> None:
+    fetch_data = _collector()
+    for complete in ({}, {"warnings": []}, {"warnings": None, "tables": []}):
+        assert fetch_data._require_complete_chunk(complete, "congress-house 2023-05-01..2023-05-31") is None
+    with pytest.raises(RuntimeError) as raised:
+        fetch_data._require_complete_chunk({"blocked": "host refused", "warnings": ["later"]}, "label")
+    assert str(raised.value) == "label: blocked upstream (host refused)"
+    with pytest.raises(RuntimeError) as raised:
+        fetch_data._require_complete_chunk({"warnings": ["download failed: d7", "deadline"]}, "label")
+    assert str(raised.value) == "label: 2 warning(s), first: download failed: d7"
+
+
+def test_collector_chamber_history_checks_every_chunk_and_keys_the_ledger_by_year(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch_data = _collector()
+    windows = [("2023-05-01", "2023-05-31"), ("2024-02-01", "2024-02-29")]
+
+    def payload(doc: str, **extra: Any) -> dict[str, Any]:
+        return {
+            "tables": [
+                {
+                    "table": "congress_filings",
+                    "rows": [
+                        {"docId": doc, "status": "parsed", "reason": None, "rowCount": 2, "amends": True},
+                        {"docId": f"{doc}-scan", "status": "unparsed", "reason": "scanned_image"},
+                    ],
+                },
+                {
+                    "table": "congress_trades",
+                    "rows": [
+                        {"docId": doc, "rowNumber": 1, "transactionType": "purchase", "ticker": "acme", "assetType": "OP", "member": "Member Alpha", "holder": "self", "transactionDate": "2023-05-02", "filedOn": "2023-05-20", "amountLow": 1001, "amountHigh": 15000},
+                        {"docId": doc, "rowNumber": 2, "transactionType": "sale", "ticker": "ACME", "filedOn": "2023-05-20"},
+                        {"docId": doc, "rowNumber": 2, "transactionType": "purchase", "ticker": None, "filedOn": "2023-05-20"},
+                        # Row 3 of a filing with 2 rows is a leftover of an older parse.
+                        {"docId": doc, "rowNumber": 3, "transactionType": "purchase", "ticker": "OLD", "filedOn": "2023-05-20"},
+                        # A purchase of a filing that was not parsed.
+                        {"docId": f"{doc}-scan", "rowNumber": 1, "transactionType": "purchase", "ticker": "SCAN", "filedOn": "2023-05-20"},
+                    ],
+                },
+            ],
+            **extra,
+        }
+
+    answers: dict[str, Any] = {"2023-05-01": payload("doc-a"), "2024-02-01": payload("doc-b")}
+    commands: list[list[str]] = []
+
+    class Finished:
+        def __init__(self, since: str) -> None:
+            answer = answers[since]
+            self.returncode = answer if isinstance(answer, int) else 0
+            self.stdout = "" if isinstance(answer, int) else json.dumps(answer)
+            self.stderr = "job failed"
+
+    def fake_run(cmd: list[str], **_kwargs: Any) -> Finished:
+        commands.append(cmd)
+        return Finished(cmd[cmd.index("--since") + 1])
+
+    monkeypatch.setattr(fetch_data.subprocess, "run", fake_run)
+    chunks = tmp_path / "chunks"
+    chunks.mkdir()
+
+    purchases, counts = fetch_data._fetch_chamber_history("congress-house", "house", windows, chunks, {})
+    assert purchases == [
+        {
+            "chamber": "house",
+            "doc_id": doc,
+            "member": "Member Alpha",
+            "holder": "self",
+            "ticker": "ACME",
+            "asset_type": "OP",
+            "transaction_type": "purchase",
+            "transaction_date": "2023-05-02",
+            "filed_on": "2023-05-20",
+            "amount_low": 1001,
+            "amount_high": 15000,
+            "amends": True,
+        }
+        for doc in ("doc-a", "doc-b")
+    ]
+    # The ledger year is the year of the month window.
+    assert dict(counts) == {
+        ("house", "2023", "parsed", ""): 1,
+        ("house", "2023", "unparsed", "scanned_image"): 1,
+        ("house", "2024", "parsed", ""): 1,
+        ("house", "2024", "unparsed", "scanned_image"): 1,
+    }
+    assert [(cmd[2:4], cmd[4:]) for cmd in commands] == [
+        (["vertex_openbb", "congress-house"], ["--since", since, "--until", until]) for since, until in windows
+    ]
+    cached = [chunks / f"congress-house_{since}_{until}.json" for since, until in windows]
+    assert [json.loads(path.read_text(encoding="utf-8")) for path in cached] == [answers["2023-05-01"], answers["2024-02-01"]]
+
+    # A second pass reads the cache and starts no job.
+    assert fetch_data._fetch_chamber_history("congress-house", "house", windows, chunks, {}) == (purchases, counts)
+    assert len(commands) == 2
+
+    # A cached chunk is checked again: a chunk with a warning is never used.
+    cached[1].write_text(json.dumps(payload("doc-b", warnings=["download failed: doc-x"])), encoding="utf-8")
+    with pytest.raises(RuntimeError, match=r"congress-house 2024-02-01\.\.2024-02-29 \(cached congress-house_2024-02-01_2024-02-29\.json\): 1 warning"):
+        fetch_data._fetch_chamber_history("congress-house", "house", windows, chunks, {})
+
+    # A fresh chunk with a warning or a blocked host stops the run before it is cached.
+    for bad in (payload("doc-b", warnings=["deadline reached"]), payload("doc-b", blocked="host refused")):
+        cached[1].unlink(missing_ok=True)
+        answers["2024-02-01"] = bad
+        with pytest.raises(RuntimeError, match=r"congress-house 2024-02-01\.\.2024-02-29: "):
+            fetch_data._fetch_chamber_history("congress-house", "house", windows, chunks, {})
+        assert not cached[1].exists()
+    # A job that exits with an error stops the run too.
+    answers["2024-02-01"] = 2
+    with pytest.raises(RuntimeError, match="congress-house 2024-02-01..2024-02-29 exited 2: job failed"):
+        fetch_data._fetch_chamber_history("congress-house", "house", windows, chunks, {})
+
+    # Tables may also come as one mapping.
+    answers["2024-02-01"] = {"tables": {"congress_filings": [{"docId": "doc-c", "status": "parsed", "rowCount": 1}], "congress_trades": []}}
+    purchases, counts = fetch_data._fetch_chamber_history("congress-senate", "senate", windows[1:], chunks, {})
+    assert purchases == [] and dict(counts) == {("senate", "2024", "parsed", ""): 1}
+
+
+def test_collector_congress_history_needs_the_2026_export_and_labels_its_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch_data = _collector()
+    venv_python = tmp_path / "python"
+    venv_python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(fetch_data, "OPENBB_VENV_PYTHON", venv_python)
+    chamber_calls: list[tuple[str, str, int, tuple[str, str], tuple[str, str]]] = []
+
+    def fake_chamber(job: str, chamber: str, windows: list[tuple[str, str]], _chunks: Path, _env: dict[str, str]) -> tuple[list[dict[str, Any]], Any]:
+        chamber_calls.append((job, chamber, len(windows), windows[0], windows[-1]))
+        return [{"chamber": chamber, "ticker": "ACME", "filed_on": "2023-05-20"}], {(chamber, "2023", "parsed", ""): 5}
+
+    monkeypatch.setattr(fetch_data, "_fetch_chamber_history", fake_chamber)
+    ledger_2026 = [
+        {"chamber": "house", "status": "parsed", "reason": "", "cnt": 3},
+        {"chamber": "senate", "status": "unparsed", "reason": "scanned_image", "cnt": "2"},
+    ]
+    export = tmp_path / "congress_2026.json"
+
+    def run(ledger: list[dict[str, Any]]) -> tuple[Path, dict[str, Any]]:
+        return fetch_data.fetch_congress_history(tmp_path, "contact@example.com", ledger)
+
+    # Without the 2026 export the history would end in 2025 and still look complete.
+    with pytest.raises(RuntimeError, match="the 2026 Congress export is missing"):
+        run(ledger_2026)
+    export.write_text("[]", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="congress_2026.json holds no purchase rows"):
+        run(ledger_2026)
+    export.write_text(json.dumps([{"chamber": "house", "ticker": "ZETA", "filed_on": "2026-02-03"}]), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="the 2026 Congress export is missing"):
+        run([])
+    assert chamber_calls == [] and not (tmp_path / "congress_trades.jsonl").exists()
+
+    out_path, meta = run(ledger_2026)
+    assert out_path == tmp_path / "congress_trades.jsonl"
+    assert sorted(chamber_calls) == [
+        ("congress-house", "house", 48, ("2022-01-01", "2022-01-31"), ("2025-12-01", "2025-12-31")),
+        ("congress-senate", "senate", 48, ("2022-01-01", "2022-01-31"), ("2025-12-01", "2025-12-31")),
+    ]
+    # The 2026 rows come first, then the House history, then the Senate history.
+    assert [json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines()] == [
+        {"chamber": "house", "ticker": "ZETA", "filed_on": "2026-02-03"},
+        {"chamber": "house", "ticker": "ACME", "filed_on": "2023-05-20"},
+        {"chamber": "senate", "ticker": "ACME", "filed_on": "2023-05-20"},
+    ]
+    # The exported ledger is the 2026 ledger; the runner reads the keys as chamber:year:status:reason.
+    assert meta == {
+        "congress_ledger": {
+            "house:2023:parsed:": 5,
+            "house:2026:parsed:": 3,
+            "senate:2023:parsed:": 5,
+            "senate:2026:unparsed:scanned_image": 2,
+        }
+    }
+    assert _congress_coverage_gaps(meta)[0][1].startswith("Filings 2023–2026: House 0/8 (0.0%) and Senate 2/7 (28.6%)")
+
+    monkeypatch.setattr(fetch_data, "OPENBB_VENV_PYTHON", tmp_path / "absent-python")
+    with pytest.raises(RuntimeError, match="OpenBB venv python not found"):
+        run(ledger_2026)
+
+
+def test_collector_postgres_exports_stop_on_sql_errors_and_empty_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch_data = _collector()
+    seen: list[tuple[list[str], dict[str, Any]]] = []
+    stdout = {"text": '{"a": 1}\n\n  {"a": 2}  \n'}
+
+    class Finished:
+        def __init__(self) -> None:
+            self.stdout = stdout["text"]
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> Finished:
+        seen.append((cmd, kwargs))
+        return Finished()
+
+    monkeypatch.setattr(fetch_data.subprocess, "run", fake_run)
+    assert fetch_data._ssh_psql_jsonl("SELECT 1 AS a", "two rows") == [{"a": 1}, {"a": 2}]
+    (cmd, kwargs), = seen
+    assert cmd[:2] == ["ssh", "quantvps"]
+    # Without ON_ERROR_STOP psql exits 0 after an SQL error; without check=True a failed ssh would pass.
+    assert "psql -v ON_ERROR_STOP=1 " in cmd[2]
+    assert kwargs["check"] is True
+    assert kwargs["input"] == "SELECT row_to_json(t) FROM (SELECT 1 AS a) t;"
+    stdout["text"] = "\n \n"
+    with pytest.raises(RuntimeError) as raised:
+        fetch_data._ssh_psql_jsonl("SELECT 1 AS a", "flow_market_premium complete sessions")
+    assert str(raised.value) == "QuantVPS export returned no rows: flow_market_premium complete sessions"
+
+    queries: list[tuple[str, str]] = []
+    rows_by_what = {
+        "flow_market_premium complete sessions": [{"session_date": "2025-10-16", "ticker": "ACME", "bullish_premium": 600000.0}],
+        "2026 Congress purchases": [{"chamber": "house", "doc_id": "d1", "ticker": "ACME", "asset_type": "OP"}],
+        "2026 Congress filing ledger": [{"chamber": "house", "status": "parsed", "reason": "", "cnt": 3}],
+    }
+
+    def fake_export(sql: str, what: str) -> list[dict[str, Any]]:
+        queries.append((what, " ".join(sql.split())))
+        return rows_by_what[what]
+
+    monkeypatch.setattr(fetch_data, "_ssh_psql_jsonl", fake_export)
+    premium_path = fetch_data.export_market_premium(tmp_path)
+    assert premium_path == tmp_path / "market_premium.jsonl"
+    assert [json.loads(line) for line in premium_path.read_text(encoding="utf-8").splitlines()] == rows_by_what["flow_market_premium complete sessions"]
+    assert "WHERE s.status = 'complete'" in queries[0][1]
+
+    assert fetch_data.export_congress_2026(tmp_path) == {"ledger_2026": rows_by_what["2026 Congress filing ledger"]}
+    assert json.loads((tmp_path / "congress_2026.json").read_text(encoding="utf-8")) == rows_by_what["2026 Congress purchases"]
+    assert [what for what, _sql in queries] == list(rows_by_what)
+    # The export carries the asset type (options are dropped by the runner) and only parsed 2026 purchases.
+    assert "t.asset_type AS asset_type" in queries[1][1]
+    assert "f.status = 'parsed'" in queries[1][1] and "t.filed_on >= '2026-01-01'" in queries[1][1]
+    assert "t.transaction_type = 'purchase'" in queries[1][1]
+    assert "filed_on >= '2026-01-01'" in queries[2][1]
+
+
+def test_collector_bar_steps_fetch_only_tickers_outside_the_cap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fetch_data = _collector()
+
+    def premium(ticker: str, bullish: float, bearish: float = 0.0, trades: int = 3, **extra: Any) -> dict[str, Any]:
+        return {"session_date": "2025-10-16", "ticker": ticker, "bullish_premium": bullish, "bearish_premium": bearish, "trade_count": trades, **extra}
+
+    _write_jsonl(
+        tmp_path / "market_premium.jsonl",
+        [
+            premium("extra", 500_000.0),  # exactly at the floor, lower case
+            premium("INCAP", 900_000.0),
+            premium("SHARE", 700_000.0, 300_000.0),  # exactly 70% bullish
+            premium("SMALL", 499_999.0),
+            premium("MIXED", 699_999.0, 300_001.0),
+            premium("FEWTR", 900_000.0, trades=2),
+            premium("PARTL", 900_000.0, session_status="partial"),
+            premium("BAD TICKER", 900_000.0),
+            premium("ZERO", 0.0),
+        ],
+    )
+    assert fetch_data._premium_candidate_tickers(tmp_path) == ["EXTRA", "INCAP", "SHARE"]
+
+    # A cluster of three owners in CLUS, one lone purchase in LONE, Congress purchases in CONG and INCAP.
+    form4 = [
+        {**_IDLE_FORM4_ROW, "accession_number": f"c{i}", "filing_date": f"2024-03-0{i + 1}", "issuer_cik": "7", "ticker": "CLUS", "owner_group_key": f"owner{i}"}
+        for i in range(3)
+    ]
+    _write_jsonl(tmp_path / "form4_purchases.jsonl", [*form4, {**_IDLE_FORM4_ROW, "ticker": "LONE"}])
+    _write_jsonl(
+        tmp_path / "congress_trades.jsonl",
+        [{"ticker": " cong "}, {"ticker": "INCAP"}, {"ticker": "NOT A TICKER"}],
+    )
+    assert fetch_data._event_tickers(tmp_path) == ["CLUS", "CONG", "INCAP"]
+
+    fetches: list[tuple[list[str], Path, datetime, str]] = []
+
+    def fake_fetch_bars(tickers: list[str], bars_dir: Path, first_day: datetime, label: str) -> tuple[int, list[str]]:
+        fetches.append((tickers, bars_dir, first_day, label))
+        return len(tickers) - 1, [tickers[-1]]
+
+    monkeypatch.setattr(fetch_data, "_select_universe_tickers", lambda _out_dir: ["SPY", "INCAP"])
+    monkeypatch.setattr(fetch_data, "_fetch_bars", fake_fetch_bars)
+
+    # INCAP is in the 600-ticker cap: its bars are in bars/ already and are not fetched again.
+    assert fetch_data.fetch_premium_bars(tmp_path) == {
+        "premium_tickers_candidates": 3,
+        "premium_bars_extra_requested": 2,
+        "premium_bars_extra_cached": 1,
+        "premium_bars_extra_not_found": ["SHARE"],
+    }
+    assert fetch_data.fetch_event_bars(tmp_path) == {
+        "event_tickers_candidates": 3,
+        "event_bars_extra_requested": 2,
+        "event_bars_extra_cached": 1,
+        "event_bars_extra_not_found": ["CONG"],
+    }
+    # Premium bars start before the first premium session (2025-10-16) so that 20 sessions of
+    # dollar volume exist; event bars start with the main bars.
+    assert fetches == [
+        (["EXTRA", "SHARE"], tmp_path / "bars_premium", datetime(2025, 6, 1, tzinfo=UTC), "premium-bars"),
+        (["CLUS", "CONG"], tmp_path / "bars_events", datetime(2015, 6, 1, tzinfo=UTC), "event-bars"),
+    ]
+
+
+def test_collector_fetch_bars_keeps_the_cache_and_raises_when_a_ticker_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fetch_data = _collector()
+    bars_dir = tmp_path / "bars"
+    bars_dir.mkdir()
+    header = ",".join(fetch_data.BAR_COLUMNS)
+    (bars_dir / "CACHED.csv").write_text(f"{header}\n2024-01-02,1,1,1,1,1,1,1\n", encoding="utf-8")
+    (bars_dir / "OLDCOLS.csv").write_text("date,open,high,low,close,adj_close,volume\n2024-01-02,1,1,1,1,1,1\n", encoding="utf-8")
+    (bars_dir / "GONE.csv").write_text(f"{header}\n", encoding="utf-8")  # header only: not current
+    stamp = int(datetime(2024, 1, 2, 14, 30, tzinfo=UTC).timestamp())
+    chart = {"timestamp": [stamp], "indicators": {"quote": [{"open": [10.0], "high": [11.0], "low": [9.0], "close": [10.5], "volume": [100]}]}}
+    asked: list[tuple[str, int, int]] = []
+
+    def fake_chart(symbol: str, p1: int, p2: int) -> dict[str, Any] | None:
+        asked.append((symbol, p1, p2))
+        if symbol == "FAIL":
+            raise fetch_data.YahooFetchError("FAIL: HTTP 429 after 4 attempts")
+        return None if symbol == "GONE" else chart
+
+    monkeypatch.setattr(fetch_data, "_yahoo_chart", fake_chart)
+    monkeypatch.setattr(fetch_data.time, "sleep", lambda _seconds: None)
+    first_day = datetime(2015, 6, 1, tzinfo=UTC)
+
+    assert fetch_data._fetch_bars(["CACHED", "OLDCOLS", "GONE"], bars_dir, first_day, "bars") == (2, ["GONE"])
+    # A current file is not fetched again; an old layout is; a ticker without history loses its stale file.
+    p1, p2 = int(first_day.timestamp()), int(datetime(2026, 11, 25, tzinfo=UTC).timestamp())
+    assert asked == [("OLDCOLS", p1, p2), ("GONE", p1, p2)]
+    assert (bars_dir / "OLDCOLS.csv").read_text(encoding="utf-8").splitlines() == [header, "2024-01-02,10.0,11.0,9.0,10.5,10.5,100.0,10.5"]
+    assert not (bars_dir / "GONE.csv").exists()
+
+    # A ticker that Yahoo did not answer for stops the step: it must not drop out of the universe
+    # as "no history". The tickers fetched before and after it stay cached.
+    with pytest.raises(fetch_data.YahooFetchError, match="1 tickers failed after retries: FAIL. Run the step again"):
+        fetch_data._fetch_bars(["NEW1", "FAIL", "NEW2"], bars_dir, first_day, "bars")
+    assert (bars_dir / "NEW1.csv").exists() and (bars_dir / "NEW2.csv").exists()
+    assert not (bars_dir / "FAIL.csv").exists()

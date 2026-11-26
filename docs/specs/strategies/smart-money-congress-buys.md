@@ -17,7 +17,7 @@ Summary: Event-study backtest of U.S. House and Senate electronic PTR stock purc
 |#|Rule|Basis|
 |---|---|---|
 |1|Sample window: `2022-01-01` to `2026-11-23` (in-sample through `2024-11-22`; strictly held-out 24-month OOS `2024-11-23` to `2026-11-23`, `500` trading sessions). Pre-2022 House PTR PDFs use legacy Wingdings/small-caps fonts (`layout_unknown` in `house.v1`) and are excluded so House and Senate share a balanced window.|Pre-registered (`plan-pr7.md`)|
-|2|One event per trade: the trade key is `(chamber, normalized_member, holder, ticker, tx_date_or_doc_id, purchase)`. Rows with the same key inside one filing are lots of the same purchase day and their amounts are summed (`453` rows). Of several filings with the same key the earliest `filed_on` is kept, so an amended filing never moves the public-at date (`127` trades of later filings dropped). Result: `9,335` trades from `9,915` purchase rows.|Pre-registered (`design.md` PR 1); lot rule corrected 2026-11-25 (`plan-pr7.md`)|
+|2|One event per trade: the trade key is `(chamber, normalized_member, holder, ticker, tx_date_or_doc_id, purchase)`. Rows with the same key inside one filing are lots of the same purchase day and their amounts are summed (`386` rows). Of several filings with the same key the earliest `filed_on` is kept, so an amended filing never moves the public-at date (`114` trades of later filings dropped). Rows that report an option (House `OP`, Senate `Stock Option`; `209` rows, puts included) are dropped first. Result: `9,284` trades from `9,993` purchase rows.|Pre-registered (`design.md` PR 1); lot rule corrected 2026-11-25 (`plan-pr7.md`)|
 |3|Entry alignment (zero look-ahead): STOCK Act allows up to 45 calendar days between trade execution and public disclosure; entry is strictly the next trading day open after `filed_on`.|Pre-registered (`plan-pr7.md`)|
 |4|Liquidity filter: entry requires prior-session close `>= $5.00` and trailing 20-day median dollar volume `>= $10,000,000`.|Pre-registered (`plan-pr7.md`)|
 |5|Counted variants (`N = 12` total trials across 4 variants x 3 horizons `H in {5, 20, 60}`): `all-buys` (primary, `amount_low >= $1,001`), `large-50k` (`amount_low >= $50,001`), `fast-filed-15d` (`filed_on - tx_date <= 15` days), and `multi-member-30d` (`>= 2` distinct members buying within 30 calendar days; 14-day per-ticker cooldown after a trigger).|Pre-registered (`plan-pr7.md`)|
@@ -34,31 +34,31 @@ Summary: Event-study backtest of U.S. House and Senate electronic PTR stock purc
 
 ## Backtest (2026-11-25, real data)
 
-Verdict: **`no-edge`**. Over `500` OOS sessions (`2024-11-23` to `2026-11-23`), the pre-registered primary trial `all-buys (H=20)` passed the event-count bar (`238 >= 100`), but failed the Deflated Sharpe Ratio bar (`DSR = 0.112 < 0.95` at `N = 12`) and the 20 bps cost-stress bar (OOS Sharpe `-0.192`).
+Verdict: **`no-edge`**. Over `500` OOS sessions (`2024-11-23` to `2026-11-23`), the pre-registered primary trial `all-buys (H=20)` passed the event-count bar (`238 >= 100`), but failed the Deflated Sharpe Ratio bar (`DSR = 0.095 < 0.95` at `N = 12`) and the 20 bps cost-stress bar (OOS Sharpe `-0.167`).
 
 |Variant (`H = 20`, excess vs SPY)|Trades (Full)|Full CAGR|Full Sharpe|Max DD|Win Rate|OOS Events|OOS CAGR|OOS Sharpe|
 |---|---|---|---|---|---|---|---|---|
-|All PTR Buys (Primary, 10 bps/side)|568|-2.24%|-0.171|-17.90%|46.7%|238|-0.56%|+0.013|
-|Large Buys `>= $50k` (10 bps/side)|204|+0.31%|+0.080|-12.66%|50.5%|109|-0.55%|-0.037|
-|Fast-Filed `<= 15d` (10 bps/side)|408|-1.56%|-0.143|-23.91%|46.1%|199|+2.92%|+0.339|
-|Multi-Member 30d (10 bps/side)|435|+5.87%|+0.726|-8.15%|50.1%|204|+9.46%|+0.920|
-|All PTR Buys (Stress 20 bps/side)|568|-4.49%|-0.398|-23.77%|45.4%|238|-2.96%|-0.192|
+|All PTR Buys (Primary, 10 bps/side)|567|-2.65%|-0.209|-21.42%|46.4%|238|-0.29%|+0.036|
+|Large Buys `>= $50k` (10 bps/side)|183|+0.98%|+0.198|-10.31%|50.3%|99|+0.71%|+0.140|
+|Fast-Filed `<= 15d` (10 bps/side)|407|-1.44%|-0.125|-24.66%|46.2%|199|+3.36%|+0.380|
+|Multi-Member 30d (10 bps/side)|427|+4.87%|+0.608|-7.68%|49.9%|205|+7.50%|+0.734|
+|All PTR Buys (Stress 20 bps/side)|567|-4.89%|-0.433|-27.73%|45.1%|238|-2.70%|-0.167|
 
 Robustness checks on the primary trial (`all-buys`, `H = 20`):
 
-- **Deflated Sharpe Ratio (`N = 12`, bar `>= 0.95`):** **FAIL** — `DSR = 0.1122`, `z = -1.215`, per-observation benchmark `0.0552`.
+- **Deflated Sharpe Ratio (`N = 12`, bar `>= 0.95`):** **FAIL** — `DSR = 0.0947`, `z = -1.312`, per-observation benchmark `0.0610`.
 - **OOS event count (bar `>= 100`):** **PASS** — `238` OOS entries over `500` sessions (`2024-11-23`..`2026-11-23`).
-- **Cost stress (`0 / 10 / 20 bps` per side):** **FAIL** — OOS Sharpe `0.217` (`0 bps`), `0.013` (`10 bps`), `-0.192` (`20 bps`).
-- **One event per trade, and skips:** `9,335` trades from `9,915` purchase rows (`453` rows are further lots of a trade inside the same filing and were summed into it; `127` trades of later filings were dropped); `583` overlap, `3,675` capacity, `74` illiquid, `4,426` missing Yahoo Finance bars, `9` exits truncated at window end.
-- **Post-hoc full-universe check (not in the verdict):** after the first look at the out-of-sample window, the primary trial was also run without the 600-ticker cap, on bars for `3,153` tickers. Result: `240` OOS events, OOS excess Sharpe `-0.385`, `DSR = 0.033` at `N = 13`; whole-sample `577` trades, Sharpe `-0.298`. This run counts as one more trial; a pass would have needed a new holdout.
+- **Cost stress (`0 / 10 / 20 bps` per side):** **FAIL** — OOS Sharpe `0.239` (`0 bps`), `0.036` (`10 bps`), `-0.167` (`20 bps`).
+- **One event per trade, and skips:** `9,284` trades from `9,993` purchase rows (`209` option rows were dropped; `386` rows are further lots of a trade inside the same filing and were summed into it; `114` trades of later filings were dropped); `568` overlap, `3,608` capacity, `74` illiquid, `4,390` missing Yahoo Finance bars, `9` exits truncated at window end.
+- **Post-hoc full-universe check (not in the verdict):** after the first look at the out-of-sample window, the primary trial was also run without the 600-ticker cap, on bars for `3,153` tickers. Result: `240` OOS events, OOS excess Sharpe `-0.403`, `DSR = 0.022` at `N = 13`; whole-sample `575` trades, Sharpe `-0.310` (no 20 bps stress run). This run counts as one more trial; a pass would have needed a new holdout.
 - **Benchmark:** SPY buy-and-hold over `2022-01-01`..`2026-11-23` had `+10.25%` CAGR, Sharpe `+0.645`, max drawdown `-24.50%`.
 
 ## Limits
 
 - Research only. No live or paper orders; no new share positions.
 - **STOCK Act delay:** members may disclose up to 45 days after execution; public filing-date entries capture only post-disclosure drift.
-- **Scanned paper PTRs excluded:** across `2022`–`2026`, House scanned paper PTRs were `344 / 2,501` (`13.8%`) unparsed and Senate paper PTRs were `78 / 676` (`11.5%`) unparsed.
-- **House PTRs with an unknown PDF layout excluded:** `171 / 2,501` (`6.8%`) electronic House PTRs have a PDF layout that `house.v1` does not read; `151` of them were filed in `2022` (`24.6%` of that year's House PTRs), so the first in-sample year is thinner than the others.
-- **Universe cap and survivorship bias:** daily bars cover `468` of the `600` pre-registered tickers; Yahoo Finance has no history for the other `132` (delisted, acquired or renamed issuers). `4,426` primary events had no bar on the entry day (tickers outside the bar universe, funds, or non-standard tickers).
-- **Slot capacity:** the portfolio holds 10 positions, so `3,675` primary events were skipped because every slot was full. On a day with more events than free slots, the events with the largest reported amount enter first.
+- **Scanned paper PTRs excluded:** across `2022`–`2026`, House scanned paper PTRs were `344 / 2,505` (`13.7%`) unparsed and Senate paper PTRs were `78 / 678` (`11.5%`) unparsed.
+- **House PTRs with an unknown PDF layout excluded:** `171 / 2,505` (`6.8%`) electronic House PTRs have a PDF layout that `house.v1` does not read; `151` of them were filed in `2022` (`24.6%` of that year's House PTRs), so the first in-sample year is thinner than the others.
+- **Universe cap and survivorship bias:** daily bars cover `468` of the `600` pre-registered tickers; Yahoo Finance has no history for the other `132` (delisted, acquired or renamed issuers). `4,390` primary events had no bar on the entry day (tickers outside the bar universe, funds, or non-standard tickers).
+- **Slot capacity:** the portfolio holds 10 positions, so `3,608` primary events were skipped because every slot was full. On a day with more events than free slots, the events with the largest reported amount enter first.
 - **House amendment metadata:** the House Clerk yearly index does not flag amendments; earliest `filed_on` deduplication mitigates re-disclosures.

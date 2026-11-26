@@ -76,6 +76,7 @@ class CongressPurchase:
     amount_low: float | None
     amount_high: float | None
     amends: bool = False
+    asset_type: str | None = None  # the filing's own code: House "ST"/"OP"/..., Senate "Stock"/"Stock Option"/...
 
 
 @dataclass(frozen=True, slots=True)
@@ -481,6 +482,18 @@ def normalize_congress_member(name: str) -> str:
     return " ".join(text.split())
 
 
+def is_option_asset(asset_type: str | None) -> bool:
+    """True for a PTR row that reports an option (House code ``OP``, Senate ``Stock Option``).
+
+    An option row carries the ticker of its underlying stock, and a bought put is a bearish
+    position, so option rows are never stock-purchase events.
+    """
+    if not asset_type:
+        return False
+    text = asset_type.strip().lower()
+    return text == "op" or "option" in text
+
+
 def _sum_optional(left: float | None, right: float | None) -> float | None:
     if left is None and right is None:
         return None
@@ -499,8 +512,12 @@ def dedupe_congress_purchases(rows: Sequence[CongressPurchase]) -> tuple[list[Co
     """
     by_filing: dict[tuple[tuple[str, str, str, str, str, str], str], CongressPurchase] = {}
     lots_merged = 0
+    option_rows_dropped = 0
     for row in rows:
         if row.transaction_type != "purchase":
+            continue
+        if is_option_asset(row.asset_type):
+            option_rows_dropped += 1
             continue
         ticker = _clean_ticker(row.ticker)
         if ticker is None:
@@ -537,7 +554,11 @@ def dedupe_congress_purchases(rows: Sequence[CongressPurchase]) -> tuple[list[Co
         if (trade.filed_on, trade.amends, trade.doc_id) < (prev.filed_on, prev.amends, prev.doc_id):
             best[key] = trade
     deduped = sorted(best.values(), key=lambda r: (r.filed_on, r.chamber, r.ticker, r.doc_id))
-    return deduped, {"same_filing_lots_merged": lots_merged, "later_filings_dropped": later_filings_dropped}
+    return deduped, {
+        "option_rows_dropped": option_rows_dropped,
+        "same_filing_lots_merged": lots_merged,
+        "later_filings_dropped": later_filings_dropped,
+    }
 
 
 def build_signal2_variants(
@@ -630,6 +651,7 @@ def build_signal3_events(
     events: list[SignalEvent] = []
     passed_filter = 0
     without_bars = 0
+    unknown_liquidity: set[tuple[date, str]] = set()
     top10_without_bars = 0
     illiquid = 0
     for session_day in sorted(by_session):
@@ -643,11 +665,12 @@ def build_signal3_events(
             if r.trade_count < PREMIUM_MIN_TRADES:
                 continue
             bars = sorted_bars.get(r.ticker)
-            if not bars:
-                # No bars: liquidity is unknown. The ticker keeps its rank, and the portfolio
-                # counts it as a missing-bar event, so the top 10 never depends on which tickers
-                # happen to have bars.
+            if not bars or bars[0].day > session_day:
+                # No bar on or before the session: liquidity is unknown. The ticker keeps its rank,
+                # and the portfolio counts it as a missing-bar event unless a bar exists on the
+                # entry day, so the top 10 never depends on which tickers happen to have bars.
                 without_bars += 1
+                unknown_liquidity.add((session_day, r.ticker))
             elif not check_point_in_time_liquidity(bars, day_indices[r.ticker], session_day):
                 illiquid += 1
                 continue
@@ -656,7 +679,7 @@ def build_signal3_events(
         qualifying.sort(key=lambda r: (-r.net_premium, r.ticker))
         for r in qualifying[:PREMIUM_TOP_N]:
             events.append(SignalEvent(symbol=r.ticker, trigger_day=session_day, rank_value=r.net_premium))
-            if not sorted_bars.get(r.ticker):
+            if (session_day, r.ticker) in unknown_liquidity:
                 top10_without_bars += 1
 
     diagnostics = {
