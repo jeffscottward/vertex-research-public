@@ -108,7 +108,7 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
       currency: input.currency ?? "USD",
       exchange: input.exchange ?? "SMART",
       lastTradeDateOrContractMonth: null,
-      localSymbol: symbol,
+      localSymbol: forex ? `${symbol}.${input.currency ?? "USD"}` : symbol,
       longName: `${symbol} Demo Listing (fake data)`,
       matches: 1,
       multiplier: null,

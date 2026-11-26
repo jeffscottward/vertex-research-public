@@ -754,17 +754,20 @@ describe("marketData ticks and depth input", () => {
   });
 
   it("rejects forex (CASH) for ticks and depth", () => {
+    // With or without an exchange: one issue, and no hint to add an exchange.
     for (const schema of [MarketTicksInputSchema, MarketDepthInputSchema])
-      expect(
-        schema
-          .safeParse({ exchange: "IDEALPRO", secType: "CASH", symbol: "EUR" })
-          .error?.issues.map(({ message, path }) => ({ message, path }))
-      ).toEqual([
-        {
-          message: "Ticks and depth are not available for forex (CASH)",
-          path: ["secType"],
-        },
-      ]);
+      for (const exchange of [{ exchange: "IDEALPRO" }, {}])
+        expect(
+          schema
+            .safeParse({ ...exchange, secType: "CASH", symbol: "EUR" })
+            .error?.issues.map(({ message, path }) => ({ message, path }))
+        ).toEqual([
+          {
+            message:
+              "Forex (CASH) has bars only: IBKR gives no ticks or depth for it",
+            path: ["secType"],
+          },
+        ]);
   });
 
   it("needs an exchange for futures and allows a contract month for FUT only", () => {

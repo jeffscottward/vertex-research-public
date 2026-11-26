@@ -466,7 +466,9 @@ describe("ChartsWorkspace", () => {
     expect(
       container.querySelector('[data-flow-marks-status="unsupported"]')
         ?.textContent
-    ).toBe("Order-flow marks are not available for forex (CASH).");
+    ).toBe(
+      "Order-flow marks: none for forex (CASH). IBKR gives no ticks or depth for a forex pair."
+    );
 
     await change(select("Quick pick"), "ES (E-mini S&P)");
     await submit();
@@ -485,6 +487,23 @@ describe("ChartsWorkspace", () => {
     // An unknown pick changes nothing.
     await change(select("Quick pick"), "BTC");
     expect(symbolInput().value).toBe("ES");
+  });
+
+  it("names the forex pair in the title before the first chart is loaded", async () => {
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={pendingFlowEventsGateway()}
+        jevVerdict={jevGateway()}
+        marketData={marketGateway(() => new Promise(() => undefined))}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    const panelTitle = () =>
+      container.querySelector("[data-chart-panel] h2")?.textContent;
+    expect(panelTitle()).toBe("SPY · 1D");
+    await change(select("Quick pick"), "GBP.USD");
+    expect(panelTitle()).toBe("GBP.USD · 1D");
   });
 
   it("mounts the options and JEV panels only for USD stock charts", async () => {

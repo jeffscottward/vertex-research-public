@@ -267,8 +267,11 @@ const instrumentRefinements = (
     ctx.addIssue({
       code: "custom",
       path: ["secType"],
-      message: "Ticks and depth are not available for forex (CASH)",
+      message:
+        "Forex (CASH) has bars only: IBKR gives no ticks or depth for it",
     });
+    // No other issue: a hint to add an exchange would point at a request that can never work.
+    return;
   }
   if (input.secType !== "STK" && input.exchange === undefined) {
     ctx.addIssue({
