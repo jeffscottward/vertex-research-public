@@ -478,6 +478,59 @@ describe("chart workstation", () => {
     expect(tree).not.toContain("OBV");
     return expect(tree).not.toMatch(/Volume/);
   });
+  it("keeps the volume pane but turns off VWAP and RVOL when only some bars have volume", async () => {
+    const renderer = {
+      dispose: vi.fn(),
+      replace: vi.fn(),
+      resize: vi.fn(),
+      setStudies: vi.fn(),
+    };
+    const factory: CandleRendererFactory = async () => renderer;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const [first, second] = candles;
+    if (first === undefined || second === undefined) throw new Error("bars");
+    const { volume: _, ...noVolume } = first;
+    await act(async () =>
+      root.render(
+        <ChartWorkstation
+          candles={[noVolume, second]}
+          captions={captions}
+          factory={factory}
+          label="Mixed 1 day bars"
+          markers={[]}
+          pricePrecision={2}
+          storage={null}
+          studies={{
+            ema: [],
+            extra: ["vwap", "rvol", "alphatrend"],
+            panes: ["OBV"],
+            sma: [],
+            volume: true,
+          }}
+          symbol="MIX"
+        />
+      )
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(renderer.setStudies).toHaveBeenLastCalledWith({
+      ema: [],
+      extra: ["alphatrend"],
+      panes: ["OBV"],
+      sma: [],
+      volume: true,
+    });
+    expect(
+      host.querySelector("[data-no-volume='some']")?.textContent
+    ).toContain("Some bars have no volume");
+    return expect(
+      host.querySelector("[data-object-tree]")?.textContent
+    ).toContain("AlphaTrend 14, 1 (RSI)");
+  });
 });
 
 describe("chart workstation series pane", () => {

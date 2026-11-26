@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayCandle } from "./types.ts";
+import type { ChartStudies, DisplayCandle } from "./types.ts";
 import {
   addVolumes,
-  hasVolume,
+  studiesForVolume,
+  VOLUME_NOTES,
+  volumeCoverage,
   volumeField,
-  withoutVolumeStudies,
 } from "./volume.ts";
 
 const bar = (id: string, volume?: number): DisplayCandle => ({
@@ -16,6 +17,14 @@ const bar = (id: string, volume?: number): DisplayCandle => ({
   timestamp: Number(id),
   ...volumeField(volume),
 });
+
+const studies: ChartStudies = {
+  ema: [20],
+  extra: ["vwap", "alphatrend", "rvol"],
+  panes: ["OBV", "WR"],
+  sma: [20, 50],
+  volume: true,
+};
 
 describe("chart volume", () => {
   it("adds the volume field only when there is a volume", () => {
@@ -30,31 +39,40 @@ describe("chart volume", () => {
     return expect(addVolumes(2, undefined)).toBeUndefined();
   });
 
-  it("reports no volume only when there are bars and none has a volume", () => {
-    expect(hasVolume([])).toBe(true);
-    expect(hasVolume([bar("1"), bar("2")])).toBe(false);
-    expect(hasVolume([bar("1"), bar("2", 0)])).toBe(true);
-    return expect(hasVolume([bar("1", 10)])).toBe(true);
+  it("reports whether all, some or none of the bars have a volume", () => {
+    expect(volumeCoverage([])).toBe("all");
+    expect(volumeCoverage([bar("1", 10), bar("2", 0)])).toBe("all");
+    expect(volumeCoverage([bar("1"), bar("2", 0)])).toBe("some");
+    return expect(volumeCoverage([bar("1"), bar("2")])).toBe("none");
   });
 
-  it("turns off the volume pane, VWAP, RVOL and OBV and keeps the rest", () => {
-    expect(
-      withoutVolumeStudies({
-        ema: [20],
-        extra: ["vwap", "alphatrend", "rvol"],
-        panes: ["OBV", "WR"],
-        sma: [20, 50],
-        volume: true,
-      })
-    ).toEqual({
+  it("keeps every study when all bars have a volume", () =>
+    expect(studiesForVolume(studies, "all")).toBe(studies));
+
+  it("turns off VWAP and RVOL when only some bars have a volume", () =>
+    expect(studiesForVolume(studies, "some")).toEqual({
+      ...studies,
+      extra: ["alphatrend"],
+    }));
+
+  it("also turns off the volume pane and OBV when no bar has a volume", () => {
+    expect(studiesForVolume(studies, "none")).toEqual({
       ema: [20],
       extra: ["alphatrend"],
       panes: ["WR"],
       sma: [20, 50],
       volume: false,
     });
-    return expect(
-      withoutVolumeStudies({ ema: [], sma: [], volume: true })
+    expect(
+      studiesForVolume({ ema: [], sma: [], volume: true }, "none")
     ).toEqual({ ema: [], sma: [], volume: false });
+    return expect(
+      studiesForVolume({ ema: [], sma: [], volume: true }, "some")
+    ).toEqual({ ema: [], sma: [], volume: true });
+  });
+
+  it("explains what is off for some and for no volume", () => {
+    expect(VOLUME_NOTES.none).toContain("No volume for this instrument");
+    return expect(VOLUME_NOTES.some).toContain("Some bars have no volume");
   });
 });

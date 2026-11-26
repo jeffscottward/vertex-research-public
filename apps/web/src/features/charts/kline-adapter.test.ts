@@ -169,6 +169,11 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       {} as HTMLElement,
       options(new AbortController().signal)
     );
+    const init = mocks.init.mock.calls[0]?.[1] as {
+      styles: { candle: { tooltip: { defaultValue: string } } };
+    };
+    // The chart's own tooltip says "No volume" like the data window, not "n/a".
+    expect(init.styles.candle.tooltip.defaultValue).toBe("No volume");
     const { volume: _, ...noVolume } = bar;
     expect(validDisplayCandles([noVolume])).toBe(true);
     renderer.replace([noVolume]);

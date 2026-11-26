@@ -29,7 +29,7 @@ import type {
   SeriesPane,
 } from "./types.ts";
 import { VERTEX_STUDIES } from "./vertex-studies.ts";
-import { hasVolume, NO_VOLUME_NOTE, withoutVolumeStudies } from "./volume.ts";
+import { studiesForVolume, VOLUME_NOTES, volumeCoverage } from "./volume.ts";
 import {
   CHART_TYPES,
   type ChartType,
@@ -163,11 +163,10 @@ export const ChartWorkstation = ({
     [candles, chartType]
   );
   // No volume (forex, non-USD stocks): keep the volume pane and volume studies off.
-  const volumeKnown = hasVolume(candles);
+  const coverage = volumeCoverage(candles);
   const studies = useMemo(
-    () =>
-      volumeKnown ? requestedStudies : withoutVolumeStudies(requestedStudies),
-    [volumeKnown, requestedStudies]
+    () => studiesForVolume(requestedStudies, coverage),
+    [coverage, requestedStudies]
   );
   const series = useRef({ key, values });
   series.current = { key, values };
@@ -470,12 +469,12 @@ export const ChartWorkstation = ({
                 </div>
               ))}
             </dl>
-            {volumeKnown ? null : (
+            {coverage === "all" ? null : (
               <p
                 className="mt-2 text-muted-foreground text-xs"
-                data-no-volume=""
+                data-no-volume={coverage}
               >
-                {NO_VOLUME_NOTE}
+                {VOLUME_NOTES[coverage]}
               </p>
             )}
           </section>
@@ -492,8 +491,8 @@ export const ChartWorkstation = ({
                 ...studies.sma.map((period) => `SMA ${period}`),
                 ...studies.ema.map((period) => `EMA ${period}`),
                 ...(studies.extra ?? []).map((id) =>
-                  // Without volume AlphaTrend falls back from MFI to RSI.
-                  volumeKnown
+                  // AlphaTrend needs volume on every bar for MFI; else it uses RSI.
+                  coverage === "all"
                     ? VERTEX_STUDIES[id].label
                     : VERTEX_STUDIES[id].label.replace("(MFI)", "(RSI)")
                 ),

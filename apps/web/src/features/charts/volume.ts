@@ -14,8 +14,17 @@ const VOLUME_STUDY_IDS: readonly VertexStudyId[] = Object.freeze([
 const VOLUME_PANE_IDS: readonly BuiltinPaneId[] = Object.freeze(["OBV"]);
 
 export const NO_VOLUME_LABEL = "No volume";
-export const NO_VOLUME_NOTE =
-  "No volume for this instrument: the volume pane, VWAP, RVOL and OBV are off, and AlphaTrend uses RSI instead of MFI.";
+
+// "all": every bar has a volume; "some": only some bars; "none": no bar has one.
+// No bars count as "all" (nothing to warn about yet).
+export type VolumeCoverage = "all" | "some" | "none";
+
+export const VOLUME_NOTES: Readonly<
+  Record<Exclude<VolumeCoverage, "all">, string>
+> = Object.freeze({
+  none: "No volume for this instrument: the volume pane, VWAP, RVOL and OBV are off, and AlphaTrend uses RSI instead of MFI.",
+  some: "Some bars have no volume: VWAP and RVOL are off, and AlphaTrend uses RSI instead of MFI.",
+});
 
 // The volume property only when the bar has one (exactOptionalPropertyTypes).
 export const volumeField = (volume: number | undefined): { volume?: number } =>
@@ -28,22 +37,36 @@ export const addVolumes = (
 ): number | undefined =>
   left === undefined || right === undefined ? undefined : left + right;
 
-// False only when there are bars and none of them has a volume.
-export const hasVolume = (candles: readonly DisplayCandle[]): boolean =>
-  candles.length === 0 || candles.some((bar) => bar.volume !== undefined);
+export const volumeCoverage = (
+  candles: readonly DisplayCandle[]
+): VolumeCoverage => {
+  const withVolume = candles.filter((bar) => bar.volume !== undefined).length;
+  if (withVolume === candles.length) return "all";
+  return withVolume === 0 ? "none" : "some";
+};
 
-// The same studies without the volume pane and the studies that need volume.
-export const withoutVolumeStudies = (studies: ChartStudies): ChartStudies => ({
-  ...studies,
-  ...(studies.extra === undefined
-    ? {}
-    : {
-        extra: studies.extra.filter((id) => !VOLUME_STUDY_IDS.includes(id)),
-      }),
-  ...(studies.panes === undefined
-    ? {}
-    : {
-        panes: studies.panes.filter((id) => !VOLUME_PANE_IDS.includes(id)),
-      }),
-  volume: false,
-});
+// The studies the chart can draw for this coverage. VWAP, RVOL (and AlphaTrend's
+// MFI) need a volume on every bar; the volume pane and OBV need at least one.
+export const studiesForVolume = (
+  studies: ChartStudies,
+  coverage: VolumeCoverage
+): ChartStudies => {
+  if (coverage === "all") return studies;
+  const extra =
+    studies.extra === undefined
+      ? {}
+      : {
+          extra: studies.extra.filter((id) => !VOLUME_STUDY_IDS.includes(id)),
+        };
+  if (coverage === "some") return { ...studies, ...extra };
+  return {
+    ...studies,
+    ...extra,
+    ...(studies.panes === undefined
+      ? {}
+      : {
+          panes: studies.panes.filter((id) => !VOLUME_PANE_IDS.includes(id)),
+        }),
+    volume: false,
+  };
+};

@@ -34,7 +34,7 @@ import {
   VERTEX_STUDY_IDS,
   type VertexStudyId,
 } from "./vertex-studies.ts";
-import { volumeField } from "./volume.ts";
+import { NO_VOLUME_LABEL, volumeField } from "./volume.ts";
 import {
   type ChartType,
   type Drawing,
@@ -755,6 +755,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
           upWickColor: palette.rising,
         },
         priceMark: { show: false },
+        // Only volume can be missing from a bar (forex, non-USD stocks).
+        tooltip: { defaultValue: NO_VOLUME_LABEL },
         type: library.CandleType.CandleUpStroke,
       },
       grid: {
