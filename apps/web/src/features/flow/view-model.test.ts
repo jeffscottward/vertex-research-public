@@ -213,7 +213,7 @@ describe("flow view model", () => {
     }
     // Premium but no known Opening flag: every print reported open interest 0.
     expect(metricValue(empty, "Opening share")).toBe(
-      "not known (open interest 0)"
+      "no Opening flag: every print reports open interest 0"
     );
     const noPremium = optionsMetrics({
       ...spy.optionsFlow,
