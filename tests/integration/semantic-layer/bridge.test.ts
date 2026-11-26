@@ -125,6 +125,12 @@ describe("parseModelReply", () => {
     expect(() =>
       parseModelReply({
         content: "",
+        toolCalls: [{ arguments: "{}", name: "" }],
+      })
+    ).toThrow("a tool call has no name");
+    expect(() =>
+      parseModelReply({
+        content: "",
         toolCalls: [{ arguments: "{broken", name: "a" }],
       })
     ).toThrow();

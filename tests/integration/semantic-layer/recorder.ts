@@ -42,8 +42,9 @@ const BridgeReplySchema = z.object({
   model: z.string().min(1),
   toolCalls: z.array(
     z.object({
-      // The arguments object, or its JSON text; absent means no arguments. Any other JSON value
-      // is passed to the turn as JSON text, and the turn refuses it as it does in production.
+      // The arguments object, or its JSON text; absent and `null` mean no arguments. Any other
+      // JSON value is passed to the turn as JSON text, and the turn refuses a value that is no
+      // object as it does in production.
       arguments: z.unknown().optional(),
       name: z.string().min(1),
     })

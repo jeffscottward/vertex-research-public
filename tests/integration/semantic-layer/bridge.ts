@@ -155,15 +155,16 @@ export const parseModelReply = (output: unknown): ModelReply => {
         typeof call !== "object" ||
         call === null ||
         !("name" in call) ||
-        typeof call.name !== "string"
+        typeof call.name !== "string" ||
+        call.name === ""
       ) {
         throw new Error("a tool call has no name");
       }
       const text: unknown = "arguments" in call ? call.arguments : undefined;
       return {
-        // As the earlier bridge (Python `json.loads(args) if args.strip() else (args or {})`): JSON
-        // text is parsed; nothing, an empty text and an empty list are no arguments; every other
-        // value is passed on, and the turn refuses arguments that are no object.
+        // As the earlier bridge (Python `json.loads(args) if isinstance(args, str) and args.strip()
+        // else (args or {})`): JSON text is parsed; no value and every empty value (`null`, `""`,
+        // `[]`, `0`, `false`) are no arguments; every other value is passed on.
         arguments:
           typeof text === "string" && text.trim() !== ""
             ? (JSON.parse(text) as unknown)
