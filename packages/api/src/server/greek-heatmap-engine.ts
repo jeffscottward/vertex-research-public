@@ -449,14 +449,20 @@ export const buildGreekHeatmap = (
     };
   }
 
-  const allIvByExpiry = buildExpiryIvMap(input.chainRows, spot, input.today);
+  const ivByExpiry = buildExpiryIvMap(input.chainRows, spot, input.today);
+  const oiAll =
+    input.oiFailure === null
+      ? priceCounts(input.oiCounts, ivByExpiry, spot)
+      : [];
+  const volAll =
+    input.volumeFailure === null
+      ? priceCounts(input.volumeCounts, ivByExpiry, spot)
+      : [];
+  // Columns come from priced cells, so an expiry with no strike inside 50-150% of spot
+  // takes none of the MAX_HEATMAP_EXPIRIES slots.
   const allExpiries = [
-    ...new Set([
-      ...input.oiCounts.map((row) => row.expiry),
-      ...input.volumeCounts.map((row) => row.expiry),
-    ]),
+    ...new Set([...oiAll, ...volAll].map((cell) => cell.expiry)),
   ]
-    .filter((expiry) => allIvByExpiry.has(expiry))
     .sort()
     .slice(0, MAX_HEATMAP_EXPIRIES);
 
@@ -465,18 +471,8 @@ export const buildGreekHeatmap = (
     expiry,
   }));
   const expirySet = new Set(allExpiries);
-  const ivByExpiry = new Map(
-    [...allIvByExpiry].filter(([expiry]) => expirySet.has(expiry))
-  );
-
-  const oiPriced =
-    input.oiFailure === null
-      ? priceCounts(input.oiCounts, ivByExpiry, spot)
-      : [];
-  const volPriced =
-    input.volumeFailure === null
-      ? priceCounts(input.volumeCounts, ivByExpiry, spot)
-      : [];
+  const oiPriced = oiAll.filter((cell) => expirySet.has(cell.expiry));
+  const volPriced = volAll.filter((cell) => expirySet.has(cell.expiry));
   const gexFlipLevel = perExpiryGexFlip(oiPriced, spot);
   const volFlipLevel = perExpiryGexFlip(volPriced, spot);
 

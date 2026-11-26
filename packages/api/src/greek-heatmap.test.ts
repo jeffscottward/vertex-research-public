@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./client.ts";
 import { GreekHeatmapOutputSchema } from "./contracts/options-analytics.ts";
 import { createApiContext } from "./server/context.ts";
+import { FLOW_QUANTDATA_CALLER_RESERVE } from "./server/flow-collect.ts";
 import { callGreeks } from "./server/gex-context.ts";
 import {
   buildGreekHeatmap,
@@ -21,11 +22,11 @@ import {
 } from "./server/greek-heatmap-engine.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
-import { parseChain } from "./server/options-analytics-engine.ts";
 import {
   buildOptionsGreekHeatmap,
   setOptionsAnalyticsForTesting,
 } from "./server/options-analytics.ts";
+import { parseChain } from "./server/options-analytics-engine.ts";
 import type {
   QuantDataClient,
   QuantDataConfig,
@@ -166,16 +167,40 @@ const apiFor = (
   return createApiClient({ baseUrl: "https://darkfactory.localhost", fetch });
 };
 
+// A QuantData double for the real client: every endpoint of one /charts symbol answers.
+const quantDataFetchMock = () =>
+  vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith("/term-structure"))
+      return json({ data: chainData, stockPrice: 100 });
+    if (url.endsWith("/open-interest-by-strike"))
+      return json({
+        data: { "100.0": { callOpenInterest: 300, putOpenInterest: 300 } },
+      });
+    if (url.endsWith("/order-flow/consolidated")) return json({ data: [] });
+    if (url.endsWith("/heat-map")) {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        dataMode?: string;
+      };
+      return json({
+        data:
+          body.dataMode === "NET_VOLUME" ? volumeHeatMapData : oiHeatMapData,
+        type: "contract",
+      });
+    }
+    return json({ data: {} });
+  });
+
 describe("parseHeatMapCounts", () => {
   it("keeps unexpired positive strikes, takes absolute counts, and drops malformed entries", () => {
     const parsed = parseHeatMapCounts(
       {
-        "not-a-date": { "100": { callValue: 5 } },
         "2026-10-21": { "100": { callValue: 50 } },
+        "2026-10-22": {
+          "100": { putValue: 80 },
+        },
         "2026-10-23": {
-          "0": { callValue: 5 },
           "-10": { callValue: 5 },
-          bad: { callValue: 5 },
+          "0": { callValue: 5 },
           "95": "not-an-object",
           "96": [1, 2],
           "97": { callValue: 0, putValue: 0 },
@@ -183,10 +208,9 @@ describe("parseHeatMapCounts", () => {
           "100": { callValue: 50, putValue: 10 },
           "100.0": { callValue: "250.9", putValue: -120.7 },
           "105": { callValue: 40 },
+          bad: { callValue: 5 },
         },
-        "2026-10-22": {
-          "100": { putValue: 80 },
-        },
+        "not-a-date": { "100": { callValue: 5 } },
       },
       TODAY
     );
@@ -271,8 +295,8 @@ describe("buildGreekHeatmap math and marks", () => {
     const oi = parseHeatMapCounts(
       {
         "2026-10-22": {
-          "102": { callValue: 100 },
           "40": { callValue: 9999 },
+          "102": { callValue: 100 },
           "160": { putValue: 9999 },
         },
         "2026-12-18": { "100": { callValue: 500 } },
@@ -352,6 +376,34 @@ describe("buildGreekHeatmap math and marks", () => {
     expect(displayed.has(out.metrics.gex.marks.callWall!)).toBe(true);
     expect(displayed.has(out.metrics.gex.marks.putWall!)).toBe(true);
     expect(displayed.has(out.metrics.gex.marks.kingStrike!)).toBe(true);
+  });
+
+  it("gives no column to an expiry whose strikes are all outside 50-150% of spot", () => {
+    const chain = parseChain(chainData, TODAY).rows;
+    const oi = parseHeatMapCounts(
+      {
+        "2026-10-23": { "40": { callValue: 9999 }, "160": { putValue: 9999 } },
+        "2026-11-20": { "100": { callValue: 400, putValue: 390 } },
+      },
+      TODAY
+    );
+    const out = buildGreekHeatmap({
+      chainFailure: null,
+      chainRows: chain,
+      oiCounts: oi,
+      oiFailure: null,
+      rateLimited: false,
+      receivedAt: NOW.toISOString(),
+      retryAfterSeconds: null,
+      spot: 100,
+      symbol: "SPY",
+      today: TODAY,
+      volumeCounts: [],
+      volumeFailure: null,
+    });
+    expect(out.expiries).toEqual([{ dte: 29, expiry: "2026-11-20" }]);
+    expect(out.metrics.gex.expiryTotals).toHaveLength(1);
+    expect(out.metrics.gex.rows.map((row) => row.strike)).toEqual([100]);
   });
 
   it("breaks exact ties by proximity to spot, then higher strike for king/callWall and lower for putWall", () => {
@@ -755,6 +807,58 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
     expect(limitedHeatMap.rateLimited).toBe(true);
     expect(limitedHeatMap.retryAfterSeconds).toBe(51);
     expect(limitedHeatMap.status).toBe("failed");
+
+    // HTTP 422 is QuantData's "data-unavailable": the metric is empty, and the other book is unchanged.
+    const noVolume = await buildOptionsGreekHeatmap(
+      { symbol: "SPY" },
+      {
+        client: fakeClient({
+          oi: ok({ data: oiHeatMapData, type: "contract" }),
+          termStructure: ok({ data: chainData, stockPrice: 100 }),
+          volume: {
+            httpStatus: 422,
+            message: "QuantData heatMap: HTTP 422.",
+            ok: false,
+            reason: "http",
+            retryAfterSeconds: null,
+          },
+        }),
+        now: () => NOW,
+      }
+    );
+    expect(noVolume.metrics.volumeGex.status).toBe("empty");
+    expect(noVolume.metrics.volumeGex.message).toBe(
+      "QuantData returned no per-expiry option volume with IV for this symbol."
+    );
+    expect(noVolume.metrics.gex.status).toBe("ok");
+    expect(noVolume.status).toBe("ok");
+
+    // A rejected key is a failure with the client's message (the panel adds the owner action), not a rate limit.
+    const rejected: QuantDataResult = {
+      httpStatus: 403,
+      message:
+        "QuantData heatMap: HTTP 403 (access forbidden — check QUANTDATA_API_KEY or subscription).",
+      ok: false,
+      reason: "auth_failed",
+      retryAfterSeconds: null,
+    };
+    const rejectedKey = await buildOptionsGreekHeatmap(
+      { symbol: "SPY" },
+      {
+        client: fakeClient({
+          oi: rejected,
+          termStructure: ok({ data: chainData, stockPrice: 100 }),
+          volume: rejected,
+        }),
+        now: () => NOW,
+      }
+    );
+    expect(rejectedKey.status).toBe("failed");
+    expect(rejectedKey.metrics.gex.status).toBe("failed");
+    expect(rejectedKey.metrics.gex.message).toContain("HTTP 403");
+    expect(rejectedKey.metrics.volumeGex.message).toContain("HTTP 403");
+    expect(rejectedKey.rateLimited).toBe(false);
+    expect(rejectedKey.retryAfterSeconds).toBeNull();
   });
 
   it("enforces operator access, NOT_CONFIGURED, and shares the termStructure cache with snapshot", async () => {
@@ -776,26 +880,7 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
       })
     ).rejects.toMatchObject({ code: "NOT_CONFIGURED" });
 
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      if (url.endsWith("/term-structure"))
-        return json({ data: chainData, stockPrice: 100 });
-      if (url.endsWith("/open-interest-by-strike"))
-        return json({
-          data: { "100.0": { callOpenInterest: 300, putOpenInterest: 300 } },
-        });
-      if (url.endsWith("/order-flow/consolidated")) return json({ data: [] });
-      if (url.endsWith("/heat-map")) {
-        const body = JSON.parse(String(init?.body ?? "{}")) as {
-          dataMode?: string;
-        };
-        return json({
-          data:
-            body.dataMode === "NET_VOLUME" ? volumeHeatMapData : oiHeatMapData,
-          type: "contract",
-        });
-      }
-      return json({ data: {} });
-    });
+    const fetchMock = quantDataFetchMock();
 
     setOptionsAnalyticsForTesting(
       { fetch: fetchMock, minIntervalMs: 0, now: () => NOW.getTime() },
@@ -814,6 +899,44 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
       String(url).endsWith("/heat-map")
     );
     expect(heatMapCalls).toHaveLength(2);
+    setOptionsAnalyticsForTesting({});
+  });
+
+  it("spends 5 request starts on one uncached symbol, inside the reserve the collector leaves free", async () => {
+    const fetchMock = quantDataFetchMock();
+    // The cap is the reserve: the worst case, in which the collector used every other start.
+    setOptionsAnalyticsForTesting(
+      {
+        fetch: fetchMock,
+        maxRequestsPerMinute: FLOW_QUANTDATA_CALLER_RESERVE,
+        minIntervalMs: 0,
+        now: () => NOW.getTime(),
+      },
+      () => NOW
+    );
+    const api = apiFor(session("operator"), config);
+    const snapshot = await api.optionsAnalytics.snapshot({ symbol: "SPY" });
+    const heatmap = await api.optionsAnalytics.greekHeatmap({ symbol: "SPY" });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(snapshot.rateLimited).toBe(false);
+    expect(heatmap.rateLimited).toBe(false);
+    expect(heatmap.status).toBe("ok");
+
+    // A second uncached symbol in the same 60 s finds one start: it gets answers that name the
+    // rate limit and a retry time, and the client sends nothing more to QuantData.
+    const second = await api.optionsAnalytics.snapshot({ symbol: "QQQ" });
+    const secondHeatmap = await api.optionsAnalytics.greekHeatmap({
+      symbol: "QQQ",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(FLOW_QUANTDATA_CALLER_RESERVE);
+    expect(second.rateLimited).toBe(true);
+    expect(second.retryAfterSeconds).toBe(60);
+    expect(secondHeatmap.rateLimited).toBe(true);
+    expect(secondHeatmap.retryAfterSeconds).toBe(60);
+    expect(secondHeatmap.status).toBe("failed");
+    expect(secondHeatmap.metrics.gex.message).toContain(
+      "requests per minute is used"
+    );
     setOptionsAnalyticsForTesting({});
   });
 });

@@ -253,8 +253,10 @@ export const buildOptionsAnalytics = async (
   };
 };
 
+// A heat-map answer that cannot be used; null for a usable or a "no data" answer.
 const heatMapFailure = (result: QuantDataResult): string | null => {
-  if (!result.ok) return result.message;
+  // HTTP 422 is QuantData's "data-unavailable": an answer without rows, so the metric is empty.
+  if (!result.ok) return result.httpStatus === 422 ? null : result.message;
   const kind = result.body["type"];
   if (kind !== undefined && kind !== "contract")
     return "QuantData heatMap: unexpected response type.";
@@ -265,6 +267,8 @@ const heatMapFailure = (result: QuantDataResult): string | null => {
  * Strike-by-expiry Greek exposure heatmap (optionsAnalytics.greekHeatmap).
  * Reuses the cached term-structure request and adds two QuantData heat-map calls
  * (NET_OPEN_INTEREST and NET_VOLUME). Research only.
+ * Budget: the portal asks for the heatmap after the snapshot answered, so an uncached symbol
+ * costs 3 snapshot starts + 2 heat-map starts = 5, inside FLOW_QUANTDATA_CALLER_RESERVE (6).
  */
 export const buildOptionsGreekHeatmap = async (
   input: GreekHeatmapParsedInput,

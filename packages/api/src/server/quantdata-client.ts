@@ -19,7 +19,8 @@
 // - Caller reserve: a caller may pass `keepFree` (held to 0 to maxRequestsPerMinute − 1); its start is
 //   refused with the reason "reserved" when fewer than `keepFree` starts of the window would stay free.
 //   The flow collector uses `withCallerReserve(client, 6)`, so /charts option reads (keepFree 0) always
-//   find 6 starts free; `freeStarts()` reports the starts left in the current 60 s window.
+//   find 6 starts free; `freeStarts()` reports the starts left in the current 60 s window. One
+//   uncached symbol costs 5 of them: 3 for the options snapshot and 2 for the Greek heatmap.
 // - HTTP 429 starts a cooldown (Retry-After seconds, else 60 s); requests during it fail fast.
 // - HTTP 401/403 starts an auth-failure cooldown (default 300 s) and classifies as "auth_failed"
 //   so repeated ticks and UI loads fail fast instead of hammering QuantData with a rejected key,

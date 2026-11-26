@@ -22,7 +22,14 @@ The endpoint makes three cached QuantData requests per symbol through the shared
 2. `POST /v1/options/tool/heat-map` with `dataMode: "NET_OPEN_INTEREST"` (300 s TTL): per-expiry, per-strike call and put open interest (`{ callValue, putValue }`).
 3. `POST /v1/options/tool/heat-map` with `dataMode: "NET_VOLUME"` (60 s TTL): per-expiry, per-strike session call and put volume (`{ callValue, putValue }`).
 
-Each metric reports its own status (`ok`, `empty`, or `failed`) and cause message so a failure in volume does not hide the four open-interest tabs, and vice versa.
+Each metric reports its own status (`ok`, `empty`, or `failed`) and cause message so a failure in volume does not hide the four open-interest tabs, and vice versa. HTTP 422 from `heat-map` is QuantData's "data-unavailable" answer (no data for those inputs), so the metric is `empty`, not `failed`.
+
+Request budget (base cap of 2026-11-25: 54 request starts per 60 s in `quantdata-client.ts`, of which the flow collector leaves `FLOW_QUANTDATA_CALLER_RESERVE = 6` free for `/charts` and `/stock` reads):
+
+- The portal asks for the heatmap after `optionsAnalytics.snapshot` answered, so `term-structure` is a cache hit. One uncached symbol costs 5 starts: 3 for the snapshot and 2 for the heatmap. Before the heatmap it cost 3.
+- One uncached symbol per 60 s always fits inside the reserve of 6. A second uncached symbol in the same window fits only when the collector left starts unused (a live collector tick uses at most 32 of its 48). If it does not fit, the client sends no request, the affected sections show the rate limit with a retry time, and the answer stays HTTP 200.
+- The total cap does not change, so the heatmap cannot raise the load on the QuantData account (240 requests per 60 s, shared with the market-watch jobs).
+- `packages/api/src/greek-heatmap.test.ts` pins the count of 5 starts against the reserve.
 
 ## Formulas and Marks
 
