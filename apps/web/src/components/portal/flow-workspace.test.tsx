@@ -908,6 +908,12 @@ describe("FlowWorkspace control panel", () => {
     ];
     expect(blocks).toEqual([panel, snapshot]);
     expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
+    const wallDrift = container.querySelector("[data-wall-drift]");
+    expect(wallDrift?.getAttribute("data-wall-drift-ticker")).toBe("SPY");
+    expect(
+      wallDrift?.compareDocumentPosition(panel as Node) ??
+        Node.DOCUMENT_POSITION_PRECEDING
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const titles = [...container.querySelectorAll("h2")].map(
       (heading) => heading.textContent
     );
@@ -961,6 +967,12 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-control-empty]")?.textContent
     ).toMatch(/^Control document failed to load \(/u);
+    // The workspace clock is real time, so the lab GEX reads as stale: an explicit no-data.
+    expect(
+      container
+        .querySelector("[data-wall-drift]")
+        ?.getAttribute("data-wall-drift")
+    ).toBe("no-data");
     fail = false;
     await click(button(container, "Refresh"));
     await idle(container);

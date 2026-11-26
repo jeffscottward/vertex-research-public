@@ -111,6 +111,7 @@ import {
   voteTone,
   windowLabel,
 } from "../../features/flow/view-model.ts";
+import { flowWallDriftView } from "../../features/flow/wall-drift-view-model.ts";
 import { loadFailedLabel } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
@@ -138,6 +139,7 @@ import {
   FlowTradeBubblesPanel,
 } from "./flow-trade-bubbles-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
+import { WallDriftBadge } from "./wall-drift-badge.tsx";
 
 export interface FlowGateway {
   readonly control: (input: FlowControlInput) => Promise<FlowControl>;
@@ -1178,6 +1180,22 @@ export const FlowWorkspace = ({
             : `${loadFailedLabel(failure.failedAt)} · Refresh failed: ${failure.message} · showing the snapshot as of ${formatNyDateTime(snapshot.windowEnd)} · retrying every ${Math.round(refreshMs / 1000)} s`}
         </p>
       )}
+      <WallDriftBadge
+        heading="h2"
+        view={flowWallDriftView(
+          snapshot,
+          failure?.kind === "error" ? failure.message : null,
+          control === null
+            ? controlFailure === null
+              ? { kind: "loading" }
+              : {
+                  kind: "failed",
+                  message: `${controlFailure.code}: ${controlFailure.message}`,
+                }
+            : { control, kind: "ready" },
+          loadedAt
+        )}
+      />
       <FlowControlPanel
         control={control}
         failure={controlFailure}
