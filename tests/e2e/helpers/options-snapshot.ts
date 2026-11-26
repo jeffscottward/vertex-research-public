@@ -35,6 +35,7 @@ export const EMPTY_GEX_CONTEXT: GexContext = {
     putWall: null,
     putWallMoves: null,
   },
+  profile: [],
   regime: "no_data",
   session: "closed",
 };

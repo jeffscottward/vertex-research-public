@@ -29,6 +29,7 @@ import {
 
 import { centerMarkedRow } from "./center-marked-row.ts";
 import { GexContextStrip } from "./gex-context-strip.tsx";
+import { GexSpotCurve } from "./gex-spot-curve.tsx";
 import { GreekHeatmapPanel } from "./greek-heatmap-panel.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
@@ -84,6 +85,23 @@ const levelText = (
 ): string => {
   if (level !== null) return level.toFixed(2);
   return totalGex === null || dailyMove === null ? NOT_COMPUTED : missing;
+};
+
+const spotCurveNoDataReason = (
+  spot: number | null,
+  strikeCount: number,
+  gexExpiry: string | null,
+  dailyMove: number | null
+): string => {
+  if (spot === null || spot <= 0)
+    return "Not computed: spot price was not received from QuantData.";
+  if (strikeCount === 0)
+    return "Not computed: no strike open interest was received from QuantData.";
+  if (gexExpiry === null)
+    return "Not computed: no option chain rows received from QuantData.";
+  if (dailyMove === null)
+    return "Not computed: no front ATM IV in the QuantData option chain.";
+  return "Not computed: GEX spot sweep could not be estimated from this snapshot.";
 };
 
 const money = (value: number | null): string => {
@@ -406,6 +424,17 @@ const Exposure = ({
           </div>
         ))}
       </dl>
+      <GexSpotCurve
+        flip={context.levels.flip}
+        noDataReason={spotCurveNoDataReason(
+          spot,
+          section.strikes.length,
+          section.gexExpiry,
+          context.levels.dailyMove
+        )}
+        profile={context.profile}
+        spot={spot}
+      />
       <div className="max-h-96 overflow-auto" ref={scroller}>
         <Table
           className="w-full whitespace-nowrap text-xs"

@@ -189,6 +189,13 @@ export const GexContextFactorSchema = z
   })
   .strict();
 
+export const GexProfilePointSchema = z
+  .object({
+    spot: finite.positive(),
+    gex: finite,
+  })
+  .strict();
+
 export const GexContextSchema = z
   .object({
     regime: z.enum(GEX_REGIMES),
@@ -248,6 +255,9 @@ export const GexContextSchema = z
       .strict(),
     session: z.enum(MARKET_SESSIONS),
     factors: z.array(GexContextFactorSchema),
+    // Estimated net GEX over the +/-30% hypothetical spot sweep (121 steps) that finds the
+    // zero-gamma flip; empty when GEX could not be estimated.
+    profile: z.array(GexProfilePointSchema).max(121),
   })
   .strict();
 
@@ -454,6 +464,7 @@ export type FlowSection = z.infer<typeof FlowSectionSchema>;
 export type FlowEvent = z.infer<typeof FlowEventSchema>;
 export type GexContext = z.infer<typeof GexContextSchema>;
 export type GexContextFactor = z.infer<typeof GexContextFactorSchema>;
+export type GexProfilePoint = z.infer<typeof GexProfilePointSchema>;
 export type OptionsSectionStatus = (typeof OPTIONS_SECTION_STATUSES)[number];
 export type GreekHeatmapInput = z.input<typeof GreekHeatmapInputSchema>;
 export type GreekHeatmapParsedInput = z.output<typeof GreekHeatmapInputSchema>;
