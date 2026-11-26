@@ -708,7 +708,7 @@ describe("chainKpis", () => {
     expect(full.atmIv).toMatch(/^\d+\.\d%$/u);
     expect(full.putCallOiValue).toMatch(/^\d+\.\d{2}$/u);
     expect(full.putCallOiDetail).toBe(
-      "OI reported for all 41 calls and 41 puts in the returned chain"
+      "OI reported for 41 of 41 calls and 41 of 41 puts in the returned chain"
     );
     expect(
       chainKpis({ chain: { ...chain, rows: [], spot: null }, type: "ready" })
@@ -768,12 +768,12 @@ describe("chainKpis", () => {
     };
     expect(oi([400, 600])).toEqual([
       "1.50",
-      "OI reported for all 1 calls and 1 puts in the returned chain",
+      "OI reported for 1 of 1 calls and 1 of 1 puts in the returned chain",
     ]);
     // A reported put total of 0 is a ratio of 0, not a missing ratio.
     expect(oi([400, 0], [100, 0])).toEqual([
       "0.00",
-      "OI reported for all 2 calls and 2 puts in the returned chain",
+      "OI reported for 2 of 2 calls and 2 of 2 puts in the returned chain",
     ]);
     expect(oi(["absent", "absent"])).toEqual([
       "No ratio",
@@ -836,6 +836,7 @@ describe("chain request deadline", () => {
       const oiDetails = () =>
         kpis()?.querySelector("dl:last-child")?.querySelectorAll("dd");
       expect(kpis()?.textContent).toContain("Loading…");
+      expect(kpis()?.textContent).not.toContain("—");
       expect(oiDetails()?.[0]?.textContent).toBe("No ratio");
       expect(oiDetails()?.[1]?.textContent).toBe("Loading…");
       await run(() => vi.advanceTimersByTime(CHAIN_REQUEST_TIMEOUT_MS));

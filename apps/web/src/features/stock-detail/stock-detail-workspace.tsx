@@ -152,10 +152,9 @@ const putCallOiDetail = ({ calls, puts, putCallOi }: ChainSummary): string => {
     return `No call contracts; OI reported for ${reported(puts, "puts")} in the returned chain`;
   if (puts.contracts === 0)
     return `No put contracts; OI reported for ${reported(calls, "calls")} in the returned chain`;
-  if (!(complete(calls) && complete(puts)))
+  // With a ratio, and with a side that lacks OI: the same sentence, so the counts explain both.
+  if (putCallOi !== null || !(complete(calls) && complete(puts)))
     return `OI reported for ${reported(calls, "calls")} and ${reported(puts, "puts")} in the returned chain`;
-  if (putCallOi !== null)
-    return `OI reported for all ${calls.contracts} calls and ${puts.contracts} puts in the returned chain`;
   if (puts.total === 0) return "Reported call and put OI totals are 0";
   return "Call OI is 0; a ratio needs call OI above 0";
 };

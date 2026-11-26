@@ -178,16 +178,20 @@ test("stock detail keeps partial put/call OI details within the tile at target w
       const tile = element.closest("dl")?.getBoundingClientRect();
       const style = getComputedStyle(element);
       return {
+        clientWidth: element.clientWidth,
         detailHeight: rect.height,
         detailLeft: rect.left,
         detailRight: rect.right,
         lineHeight: Number.parseFloat(style.lineHeight),
+        scrollWidth: element.scrollWidth,
         tileLeft: tile?.left ?? Number.NaN,
         tileRight: tile?.right ?? Number.NaN,
       };
     });
     expect(bounds.detailLeft).toBeGreaterThanOrEqual(bounds.tileLeft);
     expect(bounds.detailRight).toBeLessThanOrEqual(bounds.tileRight);
+    // The text itself fits its box: a block keeps its box even when its text overflows.
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
     if (width === 375)
       expect(bounds.detailHeight).toBeGreaterThan(1.5 * bounds.lineHeight);
     // The big value stays on one line: the sentence is in the detail, not in the value.
