@@ -394,11 +394,18 @@ const IV_REGIME_LABELS: Readonly<Partial<Record<FlowGex["ivRegime"], string>>> =
     no_term_data: "no front-back IV pair",
   };
 
-const LEVEL_KEYS = ["flip", "callWall", "putWall", "maxPain"] as const;
+const LEVEL_KEYS = [
+  "flip",
+  "callWall",
+  "putWall",
+  "maxPain",
+  "kingNode",
+] as const;
 type LevelKey = (typeof LEVEL_KEYS)[number];
 const LEVEL_LABELS: Readonly<Record<LevelKey, string>> = {
   callWall: "Call wall",
   flip: "Gamma flip",
+  kingNode: "King node",
   maxPain: "Max pain",
   putWall: "Put wall",
 };

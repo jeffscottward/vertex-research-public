@@ -1415,6 +1415,7 @@ const collectGex = async (
         callWall: context.levels.callWall,
         flip: context.levels.flip,
         ivRegime: storedIvRegime(context.iv.regime),
+        kingNode: context.levels.kingNode,
         maxPain: exposure.maxPain,
         netDex: context.greeks.netDex,
         putWall: context.levels.putWall,

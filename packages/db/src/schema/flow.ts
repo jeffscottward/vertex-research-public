@@ -270,6 +270,7 @@ export const flowGex = pgTable(
     callWall: num("call_wall"),
     flip: num("flip"),
     ivRegime: text("iv_regime").$type<FlowIvRegimeValue>().notNull(),
+    kingNode: num("king_node"),
     maxPain: num("max_pain"),
     netDex: num("net_dex"),
     putWall: num("put_wall"),

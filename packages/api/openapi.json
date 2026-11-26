@@ -117649,6 +117649,16 @@
                                     }
                                   ]
                                 },
+                                "kingNode": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "maxPain": {
                                   "anyOf": [
                                     {
@@ -117674,7 +117684,8 @@
                                 "flip",
                                 "callWall",
                                 "putWall",
-                                "maxPain"
+                                "maxPain",
+                                "kingNode"
                               ],
                               "type": "object"
                             },
@@ -117732,6 +117743,16 @@
                                         }
                                       ]
                                     },
+                                    "kingNode": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
                                     "maxPain": {
                                       "anyOf": [
                                         {
@@ -117757,7 +117778,8 @@
                                     "flip",
                                     "callWall",
                                     "putWall",
-                                    "maxPain"
+                                    "maxPain",
+                                    "kingNode"
                                   ],
                                   "type": "object"
                                 },
@@ -163008,6 +163030,16 @@
                                 }
                               ]
                             },
+                            "kingNode": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "putWall": {
                               "anyOf": [
                                 {
@@ -163033,6 +163065,7 @@
                             "flip",
                             "callWall",
                             "putWall",
+                            "kingNode",
                             "dailyMove",
                             "flipMoves",
                             "callWallMoves",

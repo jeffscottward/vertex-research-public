@@ -277,7 +277,7 @@ describe("dealer Greeks", () => {
     expect(gexProfile(strikes, model(0.3), Number.NaN)).toEqual([]);
     return expect(gexProfile(strikes, model(0.3), 0)).toEqual([]);
   });
-  it("picks the largest positive and most negative GEX strikes as walls", () => {
+  it("picks the largest positive, most negative, and largest absolute GEX strikes as walls and king node", () => {
     const row = (strike: number, gex: number | null) => ({
       callOpenInterest: 1,
       gex,
@@ -289,14 +289,22 @@ describe("dealer Greeks", () => {
         row(90, -5),
         row(95, -9),
         row(100, null),
+        row(101, Number.NaN),
+        row(102, 0),
         row(105, 3),
         row(110, 7),
         row(115, 2),
         row(120, -1),
       ])
-    ).toEqual({ callWall: 110, putWall: 95 });
-    return expect(gexWalls([row(100, null)])).toEqual({
+    ).toEqual({ callWall: 110, kingNode: 95, putWall: 95 });
+    expect(gexWalls([row(100, -4), row(105, 8)])).toEqual({
+      callWall: 105,
+      kingNode: 105,
+      putWall: 100,
+    });
+    return expect(gexWalls([row(100, null), row(105, 0)])).toEqual({
       callWall: null,
+      kingNode: null,
       putWall: null,
     });
   });
@@ -438,6 +446,7 @@ describe("buildGexContext", () => {
     expect(context.levels.flip).not.toBeNull();
     expect(context.levels.callWall).toBe(105);
     expect(context.levels.putWall).toBe(95);
+    expect(context.levels.kingNode).toBe(105);
     expect(context.profile).toHaveLength(121);
     expect(context.profile[0]?.spot).toBeCloseTo(101 * 0.7, 6);
     expect(context.profile[60]?.spot).toBeCloseTo(101, 6);
@@ -509,7 +518,13 @@ describe("buildGexContext", () => {
       flow: { bias: "not_received" },
       greeks: { netCharm: null, netDex: null, netVanna: null },
       iv: { regime: "no_term_data" },
-      levels: { callWall: null, dailyMove: null, flip: null, putWall: null },
+      levels: {
+        callWall: null,
+        dailyMove: null,
+        flip: null,
+        kingNode: null,
+        putWall: null,
+      },
       profile: [],
       regime: "no_data",
     });
