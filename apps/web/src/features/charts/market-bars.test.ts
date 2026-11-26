@@ -25,7 +25,7 @@ const bar = (index: number, close = 100 + index) => ({
 });
 
 describe("IBKR bars to display candles", () => {
-  it("maps epoch seconds to millisecond candles, null volume to zero, and passes the adapter validator", () => {
+  it("maps epoch seconds to millisecond candles, null volume to no volume (not zero), and passes the adapter validator", () => {
     const result = barsToDisplayCandles([bar(0), { ...bar(1), v: null }]);
     expect(result.dropped).toBe(0);
     expect(result.skipped).toBe(0);
@@ -46,9 +46,9 @@ describe("IBKR bars to display candles", () => {
         high: 102,
         low: 100,
         close: 101,
-        volume: 0,
       },
     ]);
+    expect(result.candles[1]).not.toHaveProperty("volume");
     return expect(validDisplayCandles(result.candles)).toBe(true);
   });
 
@@ -232,6 +232,16 @@ describe("display bars", () => {
     expect(dataWindowRows(displayBars[0], 12, 2).at(-1)?.value).toBe(
       "-1.00 (-8.33%)"
     );
+    expect(rows.find((row) => row.label === "Volume")?.value).toBe("7");
     return expect(dataWindowRows(displayBars[0], 0, 2)).toHaveLength(6);
+  });
+  it("shows No volume in the data window and keeps it through Heikin Ashi", () => {
+    const { volume: _, ...withoutVolume } = displayBars[0] as DisplayCandle;
+    const [ha] = heikinAshi([withoutVolume]);
+    expect(ha).not.toHaveProperty("volume");
+    const rows = dataWindowRows(withoutVolume, undefined, 2);
+    return expect(rows.find((row) => row.label === "Volume")?.value).toBe(
+      "No volume"
+    );
   });
 });

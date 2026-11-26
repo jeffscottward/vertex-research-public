@@ -1,6 +1,7 @@
 import type { MarketBarSize } from "@darkfactory/api";
 
 import type { DisplayCandle } from "./types.ts";
+import { addVolumes, volumeField } from "./volume.ts";
 
 // Chart interval picker (1m to 1M), shared by /charts and /stock/<symbol>. Each interval maps
 // to one IBKR bars request; weekly and monthly candles are built from daily bars here, so
@@ -89,12 +90,15 @@ export const aggregateCandles = (
       currentKey = key;
       continue;
     }
+    // Without the volume field when any merged day has no volume.
     merged[merged.length - 1] = {
-      ...previous,
+      id: previous.id,
+      timestamp: previous.timestamp,
+      open: previous.open,
       close: candle.close,
       high: Math.max(previous.high, candle.high),
       low: Math.min(previous.low, candle.low),
-      volume: previous.volume + candle.volume,
+      ...volumeField(addVolumes(previous.volume, candle.volume)),
     };
   }
   return merged;
