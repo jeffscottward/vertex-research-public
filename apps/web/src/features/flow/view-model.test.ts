@@ -539,14 +539,12 @@ describe("four symbols and the short-term badge", () => {
     );
   });
 
-  it("names what is not collected for QQQ and NQ and nothing for SPY and ES", () => {
+  it("names what is not collected for QQQ and nothing for SPY, ES and NQ", () => {
     expect(notCollectedLine("SPY")).toBeNull();
     expect(notCollectedLine("ES")).toBeNull();
+    expect(notCollectedLine("NQ")).toBeNull();
     expect(notCollectedLine("QQQ")).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
-    );
-    expect(notCollectedLine("NQ")).toBe(
-      "Not collected for NQ: option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+      "Not collected for QQQ: trades. The IBKR budget goes to ES, NQ and SPY."
     );
   });
 });

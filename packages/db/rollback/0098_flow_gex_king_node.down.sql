@@ -1,4 +1,4 @@
--- Guarded reversal of 0095_flow_gex_king_node only.
+-- Guarded reversal of 0098_flow_gex_king_node only.
 -- This file is not the rollback path: the rollback is "deploy the previous app"; it runs on the
 -- migrated database and ignores the nullable column.
 -- flow_gex.king_node holds the largest-|GEX| strike recorded at each GEX snapshot. Dropping it loses

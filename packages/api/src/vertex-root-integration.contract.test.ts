@@ -383,7 +383,8 @@ describe("root Vertex worker and scoped browser contract integration", () => {
       },
       SERVICE_UNAVAILABLE: {
         status: 503,
-        message: "Worker service unavailable",
+        message:
+          "Worker RPC request failed: the worker dependency is not configured, the request was cancelled, or its store did not answer; retry",
       },
       INVALID_SOURCE: {
         status: 502,

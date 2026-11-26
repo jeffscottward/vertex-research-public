@@ -64,7 +64,6 @@ vi.mock("react", async (importOriginal) => ({
 
 import {
   continuityMessage,
-  continuityStateLabel,
   PortfolioCollection,
   PortfolioContinuity,
   PortfolioObservation,
@@ -72,6 +71,7 @@ import {
   PortfolioWorkspace,
   sourceKindLabel,
 } from "./portfolio.tsx";
+import { continuityStateLabel } from "./status-labels.ts";
 import { TodayDecisionInbox, TodayWorkspace } from "./today.tsx";
 import { ResourcePanel, ScopeChooser } from "./shared.tsx";
 import { ExperienceTableCell } from "./experience-table.tsx";
@@ -383,7 +383,7 @@ describe("portfolio source truthfulness", () => {
       "This view cannot reserve, release, reconcile or submit",
       "Allocations neither create funds nor authorize spending",
       "This does not establish zero exposure",
-      'data-slot="table-cell">unknown</td>',
+      'data-slot="table-cell">not confirmed by native owner</td>',
       "9007199254740993.000000001",
     ]) {
       expect(visible).toContain(critical);
@@ -506,6 +506,22 @@ describe("portfolio source truthfulness", () => {
 
   it("names the no-source continuity state with its time, sequence and next step", () => {
     expect(continuityStateLabel("unavailable")).toBe("source reported no data");
+    const unknownFreshnessHtml = markup(
+      <PortfolioContinuity
+        continuity={{
+          ...continuity,
+          freshness: {
+            ...continuity.freshness,
+            observedAt: null,
+            status: "unknown",
+          },
+        }}
+      />
+    );
+    expect(unknownFreshnessHtml).toContain(
+      "freshness: not evaluated by source"
+    );
+    expect(unknownFreshnessHtml).not.toContain("freshness: unknown");
     expect(continuityStateLabel("gap")).toBe("gap");
     expect(sourceKindLabel("source-unavailable")).toBe(
       "source reported no data"
@@ -683,7 +699,9 @@ describe("portfolio source truthfulness", () => {
     );
     expect(html).toContain("<dd>80</dd>");
     expect(html).toContain("<dd>100</dd>");
-    expect(html).toContain('data-slot="table-cell">unknown</td>');
+    expect(html).toContain(
+      'data-slot="table-cell">not confirmed by native owner</td>'
+    );
     expect(html).not.toContain("<dd>73</dd>");
     expect(html).not.toContain("<dd>131</dd>");
     return expect(html).toContain("no calculated totals");

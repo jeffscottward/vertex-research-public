@@ -49,6 +49,11 @@ State before this change:
 ## Open Questions
 
 * **Dataset rights**: the upstream code is MIT, but the pre-collected dataset has no license statement and holds venue data (Kalshi API data and Polymarket chain events). This change ships no data and no download, so the question does not block it. A rights check is the first step of the dataset run and gates any download (tracker card `vertex-prediction-market-dataset-run`).
+  * Rights check of 2026-11-26 (card `vertex-prediction-market-dataset-run`, no download done). Source: `https://s3.jbecker.dev/data.tar.zst`, linked from the upstream README and its download script; HTTP HEAD gives 36,020,641,508 bytes, ETag `18f290309fb5d12915d667fc5ee199e4-4294`, last modified 2026-02-05. The upstream tree at `main` has only the MIT license file, which covers "the Software and associated documentation files", not the archive. No issue or document gives a data license.
+  * The [Kalshi Data Terms of Use](https://kalshi-public-docs.s3.amazonaws.com/kalshi-data-terms-of-service.pdf) allow only personal, non-commercial use "in the form in which it is presented on the Website". Without prior written authorization they prohibit copying, downloading, compiling and text and data mining of Kalshi Data (section II). They also say that non-commercial use does not include providing archived data sets of Kalshi Data to another person without consent (section I). The archive is such a data set from a third party. Result: the Kalshi Data Terms of Use give no permitted use basis for the Kalshi part (the separate Kalshi API terms were not checked); the dataset run stays blocked.
+  * Paths that would unblock it (each needs an owner decision): written consent from Kalshi for local research use, or a new design that scores only Polymarket from sources with clear terms (for example public Polygon chain events) and leaves Kalshi out.
+  * Storage: the preflight of tracker sweep run 20261121T113718 found about 22 GiB free on the rig, less than the 33.5 GiB archive. The 2026-11-26 cloud sandbox had 118 GiB free; the extracted size is not known.
+  * Decision of 2026-11-25 (owner answer in the job channel): Kalshi stays out, and the run uses Polymarket fills and resolutions read from public Polygon logs through the free PublicNode endpoint. Design, rights basis and results: [prediction-market-onchain-sample.md](prediction-market-onchain-sample.md). The archive is not downloaded.
 
 ## Critical User Journeys (CUJs)
 
@@ -259,12 +264,12 @@ This change adds both new test files to `ci-suites.txt`. They need only the exis
 | Dataset rights are unknown ([Open Questions](#open-questions)). | This change ships no data and no download. The module docstring states the rights status. A rights check gates the dataset run. |
 | A reader takes the posture level as a trading instruction, or takes a level from a short history as a full result. | The module returns a description only; its docstring says that the result is not an order, an exposure change or a trading authorization. The exposure recommendation of the upstream skill is not adapted. `audit_flags` marks a short history (CUJ 5). |
 | The adapted rules do not follow later upstream changes. | Accepted. The docstrings and this document pin the upstream commits; the check against the upstream code was made once at those commits. Upstream changes are not tracked. |
-| Code without a caller stays unused. | The scope is two modules without input or output, with tests. The calibration module has a decision gate: when the owner decides about the dataset download (tracker card `vertex-prediction-market-dataset-run`), the module gets its reader and first run, or it is removed in the same change. The distribution-day module gets its caller with the posture item in [Future Improvements](#future-improvements). |
+| Code without a caller stays unused. | The scope is two modules without input or output, with tests. The calibration module has a decision gate: when the owner decides about the dataset download (tracker card `vertex-prediction-market-dataset-run`), the module gets its reader and first run, or it is removed in the same change. Closed on 2026-11-26: the module has its DuckDB Parquet reader and a first run on Polymarket chain data ([prediction-market-onchain-sample.md](prediction-market-onchain-sample.md)). The distribution-day module gets its caller with the posture item in [Future Improvements](#future-improvements). |
 | The six private commits are lost. | A git bundle of `ws/repos-reel` (commits `cfacaf06` to `a7a0ad68`) is in the owner's private report store. The pull request diff is the source of truth for the moved files. |
 
 ## Non-Functional Requirements
 
-* **Security and privacy**: no secret, account data, network call or file write. The modules read only the rows and bars that the caller passes in. A test checks the imports of each module.
+* **Security and privacy**: no secret, account data, network call or file write. The modules read only the rows and bars that the caller passes in. A test checks the imports of each module. (The later sampler `providers/polymarket_chain_sample.py` reads public chain logs over the network and writes local Parquet files; see [prediction-market-onchain-sample.md](prediction-market-onchain-sample.md).)
 * **Performance**: see "Order and memory" above for the calibration module. The distribution-day module reads each bar once for detection; for each distribution day it also reads the bars since that day (`high_since`) and at most 25 bars for invalidation. No performance target is set, because no runtime uses the modules.
 * **Rollout and rollback**: no runtime uses the modules. A revert of the merge commit removes them.
 
@@ -281,7 +286,7 @@ This change adds both new test files to `ci-suites.txt`. They need only the exis
 
 Tracker cards are entries of the owner's work tracker; the card id is the reference.
 
-* **Dataset run** (card `vertex-prediction-market-dataset-run`): check the dataset rights, download the dataset, add the DuckDB Parquet reader with a pinned lock and a CI run, and run the calibration on real rows. Starts when the owner asks for the download.
+* **Dataset run** (card `vertex-prediction-market-dataset-run`): check the dataset rights, download the dataset, add the DuckDB Parquet reader with a pinned lock and a CI run, and run the calibration on real rows. Starts when the owner asks for the download. Done for Polymarket only on 2026-11-26, from public chain logs instead of the archive ([prediction-market-onchain-sample.md](prediction-market-onchain-sample.md)); Kalshi stays blocked.
 * **Posture on real bars**: feed `index_posture` with daily QQQ and SPY bars (for example from [`ibkr_history.py`](../../services/research/providers/ibkr_history.py)) and show the level with its audit flags on a research page.
 * **Library links** (card `vertex-repos-reel-library-links`): add the three learning links (candidates 6, 7 and 10) to the Vertex Papers library. The route that adds a row needs an operator session.
 

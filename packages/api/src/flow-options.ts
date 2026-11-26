@@ -7,9 +7,9 @@ import type {
   FlowConsolidation,
   FlowMoneyness,
   FlowOptionSentiment,
+  FlowOptionPrintSymbol,
   FlowOptionSide,
   FlowOptionTicker,
-  FlowSymbol,
 } from "./contracts/flow.ts";
 import type { FlowEventRow } from "./flow-features.ts";
 
@@ -73,7 +73,7 @@ const QuantDataFlowRowSchema = z.object({
 
 export type FlowOptionPrintRow = Readonly<{
   id: string;
-  symbol: FlowSymbol;
+  symbol: FlowOptionPrintSymbol;
   ticker: FlowOptionTicker;
   tradedAt: Date;
   right: "call" | "put";
@@ -170,7 +170,7 @@ export type ParsedOptionPrints = Readonly<{
 
 export const parseOptionPrints = (
   data: unknown,
-  symbol: FlowSymbol,
+  symbol: FlowOptionPrintSymbol,
   ticker: FlowOptionTicker
 ): ParsedOptionPrints => {
   const rows = Array.isArray(data) ? data : [];

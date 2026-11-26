@@ -446,6 +446,8 @@ export interface StockDetailWorkspaceProps {
   readonly ivHistory?: IvHistoryGateway;
   readonly marketData?: MarketDataGateway;
   readonly openbb?: OpenbbGateway;
+  /** Operator session: shows operator-only reads (the wall x drift badge). */
+  readonly operator?: boolean;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
   readonly optionsChain?: OptionsChainGateway;
   readonly symbol: string;
@@ -458,6 +460,7 @@ export const StockDetailWorkspace = ({
   optionsAnalytics,
   openbb,
   ivHistory,
+  operator = false,
 }: StockDetailWorkspaceProps) => {
   const [marketData] = useState(
     () => suppliedMarketData ?? createBrowserMarketDataGateway()
@@ -613,7 +616,11 @@ export const StockDetailWorkspace = ({
       ) : query.tab === "analytics" ? (
         <div className="space-y-6">
           <IvRankHistoryPanel gateway={ivHistory ?? openbb} symbol={symbol} />
-          <OptionsAnalyticsPanel gateway={optionsAnalytics} symbol={symbol} />
+          <OptionsAnalyticsPanel
+            gateway={optionsAnalytics}
+            symbol={symbol}
+            wallDrift={operator}
+          />
         </div>
       ) : (
         <>

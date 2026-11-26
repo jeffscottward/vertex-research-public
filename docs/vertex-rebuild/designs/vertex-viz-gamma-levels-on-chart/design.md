@@ -14,7 +14,7 @@ Research view only. Nothing in this change places, changes, or cancels an order,
 
 - **Core:** none (no change to reusable DarkFactory template primitives).
 - **Capability:** read-only research chart overlay and level persistence within the Vertex portal vertical.
-- **Convention:** contracts first, Drizzle generated migration (`0095_flow_gex_king_node`), oRPC only, strict TypeScript, 100% coverage on all new and touched non-baseline files, dark + light tokens, WCAG non-color encoding, 375–1440 px responsive layout.
+- **Convention:** contracts first, Drizzle generated migration (`0098_flow_gex_king_node`), oRPC only, strict TypeScript, 100% coverage on all new and touched non-baseline files, dark + light tokens, WCAG non-color encoding, 375–1440 px responsive layout.
 
 ## Definitions and math
 
@@ -32,7 +32,7 @@ Because `kingNode` maximizes `|net GEX|`, it shares a strike with either `callWa
 
 ## Schema and contract changes
 
-1. **Database (`packages/db`):** Adds nullable `king_node double precision` to `flow_gex` (`migrations/0095_flow_gex_king_node.sql`, guarded reversal `rollback/0095_flow_gex_king_node.down.sql`). Existing rows stay valid with `king_node = NULL` until subsequent collector runs populate it.
+1. **Database (`packages/db`):** Adds nullable `king_node double precision` to `flow_gex` (`migrations/0098_flow_gex_king_node.sql`, guarded reversal `rollback/0098_flow_gex_king_node.down.sql`). Existing rows stay valid with `king_node = NULL` until subsequent collector runs populate it.
 2. **oRPC contracts (`packages/api`):**
    - `optionsAnalytics.snapshot`: adds `context.levels.kingNode: finite.nullable()` computed in `gexWalls`.
    - `flow.snapshot`: adds `kingNode: finite.nullable()` to `gex.levels` and basis-shifted `gex.symbolLevels`.

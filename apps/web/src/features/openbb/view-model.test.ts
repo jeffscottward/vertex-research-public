@@ -9,6 +9,7 @@ import {
   formatPercent,
   formatSignedCompact,
   ivBasisText,
+  ivHistoryText,
   ivPanelDate,
   ivSourceNotice,
   ivStandingText,
@@ -193,6 +194,7 @@ describe("openbb view model", () => {
       callWall: 600,
       contracts: 0,
       gammaFlip: 580,
+      historyState: "clean" as const,
       ivPercentile: 40,
       netGex: null,
       putIv25d30d: 0.2,
@@ -322,6 +324,7 @@ describe("openbb view model", () => {
       basis: "own_atm_iv",
       basisSessions: 252,
       callWall: 600,
+      historyState: "clean",
       ivPercentile: 40,
       ivRank: 35,
     });
@@ -341,6 +344,23 @@ describe("openbb view model", () => {
     expect(ivPanelDate([])).toBeNull();
     expect(ivPanelDate(result)).toBe("2026-11-06");
     expect(ivPanelDate([iwm as (typeof result)[number]])).toBe("2026-11-05");
+  });
+
+  it("states the source evidence for each IV percentile sample", () => {
+    const own = (
+      historyState: Parameters<typeof ivHistoryText>[0]["historyState"]
+    ) => ivHistoryText({ basis: "own_atm_iv", historyState });
+    expect(own("affected")).toBe("Yahoo IV in sample");
+    expect(own("clean")).toBe("Cboe only");
+    expect(own("source_unverified")).toBe("Source not verified");
+    expect(own(null)).toBe(NOT_COLLECTED);
+    expect(ivHistoryText({ basis: null, historyState: "clean" })).toBe(
+      "Cboe only"
+    );
+    // A proxy percentile uses no option-chain rows, so the own rows' state does not apply.
+    expect(
+      ivHistoryText({ basis: "vol_index_proxy", historyState: "clean" })
+    ).toBe("Proxy index basis");
   });
 
   it("summarizes the main COT category per market with a 4-week change", () => {
@@ -542,7 +562,7 @@ describe("job notices", () => {
     const gld = `cboe chain GLD: ContentTypeError: 403; ${marker} (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)`;
     const skip = `cboe chain SPY: ${marker} earlier this session; skipped the re-fetch`;
     const expected = (symbols: string) =>
-      `Source of the newest rows: Yahoo option chain for ${symbols} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.`;
+      `Source of the newest rows: Yahoo option chain for ${symbols} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each own option-chain percentile sample; this notice and the table come from separate reads.`;
     const stored = {
       rowsReceived: 12,
       rowsWritten: 12,

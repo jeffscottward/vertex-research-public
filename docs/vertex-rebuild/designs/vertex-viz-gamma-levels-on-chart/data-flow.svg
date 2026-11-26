@@ -50,7 +50,7 @@
     font-size="12"
   >
     Zero duplicate QuantData calls on /charts; single nullable king_node column
-    in flow_gex (migration 0095)
+    in flow_gex (migration 0098)
   </text>
 
   <!-- Column 1: Sources -->
@@ -148,7 +148,7 @@
       font-family="ui-monospace, monospace"
       font-size="11"
     >
-      0095_flow_gex_king_node
+      0098_flow_gex_king_node
     </text>
     <text
       x="16"

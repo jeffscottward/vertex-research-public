@@ -44,14 +44,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
-    file: "contracts/congress-trades.ts",
-    text: "Congress trade storage unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
     file: "contracts/flow.ts",
     text: "source_unavailable",
     count: 1,
@@ -101,14 +93,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: names what failed (the audit log) and the effect (the request was not sent), so the reader knows that the action did not run. The cause of the audit failure is not named.",
   },
   {
-    file: "contracts/market-notes.ts",
-    text: "Market notes storage unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
     file: "contracts/nautilus-arm.ts",
     text: "Audit log unavailable; nothing was changed",
     count: 1,
@@ -145,14 +129,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "contracts/research-screen.ts",
-    text: "Research screen storage unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
-    file: "contracts/research-screen.ts",
     text: "unavailable",
     count: 1,
     reason:
@@ -174,14 +150,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "contracts/smart-money.ts",
-    text: "Smart money storage unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
-    file: "contracts/smart-money.ts",
     text: "unavailable",
     count: 1,
     reason:
@@ -199,16 +167,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 3,
     reason:
-      "Known ambiguous: the continuity state is a wire value that the app prints as it arrives ('Continuity: unavailable' in features/experience/today.tsx). It needs a label that names the state and its cause.",
-    open: true,
+      "Wire value: frozen native-bundle control contract enum (ProjectionContinuity.state and status read variants). Mapped in apps/web/src/features/experience/status-labels.ts (continuityStateLabel) and withheld-read handlers; never printed raw.",
   },
   {
     file: "contracts/vertex-control.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Known ambiguous: the reservation state is a wire value that the app prints as it arrives (column 'State' in features/experience/portfolio.tsx). It needs a label that names the state and its cause.",
-    open: true,
+      "Wire value: frozen native-bundle control contract enum (PortfolioSnapshot.reservations[].state). Mapped in apps/web/src/features/experience/status-labels.ts (reservationStateLabel); never printed raw.",
   },
   {
     file: "contracts/vertex-experience-status-reads.ts",
@@ -223,14 +189,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     reason:
       "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
-  },
-  {
-    file: "contracts/vertex-experience.ts",
-    text: "Vertex capability unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
   },
   {
     file: "contracts/vertex-local-setup.ts",
@@ -259,14 +217,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     reason:
       "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
-  },
-  {
-    file: "contracts/vertex-read.ts",
-    text: "Vertex read service unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
   },
   {
     file: "contracts/vertex-research-chat-conversation.ts",
@@ -430,22 +380,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
-    file: "contracts/vertex-research-chat.ts",
-    text: "Vertex research chat service unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
-    file: "contracts/vertex-worker-rpc.ts",
-    text: "Worker service unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
     file: "contracts/vertex-worker.ts",
     text: "unavailable",
     count: 2,
@@ -527,16 +461,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 5,
     reason:
-      "Known ambiguous: wire values of the Vertex experience contract. The app prints some of them as they arrive: infrastructure and broker handshake (features/experience/utilities.tsx). Each needs a label that names the state and its cause.",
-    open: true,
+      "Wire value: frozen Vertex contract enum (infrastructure, brokerHandshake, dataVintageStatus, verification, ModuleStatus). Mapped in apps/web/src/features/experience/status-labels.ts (gatewayInfrastructureLabel, brokerHandshakeLabel, moduleLifecycleStateLabel); never printed raw.",
   },
   {
     file: "contracts/vertex.ts",
     text: "unknown",
     count: 12,
     reason:
-      "Known ambiguous: wire values of the Vertex experience contract. The app prints some of them as they arrive: the freshness status (features/experience/portfolio.tsx, today.tsx), infrastructure, broker handshake and recovery (utilities.tsx) and the leakage check status (strategies.tsx). Each needs a label that names the state and its cause.",
-    open: true,
+      "Wire value: frozen Vertex contract enum (freshness, infrastructure, brokerHandshake, recovery, leakageChecks, entitlement, aggressor, receipt, ModuleStatus). Mapped in apps/web/src/features/experience/status-labels.ts (incl. moduleLifecycleStateLabel) and indicators.ts; never printed raw.",
   },
   {
     file: "contracts/vertex.ts",
@@ -544,14 +476,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
-  },
-  {
-    file: "deep-value-score.ts",
-    text: "?",
-    count: 3,
-    reason:
-      "Known ambiguous: a '?' stands for a missing peer count, fiscal year or first reporting year in the score text. The text must say which value SEC data does not have.",
-    open: true,
   },
   {
     file: "deep-value-score.ts",
@@ -902,6 +826,20 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Unknown claim id ${}",
     count: 1,
     reason: "Kept: input error that names its cause; the claim id follows.",
+  },
+  {
+    file: "server/master-rules-sources.generated.ts",
+    text: "Do not set a hard stop right at the 21 EMA; exit on a daily close under the 21 EMA.",
+    count: 1,
+    reason:
+      "Not a status: a paraphrased trader rule quoted from a knowledge base in the generated master-rules sources (advisory research data). Regenerated by research/master-rules/build-master-rule-pack.mjs.",
+  },
+  {
+    file: "server/master-rules-sources.generated.ts",
+    text: "Size bets with fractional Kelly (about 0.25 to 0.5 of the Kelly fraction) because your edge is estimated, not known.",
+    count: 1,
+    reason:
+      "Not a status: a paraphrased trader rule quoted from a knowledge base in the generated master-rules sources (advisory research data). Regenerated by research/master-rules/build-master-rule-pack.mjs.",
   },
   {
     file: "server/mcp.ts",
@@ -1534,30 +1472,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
-  },
-  {
-    file: "server/vertex-runtime-model-evidence.ts",
-    text: "Current model-use evidence unavailable",
-    count: 2,
-    reason:
-      "Known ambiguous: text of a thrown Error. It names the fact that could not be read, but not the cause (store answer, cancelled request or missing grant).",
-    open: true,
-  },
-  {
-    file: "server/vertex-runtime-model-evidence.ts",
-    text: "Current model-use read grant unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: text of a thrown Error. It names the fact that could not be read, but not the cause (store answer, cancelled request or missing grant).",
-    open: true,
-  },
-  {
-    file: "server/vertex-runtime-model-use.ts",
-    text: "Current model-use context unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: text of a thrown Error. It names the fact that could not be read, but not the cause (store answer, cancelled request or missing grant).",
-    open: true,
   },
   {
     file: "server/vertex-runtime-model-use.ts",

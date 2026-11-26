@@ -298,10 +298,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=N17Rp4gnLfQ"
     },
     {
-      "kb": "fredy-sarmiento",
-      "recordId": "fredy-sarmiento:regime:4",
-      "statement": "In a negative-gamma environment dealers hedge by selling futures into declines, amplifying moves; read the regime from net 0DTE gamma.",
-      "url": "https://www.youtube.com/watch?v=DPiJEyJOFaU"
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:3",
+      "statement": "Expect intraday mean reversion when dealer gamma is positive and intraday momentum with fragile returns when it is negative.",
+      "url": null
     }
   ],
   "C007": [
@@ -586,22 +586,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=hptOqynkEwY"
     },
     {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:sizing:2",
+      "statement": "When buying a selloff, add gradually, favour companies with strong competitive advantages and healthy balance sheets, and keep cash on the sidelines.",
+      "url": "https://www.instagram.com/p/DgDeEkrOzyi/"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:sizing:6",
+      "statement": "Scale into positions in chunks instead of all at once, and scale out the same way.",
+      "url": null
+    },
+    {
       "kb": "bridgingcycles-instagram",
       "recordId": "bridgingcycles-instagram:sizing:3",
       "statement": "Accumulate long-dated ITM LEAPS gradually over months as supplemental leverage, and roll aged contracts out before final decay.",
       "url": null
-    },
-    {
-      "kb": "ericnomics",
-      "recordId": "ericnomics:sizing:3",
-      "statement": "Start small on a new credit spread and size in as the trade develops.",
-      "url": "https://www.youtube.com/watch?v=U98eZWE1-Xw"
-    },
-    {
-      "kb": "kobeissi-letter",
-      "recordId": "kobeissi-letter:sizing:2",
-      "statement": "Accumulate positions gradually as price falls through the buy zone rather than all at once.",
-      "url": "https://x.com/KobeissiLetter/status/2109645408968347894"
     }
   ],
   "C013": [
@@ -748,10 +748,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=LbNryl7wa4Y"
     },
     {
-      "kb": "andrea-cimitan",
-      "recordId": "andrea-cimitan:sizing:1",
-      "statement": "With the two combined ORB models, risking 1-2% per trade produced ~10% historical max drawdown (Sharpe ~1.87).",
-      "url": "https://www.youtube.com/watch?v=47i3PI7JhkQ"
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:2",
+      "statement": "Combine a 2-5% position with a stop loss so a losing trade costs only about 0.10-0.25% of the account.",
+      "url": null
     }
   ],
   "C016": [
@@ -874,6 +874,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Y0jPGjTUHxU"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:regime:5",
+      "statement": "In an uptrend (higher highs and higher lows), buy the pullbacks.",
+      "url": null
+    },
+    {
       "kb": "ericnomics",
       "recordId": "ericnomics:entry:7",
       "statement": "Wait for a better entry at a local bottom or support zone before taking the position.",
@@ -896,12 +902,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "tom-vorwald:entry:1",
       "statement": "When price is far above VWAP in a stable trend and pulls back to it, look for a long.",
       "url": "https://www.youtube.com/watch?v=-M5iFjapltw"
-    },
-    {
-      "kb": "kobeissi-letter",
-      "recordId": "kobeissi-letter:entry:3",
-      "statement": "Buy S&P 500 dips after Fed-shock selloffs into support, targeting the prior high zone.",
-      "url": "https://x.com/KobeissiLetter/status/2102086193751925233"
     }
   ],
   "C019": [
@@ -984,6 +984,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:risk:11",
       "statement": "Keep stops within a safe distance from key price points; trading without a stop produced the day's biggest loss.",
       "url": "https://www.youtube.com/watch?v=_LaKPNJzWU8"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:4",
+      "statement": "Bound maximum loss per position with a stop or option hedge, or assume worst historical loss times a safety factor, so leverage cannot cause a blow-up.",
+      "url": "https://www.youtube.com/watch?v=ATsXvDtSp54"
     },
     {
       "kb": "dumbmoneyhunter",
@@ -1118,6 +1124,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
     },
     {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:indicator:3",
+      "statement": "Use public GEX only as context and confirm the gamma regime against realized intraday volatility and price action before acting.",
+      "url": null
+    },
+    {
       "kb": "worldclassedge-creators",
       "recordId": "worldclassedge-creators:entry:17",
       "statement": "[Fredy Sarmiento] Combine gamma levels with order flow (footprint) confirmation for a complete system.",
@@ -1140,12 +1152,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "skydweller:wisdom:4",
       "statement": "A CVD divergence only matters at a level already marked; absorption is stronger than exhaustion.",
       "url": "https://www.youtube.com/watch?v=zyESydYaySE"
-    },
-    {
-      "kb": "trading-verrillo-aleks",
-      "recordId": "trading-verrillo-aleks:indicator:12",
-      "statement": "Get the strongest read when options net drift and futures cumulative delta push the same way.",
-      "url": "https://www.youtube.com/watch?v=xzoQc4lWAkA"
     }
   ],
   "C024": [
@@ -1192,10 +1198,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=DVInq2AudFw"
     },
     {
-      "kb": "brandon-kioseff",
-      "recordId": "brandon-kioseff:exit:3",
-      "statement": "Default pullback system exits: target 4.5x ATR, stop 2.5x ATR.",
-      "url": "https://www.youtube.com/watch?v=46fQ5tXaMnE"
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:21",
+      "statement": "Set stop-loss and take-profit levels from ATR so exits adapt to current volatility.",
+      "url": "https://www.youtube.com/watch?v=ZV_HZGTaVR0"
     }
   ],
   "C025": [
@@ -1336,10 +1342,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=1MvJHzcDzuw"
     },
     {
-      "kb": "dumbmoneyhunter",
-      "recordId": "dumbmoneyhunter:wisdom:4",
-      "statement": "Complicated methods like Elliott Wave may work briefly but not for years; simplicity wins.",
-      "url": "https://www.youtube.com/watch?v=2PMH_nL5iS4"
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:102",
+      "statement": "Keep strategies simple: one or two entry rules, one or two exit rules, and three or four optimized variables.",
+      "url": "https://www.youtube.com/watch?v=OhFMsgGL2Zo"
     }
   ],
   "C028": [
@@ -1368,6 +1374,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=6PjYEUs7xs8"
     },
     {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:exit:2",
+      "statement": "Reward:risk target size alone creates no edge: random NQ entries with a 25-pt stop and 1×/2×/3×/5× targets all had PF ≈1.0; win rate fell 50%→25% while avg trade stayed ≈$0.",
+      "url": "https://www.instagram.com/p/DeVjF6mRuEN/"
+    },
+    {
       "kb": "dumbmoneyhunter",
       "recordId": "dumbmoneyhunter:wisdom:2",
       "statement": "Larger 3R-4R targets are gambling unless multiple timeframes line up.",
@@ -1383,12 +1395,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "kb": "andrea-cimitan",
       "recordId": "andrea-cimitan:wisdom:5",
       "statement": "There is no required 1:3 reward:risk; widening the target lowers win probability (p≈1/(1+R)).",
-      "url": "https://www.youtube.com/watch?v=kDoUM1VRbX4"
-    },
-    {
-      "kb": "enrico-stucchi",
-      "recordId": "enrico-stucchi:wisdom:5",
-      "statement": "In random-like markets win probability equals 1 divided by (1 + reward/risk).",
       "url": "https://www.youtube.com/watch?v=kDoUM1VRbX4"
     }
   ],
@@ -1486,10 +1492,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Y0jPGjTUHxU"
     },
     {
-      "kb": "ericnomics",
-      "recordId": "ericnomics:wisdom:1",
-      "statement": "Do not try to pick the bottom; follow a setup that still has room to run back toward previous highs.",
-      "url": "https://www.youtube.com/watch?v=CcXTsLIyLU0"
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:entry:1",
+      "statement": "Do not buy a dip just because prices are lower; wait for stabilization and confirmation that buyers are stepping back in, accepting a missed first few percent.",
+      "url": "https://www.instagram.com/p/De68wd0RLw_/"
     }
   ],
   "C031": [
@@ -1674,10 +1680,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Qwq0imLRzDo"
     },
     {
-      "kb": "junnyyang",
-      "recordId": "junnyyang:risk:2",
-      "statement": "Do not over-lever: blowups come from leverage, not the thesis, so size positions and hedge so one bad stretch cannot wipe you out.",
-      "url": "https://www.youtube.com/watch?v=rNM6LzKLa5E"
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:28",
+      "statement": "Momentum strategies can suffer devastating reversals; be cautious with leverage.",
+      "url": "https://www.youtube.com/watch?v=nCKzRY_JV4c"
     }
   ],
   "C035": [
@@ -1724,10 +1730,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=yihNig2MOGA"
     },
     {
-      "kb": "dumbmoneyhunter",
-      "recordId": "dumbmoneyhunter:sizing:1",
-      "statement": "Position size = total capital x risk percent (e.g., $1,000 x 2% = $20 risk), adjusted to stop distance.",
-      "url": "https://www.youtube.com/watch?v=UnPQ94_TEno"
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:sizing:7",
+      "statement": "Size by absolute dollar risk to your maximum point of risk (e.g. a daily close below the 200-day).",
+      "url": null
     }
   ],
   "C036": [
@@ -1812,22 +1818,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.instagram.com/p/DeWlPe2id2c/"
     },
     {
-      "kb": "brandon-kioseff",
-      "recordId": "brandon-kioseff:wisdom:2",
-      "statement": "Automated optimization involves curve fitting; validate before trading the result.",
-      "url": null
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:7",
+      "statement": "Try to break the strategy by changing the period, tweaking parameters and testing other assets; a real edge survives small changes.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
     },
     {
-      "kb": "matteo-conti",
-      "recordId": "matteo-conti:wisdom:5",
-      "statement": "Worry about overfitting, data snooping and noise—those are the real institutional problems.",
-      "url": "https://www.youtube.com/watch?v=4fwSwUIgikw"
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:11",
+      "statement": "Perturb every optimized input by ±10%; reject the strategy if results change materially.",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
     },
     {
-      "kb": "quantfinancetogo",
-      "recordId": "quantfinancetogo:wisdom:5",
-      "statement": "Correct for the number of strategies tested: about 5 in 100 no-edge strategies pass a 5% significance test by luck.",
-      "url": "https://www.instagram.com/p/Debex7eiZZu/"
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:13",
+      "statement": "Optimized fixed stop/target combos overfit: on random NQ entries the best (40-pt stop/195-pt target) made $25 first 3 years and lost $7 last 2; 400-combo grids produce many false 'significant' results.",
+      "url": "https://www.instagram.com/p/DeXDw_txX8h/"
     }
   ],
   "C038": [
@@ -1856,6 +1862,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=mLHBQLjp7lo"
     },
     {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:risk:3",
+      "statement": "Never sell naked options or uncovered short volatility to fade an IV inversion; use only defined-risk structures capped at 2% NLV max loss.",
+      "url": null
+    },
+    {
       "kb": "imre-gams",
       "recordId": "imre-gams:options_structure:1",
       "statement": "Prefer long calls/puts when you need fully defined risk; avoid assuming net short options are capped.",
@@ -1868,16 +1880,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.instagram.com/p/CYmNQA8sA1x/"
     },
     {
-      "kb": "nicholas-crown",
-      "recordId": "nicholas-crown:options_structure:8",
-      "statement": "Paid source: statement withheld.",
-      "url": null
-    },
-    {
-      "kb": "define-your-risk-instagram",
-      "recordId": "define-your-risk-instagram:risk:7",
-      "statement": "Avoid at-the-money synthetic longs (short ATM put) for stock replacement; the short put can blow up the account.",
-      "url": "https://www.instagram.com/p/DbVwgDIuLY8/"
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:8",
+      "statement": "Do not sell naked options; use spreads so the short option's risk is covered.",
+      "url": "https://www.instagram.com/p/DNOJSy5Av-P/"
     }
   ],
   "C039": [
@@ -2062,16 +2068,16 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=kira_aQDbSI"
     },
     {
-      "kb": "deltatrendtrading",
-      "recordId": "deltatrendtrading:wisdom:8",
-      "statement": "Freeze event definitions, feature timing, labels, parameters and execution assumptions before comparing performance.",
-      "url": null
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:5",
+      "statement": "Train on one chunk of data and test on data the model has not seen; if it only works in-sample it is overfit.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
     },
     {
-      "kb": "matteo-conti",
-      "recordId": "matteo-conti:wisdom:2",
-      "statement": "Use the first 8 of 10 years to optimize in-sample and the most recent 2 years to validate out-of-sample.",
-      "url": "https://www.youtube.com/watch?v=kh0tIGxkF6Y"
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:4",
+      "statement": "Do not discard or modify rules after looking at backtest performance (implicit fitting); the only fitting on real data should be forecast weights, done out of sample.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
     }
   ],
   "C043": [
@@ -2094,10 +2100,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=84o_g0kN63A"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:5",
+      "statement": "Define the risk first and require at least 3:1 reward to risk.",
+      "url": null
+    },
+    {
       "kb": "jan-smolen",
       "recordId": "jan-smolen:risk:7",
       "statement": "Structure anomaly trades for asymmetric reward:risk of 5:1 or better, with downside bounded by zero.",
       "url": "https://www.youtube.com/watch?v=TNtsEHik2_4"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:5",
+      "statement": "Require a reward-to-risk of at least 5:1 on the risk graph before taking a spread.",
+      "url": "https://www.instagram.com/p/DL5FIibgIbj/"
     },
     {
       "kb": "lars-schmeldtenkopf",
@@ -2182,16 +2200,16 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": null
     },
     {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:10",
+      "statement": "Avoid crowded, highly levered strategies; when one large holder unwinds, every similar book is hit at once.",
+      "url": "https://www.instagram.com/p/DdPs_60IPAX/"
+    },
+    {
       "kb": "jay-medrow",
       "recordId": "jay-medrow:regime:18",
       "statement": "When all participants are long, expect exhausted buying and a painful reversal; when your trade becomes the consensus, look for a new exposure.",
       "url": "https://www.instagram.com/p/CvwknHRID9s/"
-    },
-    {
-      "kb": "junnyyang",
-      "recordId": "junnyyang:regime:7",
-      "statement": "Watch for record leverage, crowded one-sided positioning and money rotating out as signs a trade is topping.",
-      "url": "https://www.youtube.com/watch?v=j1TRME8mkJ0"
     }
   ],
   "C046": [
@@ -2232,16 +2250,16 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.instagram.com/p/Dd_T9C6CP7I/"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:14",
+      "statement": "Diversify across many strategies (about 80) on uncorrelated futures markets to smooth the equity curve.",
+      "url": "https://www.youtube.com/watch?v=OhFMsgGL2Zo"
+    },
+    {
       "kb": "damien-wursten",
       "recordId": "damien-wursten:sizing:34",
       "statement": "Diversify across commodities and markets rather than concentrating exposure in one commodity or market.",
       "url": null
-    },
-    {
-      "kb": "jan-smolen",
-      "recordId": "jan-smolen:risk:2",
-      "statement": "Use uncorrelated markets such as natural gas to diversify away from Fed-driven correlation across indices, gold and other assets.",
-      "url": "https://www.youtube.com/watch?v=B3zGICjrfAY"
     }
   ],
   "C047": [
@@ -2276,10 +2294,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.instagram.com/p/DemrBpwCemC/"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:15",
+      "statement": "Haircut published anomaly returns: expect ~26% lower returns out of sample and roughly 58–60% lower after publication.",
+      "url": "https://www.youtube.com/watch?v=4Byp_JHZftE"
+    },
+    {
       "kb": "jan-smolen",
       "recordId": "jan-smolen:wisdom:8",
       "statement": "Simple support/resistance trading no longer works as before; market whipsaws levels until it stops you out.",
       "url": "https://www.youtube.com/watch?v=TNtsEHik2_4"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:8",
+      "statement": "Expect a strategy edge to last a few years at most; re-optimize regularly and retire it as the inefficiency gets arbitraged away.",
+      "url": "https://www.youtube.com/watch?v=VLT6ZNUONLU"
     }
   ],
   "C048": [
@@ -2312,6 +2342,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:wisdom:9",
       "statement": "Compare investments by excess return per unit of volatility (Sharpe ratio), not by raw return.",
       "url": "https://www.instagram.com/p/Dd4puohxGZj/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:8",
+      "statement": "Judge an edge by risk-adjusted return (e.g. Sharpe ratio), not just whether it made money.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:110",
+      "statement": "Judge a strategy on Sharpe ratio, volatility, drawdown, benchmark correlation, and profit factor with win rate together, not on return alone.",
+      "url": "https://www.youtube.com/watch?v=VLT6ZNUONLU"
     },
     {
       "kb": "durga-analytics",
@@ -2408,16 +2450,16 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:12",
+      "statement": "Use a trailing stop on sympathy trades so a sudden reversal in the leader takes you out with a profit.",
+      "url": null
+    },
+    {
       "kb": "dumbmoneyhunter",
       "recordId": "dumbmoneyhunter:exit:4",
       "statement": "Once the trade moves in your favor, trail the stop.",
       "url": "https://www.youtube.com/watch?v=WZhnmaiI3hM"
-    },
-    {
-      "kb": "smbcapital",
-      "recordId": "smbcapital:exit:11",
-      "statement": "Enter on a higher high, add above key SMAs, and trail the stop with the 10-day SMA.",
-      "url": "https://www.instagram.com/p/DUBdw23j5_t/"
     }
   ],
   "C051": [
@@ -2546,6 +2588,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "inthemoneyadam:wisdom:6",
       "statement": "Do not trust a trading strategy that has only worked for a few months.",
       "url": "https://www.youtube.com/watch?v=njcsTWMZLew"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:9",
+      "statement": "Treat backtest profit factors between 1.2 and 2.6 as reasonable; much higher profit factors signal over-optimization.",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:90",
+      "statement": "Reject a strategy with a profit factor near 1 (e.g., 1.04) or multi-year losing stretches even if net profitable after optimizing stop/target.",
+      "url": "https://www.youtube.com/watch?v=KHjrrq1UsM8"
     }
   ],
   "C055": [
@@ -2592,10 +2646,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=KrSa70-V9ak"
     },
     {
-      "kb": "junnyyang",
-      "recordId": "junnyyang:sizing:7",
-      "statement": "Do not put a large chunk of the portfolio into a single trade, even if it works.",
-      "url": "https://www.youtube.com/watch?v=RIt1eXhmD84"
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:sizing:1",
+      "statement": "Never put more than 10% of the account into one trade; 2-5% per position is typical.",
+      "url": null
     }
   ],
   "C056": [
@@ -2898,6 +2952,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=MDD_PQkPqz8"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:time_filter:1",
+      "statement": "Do not trade between 11 a.m. and 2 p.m. ET; trade after the first 5-10 minutes of the open or in the power hour.",
+      "url": null
+    },
+    {
       "kb": "dumbmoneyhunter",
       "recordId": "dumbmoneyhunter:time_filter:4",
       "statement": "Focus setups around the London open, mid-range, and before the London close where volume comes in.",
@@ -2962,6 +3022,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     },
     {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:wisdom:5",
+      "statement": "Backtest a strategy on a demo or small live account before trading it live, and count how many of the trades were profitable.",
+      "url": "https://www.instagram.com/p/C-ESELwiImq/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:14",
+      "statement": "Backtest any rule (e.g., buy at 52-week low, sell at 52-week high) on long and varied history; discard or rethink a strategy that performs poorly.",
+      "url": "https://www.youtube.com/watch?v=3ImwK01Dry0"
+    },
+    {
       "kb": "matteo-conti",
       "recordId": "matteo-conti:wisdom:13",
       "statement": "Always test before going live and never deviate from your rules.",
@@ -2972,18 +3044,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge:wisdom:10",
       "statement": "Don't spend real money just to see if a strategy works; test it first, then commit.",
       "url": "https://www.youtube.com/watch?v=oZaVeJGxWf4"
-    },
-    {
-      "kb": "trading-verrillo-aleks",
-      "recordId": "trading-verrillo-aleks:wisdom:13",
-      "statement": "Validate the edge before real capital: check outside research, then backtest or forward test it yourself.",
-      "url": "https://www.youtube.com/watch?v=7s2xaIQsEAQ"
-    },
-    {
-      "kb": "worldclassedge",
-      "recordId": "worldclassedge:wisdom:7",
-      "statement": "Don't stitch untested concepts (sweeps, FVGs, order blocks) into a 'Frankenstein' setup that has never been tested together.",
-      "url": "https://www.youtube.com/watch?v=k21Lk8rXW4o"
     }
   ],
   "C067": [
@@ -3006,10 +3066,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=OrLVYsUkixg"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:5",
+      "statement": "Run momentum and mean-reversion strategies simultaneously, since no model reliably predicts which will work next month.",
+      "url": "https://www.youtube.com/watch?v=DW9zQ8Hz6gQ"
+    },
+    {
       "kb": "quantfinancetogo",
       "recordId": "quantfinancetogo:sizing:7",
       "statement": "Hold value and momentum together, since the two have tended to move in opposite directions and the mix is smoother than either alone.",
       "url": "https://www.instagram.com/p/DejMi0yRAm3/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:sizing:5",
+      "statement": "Combine many uncorrelated strategies into one portfolio: 21 strategies averaging Sharpe 1.53 combined to a backtest Sharpe of 4.57 (in-sample).",
+      "url": "https://www.instagram.com/p/DfObQ1fMVd9/"
     },
     {
       "kb": "matteo-conti",
@@ -3022,12 +3094,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge-creators:wisdom:7",
       "statement": "[Matteo Conti] Hold at least three strategy families: trend-following, mean-reverting, and tail protection for sudden crashes.",
       "url": "https://www.youtube.com/watch?v=ET1tDMd5YoY"
-    },
-    {
-      "kb": "matteo-conti",
-      "recordId": "matteo-conti:wisdom:18",
-      "statement": "Run several uncorrelated strategies across instruments; one strategy cannot make money all the time.",
-      "url": "https://www.youtube.com/watch?v=yP9VhQqgKHM"
     }
   ],
   "C068": [
@@ -3094,10 +3160,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.instagram.com/p/DedydiLiCtv/"
     },
     {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:1",
+      "statement": "Pairs entry: enter when the spread crosses an outer bound about two standard deviations from its mean.",
+      "url": "https://www.instagram.com/p/Da_O0NrNO_S/"
+    },
+    {
       "kb": "deltatrendtrading",
       "recordId": "deltatrendtrading:entry:4",
       "statement": "Don't trade SMT divergence as a pairs trade; test cointegration and trade spread Z-score deviations with simultaneous long/short legs.",
       "url": null
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:9",
+      "statement": "Stat arb: estimate beta between a bank stock and a bank-sector ETF; when they diverge without economic reason, go long one and short the other expecting convergence.",
+      "url": "https://www.youtube.com/watch?v=GDiLhwhKdds"
     },
     {
       "kb": "sparta-commodities",
@@ -3110,18 +3188,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:entry:2",
       "statement": "In a pair of stocks that share a trend, short the expensive one and buy the cheap one when the gap is extreme, and close both when it returns to normal.",
       "url": "https://www.instagram.com/p/Dc9OSjTRNlf/"
-    },
-    {
-      "kb": "sparta-commodities",
-      "recordId": "sparta-commodities:entry:5",
-      "statement": "When the Singapore 92 gasoline vs 0.5% fuel oil spread is at the top of its historical range, position for it to narrow within 2-3 weeks.",
-      "url": null
-    },
-    {
-      "kb": "quantfinancetogo",
-      "recordId": "quantfinancetogo:entry:3",
-      "statement": "When two stocks have the same factor exposures and one is expected to earn more, buy that one and sell the other so the factors cancel.",
-      "url": "https://www.instagram.com/p/Dfeu_BMxSc6/"
     }
   ],
   "C070": [
@@ -3144,6 +3210,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=ET1tDMd5YoY"
     },
     {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:8",
+      "statement": "Expect live max drawdown to exceed the backtest's: reshuffling 974 trades 10,000 times, 58% of orderings had a worse drawdown, 5% exceeded 1.6x (836 vs 516 pts), worst 2.9x.",
+      "url": "https://www.instagram.com/p/DfGtR6oxC39/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:2",
+      "statement": "Monitor live system health against backtest expectations, e.g., win rate over sliding time windows.",
+      "url": "https://www.youtube.com/watch?v=AJ4rPn-MzgY"
+    },
+    {
       "kb": "deltatrendtrading",
       "recordId": "deltatrendtrading:risk:3",
       "statement": "Before deploying, estimate the expected distribution so a drawdown like -5% after 20 trades can be judged normal or abnormal.",
@@ -3154,6 +3232,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge-creators:risk:6",
       "statement": "[Matteo Conti] After going live, monitor live results against simulated/backtested expectations.",
       "url": "https://www.youtube.com/watch?v=ET1tDMd5YoY"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:51",
+      "statement": "Forecast an out-of-sample Bayesian (t-distribution) cone from backtest returns; live returns falling outside the cone indicate overfitting.",
+      "url": "https://www.youtube.com/watch?v=BCLgXjxYONg"
     }
   ],
   "C071": [
@@ -3188,22 +3272,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=XLMG6-SATRk"
     },
     {
-      "kb": "matteo-conti",
-      "recordId": "matteo-conti:risk:3",
-      "statement": "Mind costs: ten micro NQ cost about 2.5x the fees of one mini NQ.",
-      "url": "https://www.youtube.com/watch?v=mWzYeQ7GBDY"
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:6",
+      "statement": "Make the backtest as annoying as real trading: slippage, fees, realistic fills, data delays and latency.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
     },
     {
-      "kb": "not-a-lil-fish",
-      "recordId": "not-a-lil-fish:wisdom:18",
-      "statement": "Include commissions in every backtest.",
-      "url": "https://www.youtube.com/watch?v=XLMG6-SATRk"
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:23",
+      "statement": "With slippage, a frequently trading strategy and its exact opposite can both lose money; reduce turnover.",
+      "url": "https://www.youtube.com/watch?v=5w_i6mmAHQk"
     },
     {
-      "kb": "not-a-lil-fish",
-      "recordId": "not-a-lil-fish:wisdom:32",
-      "statement": "Subtract taker and maker fees from a backtested edge; if scalping edges cannot clear the fees, move to hourly and longer trades.",
-      "url": "https://www.youtube.com/watch?v=SnjehczAlvc"
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:4",
+      "statement": "Budget about $14 per NQ round trip for slippage and commission when evaluating intraday systems; a flipped Turtle Soup's +$80,597 gross became a -$47,867 net loss.",
+      "url": "https://www.instagram.com/p/DelT1tTtNve/"
     }
   ],
   "C072": [
@@ -3412,6 +3496,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Khgj5q1-ln8"
     },
     {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:60",
+      "statement": "Fading the initial balance (9:30-10:30) break held to the close lost $180/trade on NQ; NQ breaks its IB on 97% of days and reaches 1.5× IB range on 63%.",
+      "url": "https://www.instagram.com/p/DeUasm9xpWg/"
+    },
+    {
       "kb": "worldclassedge-creators",
       "recordId": "worldclassedge-creators:entry:3",
       "statement": "[Fabio Valentini] IVB setup: mark the top and bottom of the opening range as passive liquidity walls, check for option put/call walls; once one side breaks, the day likely continues that way.",
@@ -3522,10 +3612,28 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=XLMG6-SATRk"
     },
     {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:6",
+      "statement": "Prop-firm challenge: maximize the probability of hitting the profit target before the loss limit, not maximum return.",
+      "url": "https://www.instagram.com/p/DekjvnStg7p/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:2",
+      "statement": "Estimate prop-eval pass odds by Monte Carlo: reshuffle the backtest trades thousands of times into new orders and simulate the $50k account, $3k target, $2k trailing drawdown; pass = target before drawdown.",
+      "url": "https://www.instagram.com/p/Ddg9gLxR7rf/"
+    },
+    {
       "kb": "matteo-conti",
       "recordId": "matteo-conti:sizing:5",
       "statement": "For prop firms, simulate strategy combinations and sizing to maximize pass probability before buying a challenge.",
       "url": "https://www.youtube.com/watch?v=8qmx3oaQRoM"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:7",
+      "statement": "With a 10% target and 5% max loss, a zero-edge strategy passes only about a third of the time; check the barrier odds first.",
+      "url": "https://www.instagram.com/p/DekjvnStg7p/"
     }
   ],
   "C083": [
@@ -3558,6 +3666,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "junnyyang:entry:3",
       "statement": "Never buy a stock only because it was going up; know why you own it.",
       "url": "https://www.youtube.com/watch?v=4fcrClQJFxI"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:5",
+      "statement": "Do not buy a stock just because someone else owns it at a far better cost basis.",
+      "url": null
     },
     {
       "kb": "jaymo-callsbyjmo",
@@ -3674,10 +3788,10 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
     },
     {
-      "kb": "nicholas-crown",
-      "recordId": "nicholas-crown:sizing:3",
-      "statement": "Paid source: statement withheld.",
-      "url": null
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:2",
+      "statement": "Size orders inversely to a lagged 10-day ATR so risk per position is consistent across instruments and time; cap maximum position to stop repeated entries.",
+      "url": "https://www.youtube.com/watch?v=61_F2fcvrsw"
     }
   ],
   "C087": [
@@ -3768,6 +3882,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "kobeissi-letter:regime:5",
       "statement": "Very narrow intraday ranges and sub-17 VIX streaks signal consolidation before a big move.",
       "url": "https://x.com/KobeissiLetter/status/2092638441338982663"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:34",
+      "statement": "After volatility compression, expect large days to continue rather than revert; trade in the direction of the expansion.",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
     }
   ],
   "C090": [
@@ -3806,6 +3926,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "junnyyang:risk:4",
       "statement": "Do not hold a losing position on the hope that it comes back; hoping is not a plan.",
       "url": "https://www.youtube.com/watch?v=9oq3VuOnfuc"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:3",
+      "statement": "Let winners run and cut losers early.",
+      "url": null
     }
   ],
   "C091": [
@@ -3852,6 +3978,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge-creators:regime:7",
       "statement": "[Fabio Valentini] In short competitions, run trend-following, mean-reverting and volatility-breakout models on separate accounts first to detect regime, then scale the one that fits.",
       "url": "https://www.youtube.com/watch?v=LQvv5xgy_ik"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:regime:4",
+      "statement": "Run a bullish strategy only while a hidden Markov model labels the market as a bull regime.",
+      "url": "https://www.instagram.com/p/DbL-Kl8NHyo/"
     }
   ],
   "C093": [
@@ -3916,6 +4048,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "junnyyang:exit:10",
       "statement": "Exit when the thesis breaks on a pre-written trigger, regardless of the price.",
       "url": "https://www.youtube.com/watch?v=NG6_7QZNFik"
+    },
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:exit:1",
+      "statement": "Sell a core long-term holding only when the thesis changes or has fully played out, not because of a drawdown.",
+      "url": "https://www.instagram.com/p/DfQrltfxxbA/"
     },
     {
       "kb": "inthemoneyadam",
@@ -4214,6 +4352,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:47",
       "statement": "Score each trading day green only if every rule was followed, regardless of P&L, and tie a reward to a streak of green days.",
       "url": "https://www.youtube.com/watch?v=I4LfG67CxYU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:150",
+      "statement": "Even a positive-expectancy system can lose over 250 trades by luck alone; judge processes, not short results.",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
     },
     {
       "kb": "not-a-lil-fish",
@@ -4636,6 +4780,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=wKWig75NH94"
     },
     {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:7",
+      "statement": "For cash-secured puts, sell about 30-DTE puts at a strike where you are happy to own the shares, keeping the full assignment amount in cash.",
+      "url": "https://www.instagram.com/p/C_CEEgtibPF/"
+    },
+    {
       "kb": "bridgingcycles-instagram",
       "recordId": "bridgingcycles-instagram:options_structure:6",
       "statement": "Don't pick a covered-call strike you'd resent being assigned at just because premium looks attractive.",
@@ -4704,6 +4854,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "smbcapital:exit:5",
       "statement": "Exit momentum trades on a break and close beyond the prior bar high or low.",
       "url": "https://www.instagram.com/p/Ct_yj2dOzha/"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:5",
+      "statement": "Do not set a hard stop right at the 21 EMA; exit on a daily close under the 21 EMA.",
+      "url": null
     },
     {
       "kb": "nicholas-crown",
@@ -4940,10 +5096,28 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=oeG2UBTUj5A"
     },
     {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:3",
+      "statement": "Base a strategy on a testable hypothesis about why it should make money, not on an indicator that looks good on a chart.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:30",
+      "statement": "Start from a human trading hypothesis and use machine learning only to refine it.",
+      "url": "https://www.youtube.com/watch?v=7hyu-abBh1Q"
+    },
+    {
       "kb": "deltatrendtrading",
       "recordId": "deltatrendtrading:wisdom:15",
       "statement": "Use AI coding to make ideas testable faster, not as a substitute for hypothesis formation, features and position management.",
       "url": null
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:36",
+      "statement": "Write hypotheses that name the outcome that would refute them; \"the strategy will make money\" is not a hypothesis.",
+      "url": "https://www.youtube.com/watch?v=8qBo0PqRObU"
     }
   ],
   "C132": [
@@ -4970,6 +5144,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge:time_filter:3",
       "statement": "Trade gamma levels in the first 5-15 minutes of volatility, take the profit and stop for the day; extra trades after profits shift focus to money.",
       "url": "https://www.youtube.com/watch?v=4YcClbMxKCo"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:time_filter:1",
+      "statement": "Limit trade management to about 30 minutes a day around the 9:30 open: look for new trades, monitor open ones, then stop.",
+      "url": "https://www.instagram.com/p/DMIrQuOgbo6/"
     },
     {
       "kb": "not-a-lil-fish",
@@ -5216,6 +5396,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=l2fRmlCOSqo"
     },
     {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:sizing:1",
+      "statement": "Define maximum loss upfront on every options entry (debit paid, or spread width minus credit) and keep it at or below 2% of account net liquidation value.",
+      "url": null
+    },
+    {
       "kb": "define-your-risk-instagram",
       "recordId": "define-your-risk-instagram:sizing:3",
       "statement": "Size debit spreads so going to zero is not the end of the world; if time remains and risk budget allows, buy back the short leg when the spread goes against you.",
@@ -5248,10 +5434,28 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=XLMG6-SATRk"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:96",
+      "statement": "In-sample Monte Carlo permutation test: re-optimize the strategy on ~1,000 bar-permuted price series; require the share matching/beating the real result (quasi p-value) below 1%.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:5",
+      "statement": "Benchmark every long signal against random longs at the same time of day and direction, because NQ's upward drift makes any long look profitable.",
+      "url": "https://www.instagram.com/p/DdsP9vlxGfT/"
+    },
+    {
       "kb": "deltatrendtrading",
       "recordId": "deltatrendtrading:wisdom:9",
       "statement": "Test a signal against matched controls (similar momentum, volatility, trend, time of day) and randomized-timing nulls before claiming edge.",
       "url": null
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:19",
+      "statement": "Stress-test each strategy with Monte Carlo randomization of history, spread and execution, plus an out-of-sample hold-out of about one third of the data; keep only strategies passing all steps.",
+      "url": "https://www.youtube.com/watch?v=5ORHuu4CxTY"
     }
   ],
   "C142": [
@@ -5370,6 +5574,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=cuULBobmXRY"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:9",
+      "statement": "Do not chase extended moves; wait for consolidation and buy the breakout of the prior high.",
+      "url": null
+    },
+    {
       "kb": "lars-schmeldtenkopf",
       "recordId": "lars-schmeldtenkopf:entry:12",
       "statement": "No new entry without consolidation first when a trend is advanced.",
@@ -5380,12 +5590,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "inthemoneyadam:entry:24",
       "statement": "Avoid buying stocks that look overvalued after a big run; wait for a decline to buy good stocks at good prices.",
       "url": "https://www.youtube.com/watch?v=tuv2Z5qr-48"
-    },
-    {
-      "kb": "junnyyang",
-      "recordId": "junnyyang:entry:9",
-      "statement": "After a vertical run-up and a vertical dump, expect no V-shaped recovery; wait for a base and consolidation before buying.",
-      "url": "https://www.youtube.com/watch?v=U-uit4yLBp0"
     }
   ],
   "C146": [
@@ -5784,6 +5988,24 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-fraternity:wisdom:2",
       "statement": "Learn moving averages and chart patterns because funds and algorithms use them, but do not make them the reason for a trade.",
       "url": "https://www.youtube.com/watch?v=2V-L-NT33Mw"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:1",
+      "statement": "Use lagging indicators (RSI, stochastics, MACD) only to confirm what price is already showing.",
+      "url": null
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:15",
+      "statement": "Buying a 5m NQ close above the 32 EMA (after a close at/below) and selling the mirror, 1h hold, averaged $1.66/trade before costs (one tick = $5); random entries matched it (p=0.82).",
+      "url": "https://www.instagram.com/p/Dec0-JwRcyR/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:27",
+      "statement": "Trading the bounce at every touch of the 50 SMA on NQ 15m (1h hold) lost $8/trade, PF 0.98, p=0.70; a fake line 0.3% away with the same rule did better. The 50 SMA is not special.",
+      "url": "https://www.instagram.com/p/DesE85qvpaI/"
     }
   ],
   "C165": [
@@ -5830,6 +6052,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:entry:15",
       "statement": "Among NQ, ES and YM, trade the index that is clearly weaker or stronger in your trade direction.",
       "url": "https://www.youtube.com/watch?v=UzJmBs8hHTs"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:27",
+      "statement": "Do not own weak stocks; buy strength.",
+      "url": null
     }
   ],
   "C167": [
@@ -5838,6 +6066,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "imre-gams:wisdom:8",
       "statement": "Trade around your life, not the reverse; simplify screens/subscriptions and move from day trading to selective swing trading.",
       "url": null
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:time_filter:2",
+      "statement": "If you work a day job, do not use strategies that need your eyes on the screen all day.",
+      "url": "https://www.instagram.com/p/DexYKjKhqw_/"
     },
     {
       "kb": "bridgingcycles-instagram",
@@ -5864,6 +6098,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge-creators:exit:2",
       "statement": "[Patrick Nill] Close trades by the evening to avoid overnight risk (in competition conditions).",
       "url": "https://www.youtube.com/watch?v=DkvHd5ZEeV8"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:time_filter:3",
+      "statement": "Day trading: close all positions before the session ends to avoid overnight gap risk from news after the close.",
+      "url": "https://www.youtube.com/watch?v=K3Q_tR30ZIc"
     }
   ],
   "C169": [
@@ -5954,6 +6194,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=lS2R2qHt0VA"
     },
     {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:indicator:5",
+      "statement": "Do not rely on static overnight GEX for intraday decisions; it misses 0DTE dealer inventory built during the session.",
+      "url": null
+    },
+    {
       "kb": "andrea-cimitan",
       "recordId": "andrea-cimitan:indicator:3",
       "statement": "Prefer CBOE-sourced market-maker flow over naive open-interest GEX, since 0DTE (~50% of SPX options volume) never shows in end-of-day OI.",
@@ -6012,6 +6258,24 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "inthemoneyadam:options_structure:10",
       "statement": "Use spreads to cut cost, vega exposure and IV-crush risk compared with single long options.",
       "url": "https://www.youtube.com/watch?v=v846B7hs9xg"
+    },
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:5",
+      "statement": "In backwardation, pair the long option with a further out-of-the-money short option in the same expiration (debit spread) to cut net vega and breakeven.",
+      "url": null
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:options_structure:5",
+      "statement": "When call premiums are inflated by high volatility, sell some volatility against the calls you buy (partial call spread).",
+      "url": null
+    },
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:7",
+      "statement": "In acute stress (washout, negative gamma and inverted IV together), use debit spreads or defined-width credit spreads to cap both directional and vega exposure.",
+      "url": null
     }
   ],
   "C177": [
@@ -6108,6 +6372,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:4",
+      "statement": "Journal every trade: entry, contract and IV, market and sector state, time of day and emotional state.",
+      "url": null
+    },
+    {
       "kb": "inthemoneyadam",
       "recordId": "inthemoneyadam:wisdom:5",
       "statement": "Save a chart screenshot of every trade in your journal to review later.",
@@ -6118,12 +6388,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:wisdom:46",
       "statement": "Journal every trade: what you learned, the mechanical mistake, the emotional mistake behind it, and what your profitable self would tell you.",
       "url": "https://www.youtube.com/watch?v=6n3oFR2uWWE"
-    },
-    {
-      "kb": "not-a-lil-fish",
-      "recordId": "not-a-lil-fish:wisdom:58",
-      "statement": "Count the losses that came from broken rules and what they cost: an AI review of his journal found over half his losses were rule breaks, costing $18,500 on his funded account.",
-      "url": "https://www.youtube.com/watch?v=8dQtwi7HAJQ"
     }
   ],
   "C182": [
@@ -6472,6 +6736,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=TtEKw8SKVKk"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:81",
+      "statement": "Require about 500 trades per rule in a data-mined strategy before trusting the edge.",
+      "url": "https://www.youtube.com/watch?v=HrfSO_sREAI"
+    },
+    {
       "kb": "brandon-kioseff",
       "recordId": "brandon-kioseff:indicator:10",
       "statement": "Earnings move statistics require sufficient sample size; with too few events no correlation can be inferred.",
@@ -6484,10 +6754,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=ZQUmXK_xapM"
     },
     {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:20",
+      "statement": "Ignore calendar anomalies with tiny samples: Friday the 13th's +$1,086 average on NQ came from 9 days, one of which made +$16,533; without it the average was -$844.",
+      "url": "https://www.instagram.com/p/DevYAw3xq-w/"
+    },
+    {
       "kb": "not-a-lil-fish",
       "recordId": "not-a-lil-fish:wisdom:16",
       "statement": "Check the trade count behind each time bucket before trusting its average; 23 trades at 11 a.m. was misleading next to about 900 and 1,200 in other hours.",
       "url": "https://www.youtube.com/watch?v=TtEKw8SKVKk"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:151",
+      "statement": "Only trust forward-return buckets (e.g., NIFTY returns by starting P/E) that contain enough instances for a statistical conclusion.",
+      "url": "https://www.youtube.com/watch?v=yfAVYce7Xhk"
     },
     {
       "kb": "not-a-lil-fish",
@@ -6894,6 +7176,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=9NyIZdBvrNU"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:17",
+      "statement": "News/sentiment trading: generate signals from the gap between actual released data and the market consensus.",
+      "url": "https://www.youtube.com/watch?v=4Ae2_i5nMxs"
+    },
+    {
       "kb": "lars-schmeldtenkopf",
       "recordId": "lars-schmeldtenkopf:entry:4",
       "statement": "What matters is the surprise versus consensus, not the absolute value of a release.",
@@ -6990,6 +7278,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "lifegoalinvestments:indicator:2",
       "statement": "Rule of 20: fair S&P 500 P/E ≈ 20 minus the inflation rate; above it stocks are expensive.",
       "url": "https://www.tiktok.com/@lifegoalinvestments/video/7224186420766788910"
+    },
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:regime:5",
+      "statement": "Treat total market cap to GDP above 120% as overvalued and above 200% as extremely risky.",
+      "url": "https://www.instagram.com/p/DWPcH-qkWfd/"
     },
     {
       "kb": "lifegoalinvestments",
@@ -7100,6 +7394,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=Ph7j0GnxK_8"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:6",
+      "statement": "Never force a trade: if it does not tick every box of your rule set, skip it.",
+      "url": null
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:entry:7",
+      "statement": "Prepare setups in advance and take the trade only if the setup plays out; otherwise skip it.",
+      "url": "https://www.instagram.com/p/DL5wXyHy_0N/"
+    },
+    {
       "kb": "imre-gams",
       "recordId": "imre-gams:entry:6",
       "statement": "Use a four-step checklist: trend, pattern, momentum confirmation, then timeframe/entry/stop/target; proceed only if each answer is clear.",
@@ -7110,18 +7416,6 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "smbcapital:wisdom:2",
       "statement": "Before every trade or add, ask whether it is a playbook trade, especially after a winner.",
       "url": "https://www.instagram.com/p/DeCCk24mXin/"
-    },
-    {
-      "kb": "not-a-lil-fish",
-      "recordId": "not-a-lil-fish:wisdom:50",
-      "statement": "Use a written daily checklist of requirements that must all be met before you enter the market.",
-      "url": "https://www.youtube.com/watch?v=A6GMOwCFpQo"
-    },
-    {
-      "kb": "imre-gams",
-      "recordId": "imre-gams:entry:1",
-      "statement": "Trade only when your edge (recognizable chart patterns such as triangles, head-and-shoulders) is present; otherwise wait.",
-      "url": null
     }
   ],
   "C228": [
@@ -7200,6 +7494,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:regime:11",
       "statement": "Treat VIX above VIX3M (backwardation) as a stress signal; VIX below VIX3M (contango) is the normal state.",
       "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:5",
+      "statement": "Treat VIX/VIX3M above 1.00 as an inverted (stressed) volatility term structure and above 1.10-1.20 as severe stress.",
+      "url": null
     },
     {
       "kb": "lars-schmeldtenkopf",
@@ -7532,6 +7832,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": null
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:8",
+      "statement": "Normalize momentum with ROC or log returns so it is comparable across instruments with different prices.",
+      "url": "https://www.youtube.com/watch?v=Pjtuw3y6W2A"
+    },
+    {
       "kb": "deltatrendtrading",
       "recordId": "deltatrendtrading:indicator:3",
       "statement": "Normalize features to remove scale (e.g., percentage MA slope instead of dollar slope; short/long ATR ratio for range expansion).",
@@ -7642,10 +7948,28 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=tMwWBtHAWbA"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:12",
+      "statement": "Predefine strategy retirement: stop trading a system at 1.5 times its historical maximum drawdown or a record losing streak.",
+      "url": "https://www.youtube.com/watch?v=OhFMsgGL2Zo"
+    },
+    {
       "kb": "matteo-conti",
       "recordId": "matteo-conti:exit:5",
       "statement": "Also retire a strategy when the structural reason for its edge disappears, without waiting for the equity curve.",
       "url": "https://www.youtube.com/watch?v=v3-_gSzrU7c"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:17",
+      "statement": "Switch off a live strategy if its out-of-sample/live drawdown approaches the maximum drawdown seen in the backtest.",
+      "url": "https://www.youtube.com/watch?v=Uw188vWQ2Hg"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:29",
+      "statement": "Review live drawdowns weekly against backtest drawdowns and act on any strategy that exceeds its historical drawdown.",
+      "url": "https://www.youtube.com/watch?v=wdndxiu0wxQ"
     }
   ],
   "C256": [
@@ -7653,6 +7977,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "kb": "imre-gams",
       "recordId": "imre-gams:entry:7",
       "statement": "Require strong momentum (e.g. bullish RSI divergence plus a break above the prior high) to confirm a reversal pattern; place the stop at the most recent low.",
+      "url": null
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:4",
+      "statement": "Do not short an index just because RSI is overbought; it can trend higher while overbought.",
       "url": null
     },
     {
@@ -7778,6 +8108,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "lifegoalinvestments:regime:4",
       "statement": "It is the un-inversion of the yield curve, not the inversion, that directly precedes recessions.",
       "url": "https://www.tiktok.com/@lifegoalinvestments/video/7411186374377868586"
+    },
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:5",
+      "statement": "Treat a 2-year yield above the 10-year (negative 2s10s spread) as a recession warning roughly 12-18 months out, while checking whether the signal still works.",
+      "url": "https://www.instagram.com/p/Dej_an6Ij1Q/"
     },
     {
       "kb": "jay-medrow",
@@ -7964,6 +8300,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:risk:29",
       "statement": "Automate the entry, stop loss, take profit and sizing so you cannot revenge trade or over-leverage.",
       "url": "https://www.youtube.com/watch?v=qtZmbfY3_d0"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:13",
+      "statement": "Do not overrule signals or tinker after losses; otherwise you are no longer trading what you tested.",
+      "url": "https://www.youtube.com/watch?v=OhFMsgGL2Zo"
     }
   ],
   "C283": [
@@ -8101,6 +8443,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
     }
   ],
   "C296": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:1",
+      "statement": "Check bond yields and money markets before equities; when the bond market gets nervous, expect equities to follow.",
+      "url": "https://www.instagram.com/p/DcoMHCSIYPX/"
+    },
     {
       "kb": "jan-smolen",
       "recordId": "jan-smolen:indicator:1",
@@ -8350,6 +8698,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "inthemoneyadam:exit:5",
       "statement": "Close spreads before expiration, especially when price is near the short strike, to avoid pin and assignment risk.",
       "url": "https://www.youtube.com/watch?v=l2fRmlCOSqo"
+    },
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:exit:1",
+      "statement": "Close open options before the close on expiration day (for example by 15:45 ET) and never exercise, to remove pin and assignment risk.",
+      "url": null
     }
   ],
   "C320": [
@@ -8412,6 +8766,24 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "deltatrendtrading:wisdom:6",
       "statement": "Compare strategies with a relevant passive or risk-adjusted benchmark; making money is not enough if passive exposure did better.",
       "url": null
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:30",
+      "statement": "Benchmark ML direction models out-of-sample against an 'always up' baseline: 30 neural nets scored 89% in-sample on NQ daily, 49% out-of-sample vs 55% for always-up.",
+      "url": "https://www.instagram.com/p/Dfd_f2ExoM9/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:40",
+      "statement": "Benchmark every strategy against buy-and-hold of the same asset; a simple RSI strategy on EUR/USD had worse Sharpe and capital than buy-and-hold.",
+      "url": "https://www.youtube.com/watch?v=9wm8e7w6qN4"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:143",
+      "statement": "Always compare a strategy with an appropriately weighted benchmark (e.g., equal-weight vs cap-weight) and try to disprove it with robustness tests like sector neutrality.",
+      "url": "https://www.youtube.com/watch?v=plfMs5_kJwQ"
     }
   ],
   "C327": [
@@ -8814,10 +9186,22 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
   ],
   "C370": [
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:9",
+      "statement": "Size all trades equally so no single trade dominates results; let the edge play out over many trades.",
+      "url": "https://www.youtube.com/watch?v=HrfSO_sREAI"
+    },
+    {
       "kb": "kobeissi-letter",
       "recordId": "kobeissi-letter:sizing:1",
       "statement": "Paid source: statement withheld.",
       "url": null
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:17",
+      "statement": "Size event-driven equity strategies as an equal-weight portfolio rebalanced on each event (leverage near 1), not fixed share counts.",
+      "url": "https://www.youtube.com/watch?v=plfMs5_kJwQ"
     }
   ],
   "C371": [
@@ -9310,6 +9694,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:options_structure:1",
       "statement": "Compare implied movement with expected realized movement: sell defined-risk premium for contraction theses, buy calls/puts when movement beyond the priced range is expected.",
       "url": null
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:3",
+      "statement": "Volatility signal: if forecast 10-day realized volatility exceeds 30-day implied volatility, options price too little movement; if lower, too much.",
+      "url": "https://www.instagram.com/p/Dby33G4thmA/"
     }
   ],
   "C419": [
@@ -9476,6 +9866,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:risk:13",
       "statement": "Do not hold a 3x leveraged index fund (such as SPXL) as a long-term position, because decay erodes it.",
       "url": "https://www.youtube.com/watch?v=g4o0hO57O6M"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:2",
+      "statement": "Daily-reset leveraged ETFs track daily returns only; volatility and compounding make them drift in choppy markets.",
+      "url": "https://www.instagram.com/p/Db_wCC5NT9M/"
     }
   ],
   "C436": [
@@ -9608,6 +10004,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "matteo-conti:wisdom:6",
       "statement": "Academic papers are the best source of trading hypotheses; extract value rather than copying them.",
       "url": "https://www.youtube.com/watch?v=9XArDoDAEzs"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:15",
+      "statement": "Research papers contain no live alpha; use them (and AI) to understand ideas and form your own edge, not to copy them.",
+      "url": "https://www.instagram.com/p/Dc9YMg8t_Sh/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:65",
+      "statement": "Treat published/academic strategies as inspiration only; modify and re-test them for overfitting and costs.",
+      "url": "https://www.youtube.com/watch?v=DW9zQ8Hz6gQ"
     }
   ],
   "C451": [
@@ -9632,6 +10040,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "andrea-cimitan:wisdom:7",
       "statement": "Optimize and monitor strategies over time; a model built in a bull market will not behave the same in a bear market.",
       "url": "https://www.youtube.com/watch?v=MA-lQvpE-lM"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:8",
+      "statement": "Re-optimize strategy weights quarterly so failing strategies drift toward zero weight, and monitor each strategy daily with statistical process control.",
+      "url": "https://www.youtube.com/watch?v=HSuE19H1-K0"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:77",
+      "statement": "Standard textbook indicators only work for a while; re-optimize their parameters frequently or do not rely on them.",
+      "url": "https://www.youtube.com/watch?v=GU2USwU5FkU"
     }
   ],
   "C454": [
@@ -9668,6 +10088,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "worldclassedge-creators:wisdom:11",
       "statement": "[TradingIQ channel] Naked prior-day value-area reversion (limit at VAL/VAH, 1:1, flat at session end) showed no reliable edge on BTC/ES over a larger sample; volume profile needs contextual filters.",
       "url": "https://www.youtube.com/watch?v=-CuCTB12VHE"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:17",
+      "statement": "Market Profile 80% rule (open outside prior value area, two 30m closes back inside) on NQ: price crossed the value area 50.2% of the time vs 49.7% on random days; trade p=0.99. Treat as coin flip.",
+      "url": "https://www.instagram.com/p/DeepOH4xP0M/"
     }
   ],
   "C457": [
@@ -9742,6 +10168,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:risk:9",
       "statement": "Do not raise risk after a run of wins; he risked heavy after great trades and gave back all the gains and more.",
       "url": "https://www.youtube.com/watch?v=t3nnpD49BtU"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:sizing:6",
+      "statement": "Don't press size after wins: risking 3% after every win (1% after losses) ruined 484 of 1,000 accounts vs 55 for fixed 1% risk, with similar mean ending balance; wins didn't predict wins (49.8%).",
+      "url": "https://www.instagram.com/p/DfYyC2nxcEV/"
     }
   ],
   "C464": [
@@ -9766,6 +10198,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "define-your-risk-instagram:indicator:5",
       "statement": "Theta decay is non-linear; an ATM long option that doesn't move decays to zero.",
       "url": "https://www.instagram.com/p/DcllPN6Od-n/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:3",
+      "statement": "Theta decay accelerates into expiration; holding short-dated long options costs far more per day.",
+      "url": "https://www.instagram.com/p/DbrX_puN4dS/"
     }
   ],
   "C467": [
@@ -10106,6 +10544,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "deltatrendtrading:options_structure:1",
       "statement": "Delta-neutral hedging must be rebalanced as delta changes; a long call at 0.5 delta is hedged by shorting 50 shares.",
       "url": null
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:4",
+      "statement": "Delta hedges must be adjusted as price moves; gamma tells you roughly how many shares per $1 move.",
+      "url": "https://www.instagram.com/p/DbmHaphNXaJ/"
     }
   ],
   "C502": [
@@ -10162,6 +10606,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "matteo-conti:wisdom:7",
       "statement": "A research process must be able to say no; rejecting a losing strategy is money saved.",
       "url": "https://www.youtube.com/watch?v=DkYM2ZH1knc"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:59",
+      "statement": "Use backtests to reject strategies, not to guarantee live profits.",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:112",
+      "statement": "Use backtests to try to disprove strategies and filter out most candidates (~95%), not to justify putting a strategy into production.",
+      "url": "https://www.youtube.com/watch?v=Uw188vWQ2Hg"
     }
   ],
   "C509": [
@@ -10386,6 +10842,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "not-a-lil-fish:sizing:5",
       "statement": "If raising risk makes you break rules or act emotionally, stop and go back down to the previous risk immediately.",
       "url": "https://www.youtube.com/watch?v=mRMFVWXCl3Y"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:sizing:2",
+      "statement": "If pressing buy makes you nervous or raises your pulse, the position is too large.",
+      "url": null
     }
   ],
   "C534": [
@@ -11186,6 +11648,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:sizing:8",
       "statement": "Trade full size only when all five factors align: regime matches, net drift agrees, a big trade is present, the footprint confirms, and price is at a gamma level.",
       "url": "https://www.youtube.com/watch?v=sFra3uePCKU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:6",
+      "statement": "Treat entries/exits as position-size changes on a scale (e.g., 0–10) so partial-conviction signals commit only part of full risk.",
+      "url": "https://www.youtube.com/watch?v=ATsXvDtSp54"
     }
   ],
   "C619": [
@@ -11334,6 +11802,24 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "smbcapital:sizing:10",
       "statement": "Trade a new strategy live very small for the first 20 tagged reps before scaling up.",
       "url": "https://www.instagram.com/p/CzHCDbnRNMC/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:sizing:2",
+      "statement": "Go live only after validation, start small, and scale slowly once the edge is validated live.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:7",
+      "statement": "Start each new strategy at very low leverage and increase gradually as live results confirm the backtest.",
+      "url": "https://www.youtube.com/watch?v=DW9zQ8Hz6gQ"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:sizing:2",
+      "statement": "Start with small spreads and size up only once you understand the trade.",
+      "url": "https://www.instagram.com/p/DexYKjKhqw_/"
     }
   ],
   "C636": [
@@ -11420,6 +11906,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "inthemoneyadam:options_structure:3",
       "statement": "Buy in-the-money options for a low break-even rather than out-of-the-money options; choose by break-even, not by what you can afford.",
       "url": "https://www.youtube.com/watch?v=yr2-RaTk_Mc"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:9",
+      "statement": "2021 view, reversed in 2026: when buying options, buy deep in-the-money (high delta) rather than out-of-the-money contracts.",
+      "url": "https://www.instagram.com/p/CN-Dm_6h3Rv/"
     }
   ],
   "C643": [
@@ -11586,6 +12078,24 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "junnyyang:entry:6",
       "statement": "In a range, buy the floor or wait for the ceiling to break; do not buy the middle of the range.",
       "url": "https://www.youtube.com/watch?v=Y0jPGjTUHxU"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:19",
+      "statement": "If you cannot watch the screen, define the channel, buy only in its bottom third, trim in the top third and ignore the middle.",
+      "url": null
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:20",
+      "statement": "For a stock trading in a defined range, fix entry at the range low and exit at the range high before trading (e.g., TSLA buy $960, sell $1160).",
+      "url": "https://www.youtube.com/watch?v=RYgAlsx37So"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:23",
+      "statement": "In a range-bound market, buy support and sell resistance; never chase at the top of the range.",
+      "url": null
     }
   ],
   "C660": [
@@ -11774,6 +12284,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=2ovNaN3K-LI"
     },
     {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:sizing:1",
+      "statement": "Keep around 10% of the portfolio in cash so you can buy during corrections.",
+      "url": "https://www.instagram.com/p/DfQrltfxxbA/"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:sizing:1",
+      "statement": "Deploy only about 20-30% of the portfolio and keep about 70% in cash for crashes and other short-term opportunities.",
+      "url": "https://www.instagram.com/p/DL934AbARuW/"
+    },
+    {
       "kb": "junnyyang",
       "recordId": "junnyyang:sizing:2",
       "statement": "Keep cash on the side as dry powder so you can buy when great businesses go on sale instead of being forced to sell.",
@@ -11810,6 +12332,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=ccGHdyGnVUM"
     },
     {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:12",
+      "statement": "Use hedges as a risk-management tool so you are not forced to sell core positions in a drawdown.",
+      "url": null
+    },
+    {
       "kb": "junnyyang",
       "recordId": "junnyyang:risk:6",
       "statement": "Hedge the book with positions that profit under different outcomes, such as short tech plus long oil, instead of praying.",
@@ -11828,6 +12356,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "junnyyang:entry:20",
       "statement": "Let the swing book wait for confirmation; only a small tactical sleeve reacts to headline weeks.",
       "url": "https://www.youtube.com/watch?v=GJkHEmxTJPY"
+    },
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:wisdom:1",
+      "statement": "Assign every position to one of four categories (core, swing, tactical, cash) and be able to state which and why in 30 seconds.",
+      "url": "https://www.instagram.com/p/DfQrltfxxbA/"
     }
   ],
   "C676": [
@@ -12182,10 +12716,34 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.instagram.com/p/DeMicsbCEBe/"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:4",
+      "statement": "Do not trade full Kelly/optimal f: it maximizes growth (~25% of equity in the coin-flip example) but nearly guarantees very deep drawdowns.",
+      "url": "https://www.youtube.com/watch?v=ATsXvDtSp54"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:sizing:1",
+      "statement": "Size bets with fractional Kelly (about 0.25 to 0.5 of the Kelly fraction) because your edge is estimated, not known.",
+      "url": "https://www.instagram.com/p/DV4clzMDF8d/"
+    },
+    {
       "kb": "quantfinancetogo",
       "recordId": "quantfinancetogo:sizing:2",
       "statement": "Size below full Kelly, because real edges are never known exactly and overestimating the edge means overbetting.",
       "url": "https://www.instagram.com/p/DeMicsbCEBe/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:11",
+      "statement": "Use Kelly leverage only as a ceiling, never a target, because returns are non-Gaussian, serially correlated and Kelly is sample-sensitive.",
+      "url": "https://www.youtube.com/watch?v=akrWQxUqjq8"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:sizing:2",
+      "statement": "Never bet more than the Kelly fraction: past the peak, growth turns negative and over-betting wipes out even a real edge.",
+      "url": "https://www.instagram.com/p/DV4clzMDF8d/"
     }
   ],
   "C708": [
@@ -12226,6 +12784,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:entry:1",
       "statement": "Trade mean reversion only where a pull back has been proven (spreads, ratios, rates rather than single stock prices), using a stricter t-statistic limit of about -3.",
       "url": "https://www.instagram.com/p/DedydiLiCtv/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:16",
+      "statement": "Accept a pair as cointegrated only when the ADF test on the regression spread rejects the null, most commonly at the 5% p-value level.",
+      "url": "https://www.instagram.com/p/DatVDVbtpSG/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:11",
+      "statement": "Treat a mean-reverting spread as tradable only if it behaves like an Ornstein-Uhlenbeck process; a larger theta means faster reversion.",
+      "url": "https://www.instagram.com/p/DdkVI-lti8o/"
     }
   ],
   "C713": [
@@ -12258,6 +12828,18 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:risk:7",
       "statement": "Assume fat tails and add expected shortfall to value at risk, because VaR says where the worst day in 100 begins and nothing about how bad it gets.",
       "url": "https://www.instagram.com/p/DeUlwIYikQz/"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:2",
+      "statement": "Model returns with fat tails (Student-t, nu about 3 to 5) rather than a normal distribution when computing VaR.",
+      "url": "https://www.instagram.com/p/DVg-Q12DMvH/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:30",
+      "statement": "Measure tail risk with CVaR (expected shortfall) rather than VaR, which hides the size of catastrophic losses.",
+      "url": "https://www.youtube.com/watch?v=yfAVYce7Xhk"
     }
   ],
   "C717": [
@@ -12280,6 +12862,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "quantfinancetogo:options_structure:2",
       "statement": "Hedge a short option with delta shares and rebalance repeatedly, because delta changes whenever the stock moves.",
       "url": "https://www.instagram.com/p/De9QTG2iGeJ/"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:options_structure:1",
+      "statement": "Delta hedge an option by shorting delta shares and rebalancing as delta changes; the hedge still leaves gamma and jump risk.",
+      "url": "https://www.instagram.com/p/DWARDjDDBCZ/"
     }
   ],
   "C719": [
@@ -12830,16 +13418,46 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "url": "https://www.youtube.com/watch?v=TtEKw8SKVKk"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:103",
+      "statement": "Incubate a new strategy for 3 to 6 months before trading it live; re-optimize on a fixed walk-forward schedule.",
+      "url": "https://www.youtube.com/watch?v=OhFMsgGL2Zo"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:12",
+      "statement": "Forward test a strategy with paper trading (e.g. 30 days) before trusting or buying it.",
+      "url": "https://www.instagram.com/p/Dec0l3vtE3f/"
+    },
+    {
       "kb": "not-a-lil-fish",
       "recordId": "not-a-lil-fish:wisdom:23",
       "statement": "Paper test an automated system on a demo account for a week and move it to a live funded account only if the week is positive in R.",
       "url": "https://www.youtube.com/watch?v=ZcU0lWhClT8"
     },
     {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:1",
+      "statement": "Run validated strategies on demo first, trade only the best live, and replace a live strategy once it starts losing.",
+      "url": "https://www.youtube.com/watch?v=5ORHuu4CxTY"
+    },
+    {
       "kb": "not-a-lil-fish",
       "recordId": "not-a-lil-fish:wisdom:64",
       "statement": "Live test a backtested strategy for a long period before putting real money on it.",
       "url": "https://www.youtube.com/watch?v=SnjehczAlvc"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:43",
+      "statement": "Promote ideas in order: research, backtest, paper trading, then live trading.",
+      "url": "https://www.youtube.com/watch?v=9wm8e7w6qN4"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:13",
+      "statement": "Trade a strategy live (real money) before relying on it; backtest results alone are insufficient.",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
     }
   ],
   "C771": [
@@ -13160,6 +13778,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "jay-medrow:risk:6",
       "statement": "Do not rely on gold to hedge equities when both share the same driver.",
       "url": "https://www.instagram.com/p/DYf538DC4lY/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:5",
+      "statement": "Do not rely on gold as a hedge for NQ crash days: on NQ's 50 worst days gold rose on only 17 (random ~26, ~0.5% of random sets as low) and averaged -0.37%.",
+      "url": "https://www.instagram.com/p/DepVTdWsnmZ/"
     }
   ],
   "C805": [
@@ -13614,6 +14238,24 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "jay-medrow:wisdom:14",
       "statement": "Analyze top down: macro, regional markets, sector, peers, then the stock.",
       "url": "https://www.instagram.com/p/DezZzz4i8i-/"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:regime:1",
+      "statement": "Find the sector rotation: start from the indices, then the strongest sectors, then the best setups inside those sectors.",
+      "url": null
+    },
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:wisdom:1",
+      "statement": "Pick long-term stocks top-down: choose the sector first, then screen companies on metrics such as P/E and debt-to-equity rather than analysing one company at a time.",
+      "url": "https://www.instagram.com/p/DcPAQxkIjTx/"
+    },
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:regime:2",
+      "statement": "Check the stock's sector and the overall market before entering (e.g. skip a sector name ahead of the sector leader's earnings).",
+      "url": null
     }
   ],
   "C855": [
@@ -13844,6 +14486,12 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:regime:23",
       "statement": "When a working setup suddenly gets chopped up, first check whether the market regime (volatility) changed before blaming yourself or tweaking the strategy.",
       "url": "https://www.youtube.com/watch?v=pIycqRtYYMU"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:2",
+      "statement": "A strategy that stops working may be suffering a regime change rather than being bad.",
+      "url": "https://www.instagram.com/p/DbL-Kl8NHyo/"
     }
   ],
   "C877": [
@@ -14014,6 +14662,3836 @@ export const MASTER_RULE_SOURCES: MasterRuleSourcesById = {
       "recordId": "trading-verrillo-aleks:wisdom:33",
       "statement": "Claim, not a rule: Aleks Rosme reports single trades such as 120 NQ points across 10 funded accounts; trade-recap results are unverified.",
       "url": "https://www.youtube.com/watch?v=aXwezQINBmI"
+    }
+  ],
+  "C890": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:1",
+      "statement": "Treat fewer than about 10% of S&P 500 stocks above their 20-day average, or a McClellan Oscillator below -80, as an extreme washout that often precedes a sharp short-term relief bounce.",
+      "url": null
+    }
+  ],
+  "C891": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:2",
+      "statement": "Do not treat a breadth washout as a bottom on its own; in structural bear markets washouts repeat before the final low.",
+      "url": null
+    }
+  ],
+  "C892": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:entry:1",
+      "statement": "Treat a durable washout low as confirmed only when the 10-day EMA of NYSE advancers/(advancers+decliners) drops below 0.40 and then rises above 0.615 within 10 trading days (Zweig Breadth Thrust).",
+      "url": null
+    }
+  ],
+  "C893": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:risk:1",
+      "statement": "Expect a deep washout bounce that stays below the 200-day average without a breadth thrust to fail as a bear-market rally.",
+      "url": null
+    }
+  ],
+  "C894": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:indicator:1",
+      "statement": "Cross-check NYSE breadth against S&P 500 common-stock-only breadth (S5FI, S5TH), because rate shocks can depress NYSE breadth through rate-sensitive issues.",
+      "url": null
+    }
+  ],
+  "C895": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:indicator:2",
+      "statement": "Before calling a washout in a cap-weighted index, check equal-weight (RSP) and constituent-level moving-average participation for megacap divergence.",
+      "url": null
+    }
+  ],
+  "C896": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:wisdom:1",
+      "statement": "Verify the exact formula and issue universe of a breadth indicator before comparing its historical hit rates across vendors.",
+      "url": null
+    }
+  ],
+  "C897": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:1",
+      "statement": "Do not buy outright short-dated calls into an active, unconfirmed breadth washout; elevated IV and expanding realized volatility expose them to further downside and post-bounce IV crush.",
+      "url": null
+    }
+  ],
+  "C898": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:2",
+      "statement": "After a washout is confirmed by a breadth thrust or stabilization, prefer call debit spreads or 60-90 DTE structures over single long calls.",
+      "url": null
+    }
+  ],
+  "C899": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:3",
+      "statement": "In positive-gamma regimes, prefer range-bound defined-risk structures near the money over far out-of-the-money momentum bets.",
+      "url": null
+    }
+  ],
+  "C900": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:risk:2",
+      "statement": "In negative-gamma regimes, size conservatively, do not rely on tight intraday stops, and prefer defined-risk spreads or longer-dated options that survive whipsaws.",
+      "url": null
+    }
+  ],
+  "C901": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:indicator:4",
+      "statement": "Distrust naive GEX during retail call-buying waves or customer put selling, because the assumed dealer sign flips and the regime reading inverts.",
+      "url": null
+    }
+  ],
+  "C902": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:6",
+      "statement": "Classify an IV inversion before acting: an event-driven inversion (catalyst inside the front expiry) collapses on the event date, while a systemic one can persist for days or weeks.",
+      "url": null
+    },
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:7",
+      "statement": "Expect a systemic-stress inversion to stay inverted for days or weeks while realized volatility stays high; do not assume an immediate volatility peak.",
+      "url": null
+    }
+  ],
+  "C903": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:4",
+      "statement": "Avoid buying front-month single-leg calls or puts when VIX/VIX3M is above 1.0, because you pay peak implied volatility.",
+      "url": null
+    }
+  ],
+  "C904": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:options_structure:6",
+      "statement": "During an IV inversion, prefer longer-dated defined-risk structures, since back-end IV is less inflated and suffers less vega crush when the curve normalizes.",
+      "url": null
+    }
+  ],
+  "C905": [
+    {
+      "kb": "breadth-gamma-iv",
+      "recordId": "breadth-gamma-iv:regime:8",
+      "statement": "Treat a breadth thrust plus spot reclaiming the zero-gamma flip plus VIX/VIX3M dropping back below 1.0 as recovery confirmation.",
+      "url": null
+    }
+  ],
+  "C906": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:risk:1",
+      "statement": "Short the index only as a tactical hedge for the portfolio, never as a long-run bet against it.",
+      "url": "https://www.instagram.com/p/DfQrltfxxbA/"
+    }
+  ],
+  "C907": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:regime:1",
+      "statement": "Treat a failed breakout in the Nasdaq 100 as a first red flag to reduce risk or hedge.",
+      "url": "https://www.instagram.com/p/De68wd0RLw_/"
+    }
+  ],
+  "C908": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:regime:2",
+      "statement": "When the market's strongest sector fails to attract buyers at a key demand zone during a selloff, do not buy the dip.",
+      "url": "https://www.instagram.com/p/De68wd0RLw_/"
+    }
+  ],
+  "C909": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:entry:2",
+      "statement": "When volatility is extreme (VIX above 35), start adding to long-term positions gradually instead of going all in, and keep cash for lower prices.",
+      "url": "https://www.instagram.com/p/DgDeEkrOzyi/"
+    }
+  ],
+  "C910": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:exit:2",
+      "statement": "When trading a listed proxy for an upcoming IPO, plan to exit before the IPO debuts, because proxies tend to peak before the listing.",
+      "url": "https://www.instagram.com/p/DcJ3dEgvB3x/"
+    }
+  ],
+  "C911": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:regime:3",
+      "statement": "Treat a hotter PCE inflation print as a headwind for high-valuation growth stocks and a cooler print as a tailwind.",
+      "url": "https://www.instagram.com/p/DcZvi4fxkTl/"
+    }
+  ],
+  "C912": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:regime:4",
+      "statement": "When oil rises on supply-risk premium, expect oil producers to win and airlines, transport and cruise lines to be hit hardest.",
+      "url": "https://www.instagram.com/p/DVGsaGrkR5_/"
+    }
+  ],
+  "C913": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:entry:3",
+      "statement": "Look for setups that combine forced index-inclusion buying, short interest above 20% and a building catalyst narrative.",
+      "url": "https://www.instagram.com/p/DWgftmNEdkE/"
+    }
+  ],
+  "C914": [
+    {
+      "kb": "shaantheinvestor-instagram",
+      "recordId": "shaantheinvestor-instagram:entry:4",
+      "statement": "Consider buying a fundamentally strong stock that sold off after a strong earnings quarter as a cleaner entry.",
+      "url": "https://www.instagram.com/p/DdkbJWeRvOY/"
+    }
+  ],
+  "C915": [
+    {
+      "kb": "davidtrades-model-instagram",
+      "recordId": "davidtrades-model-instagram:wisdom:1",
+      "statement": "Do not trade the GHLZ intraday momentum rule (first half hour predicts last half hour) on SPY; it faded after 2012 and shows no edge in 2004-2026 IBKR tests.",
+      "url": "https://www.instagram.com/p/DffkN31PrN7/"
+    }
+  ],
+  "C916": [
+    {
+      "kb": "davidtrades-model-instagram",
+      "recordId": "davidtrades-model-instagram:entry:1",
+      "statement": "Treat the ZAB noise-band plus VWAP-trail intraday momentum rule as an unvalidated lead until its pre-registered study on QQQ, IWM and DIA confirms it.",
+      "url": "https://www.instagram.com/p/DffkN31PrN7/"
+    }
+  ],
+  "C917": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:2",
+      "statement": "Treat a high SOFR as funding stress and a risk-off signal.",
+      "url": "https://www.instagram.com/p/Dc4H8xlBybR/"
+    }
+  ],
+  "C918": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:indicator:1",
+      "statement": "Use weekly CFTC Commitment of Traders data (longs, shorts, open interest, net) to judge how crowded a futures trade is and whether it is exhausted.",
+      "url": "https://www.instagram.com/p/DcUERfJo4MU/"
+    }
+  ],
+  "C919": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:3",
+      "statement": "Read a big VIX spike as likely exhaustion: most of the time the panic is behind us because professionals have already hedged.",
+      "url": "https://www.instagram.com/p/DdzXgc1oAZM/"
+    }
+  ],
+  "C920": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:4",
+      "statement": "Do not read a quiet, low VIX as safety; selling can be happening unseen.",
+      "url": "https://www.instagram.com/p/DeXc0_koq0m/"
+    }
+  ],
+  "C921": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:indicator:2",
+      "statement": "Read NYSE TICK near +800 as broad buying and near -800 as broad selling.",
+      "url": "https://www.instagram.com/p/Dey7tMKiMsO/"
+    }
+  ],
+  "C922": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:exit:1",
+      "statement": "When price ticks higher but the NYSE TICK does not confirm, treat the bounce as running out of steam.",
+      "url": "https://www.instagram.com/p/Dey7tMKiMsO/"
+    }
+  ],
+  "C923": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:6",
+      "statement": "Gauge the consumer by weekly Red Book sales (what consumers buy) rather than consumer sentiment (how they feel).",
+      "url": "https://www.instagram.com/p/DczJBOXozOf/"
+    }
+  ],
+  "C924": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:time_filter:1",
+      "statement": "Before the US open, review the day's scheduled events: earnings releases and Fed actions.",
+      "url": "https://www.instagram.com/p/Ddd02BvIeqt/"
+    }
+  ],
+  "C925": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:time_filter:2",
+      "statement": "Treat the Jackson Hole Fed chair speech as a market-moving event, since a single hawkish or dovish line has moved the market sharply.",
+      "url": "https://www.instagram.com/p/Dcjc5I7ojQd/"
+    }
+  ],
+  "C926": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:regime:7",
+      "statement": "To anticipate Fed policy, watch short-term Treasury yields from 3-month bills to 2-year notes.",
+      "url": "https://www.instagram.com/p/DdkDt9NorKC/"
+    }
+  ],
+  "C927": [
+    {
+      "kb": "deepedgeintelligence",
+      "recordId": "deepedgeintelligence:entry:1",
+      "statement": "On a daily chart, a lower low in price with a higher indicator reading (positive divergence) can mark a long entry; backtest it before relying on it.",
+      "url": "https://www.instagram.com/p/Dcdx_7pIuoD/"
+    }
+  ],
+  "C928": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:13",
+      "statement": "Build the pairs universe from same-sector, same-industry stocks rather than testing every available stock.",
+      "url": "https://www.instagram.com/p/DaqYvfkNFl0/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:47",
+      "statement": "Select pair candidates with an economic basis (e.g., same sector) before testing cointegration; prefer cointegration over correlation.",
+      "url": "https://www.youtube.com/watch?v=g-qvFjvyqcs"
+    }
+  ],
+  "C929": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:14",
+      "statement": "Only trade a pair whose economic link you can explain in plain terms without statistics or math.",
+      "url": "https://www.instagram.com/p/DaqYvfkNFl0/"
+    }
+  ],
+  "C930": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:15",
+      "statement": "Pairs universe screen: price at least $50, average volume above 1 million shares, shortable, and listed for at least a few years.",
+      "url": "https://www.instagram.com/p/DbT3FOQN5Fm/"
+    }
+  ],
+  "C931": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:indicator:1",
+      "statement": "Regress the log prices (not raw prices) of the two legs to get alpha, beta (hedge ratio) and the spread.",
+      "url": "https://www.instagram.com/p/Da1UOI4MmQW/"
+    }
+  ],
+  "C932": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:17",
+      "statement": "Do not rely on an eyeballed spread; a visibly trending spread is unlikely to be cointegrated, but confirm with the test.",
+      "url": "https://www.instagram.com/p/Da1UOI4MmQW/"
+    }
+  ],
+  "C933": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:indicator:2",
+      "statement": "Replace the constant Engle-Granger beta with a rolling hedge ratio (Kalman filter) because pairs move in and out of cointegration.",
+      "url": "https://www.instagram.com/p/DatVDVbtpSG/"
+    }
+  ],
+  "C934": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:regime:2",
+      "statement": "The hedge ratio should stay roughly stable or mean revert; a trending hedge ratio means the pair relationship is changing.",
+      "url": "https://www.instagram.com/p/Da_O0NrNO_S/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:regime:1",
+      "statement": "Even when a long-window test says cointegrated, check the Kalman hedge ratio; if the relationship has flipped, treat the pair as unreliable.",
+      "url": "https://www.instagram.com/p/Da3byEqtjO9/"
+    }
+  ],
+  "C935": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:regime:3",
+      "statement": "Use a hidden Markov model on spread, volatility or returns to detect whether a pair has fallen out of cointegration (regime change).",
+      "url": "https://www.instagram.com/p/DaySMy6ttJa/"
+    }
+  ],
+  "C936": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:2",
+      "statement": "When the spread crosses above the upper bound go long X and short Y; when it crosses below the lower bound go short X and long Y.",
+      "url": "https://www.instagram.com/p/Da_O0NrNO_S/"
+    }
+  ],
+  "C937": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:exit:1",
+      "statement": "Pairs exit: close when the spread comes back near the mean (exit bounds about half a standard deviation from the mean).",
+      "url": "https://www.instagram.com/p/DbEWn8Ht58c/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:exit:2",
+      "statement": "Exit the pair when the spread approaches the mean, the inner exit bound.",
+      "url": "https://www.instagram.com/p/Da_O0NrNO_S/"
+    }
+  ],
+  "C938": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:18",
+      "statement": "Avoid the most popular retail pairs (e.g. near-identical ETFs): funds trade against retail on them and moves snap back fast.",
+      "url": "https://www.instagram.com/p/DbEWn8Ht58c/"
+    }
+  ],
+  "C939": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:19",
+      "statement": "Consider denoising the spread (e.g. wavelet low-pass) so small noisy moves do not trigger trade signals.",
+      "url": "https://www.instagram.com/p/DbT3FOQN5Fm/"
+    }
+  ],
+  "C940": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:sizing:1",
+      "statement": "Never trade a single pair; run a portfolio of many pairs so cointegration breakdowns average out.",
+      "url": "https://www.instagram.com/p/DbT3FOQN5Fm/"
+    }
+  ],
+  "C941": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:1",
+      "statement": "Five-year cointegration is uncommon; cointegration usually does not last that long.",
+      "url": "https://www.instagram.com/p/Da3byEqtjO9/"
+    }
+  ],
+  "C942": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:regime:5",
+      "statement": "Use hidden Markov regime estimates as a pre-trade filter, not as a trading signal on their own.",
+      "url": "https://www.instagram.com/p/DbL-Kl8NHyo/"
+    }
+  ],
+  "C943": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:4",
+      "statement": "Write entry, exit and trigger rules before looking at any results to avoid overfitting and look-ahead bias.",
+      "url": "https://www.instagram.com/p/Dd7R-MUttKz/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:48",
+      "statement": "Convert vague ideas into concrete testable rules before backtesting (e.g., \"small gap down\" -> gap between -1% and -2%).",
+      "url": "https://www.youtube.com/watch?v=B23sVOkzEjY"
+    }
+  ],
+  "C944": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:1",
+      "statement": "Every strategy needs explicit risk management: maximum position sizes, stop losses or exposure limits.",
+      "url": "https://www.instagram.com/p/DbwhIietTXP/"
+    }
+  ],
+  "C945": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:13",
+      "statement": "Fight overfitting: correlated, similar features plus OLS overfit noise; prefer a penalized fit such as ridge regression.",
+      "url": "https://www.instagram.com/p/Db1uFTlMn-6/"
+    }
+  ],
+  "C946": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:14",
+      "statement": "Compare a forecast with a target of the same horizon (e.g. 10-day forecast vs 10-day volatility), not a mismatched one.",
+      "url": "https://www.instagram.com/p/Db1uFTlMn-6/"
+    }
+  ],
+  "C947": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:sizing:3",
+      "statement": "Beginner allocation: 80% S&P 500, 10% in a 2x S&P fund (SSO) for roughly full market exposure, and only 10% for active trading.",
+      "url": "https://www.instagram.com/p/Db_wCC5NT9M/"
+    }
+  ],
+  "C948": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:sizing:4",
+      "statement": "Raise the share of capital used for active trading only as your strategies prove they work.",
+      "url": "https://www.instagram.com/p/Db_wCC5NT9M/"
+    }
+  ],
+  "C949": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:regime:6",
+      "statement": "If 30-day implied volatility is much higher than 60-day, the market is pricing a near-term event.",
+      "url": "https://www.instagram.com/p/Dby33G4thmA/"
+    }
+  ],
+  "C950": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:indicator:3",
+      "statement": "Measure priced fear as 25-delta put implied volatility minus at-the-money implied volatility.",
+      "url": "https://www.instagram.com/p/Dby33G4thmA/"
+    }
+  ],
+  "C951": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:indicator:4",
+      "statement": "Compare downside and upside skew with the 25-delta put versus the 25-delta call (risk reversal), not arbitrary strikes.",
+      "url": "https://www.instagram.com/p/DbofPaENzB5/"
+    }
+  ],
+  "C952": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:16",
+      "statement": "Never describe a symbol as having one volatility; ask which strike, which expiration, and how it compares to the surface.",
+      "url": "https://www.instagram.com/p/DbjpuHzseXM/"
+    }
+  ],
+  "C953": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:4",
+      "statement": "Model-vs-market options trading: do not trade the biggest model-market difference; first calibrate the model across the chain.",
+      "url": "https://www.instagram.com/p/DeKn38ptwMZ/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:6",
+      "statement": "Trade only a contract whose model-market difference breaks clearly from the neighbouring strikes, and only if the deviation is big enough to be worth it.",
+      "url": "https://www.instagram.com/p/DeKn38ptwMZ/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:7",
+      "statement": "You want one contract that breaks away from the options around it, not the largest raw difference.",
+      "url": "https://www.instagram.com/p/DepeMXDtgXh/"
+    }
+  ],
+  "C954": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:5",
+      "statement": "Calibrate the pricing model (e.g. a volatility shift) so the model-market difference is about the same across strikes before looking for trades.",
+      "url": "https://www.instagram.com/p/DeKn38ptwMZ/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:20",
+      "statement": "Fit a volatility model's level at the at-the-money anchor first, then fit the shape (skew, curvature, wings), and only then look for trades.",
+      "url": "https://www.instagram.com/p/DepeMXDtgXh/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:21",
+      "statement": "Get the at-the-money model-market difference as close to zero as possible before trusting the model; if it cannot fit, find out why.",
+      "url": "https://www.instagram.com/p/Deh31LGtgId/"
+    }
+  ],
+  "C955": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:exit:3",
+      "statement": "Target for a pattern-break options trade: the deviation shrinks back toward its neighbours' range, not necessarily all the way to model price.",
+      "url": "https://www.instagram.com/p/DePyAuvN1Q0/"
+    }
+  ],
+  "C956": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:17",
+      "statement": "The market price sitting below the model price is not by itself a trade.",
+      "url": "https://www.instagram.com/p/DePyAuvN1Q0/"
+    }
+  ],
+  "C957": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:exit:4",
+      "statement": "Exit a model-based options trade when the model price drops or the gap starts moving against you.",
+      "url": "https://www.instagram.com/p/DeZ8XxRN4DV/"
+    }
+  ],
+  "C958": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:wisdom:18",
+      "statement": "Option-implied (risk-neutral) crash probabilities can exceed real-world odds because investors overpay for protection.",
+      "url": "https://www.instagram.com/p/De-UE-rtxLP/"
+    }
+  ],
+  "C959": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:8",
+      "statement": "Rates signal: buy a TLT put only when prediction-market Fed expectations turn more hawkish, the model expects TLT to fall, and TLT has under-reacted.",
+      "url": "https://www.instagram.com/p/DcHr5hQtENU/"
+    }
+  ],
+  "C960": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:22",
+      "statement": "Standardize the gap between expected and actual move to know whether an under-reaction is actually unusual.",
+      "url": "https://www.instagram.com/p/DcHr5hQtENU/"
+    }
+  ],
+  "C961": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:9",
+      "statement": "Order-book signal: estimate which best-quote queue empties first; above 50% probability of an up-tick, the next move is likely up.",
+      "url": "https://www.instagram.com/p/DefXPKtt0k5/"
+    },
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:23",
+      "statement": "Order-book imbalance alone is not enough; account for limit orders, cancellations and market orders when judging which queue depletes first.",
+      "url": "https://www.instagram.com/p/DefXPKtt0k5/"
+    }
+  ],
+  "C962": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:10",
+      "statement": "Cross-venue arbitrage: act only when one venue's bid exceeds the other's ask by a minimum edge (example: 2 cents) with a minimum size (example: 100 shares).",
+      "url": "https://www.instagram.com/p/DcpI322tado/"
+    }
+  ],
+  "C963": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:sizing:5",
+      "statement": "In arbitrage, buy only as many shares as you can immediately sell on the other venue to avoid inventory risk.",
+      "url": "https://www.instagram.com/p/DcpI322tado/"
+    }
+  ],
+  "C964": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:risk:5",
+      "statement": "Market making carries inventory risk and adverse selection: the counterparty may know something you do not.",
+      "url": "https://www.instagram.com/p/DcW1fLRNzqb/"
+    }
+  ],
+  "C965": [
+    {
+      "kb": "josholdmixon-instagram",
+      "recordId": "josholdmixon-instagram:entry:12",
+      "statement": "Look for options mispricing where a richer model (stochastic volatility plus jumps) prices volatility and jump risk differently from the market.",
+      "url": "https://www.instagram.com/p/Ddzn_nrtPhj/"
+    }
+  ],
+  "C966": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:1",
+      "statement": "Express each trading rule as a continuous forecast proportional to expected Sharpe, scaled to an average absolute value of 10; size position as forecast divided by instrument volatility.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    }
+  ],
+  "C967": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:1",
+      "statement": "Trend forecast = rolling OLS regression slope of price over n days divided by volatility; produce no estimate until at least n/4 days of data exist.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    }
+  ],
+  "C968": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:2",
+      "statement": "Use a set of trend lookback windows from 10 to about 200 days, spaced by factors of the square root of two, instead of one optimized window.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:5",
+      "statement": "Instead of picking one optimal parameter, trade a family of fast-to-slow parameter sets as one unit.",
+      "url": "https://www.youtube.com/watch?v=HSuE19H1-K0"
+    }
+  ],
+  "C969": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:1",
+      "statement": "Choose a trend lookback of roughly one-half to one-third of the expected trend length; a lookback that is too slow performs worst.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    }
+  ],
+  "C970": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:2",
+      "statement": "Cap a rule variation's trading costs at 13 bp of Sharpe ratio per year; drop variations (e.g., a 5-day window) that exceed it.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    }
+  ],
+  "C971": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:3",
+      "statement": "Estimate cost per trade in risk units as commission plus half the bid-ask spread, divided by volatility.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    }
+  ],
+  "C972": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:5",
+      "statement": "Do not abandon a systematic rule because of poor recent results; short-run underperformance is not statistically significant.",
+      "url": "https://www.youtube.com/watch?v=-aT55uRJI8Q"
+    }
+  ],
+  "C973": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:options_structure:1",
+      "statement": "Gamma scalp a long ATM call position delta-hedged with short stock: buy stock when the underlying falls and sell stock when it rises to stay delta neutral and offset theta decay.",
+      "url": "https://www.youtube.com/watch?v=-jxVX4aijFg"
+    }
+  ],
+  "C974": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:6",
+      "statement": "A delta-hedged long-option position that round-trips to its opening price still loses its theta; scalping oscillations must exceed daily theta plus transaction costs.",
+      "url": "https://www.youtube.com/watch?v=-jxVX4aijFg"
+    }
+  ],
+  "C975": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:1",
+      "statement": "Fade retail positioning: when a retail sentiment group is 75% positioned in one direction (3:1 ratio), trade the opposite side.",
+      "url": "https://www.youtube.com/watch?v=06mHrkSsG38"
+    }
+  ],
+  "C976": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:7",
+      "statement": "Expect a good trend strategy to lose small amounts for long periods and earn most profit in rare large moves; do not require consistent monthly gains.",
+      "url": "https://www.youtube.com/watch?v=06mHrkSsG38"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:64",
+      "statement": "Expect mean-reversion strategies to have many small wins and rare large losses, and momentum strategies many small losses and rare large wins.",
+      "url": "https://www.youtube.com/watch?v=DW9zQ8Hz6gQ"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:79",
+      "statement": "Classify strategies as divergent (right-tailed, low win rate) or convergent (high win rate, left tail) by return distribution, and combine both.",
+      "url": "https://www.youtube.com/watch?v=HSuE19H1-K0"
+    }
+  ],
+  "C977": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:37",
+      "statement": "Compute returns from split/dividend-adjusted close prices; unadjusted closes show false drops on split days.",
+      "url": "https://www.youtube.com/watch?v=92zCRV3eQxw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:8",
+      "statement": "Check price data for wrong values, duplicate entries and gaps before analysis; garbage data gives garbage results.",
+      "url": "https://www.youtube.com/watch?v=06mHrkSsG38"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:124",
+      "statement": "Clean price data before use: remove spikes and adjust for corporate actions such as splits and dividends.",
+      "url": "https://www.youtube.com/watch?v=cqEncH4_5ls"
+    }
+  ],
+  "C978": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:3",
+      "statement": "Measure volatility with ATR (default 14 periods): true range = max(high-low, |high-prev close|, |low-prev close|); rising ATR = expanding volatility, never a direction signal.",
+      "url": "https://www.youtube.com/watch?v=0yjFKEc4q1c"
+    }
+  ],
+  "C979": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:1",
+      "statement": "Label each month by S&P change: +30 points or more = strong up, -4 points or worse = down, in between = sideways; build a portfolio with 1–2 algorithms that excel in each state.",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:2",
+      "statement": "Keep an algorithm that loses in one market state (momentum lost ~$812/month in down months) if it adds strongly in other states and other algos cover that state.",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
+    }
+  ],
+  "C980": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:10",
+      "statement": "Robustness requirements: at least 10 years of backtest data, at least 200 trades, three or fewer indicators, slippage and commission included, coarse optimization steps.",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:57",
+      "statement": "For a daily strategy, require roughly one extra year of data for every added parameter.",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:45",
+      "statement": "Require many trades relative to the number of rules (degrees of freedom) and require the system to work across similar instruments.",
+      "url": "https://www.youtube.com/watch?v=AJ4rPn-MzgY"
+    }
+  ],
+  "C981": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:12",
+      "statement": "Reject scalping algorithms whose average gain per trade is close to the bid-ask spread (e.g., about $12 per ES trade).",
+      "url": "https://www.youtube.com/watch?v=2UCrZq5n8rw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:149",
+      "statement": "Require economic, not just statistical, significance; a pattern that only captures the bid-ask spread is untradable.",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
+    }
+  ],
+  "C982": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:4",
+      "statement": "Backtest finding: on Tesla, a MACD strategy outperformed a Williams Alligator strategy, capturing both 2018–2019 sideways and 2020–2021 trend.",
+      "url": "https://www.youtube.com/watch?v=3ImwK01Dry0"
+    }
+  ],
+  "C983": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:2",
+      "statement": "Commodity pairs: within each commodity group, pair futures by smallest sum of squared normalized-price deviations over 12 months; open when the pair diverges by more than 2 standard deviations (reported Sharpe ~1.5).",
+      "url": "https://www.youtube.com/watch?v=4Byp_JHZftE"
+    }
+  ],
+  "C984": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:3",
+      "statement": "Pre-earnings drift: go long the top decile and short the bottom decile of stocks ranked by past earnings-announcement returns, holding during the five days before the announcement.",
+      "url": "https://www.youtube.com/watch?v=4Byp_JHZftE"
+    }
+  ],
+  "C985": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:16",
+      "statement": "Require a t-statistic of at least 3.0 (or 3.5) before accepting a new factor/anomaly; remove microcaps and value-weight returns when testing.",
+      "url": "https://www.youtube.com/watch?v=4Byp_JHZftE"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:4",
+      "statement": "Require a t-statistic above 3.0, not 2.0, before believing a new factor found after multiple testing.",
+      "url": "https://www.instagram.com/p/DWhz-LyCC_z/"
+    }
+  ],
+  "C986": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:3",
+      "statement": "Apply momentum across published anomalies: rank anomalies by past performance and trade only the best-performing ones.",
+      "url": "https://www.youtube.com/watch?v=4Byp_JHZftE"
+    }
+  ],
+  "C987": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:17",
+      "statement": "Look for edge in research blind spots (bonds, REITs, FX, intraday, short-only, e.g. currency-cross pairs) where less published research means less competition.",
+      "url": "https://www.youtube.com/watch?v=4Byp_JHZftE"
+    }
+  ],
+  "C988": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:20",
+      "statement": "Optimize models for Sharpe ratio (profit divided by its volatility), not mean squared error of price prediction.",
+      "url": "https://www.youtube.com/watch?v=5w_i6mmAHQk"
+    }
+  ],
+  "C989": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:21",
+      "statement": "The time needed to demonstrate a strategy is profitable is roughly 1/Sharpe² years; low-Sharpe strategies need long track records.",
+      "url": "https://www.youtube.com/watch?v=5w_i6mmAHQk"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:47",
+      "statement": "Prefer models that trade frequently when judging statistical confidence; faster models produce more samples.",
+      "url": "https://www.youtube.com/watch?v=ArbIM0vhSYQ"
+    }
+  ],
+  "C990": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:4",
+      "statement": "Connors RSI(2): only trade long when price is above its 200-day SMA; buy when RSI(2) crosses under 10, add when it crosses under 6.",
+      "url": "https://www.youtube.com/watch?v=61_F2fcvrsw"
+    }
+  ],
+  "C991": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:exit:1",
+      "statement": "Connors RSI(2) exit: close the long on a close above the 5-day SMA, or on a close below the 200-day SMA.",
+      "url": "https://www.youtube.com/watch?v=61_F2fcvrsw"
+    }
+  ],
+  "C992": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:123",
+      "statement": "In vectorized backtests, compute strategy returns as the previous bar's position times the current log return to avoid look-ahead.",
+      "url": "https://www.youtube.com/watch?v=blnJn1aCfDw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:24",
+      "statement": "In backtests, fill signals generated at today's close at the next bar's open (next-bar execution) to avoid trading on the signal bar.",
+      "url": "https://www.youtube.com/watch?v=61_F2fcvrsw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:118",
+      "statement": "Backtest with execution at the next bar's open, not the signal bar's close; the delay typically cuts profit by 5-10%.",
+      "url": "https://www.youtube.com/watch?v=VnouFcLMcNE"
+    }
+  ],
+  "C993": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:25",
+      "statement": "Use machine learning to blend existing independent alpha sources or for regime/style classification, not to predict from raw past returns.",
+      "url": "https://www.youtube.com/watch?v=61_F2fcvrsw"
+    }
+  ],
+  "C994": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:155",
+      "statement": "Avoid ML on daily bars, technical indicators and single futures/index series (too little data, data-snooping); prefer tick, order-book, fundamental, news or large cross-sectional data.",
+      "url": "https://www.youtube.com/watch?v=72aEDjwGMr8"
+    }
+  ],
+  "C995": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:26",
+      "statement": "When bootstrapping/bagging time-series data to reduce data-snooping bias, use a resampling method that preserves serial autocorrelation.",
+      "url": "https://www.youtube.com/watch?v=72aEDjwGMr8"
+    }
+  ],
+  "C996": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:27",
+      "statement": "Reduce the number of features; prefer feature-selecting models (stepwise regression, CART, random forest) over neural networks, which fit all inputs in non-stationary markets.",
+      "url": "https://www.youtube.com/watch?v=72aEDjwGMr8"
+    }
+  ],
+  "C997": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:5",
+      "statement": "Sentiment ML long/short: separate up/down classification trees on social-sentiment plus other factors; enter five positions per day and exit each after 20 days (4.7 Sharpe paper-traded; live expected lower).",
+      "url": "https://www.youtube.com/watch?v=7hyu-abBh1Q"
+    }
+  ],
+  "C998": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:28",
+      "statement": "A prediction-to-outcome correlation of about 0.12 is enough to overcome transaction costs and trade profitably.",
+      "url": "https://www.youtube.com/watch?v=7hyu-abBh1Q"
+    }
+  ],
+  "C999": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:29",
+      "statement": "Control ML overfitting with a larger k in KNN or a larger leaf size in decision trees; normalize features for KNN.",
+      "url": "https://www.youtube.com/watch?v=7hyu-abBh1Q"
+    }
+  ],
+  "C1000": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:31",
+      "statement": "Test each indicator (does it measure what it claims) and each signal (predictive power) on its own before a full backtest; start over if a signal lacks predictive power.",
+      "url": "https://www.youtube.com/watch?v=8qBo0PqRObU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:93",
+      "statement": "Test whether a feature has predictive power first; build a strategy only after the idea shows statistical evidence of an edge.",
+      "url": "https://www.youtube.com/watch?v=M3-0LfZMsz4"
+    }
+  ],
+  "C1001": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:70",
+      "statement": "Be suspicious of complex stop-loss and trailing-stop rules added to a mediocre signal; they curve-fit the backtest and fail out of sample.",
+      "url": "https://www.youtube.com/watch?v=EbWbeYu8zwg"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:32",
+      "statement": "Avoid rule burden: do not keep adding entry, exit and risk rules or brute-force parameter grids; fewer rules are more robust.",
+      "url": "https://www.youtube.com/watch?v=8qBo0PqRObU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:33",
+      "statement": "Base parameter ranges on an economic rationale (e.g., volatility regimes), not wide brute-force searches.",
+      "url": "https://www.youtube.com/watch?v=8qBo0PqRObU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:41",
+      "statement": "Do not tune parameter values or add indicators without a theory behind them; that is curve fitting.",
+      "url": "https://www.youtube.com/watch?v=9wm8e7w6qN4"
+    }
+  ],
+  "C1002": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:6",
+      "statement": "Rainfall signal: 3-month rolling mean of daily rainfall at company HQ scaled 0–1; short stocks with signal above 0.85, buy below 0.15, rebalance weekly 50/50 (zero-cost backtest; not tradable as is).",
+      "url": "https://www.youtube.com/watch?v=9XYjR6ge73M"
+    }
+  ],
+  "C1003": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:39",
+      "statement": "Use factor quantile analysis (e.g., Alphalens) to check signal direction and monotonicity before building a strategy; flip the signal if returns run inversely.",
+      "url": "https://www.youtube.com/watch?v=9XYjR6ge73M"
+    }
+  ],
+  "C1004": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:42",
+      "statement": "Warm up indicators with historical data and check readiness (IsReady) before acting on their signals.",
+      "url": "https://www.youtube.com/watch?v=9wm8e7w6qN4"
+    }
+  ],
+  "C1005": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:44",
+      "statement": "Evaluate entries separately using naive (\"dumb\") exits, and evaluate exits separately using random entries.",
+      "url": "https://www.youtube.com/watch?v=AJ4rPn-MzgY"
+    }
+  ],
+  "C1006": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:exit:2",
+      "statement": "Test-derived finding: shorter holding times were typically superior to the longer holds expected for swing entries.",
+      "url": "https://www.youtube.com/watch?v=AJ4rPn-MzgY"
+    }
+  ],
+  "C1007": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:3",
+      "statement": "Reshuffle trade order via Monte Carlo to estimate drawdown at 95% confidence (often worse than historical) and size positions from that drawdown.",
+      "url": "https://www.youtube.com/watch?v=AJ4rPn-MzgY"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:10",
+      "statement": "Size from Monte Carlo worst cases, not the backtest path: bootstrapping 1,043 trades, 84% of runs had a deeper drawdown than the backtest ($2,768); worst run $11,392.",
+      "url": "https://www.instagram.com/p/DfgdbRsxeAp/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:5",
+      "statement": "Pick the largest position size whose Monte Carlo (reshuffled returns) drawdown stays below a set limit at a chosen confidence level over a fixed period.",
+      "url": "https://www.youtube.com/watch?v=ATsXvDtSp54"
+    }
+  ],
+  "C1008": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:5",
+      "statement": "Operational risk: maintain backup power (UPS), a backup internet connection and a backup computer for automated trading.",
+      "url": "https://www.youtube.com/watch?v=ATsXvDtSp54"
+    }
+  ],
+  "C1009": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:1",
+      "statement": "Increase breadth across many independent bets; it scales the information ratio more cheaply than improving signal quality.",
+      "url": "https://www.instagram.com/p/DWmXxZ5DISp/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:46",
+      "statement": "Combine many low signal-to-noise models; more independent models improve the combined signal-to-noise ratio.",
+      "url": "https://www.youtube.com/watch?v=ArbIM0vhSYQ"
+    }
+  ],
+  "C1010": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:7",
+      "statement": "Buy the NASDAQ Composite at the open when the overnight gap is between -1% and -2%, exit at the close (teaching backtest 2010–2020: 102 trades, mean +0.3%).",
+      "url": "https://www.youtube.com/watch?v=B23sVOkzEjY"
+    }
+  ],
+  "C1011": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:49",
+      "statement": "Sweep slippage assumptions (e.g., 3 to 50 bp) to find the cost level at which the strategy stops being profitable.",
+      "url": "https://www.youtube.com/watch?v=BCLgXjxYONg"
+    }
+  ],
+  "C1012": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:53",
+      "statement": "Before backtesting an outside idea, skip strategies with Sharpe below 1 or a maximum drawdown duration of about two years.",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:50",
+      "statement": "Treat Sharpe ratios of 1–3 as good for non-HFT strategies; Sharpe of 5–10 usually means narrow conditions and small capacity.",
+      "url": "https://www.youtube.com/watch?v=BCLgXjxYONg"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:156",
+      "statement": "Prop-shop bar cited: FX strategies should show a Sharpe ratio above 2 and equity strategies about 3 before being considered.",
+      "url": "https://www.youtube.com/watch?v=Si6Ql8zqkLA"
+    }
+  ],
+  "C1013": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:4",
+      "statement": "Judge strategies with rolling beta and rolling Sharpe rather than single summary numbers, because markets are non-stationary.",
+      "url": "https://www.youtube.com/watch?v=BCLgXjxYONg"
+    }
+  ],
+  "C1014": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:52",
+      "statement": "For market-neutral allocations, require beta near zero and near-zero Fama-French factor exposures.",
+      "url": "https://www.youtube.com/watch?v=BCLgXjxYONg"
+    }
+  ],
+  "C1015": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:6",
+      "statement": "Cross-exchange crypto arbitrage can lose money because prices move during the lag between buy and sell legs; compare only pairs listed on many exchanges.",
+      "url": "https://www.youtube.com/watch?v=BkKebXrhMGY"
+    }
+  ],
+  "C1016": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:54",
+      "statement": "Distrust backtests of strategies that rely on limit-order fills to earn the spread; prefer strategies profitable with market orders.",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    }
+  ],
+  "C1017": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:55",
+      "statement": "Reject stock strategies not tested on survivorship-bias-free data (buy-10-cheapest 2001 test: 388% biased vs about -42% clean).",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:5",
+      "statement": "Use a survivorship-free database including delisting returns; survivor-only samples manufacture edges like the Nasdaq size effect.",
+      "url": "https://www.instagram.com/p/DZ8xOhFI0lx/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:108",
+      "statement": "Backtest stock strategies on point-in-time index membership (e.g., S&P 500 members as of 2000, incl. delisted names), never today's constituents, to avoid survivorship bias.",
+      "url": "https://www.youtube.com/watch?v=VLT6ZNUONLU"
+    }
+  ],
+  "C1018": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:56",
+      "statement": "Prevent look-ahead bias: use the same code for backtest and live, and verify that truncating input data does not change earlier positions.",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:60",
+      "statement": "Do not use the day's high or low at the open, or hedge ratios/parameters fitted over the whole period (look-ahead bias).",
+      "url": "https://www.youtube.com/watch?v=CE3OwpKalCs"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:105",
+      "statement": "Avoid subtle look-ahead bias from rolling means/statistics that include future data.",
+      "url": "https://www.youtube.com/watch?v=OhGdVdolqkU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:127",
+      "statement": "Use rolling estimates (hedge ratio, spread mean, std) computed on returns for pairs trading; a full-sample regression hedge ratio is look-ahead bias.",
+      "url": "https://www.youtube.com/watch?v=g-qvFjvyqcs"
+    }
+  ],
+  "C1019": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:8",
+      "statement": "Just before the close, buy SPY if its 5-day moving average is above its 15-day moving average, otherwise sell (platform demo).",
+      "url": "https://www.youtube.com/watch?v=Cg3gejGX3Xk"
+    }
+  ],
+  "C1020": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:104",
+      "statement": "Use vectorized for-loop backtests only as a first filter to discard bad ideas; validate survivors in an event-driven backtester that shares code with live trading.",
+      "url": "https://www.youtube.com/watch?v=OhGdVdolqkU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:76",
+      "statement": "Final backtest checks should use an event-driven, portfolio-aware engine with realistic spreads, mark-to-market equity curves and minute-level data.",
+      "url": "https://www.youtube.com/watch?v=GU2USwU5FkU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:62",
+      "statement": "Do not rely on vectorized research backtesters for higher-frequency intraday strategies; use event-driven backtesting.",
+      "url": "https://www.youtube.com/watch?v=D6QF7MsB1xA"
+    }
+  ],
+  "C1021": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:63",
+      "statement": "Alpha is skill at timing selection and sizing; being right too early is the same as being wrong.",
+      "url": "https://www.youtube.com/watch?v=D6pjFHe_qhY"
+    }
+  ],
+  "C1022": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:66",
+      "statement": "Model transaction costs using bid/ask quotes and order book size, not a flat assumption.",
+      "url": "https://www.youtube.com/watch?v=DW9zQ8Hz6gQ"
+    }
+  ],
+  "C1023": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:67",
+      "statement": "If live performance is far below a high-Sharpe backtest, conclude the backtest was unrealistic.",
+      "url": "https://www.youtube.com/watch?v=DW9zQ8Hz6gQ"
+    }
+  ],
+  "C1024": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:68",
+      "statement": "Develop in three separately measured steps: signal (win rate and avg win/avg loss), risk allocation (vs equal-weight benchmark), then trade expression; do not work on execution until the signal is good.",
+      "url": "https://www.youtube.com/watch?v=EbWbeYu8zwg"
+    }
+  ],
+  "C1025": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:71",
+      "statement": "When edge per share/contract is thin, A/B test execution algorithms because execution then dominates results.",
+      "url": "https://www.youtube.com/watch?v=EbWbeYu8zwg"
+    }
+  ],
+  "C1026": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:73",
+      "statement": "High-Sharpe strategies typically win only 51–58% of trades but 60–75% of days by placing many independent bets.",
+      "url": "https://www.youtube.com/watch?v=EbWbeYu8zwg"
+    }
+  ],
+  "C1027": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:159",
+      "statement": "Improve simple, intuitive strategies by adding filters that remove bad trades rather than adding complexity; subtraction is harder to arbitrage away.",
+      "url": "https://www.youtube.com/watch?v=akrWQxUqjq8"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:74",
+      "statement": "Use a random-forest overlay to filter out bad trades from an existing strategy (example raised Sharpe from ~1.5 to ~3.5).",
+      "url": "https://www.youtube.com/watch?v=EbWbeYu8zwg"
+    }
+  ],
+  "C1028": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:sizing:5",
+      "statement": "Split large orders over time; more risk aversion or volatility should front-load the liquidation, zero risk aversion gives TWAP.",
+      "url": "https://www.instagram.com/p/DZqkOF4IDcJ/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:75",
+      "statement": "Split large orders into small pieces (VWAP-style) to reduce slippage against the decision price.",
+      "url": "https://www.youtube.com/watch?v=GDiLhwhKdds"
+    }
+  ],
+  "C1029": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:time_filter:2",
+      "statement": "Account for session timing and seasonality in FX; focus EUR trading on the London session.",
+      "url": "https://www.youtube.com/watch?v=GU2USwU5FkU"
+    }
+  ],
+  "C1030": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:78",
+      "statement": "Select pairs by cointegration (stationary spread around its mean), not correlation alone; correlated prices can have a non-stationary spread.",
+      "url": "https://www.youtube.com/watch?v=HLCUde6Afdc"
+    }
+  ],
+  "C1031": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:80",
+      "statement": "Test strategies on synthetic price series with a controlled trend signal-to-noise ratio, especially when real history is short (<2 years).",
+      "url": "https://www.youtube.com/watch?v=HSuE19H1-K0"
+    }
+  ],
+  "C1032": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:7",
+      "statement": "Prefer emerging markets (e.g., ~80% retail China) for higher signal-to-noise and less institutional competition.",
+      "url": "https://www.youtube.com/watch?v=HSuE19H1-K0"
+    }
+  ],
+  "C1033": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:82",
+      "statement": "When data mining signal combinations, use a fitness threshold such as profit factor above 2.5 plus in/out-of-sample splits and cross-validation.",
+      "url": "https://www.youtube.com/watch?v=HrfSO_sREAI"
+    }
+  ],
+  "C1034": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:6",
+      "statement": "Prefer non-parametric \"counting\" signals (e.g., consecutive higher highs) over optimized lookback parameters like moving-average lengths.",
+      "url": "https://www.youtube.com/watch?v=HrfSO_sREAI"
+    }
+  ],
+  "C1035": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:9",
+      "statement": "Reshuffle trades and simulate a degraded win rate (e.g., 55%) to get the distribution of outcomes for the next N trades.",
+      "url": "https://www.youtube.com/watch?v=HrfSO_sREAI"
+    }
+  ],
+  "C1036": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:10",
+      "statement": "Prefer asymmetric risk-reward: accept a lower win rate in exchange for wins larger than losses.",
+      "url": "https://www.youtube.com/watch?v=HrfSO_sREAI"
+    }
+  ],
+  "C1037": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:10",
+      "statement": "Pairs trading: confirm cointegration of correlated stocks with ADF or Johansen tests, then buy the underperforming stock and sell the outperforming one.",
+      "url": "https://www.youtube.com/watch?v=IfI9JS7GqIU"
+    }
+  ],
+  "C1038": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:entry:3",
+      "statement": "Hold long while the fast EMA is above the slow EMA and short below; the crossover is a momentum measure.",
+      "url": "https://www.instagram.com/p/Da1M1BvoOCr/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:11",
+      "statement": "Demo EMA rule: buy when EMA(10) minus EMA(20) crosses above zero, sell when it crosses below zero.",
+      "url": "https://www.youtube.com/watch?v=J-cWLXO7AVw"
+    }
+  ],
+  "C1039": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:11",
+      "statement": "Split large orders into small random pieces spread over time and across exchanges to hide size.",
+      "url": "https://www.youtube.com/watch?v=JAvcL05nSKw"
+    }
+  ],
+  "C1040": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:83",
+      "statement": "Crypto exchange data can be 15–30 seconds delayed; record event time separately from receive time and measure latency.",
+      "url": "https://www.youtube.com/watch?v=JAvcL05nSKw"
+    }
+  ],
+  "C1041": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:84",
+      "statement": "Measure a signal by its information coefficient (Spearman rank correlation with forward returns); it must stay correlated with future returns through constraints and execution.",
+      "url": "https://www.youtube.com/watch?v=J_kzoZOxsZ0"
+    }
+  ],
+  "C1042": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:85",
+      "statement": "Regress a new model's returns on known risk factors and existing alpha models; only the residual is alpha (e.g., a mean-reversion algo that is mostly short-term reversal adds nothing).",
+      "url": "https://www.youtube.com/watch?v=J_kzoZOxsZ0"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:89",
+      "statement": "Many charting-forum indicators are momentum or mean reversion in disguise; check new indicators against those known factors.",
+      "url": "https://www.youtube.com/watch?v=J_kzoZOxsZ0"
+    }
+  ],
+  "C1043": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:86",
+      "statement": "Use backtests only to check that the portfolio survives frictions (costs, liquidity), not to validate predictiveness; validate predictiveness in exploration and out-of-sample.",
+      "url": "https://www.youtube.com/watch?v=J_kzoZOxsZ0"
+    }
+  ],
+  "C1044": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:87",
+      "statement": "Check whether risk constraints destroy alpha: if constrained weights move far from the model's preferred weights, the model may not work in a risk-constrained world.",
+      "url": "https://www.youtube.com/watch?v=J_kzoZOxsZ0"
+    }
+  ],
+  "C1045": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:12",
+      "statement": "Tested and failed: on daily ES 2003–2016, buy next bar after a red candle, exit on green candle/$500 target/$200 stop lost $8,651 over ~1,500 trades (33% win rate).",
+      "url": "https://www.youtube.com/watch?v=KHjrrq1UsM8"
+    }
+  ],
+  "C1046": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:13",
+      "statement": "Envelope breakout: update a fair-price threshold after large moves, build up/down envelopes around it, and take a position when price breaches an envelope (Nifty BeES intraday demo).",
+      "url": "https://www.youtube.com/watch?v=LkjpZ-pirGM"
+    }
+  ],
+  "C1047": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:92",
+      "statement": "Beginners should test strategies on liquid instruments; expect slippage vs backtest, e.g., on gap opens.",
+      "url": "https://www.youtube.com/watch?v=LkjpZ-pirGM"
+    }
+  ],
+  "C1048": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:97",
+      "statement": "Walk-forward permutation test: permute only data after the first training fold, rerun walk-forward; reject strategies with p-value above 1%.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:100",
+      "statement": "Run the in-sample permutation test before touching out-of-sample data, so bad ideas are rejected without burning the out-of-sample set.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    }
+  ],
+  "C1049": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:14",
+      "statement": "Donchian channel breakout on hourly BTC: best in-sample lookback 19 (2016–2019, PF 1.08) passed in-sample permutation (p 0.3%) but walk-forward 2020 PF 1.04 failed WF permutation (p 22%); not traded.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    }
+  ],
+  "C1050": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:7",
+      "statement": "Do not optimize indicator lookbacks; choose one from a plateau range where many values perform decently and keep it fixed.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    }
+  ],
+  "C1051": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:98",
+      "statement": "Score strategies with bar-level returns (position × next-bar return) rather than per-trade returns for more stable objective functions.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    }
+  ],
+  "C1052": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:99",
+      "statement": "Reject in-sample results that are obviously overfit, e.g., 100% win rate or a future-data leak, before further testing.",
+      "url": "https://www.youtube.com/watch?v=NLBXgSmRBgU"
+    }
+  ],
+  "C1053": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:101",
+      "statement": "Do not calibrate models on short samples (e.g., 4–5 years) that miss full cycles.",
+      "url": "https://www.youtube.com/watch?v=OINqYdkhOAw"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:120",
+      "statement": "Match backtest lookback to frequency: HFT backtests use only 1-2 years (microstructure changes fast), low-frequency strategies 5-10 years.",
+      "url": "https://www.youtube.com/watch?v=ZjZ_qWTGFB4"
+    }
+  ],
+  "C1054": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:15",
+      "statement": "Demo crude-oil momentum strategy with a $2,500 stop and a $5,000 profit target (illustrative, hypothetical results).",
+      "url": "https://www.youtube.com/watch?v=OhFMsgGL2Zo"
+    }
+  ],
+  "C1055": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:106",
+      "statement": "Check backtest sensitivity to start date, capacity limits and benchmark choice, plus whether you can psychologically tolerate the drawdowns.",
+      "url": "https://www.youtube.com/watch?v=OhGdVdolqkU"
+    }
+  ],
+  "C1056": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:107",
+      "statement": "All strategies decay; maintain a pipeline of new strategies and invest in risk management and position sizing infrastructure.",
+      "url": "https://www.youtube.com/watch?v=OhGdVdolqkU"
+    }
+  ],
+  "C1057": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:16",
+      "statement": "1-minute momentum entry: buy when 3-period volume and price averages are above their 8-period averages and there are two consecutive higher closes; sell short on two lower closes with same filters.",
+      "url": "https://www.youtube.com/watch?v=Pjtuw3y6W2A"
+    }
+  ],
+  "C1058": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:exit:3",
+      "statement": "Momentum exit: compute accelerated ROC (change in 5-period log-return ROC); close the trade when it moves against the position twice in a row.",
+      "url": "https://www.youtube.com/watch?v=Pjtuw3y6W2A"
+    }
+  ],
+  "C1059": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:exit:4",
+      "statement": "In HFT momentum, do not base exits on lagging indicators; post quotes rather than hit the market because costs dominate thin targets.",
+      "url": "https://www.youtube.com/watch?v=Pjtuw3y6W2A"
+    }
+  ],
+  "C1060": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:39",
+      "statement": "Treat automated news/social signals cautiously; misread or fake headlines trigger false momentum trades.",
+      "url": "https://www.youtube.com/watch?v=Pjtuw3y6W2A"
+    }
+  ],
+  "C1061": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:18",
+      "statement": "Go long when a bullish candle closes above the 8-day EMA, Parabolic SAR is below the candle, and fast Stochastic crosses above slow Stochastic.",
+      "url": "https://www.youtube.com/watch?v=SxzOrJ_vssc"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:19",
+      "statement": "Go short when a bearish candle closes below the 8-day EMA and Parabolic SAR is above the candle, with Stochastic confirmation.",
+      "url": "https://www.youtube.com/watch?v=SxzOrJ_vssc"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:41",
+      "statement": "Take the 8-EMA/SAR/Stochastic trend signal only when all three indicators meet their conditions; if any disagrees, treat it as false and stay out.",
+      "url": "https://www.youtube.com/watch?v=SxzOrJ_vssc"
+    }
+  ],
+  "C1062": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:40",
+      "statement": "In the 8-EMA/SAR/Stochastic trend setup, skip longs if Stochastic is already above 80 (overbought) and skip shorts if it is below 20 (oversold).",
+      "url": "https://www.youtube.com/watch?v=SxzOrJ_vssc"
+    }
+  ],
+  "C1063": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:15",
+      "statement": "With fixed cash, sequence rebalancing orders so existing positions are reduced/sold before new positions are increased.",
+      "url": "https://www.youtube.com/watch?v=Si6Ql8zqkLA"
+    }
+  ],
+  "C1064": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:42",
+      "statement": "Debounce moving-average crossover signals so they cannot flip back and forth many times a day; each flip pays fees, so a good signal badly implemented still loses.",
+      "url": "https://www.youtube.com/watch?v=Si6Ql8zqkLA"
+    }
+  ],
+  "C1065": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:21",
+      "statement": "MA mean reversion: sell when the 30-day MA is above the 90-day MA and buy when below, but only when the gap exceeds one standard deviation (filtered version beat unfiltered).",
+      "url": "https://www.youtube.com/watch?v=VLT6ZNUONLU"
+    }
+  ],
+  "C1066": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:109",
+      "statement": "Prefer a standard signal with well-optimized parameters and good execution over a novel but poorly optimized signal.",
+      "url": "https://www.youtube.com/watch?v=VLT6ZNUONLU"
+    }
+  ],
+  "C1067": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:43",
+      "statement": "For a quoted pair, use a Granger causality test to find the leading leg; quote passively in the leading instrument and cover in the lagging one to cut slippage.",
+      "url": "https://www.youtube.com/watch?v=SmQ3m0h3DKY"
+    }
+  ],
+  "C1068": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:111",
+      "statement": "When backtesting passive quoting strategies, simulate fills by comparing your resting quote with the last traded price rather than assuming fills.",
+      "url": "https://www.youtube.com/watch?v=SmQ3m0h3DKY"
+    }
+  ],
+  "C1069": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:9",
+      "statement": "Find historical analogs: correlate the last 20-50 days of ES with every past window since 1997 and use the average forward path of the top-10 matches (top-5 too noisy).",
+      "url": "https://www.youtube.com/watch?v=TCbECo42uXM"
+    }
+  ],
+  "C1070": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:12",
+      "statement": "Count an analog period only if a second market (oil, euro, gold, EUR/JPY, bonds) also matched, and treat the result as a bias to combine with discretion, not a short/long signal.",
+      "url": "https://www.youtube.com/watch?v=TCbECo42uXM"
+    }
+  ],
+  "C1071": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:45",
+      "statement": "For intraday breakout strategies, select high-volatility stocks and exclude penny stocks.",
+      "url": "https://www.youtube.com/watch?v=TJni2fxrEMY"
+    }
+  ],
+  "C1072": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:46",
+      "statement": "Line-of-least-resistance filter: take longs only if today's close is above the high of two days ago and shorts only if below the low of two days ago (made an optimized SMA system profitable, drawdowns still large).",
+      "url": "https://www.youtube.com/watch?v=Tpvs70YktgM"
+    }
+  ],
+  "C1073": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:157",
+      "statement": "Backtest finding: a fast/slow SMA crossover system on daily stocks (DIS, AAPL from 2008) lost money even after optimization, and adding an RSI 30-70 filter did not fix it.",
+      "url": "https://www.youtube.com/watch?v=Tpvs70YktgM"
+    }
+  ],
+  "C1074": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:16",
+      "statement": "Set a global 8% stop loss and 12% profit target (percent mode) on every trade of the automated strategy.",
+      "url": "https://www.youtube.com/watch?v=Tpvs70YktgM"
+    }
+  ],
+  "C1075": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:18",
+      "statement": "Use stop losses in trend-following strategies; they are harder to apply in mean-reversion strategies.",
+      "url": "https://www.youtube.com/watch?v=Uw188vWQ2Hg"
+    }
+  ],
+  "C1076": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:113",
+      "statement": "Backtest futures strategies with a conservative slippage charge of 5% of the day's high-low range.",
+      "url": "https://www.youtube.com/watch?v=V1vMkd8jFy4"
+    }
+  ],
+  "C1077": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:160",
+      "statement": "Backtest finding: fading EUR/USD hourly after many consecutive same-direction candles looked profitable at zero cost but lost money in-sample with 2 points of cost.",
+      "url": "https://www.youtube.com/watch?v=hKDalfhDawA"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:158",
+      "statement": "Prefer low-turnover strategies: strategies that enter and exit the market many times tend to score worse after costs.",
+      "url": "https://www.youtube.com/watch?v=V1vMkd8jFy4"
+    }
+  ],
+  "C1078": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:114",
+      "statement": "In ML trading models, predict return categories (e.g., up/down) instead of exact values, keep models simple, and use voting across several predictions.",
+      "url": "https://www.youtube.com/watch?v=V1vMkd8jFy4"
+    }
+  ],
+  "C1079": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:115",
+      "statement": "Detect overfitting by comparing training error with test error (and bagging); reject algorithms whose results are not reproducible across runs.",
+      "url": "https://www.youtube.com/watch?v=V1vMkd8jFy4"
+    }
+  ],
+  "C1080": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:10",
+      "statement": "Try a simple ATR filter as a volatility regime switch before a complex model; it can deliver about 80% of an HMM regime model's benefit.",
+      "url": "https://www.youtube.com/watch?v=V7UGqi83iJw"
+    }
+  ],
+  "C1081": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:19",
+      "statement": "Set drawdown and losing-streak thresholds from worst out-of-sample results; when a live strategy nears them, move it to paper trading.",
+      "url": "https://www.youtube.com/watch?v=V7UGqi83iJw"
+    }
+  ],
+  "C1082": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:20",
+      "statement": "On the AUD/USD daily ML strategy, adding a 100-pip take profit and a 100-pip stop loss reduced drawdown.",
+      "url": "https://www.youtube.com/watch?v=V7UGqi83iJw"
+    }
+  ],
+  "C1083": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:22",
+      "statement": "Go long when 9 EMA > 24 EMA and RSI(14) > 60; go short when 9 EMA < 24 EMA and RSI < 40; exit on the RSI condition alone.",
+      "url": "https://www.youtube.com/watch?v=VnouFcLMcNE"
+    }
+  ],
+  "C1084": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:10",
+      "statement": "Compounding (adding realized P&L back into the next trade's size) raised backtest profit about sixfold on ACC versus fixed sizing.",
+      "url": "https://www.youtube.com/watch?v=VnouFcLMcNE"
+    }
+  ],
+  "C1085": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:22",
+      "statement": "Hedge a portfolio against volatility spikes with long positions in VIX derivatives.",
+      "url": "https://www.youtube.com/watch?v=ZV_HZGTaVR0"
+    }
+  ],
+  "C1086": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:23",
+      "statement": "Use Bollinger Bands to identify volatility phases and scan for breakouts out of low-volatility phases.",
+      "url": "https://www.youtube.com/watch?v=ZV_HZGTaVR0"
+    }
+  ],
+  "C1087": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:24",
+      "statement": "Absolute momentum: go long if current price minus the price F periods ago is above zero, otherwise short (F is the only parameter; daily EURUSD example).",
+      "url": "https://www.youtube.com/watch?v=_fce3iYBAB8"
+    }
+  ],
+  "C1088": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:23",
+      "statement": "Monitor automated systems daily: reconcile trades and compare actual live performance against simulated performance.",
+      "url": "https://www.youtube.com/watch?v=_fce3iYBAB8"
+    }
+  ],
+  "C1089": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:24",
+      "statement": "Don't allocate to strategies/managers on short-term winning records (performance mean-reverts); use short-term results only to gradually cut allocation.",
+      "url": "https://www.youtube.com/watch?v=akrWQxUqjq8"
+    }
+  ],
+  "C1090": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:25",
+      "statement": "Crypto grid market making: when a resting buy fills, place a sell at a fixed profit above it and a new buy one buy-down interval below.",
+      "url": "https://www.youtube.com/watch?v=b-8ciz6w9Xo"
+    }
+  ],
+  "C1091": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:sizing:13",
+      "statement": "Size the grid buy-down interval from a chosen free-fall hedge (about 30-33%), account balance, trade size and price so cash is not exhausted in a crash.",
+      "url": "https://www.youtube.com/watch?v=b-8ciz6w9Xo"
+    }
+  ],
+  "C1092": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:122",
+      "statement": "Use resting maker limit orders so a market-making bot rarely pays exchange fees under maker-taker pricing.",
+      "url": "https://www.youtube.com/watch?v=b-8ciz6w9Xo"
+    }
+  ],
+  "C1093": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:26",
+      "statement": "Long-only SMA trend: be long when the 5-period SMA is above the 15-period SMA, flat otherwise (beat buy-and-hold in-sample but 182 trades; needs OOS testing).",
+      "url": "https://www.youtube.com/watch?v=blnJn1aCfDw"
+    }
+  ],
+  "C1094": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:25",
+      "statement": "Manage risk at portfolio level: cap positions as a share of average daily volume, limit sector exposure, and add a strategy only if it lowers portfolio risk or raises expected return.",
+      "url": "https://www.youtube.com/watch?v=cqEncH4_5ls"
+    }
+  ],
+  "C1095": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:27",
+      "statement": "Crypto MA reversal: buy after price drops below the moving average and turns back up; exit when price crosses back over the average (speaker: exits too early, no stop).",
+      "url": "https://www.youtube.com/watch?v=fpqzXgZjSqM"
+    }
+  ],
+  "C1096": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:126",
+      "statement": "Before placing real orders, run a bot in print-only mode that shows where buys and sells would occur, to verify the logic.",
+      "url": "https://www.youtube.com/watch?v=fpqzXgZjSqM"
+    }
+  ],
+  "C1097": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:128",
+      "statement": "Don't trust a stationarity test (ADF) blindly: a series with a periodic trend in its mean can pass as stationary.",
+      "url": "https://www.youtube.com/watch?v=g-qvFjvyqcs"
+    }
+  ],
+  "C1098": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:28",
+      "statement": "Short when the daily RSI hits 80; take profit at the 20-day moving average (reset daily) and place the stop one ATR above entry.",
+      "url": "https://www.youtube.com/watch?v=gNclG-PP7H4"
+    }
+  ],
+  "C1099": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:129",
+      "statement": "Check a discretionary rule on at least 10, ideally 20-30, historical examples (excluding the one it was derived from) before trusting it.",
+      "url": "https://www.youtube.com/watch?v=gNclG-PP7H4"
+    }
+  ],
+  "C1100": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:regime:11",
+      "statement": "RSI overbought/oversold levels vary by market and regime (e.g., 30-40 vs 60-80); 'buy at RSI 30' failed in the 2007-08 crash once RSI broke below 30.",
+      "url": "https://www.youtube.com/watch?v=gNclG-PP7H4"
+    }
+  ],
+  "C1101": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:130",
+      "statement": "Avoid signals from smoothers that revise history (e.g., Gaussian kernel regression turning points): they create look-ahead bias.",
+      "url": "https://www.youtube.com/watch?v=hKDalfhDawA"
+    }
+  ],
+  "C1102": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:131",
+      "statement": "Evaluate strategies on a mark-to-market equity curve, not a closed-trade curve, so open-trade drawdowns are visible.",
+      "url": "https://www.youtube.com/watch?v=hKDalfhDawA"
+    }
+  ],
+  "C1103": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:132",
+      "statement": "Recalibrate the model on a rolling schedule (about every 120 hours) instead of fitting once, which tends to work a month then collapse.",
+      "url": "https://www.youtube.com/watch?v=hKDalfhDawA"
+    }
+  ],
+  "C1104": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:134",
+      "statement": "Cross-validate a system on related markets (e.g., test a currency system on other currencies); passing there raises confidence.",
+      "url": "https://www.youtube.com/watch?v=i8FNO8r7PaE"
+    }
+  ],
+  "C1105": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:29",
+      "statement": "Long-short equity sentiment: go long stocks with a high 3-day average bull-minus-bear StockTwits score and short those with a low score (Alphalens showed long drawdown pre-costs).",
+      "url": "https://www.youtube.com/watch?v=ifg0rdfxQ2Q"
+    }
+  ],
+  "C1106": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:161",
+      "statement": "Don't judge an algorithm's live/walk-forward performance until out-of-sample trades reach at least 10% of the backtest trade count.",
+      "url": "https://www.youtube.com/watch?v=m6uPvuqS5_k"
+    }
+  ],
+  "C1107": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:27",
+      "statement": "Pair a long-only ES algorithm with a 10-year note algorithm (weekly correlation about -0.35) so the package is market-direction agnostic.",
+      "url": "https://www.youtube.com/watch?v=m6uPvuqS5_k"
+    }
+  ],
+  "C1108": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:10",
+      "statement": "Fit an AR(1) regression of next return on last return: a negative weight signals mean reversion, a positive weight signals momentum.",
+      "url": "https://www.youtube.com/watch?v=mkzcntzznMc"
+    }
+  ],
+  "C1109": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:136",
+      "statement": "Use mid price rather than last trade price as the signal input to avoid bid-ask bounce noise.",
+      "url": "https://www.youtube.com/watch?v=mkzcntzznMc"
+    }
+  ],
+  "C1110": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:30",
+      "statement": "When market making, skew quotes in the direction of the model's predicted mid-price move; the skew is where the alpha lies.",
+      "url": "https://www.youtube.com/watch?v=mkzcntzznMc"
+    }
+  ],
+  "C1111": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:138",
+      "statement": "Use the same code for research and live trading; translating research code into production introduces errors.",
+      "url": "https://www.youtube.com/watch?v=mrDq7jWcOjI"
+    }
+  ],
+  "C1112": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:indicator:11",
+      "statement": "Use historical volatility to predict future volatility (e.g., short-squeeze risk in short-interest strategies); nothing better was found.",
+      "url": "https://www.youtube.com/watch?v=nCKzRY_JV4c"
+    }
+  ],
+  "C1113": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:48",
+      "statement": "In valuation screens, beware cheap stocks that are cheap for a reason; calendarize and normalize fundamental data.",
+      "url": "https://www.youtube.com/watch?v=nCKzRY_JV4c"
+    }
+  ],
+  "C1114": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:139",
+      "statement": "Require roughly 20-50 out-of-sample trades per free parameter before accepting a system.",
+      "url": "https://www.youtube.com/watch?v=ofL66mh6Tw0"
+    }
+  ],
+  "C1115": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:141",
+      "statement": "Prefer markets where competitors are less sophisticated (e.g., manual market making, less electronic venues).",
+      "url": "https://www.youtube.com/watch?v=ofL66mh6Tw0"
+    }
+  ],
+  "C1116": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:142",
+      "statement": "Prefer systems that use information from other related markets (relative value); they hold up better out of sample than single-asset systems.",
+      "url": "https://www.youtube.com/watch?v=ofL66mh6Tw0"
+    }
+  ],
+  "C1117": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:144",
+      "statement": "Clean data before backtesting: drop duplicate timestamps, fill missing bars, and verify price/volume spikes are real before adjusting them.",
+      "url": "https://www.youtube.com/watch?v=r9rPdrtv8RI"
+    }
+  ],
+  "C1118": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:147",
+      "statement": "Test any pattern with an event study: average forward returns after each signal and compare against the baseline drift across asset classes.",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
+    }
+  ],
+  "C1119": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:148",
+      "statement": "Don't trust support/resistance lines: random levels look equally respected, and no test shows S/R beats random levels.",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
+    }
+  ],
+  "C1120": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:33",
+      "statement": "Fade three-sigma days and RSI extremes in stocks; use channel breakouts in futures, not stocks (asset classes behave differently).",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
+    }
+  ],
+  "C1121": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:49",
+      "statement": "Avoid buying stocks at 52-week highs; per event study they lose on average over the next month.",
+      "url": "https://www.youtube.com/watch?v=w_ne198KDzU"
+    }
+  ],
+  "C1122": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:risk:31",
+      "statement": "Roll futures contracts based on open interest, and evaluate leveraged futures results as path-dependent (margin calls).",
+      "url": "https://www.youtube.com/watch?v=yfAVYce7Xhk"
+    }
+  ],
+  "C1123": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:36",
+      "statement": "Momentum hypothesis: stocks with positive returns over the past year may keep positive returns over the next month; test on many stocks before trading.",
+      "url": "https://www.youtube.com/watch?v=yWA1swVLThI"
+    }
+  ],
+  "C1124": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:6",
+      "statement": "Forecast returns, not price levels; a price-level model with high R-squared can just copy yesterday's price.",
+      "url": "https://www.instagram.com/p/DVmrCyICCbp/"
+    },
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:152",
+      "statement": "Model returns, not price levels: prices show strong autocorrelation while returns (e.g., monthly wheat futures) show none significant.",
+      "url": "https://www.youtube.com/watch?v=oGS7YitoZDA"
+    }
+  ],
+  "C1125": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:153",
+      "statement": "Before trusting regression-based signals on financial series, test residuals for autocorrelation (Durbin-Watson) and conditional heteroskedasticity (Breusch-Pagan).",
+      "url": "https://www.youtube.com/watch?v=SOI-9vNV2VM"
+    }
+  ],
+  "C1126": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:entry:50",
+      "statement": "When calibrating implied volatility, discount out-of-the-money strikes with wide bid-ask spreads; they produce the largest model errors.",
+      "url": "https://www.youtube.com/watch?v=RETxgJcXBAY"
+    }
+  ],
+  "C1127": [
+    {
+      "kb": "kish-quant-video-list",
+      "recordId": "kish-quant-video-list:wisdom:154",
+      "statement": "Scale ML features before training (e.g., SVM) so no single feature dominates; keep kernels simple (degree 2) to limit overfitting.",
+      "url": "https://www.youtube.com/watch?v=nzPX_NQZuKg"
+    }
+  ],
+  "C1128": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:time_filter:1",
+      "statement": "NQ 11am-noon ET was the best hourly long (buy hour start, sell hour end): up 55.4% of days, +$90/contract vs +$12 random, consistent in both sample halves, but p=0.075 (not proven).",
+      "url": "https://www.instagram.com/p/Dd-gJqJRYuI/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:time_filter:2",
+      "statement": "NQ 10-11am ET was the worst hour to hold long (−$76/trade); the 9:30 open hour moved most (~160 pts) but made only $5/trade.",
+      "url": "https://www.instagram.com/p/Dd-gJqJRYuI/"
+    }
+  ],
+  "C1129": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:1",
+      "statement": "Buy every green / sell every red 15-min NQ candle, hold 1 hour: beat random by ~$26/trade and held on S&P, but profits concentrated in 2022 and the edge is fading (deep loss in latest year).",
+      "url": "https://www.instagram.com/p/Dd0LRczxPqy/"
+    }
+  ],
+  "C1130": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:40",
+      "statement": "Judas swing: fading the first 15 minutes of the NY open (hold 1h or to close) was worse than random in all 4 tests; the rest of the day reverses the opening move only 45% of the time.",
+      "url": "https://www.instagram.com/p/Dd19HsHOLZC/"
+    }
+  ],
+  "C1131": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:41",
+      "statement": "ICT overnight-high/low sweep that closes back inside happens on 71% of NQ days and predicts nothing (also on S&P).",
+      "url": "https://www.instagram.com/p/Dd19HsHOLZC/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:43",
+      "statement": "Liquidity sweeps of PDH/PDL/overnight high/low (trade through, close back within 15 min) occur 74% of the time but fading them (hold 30 min) wins 50.6%; buying a swept low did worse than a random long.",
+      "url": "https://www.instagram.com/p/DdhQPH0td_z/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:31",
+      "statement": "Fading an Asian-range sweep (range 8pm-midnight ET; sweep then close back inside before 9:30) on NQ, 1h hold, lost $19/trade vs -$3 random; the Asian high is swept 3 days in 4, so a sweep is not a signal.",
+      "url": "https://www.instagram.com/p/DeyApnER2_f/"
+    }
+  ],
+  "C1132": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:1",
+      "statement": "About 62% of NQ days set their high or low within the first 30 minutes of the NY open, though which extreme is unknowable in advance.",
+      "url": "https://www.instagram.com/p/Dd19HsHOLZC/"
+    }
+  ],
+  "C1133": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:42",
+      "statement": "Equal highs/lows are not a magnet: taken within 1h 78% vs 79% for a made-up level at the same distance; fading an equal-high sweep (hold 1h) beat random in only 1 of 12 tests.",
+      "url": "https://www.instagram.com/p/Dd20fw0N-tZ/"
+    }
+  ],
+  "C1134": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:1",
+      "statement": "MACD bull cross buy / bear cross sell, hold 1 hour on NQ 1/5/15-min: 0 of 6 tests beat random entries (183,000 signals).",
+      "url": "https://www.instagram.com/p/Dd5Vq1rxi13/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:2",
+      "statement": "Price crossing any EMA from 5 to 200 (buy above, sell below, hold 1h) on NQ 1/5/15-min: of ~1,200 tests none was significant in both the first 3 and last 2 years (best: 94 EMA 1-min).",
+      "url": "https://www.instagram.com/p/Dd5YhhnRMfI/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:3",
+      "statement": "Buying a touch-and-close-back-above the 200 SMA (sell rejections from below), hold 1h on NQ 1/5/15-min: 0 of 6 tests beat random; price holds the line only about half the time.",
+      "url": "https://www.instagram.com/p/Dd77OuERqx5/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:4",
+      "statement": "Bollinger Bands (20, 2): neither fading a close back inside nor buying a close outside, held 1h on NQ 1/5/15-min, beat random (0 of 12 tests).",
+      "url": "https://www.instagram.com/p/Dd79vQMRlsf/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:5",
+      "statement": "Fibonacci 61.8% retracement entries (buy pullback in up-swing, sell in down-swing, hold 1h) on NQ 1/5/15-min: 0 of 36 tests beat random; made-up 55%/67% levels did the same.",
+      "url": "https://www.instagram.com/p/Dd9zPbGMx6w/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:6",
+      "statement": "Taking the bounce off VWAP after a 0.25% stretch and return (hold 1h): long $154 vs $33 random on 1-min (p=0.14), shorts lost $91; 0 of 6 tests significant.",
+      "url": "https://www.instagram.com/p/DdsP9vlxGfT/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:7",
+      "statement": "9/21 EMA cross (buy bull cross on close, sell bear cross, hold 1h) on NQ: +$23/trade, 53% wins, identical to random (p=0.99); 42% of crosses flip back within 10 minutes.",
+      "url": "https://www.instagram.com/p/DdsmLHgRXSa/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:indicator:8",
+      "statement": "Engulfing candles (buy bullish, sell bearish, hold 1h) on NQ 1/5/15-min: 0 of 6 beat random; next candle goes your way 48.7% vs 48.6% after any candle, even with prior-trend context.",
+      "url": "https://www.instagram.com/p/Ddzx_6CRwSr/"
+    }
+  ],
+  "C1135": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:1",
+      "statement": "When testing many parameter variants, expect ~5% false positives (≈60 of 1,200 tests); require any winner to survive a split-sample (early vs late period) check.",
+      "url": "https://www.instagram.com/p/Dd5YhhnRMfI/"
+    }
+  ],
+  "C1136": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:44",
+      "statement": "Order blocks: buying bullish OBs (hold 1h) made $28 vs $19 for random same-time longs (edge ~$9, indistinguishable); bearish OBs lost $42; no edge on 1/5/15-min.",
+      "url": "https://www.instagram.com/p/DdhyUA_xHCC/"
+    }
+  ],
+  "C1137": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:45",
+      "statement": "Fair value gaps (3-candle gap ≥ half the 20-candle avg range, enter first return, hold 1h, same session): 0 of 6 tests significant; 15-min bullish gaps lost $155 vs random.",
+      "url": "https://www.instagram.com/p/DdjybFmtGU2/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:29",
+      "statement": "Fair value gaps (>=4 pts, NQ 5m) are not magnets: 77% filled within an hour vs 78% for a made-up zone of the same size and distance; don't trade FVG fills as a directional target.",
+      "url": "https://www.instagram.com/p/Det--2JxsKd/"
+    }
+  ],
+  "C1138": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:46",
+      "statement": "NQ/ES SMT divergence (one breaks its 20-bar high/low, the other doesn't), faded and held 1h: all 6 tests lost to random; 1-min bearish SMT −$33 vs −$16 random.",
+      "url": "https://www.instagram.com/p/DdkquDhRPkZ/"
+    }
+  ],
+  "C1139": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:3",
+      "statement": "Apply a multiple-testing correction across all variants (timeframes, directions); a raw p<0.05 in one of six tests is not evidence.",
+      "url": "https://www.instagram.com/p/DdnOI7qxmFr/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:21",
+      "statement": "Correct for multiple comparisons: with 8 comparisons about a third of runs find one 'significant' result by luck; treat a single pass (e.g. snow days) as noise until it repeats.",
+      "url": "https://www.instagram.com/p/DewmQFSREDn/"
+    }
+  ],
+  "C1140": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:4",
+      "statement": "Also test a prop eval by starting it on every trading day with trades in their real order (no reshuffling) and report pass rate and median days to pass, not the best start date.",
+      "url": "https://www.instagram.com/p/Ddp7TUaPNEO/"
+    }
+  ],
+  "C1141": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:2",
+      "statement": "When NQ stretches 0.25% away from VWAP, price returns to VWAP 87% of the time (about 2.5 times a day).",
+      "url": "https://www.instagram.com/p/DdsP9vlxGfT/"
+    }
+  ],
+  "C1142": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:47",
+      "statement": "Buying RSI(14) under 30 on the NQ 1-min (hold 1h) lost $23/trade vs +$44 for random longs (p=0.02); selling over 70 lost $46. Oversold signals a trend, not a floor.",
+      "url": "https://www.instagram.com/p/DdupKB0R4kb/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:18",
+      "statement": "Plain RSI oversold/overbought (buy under 30, sell over 70) on NQ 5m, 1h hold, made $9/trade vs $12 for random; no edge.",
+      "url": "https://www.instagram.com/p/DefMM_XM6Za/"
+    }
+  ],
+  "C1143": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:2",
+      "statement": "Selling the intraday 50/200 SMA death cross on NQ 15-min (hold 1h) made $340 vs −$60 random (p=0.009) and was significant on ES 1-min, but a later 15-min retest gave $94 vs −$22 (p=0.10).",
+      "url": "https://www.instagram.com/p/DdvGDC6ND88/"
+    }
+  ],
+  "C1144": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:sizing:1",
+      "statement": "Prop-eval geometry: even a negative-EV random coin flip passed ~30% of $50k evals ($3k target/$2k drawdown) using a 4:1 reward:risk at 33 micros (1 winner passes, 2 losers fail); small 1:1 size passed <1%.",
+      "url": "https://www.instagram.com/p/Ddx0t4tN5TB/"
+    }
+  ],
+  "C1145": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:1",
+      "statement": "A 50% consistency rule on a prop eval kills the big-size/few-trade approach: pass rate fell from 30% to 6% and the positive expectancy vanished.",
+      "url": "https://www.instagram.com/p/Ddx0t4tN5TB/"
+    }
+  ],
+  "C1146": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:48",
+      "statement": "Fading closes outside the NQ VWAP 2-standard-deviation bands (hold 1h) was worse than random: upper-band fade −$105 vs −$6.99 (p<0.001); exiting at VWAP won 61% but still lost $108/trade; same on S&P.",
+      "url": "https://www.instagram.com/p/DdxoFDER4Vl/"
+    }
+  ],
+  "C1147": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:3",
+      "statement": "Shorting RSI(14) crosses below 30 on the NQ 15-min (hold 1h) made $50/trade, $36 after $14 costs, but ~8 of 100 random short sets matched it and the 5-min version lost $13.",
+      "url": "https://www.instagram.com/p/De-2t0LRbsK/"
+    }
+  ],
+  "C1148": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:16",
+      "statement": "Reversing a losing strategy does not make a winner: flipped Turtle Soup (fade fresh 20-bar high/low closing back inside, NQ 15m) was p=0.53 vs random and lost after $14/trade costs.",
+      "url": "https://www.instagram.com/p/DelT1tTtNve/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:6",
+      "statement": "Flipping the direction of a losing signal is selection bias: picking the loser to flip flatters the result; retest the flipped rule on other timeframes/markets.",
+      "url": "https://www.instagram.com/p/De-2t0LRbsK/"
+    }
+  ],
+  "C1149": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:exit:1",
+      "statement": "Fibonacci extension targets on NQ (3-ATR zigzag swings): 1.272 reached on 25% and 1.618 on 16% of 5-min swings, and reversals there were no more common than expected; made-up levels did as well.",
+      "url": "https://www.instagram.com/p/De0pdbJxg3i/"
+    }
+  ],
+  "C1150": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:49",
+      "statement": "Rotating into last month's best index among NQ/ES/YM (long open-to-close daily) made 0.57%/month vs 0.52% for a random pick (p=0.80); daily differences between the three were noise.",
+      "url": "https://www.instagram.com/p/De2SAQWhkib/"
+    }
+  ],
+  "C1151": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:50",
+      "statement": "'Cheat code' opening range: mark 8:12-9:12 NY range, trade the first break back toward the other end, no stop, exit at close: hit 65% vs 59% random but lost $206/trade vs −$60 random; both data halves lost.",
+      "url": "https://www.instagram.com/p/De3QncBRPu9/"
+    }
+  ],
+  "C1152": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:8",
+      "statement": "Overlapping daily-start returns cluster into a few streaks (91 NQ all-time-high entry days formed only 4 streaks), so they are not independent samples.",
+      "url": "https://www.instagram.com/p/De4i5K2xoa4/"
+    }
+  ],
+  "C1153": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:51",
+      "statement": "Buying the 50/200 SMA golden cross intraday on NQ (hold 1h) lost vs random: −$59 vs +$5, and on 5-min −$26 vs +$9.",
+      "url": "https://www.instagram.com/p/De55BQ3RRCp/"
+    }
+  ],
+  "C1154": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:9",
+      "statement": "Judge rare signals against the base rate: daily golden cross fired twice in 5 years and NQ rose both times, but NQ rises in 63% of 20-session stretches anyway; two trades prove nothing.",
+      "url": "https://www.instagram.com/p/De55BQ3RRCp/"
+    }
+  ],
+  "C1155": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:3",
+      "statement": "Big-range NQ days cluster: after a top-20% range day (≥2.6% range), 48% of next days were big vs 20% base (35% vs 12% excluding 2022); shuffles never matched.",
+      "url": "https://www.instagram.com/p/De7JsgFx5k_/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:7",
+      "statement": "A big-range NQ day does not predict the next day's direction: up 57% after big days vs 53% after normal days (p=0.46).",
+      "url": "https://www.instagram.com/p/De7JsgFx5k_/"
+    }
+  ],
+  "C1156": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:sizing:2",
+      "statement": "Size to the edge, not the income goal: the ORB retest made ~$51/day per contract, so $1,000/day would need ~20 contracts and ~$10,000 risked per trade.",
+      "url": "https://www.instagram.com/p/De7cqDFt9Sg/"
+    }
+  ],
+  "C1157": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:10",
+      "statement": "Genetic-algorithm/data-mined strategies must be tested once on unseen data: 163 survivors of 4.6M bred FX strategies (EURUSD/GBPUSD/USDJPY, 30m-4h) were 43% profitable on a fresh year; 13 beat random vs ~8 by chance.",
+      "url": "https://www.instagram.com/p/De9i8TNxbO3/"
+    }
+  ],
+  "C1158": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:5",
+      "statement": "After 3 consecutive red NQ days, buy the next open and sell the close: +$1,175 vs +$264 random day (4 red: $1,500; 5 red: $3,000) but p=0.09 and the edge more than halved in the last 2 years.",
+      "url": "https://www.instagram.com/p/DeA-yvfxeS4/"
+    }
+  ],
+  "C1159": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:time_filter:3",
+      "statement": "Monday effect on NQ: buying the full-session open (overnight included) and selling the close on Mondays made $1,190/contract, up 61% of Mondays, p=0.002, stronger in last 2 years ($1,675); Tue/Thu/Fri lost on average.",
+      "url": "https://www.instagram.com/p/DeC4YiYtidD/"
+    }
+  ],
+  "C1160": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:52",
+      "statement": "Do not fade NQ opening gaps (9:30 open vs prior 4pm close) expecting a fill: gaps filled 61% vs 58% for a made-up level, and fading until filled won 69% but avg loss $3,707 vs avg win $1,626.",
+      "url": "https://www.instagram.com/p/DeDSMHjxNX2/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:12",
+      "statement": "Trading toward the Sunday gap (Fri 5pm close vs Sun 6pm open, gap>=5 pts) at Monday 9:30 open, 1h hold, lost $3/trade vs -$4 random (p=0.99); a fake level the same distance away filled more often (92% vs 87%).",
+      "url": "https://www.instagram.com/p/DeZ6dU2saH-/"
+    }
+  ],
+  "C1161": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:time_filter:4",
+      "statement": "'Never trade the open' failed: a 5-min close beyond the last 30-min high/low breakout (hold 30 min) made $59/trade in 9:30-10:00 vs $14 the rest of the day (not significant).",
+      "url": "https://www.instagram.com/p/DeE2Zk6xTpp/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:time_filter:5",
+      "statement": "'Never trade lunch' (11:30-1:30 ET): 5-min breakout of last 30-min range made $8 at lunch vs $25 otherwise (p=0.33); lunch moves ~31 pts/half-hour vs 49 before, and 25-pt stops hit 39% vs 42%.",
+      "url": "https://www.instagram.com/p/DeQf1nCRCJ3/"
+    }
+  ],
+  "C1162": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:53",
+      "statement": "Round 100-point NQ levels: first touch bounce trades (hold 1h) beat random in 0 of 6 tests; held 48% vs 49% for made-up mid levels, 1,000-pt levels 47%.",
+      "url": "https://www.instagram.com/p/DeFT9KrM2Eb/"
+    }
+  ],
+  "C1163": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:54",
+      "statement": "Buying the first break of yesterday's high (sell yesterday's low) on NQ: next hour 51% win vs 52% random; held to close $93 vs $158 random; 0 of 4 beat random.",
+      "url": "https://www.instagram.com/p/DeGM3uTxZzw/"
+    }
+  ],
+  "C1164": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:6",
+      "statement": "15-min ORB (first break of 9:30-9:45 range, no stop/target): held to noon $75 vs $13 random but p=0.43 and only $18 in the last 2 years; held to close $22 vs $25; 0 of 6 beat random.",
+      "url": "https://www.instagram.com/p/DeH0oqTBtjm/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:20",
+      "statement": "15-minute opening range breakout on NQ, exit at noon, beat only 92.7% of 1,000 random-time/random-direction versions (below the 95% bar); first half 98%, second half 40%; held to close 57%.",
+      "url": "https://www.instagram.com/p/Deh6gUNPcps/"
+    }
+  ],
+  "C1165": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:4",
+      "statement": "NQ return leadership between overnight (6pm-9:30) and regular session (9:30-4pm) flips over time (overnight +42% vs RTH +30% over 5 years, p=0.94); don't assume one session carries the returns.",
+      "url": "https://www.instagram.com/p/DeHXPw3Res4/"
+    }
+  ],
+  "C1166": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:11",
+      "statement": "Moving the same signal (9/21 EMA cross, 1h hold) across 1/5/15/60-min charts does not create an edge (0 of 8 beat random; hourly +$76 vs −$22 but p=0.11); timeframe only changes trade frequency.",
+      "url": "https://www.instagram.com/p/DeIUqOlxmGj/"
+    }
+  ],
+  "C1167": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:7",
+      "statement": "RSI divergence on NQ 5-min (price lower low, RSI higher low = buy), hold 1h: $44 vs −$33 random, p=0.001, positive in both halves; entering 5 min later dropped to $27 vs $14 (p=0.57).",
+      "url": "https://www.instagram.com/p/DeIyNskR1Wo/"
+    }
+  ],
+  "C1168": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:15",
+      "statement": "Validate any indicator edge by entering one bar later and splitting the sample in halves: of 20 indicators on NQ, 4 hit p<0.05 and none survived those checks.",
+      "url": "https://www.instagram.com/p/DekM_ZqBXlq/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:12",
+      "statement": "Stress-test a signal by delaying entry one bar: an edge that vanishes 5 minutes later (RSI divergence) is fragile and execution-dependent.",
+      "url": "https://www.instagram.com/p/DeIyNskR1Wo/"
+    }
+  ],
+  "C1169": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:55",
+      "statement": "Trend filter (15-min above rising 200 MA / below falling) did not improve 5-min breakouts of last hour's range (hold 1h): with trend −$10, against −$15 (p=0.73); selling with trend lost $56.",
+      "url": "https://www.instagram.com/p/DeK0e_Xx23y/"
+    }
+  ],
+  "C1170": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:56",
+      "statement": "Prior-day volume-profile point of control: touched in 56% of RTH sessions vs 55% for a level 25 pts away; first-touch bounce (hold 1h) $20 vs $11 random, p=0.9, lost $152/trade in last 2 years.",
+      "url": "https://www.instagram.com/p/DeM-BHLBVn7/"
+    }
+  ],
+  "C1171": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:57",
+      "statement": "Selling after 5 consecutive green NQ days has no edge: next full-session day +$1,110 vs +$264 random (57 trades, p=0.08), but RTH-only it flips to −$70; result depends on session definition.",
+      "url": "https://www.instagram.com/p/DeN6TfMxmZ_/"
+    }
+  ],
+  "C1172": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:58",
+      "statement": "Turtle Soup (20-bar high/low break then close back inside, fade it, hold 1h) on NQ 5/15-min: 0 of 4 beat random, PF<1; taking the breakout instead also lost.",
+      "url": "https://www.instagram.com/p/DeQfQkHRJph/"
+    }
+  ],
+  "C1173": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:59",
+      "statement": "ICT Silver Bullet (10-11am sweep of 9:30-10:00 range, then first opposite FVG, hold 1h): 5-min $81 vs −$19 random (p=0.15), 1-min −$72; with stop above sweep and target other side, win rate 52% = random.",
+      "url": "https://www.instagram.com/p/DeS1rgoxlwG/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:23",
+      "statement": "ICT sweep-of-prior-half-hour then first FVG entry by session on NQ: Asia ~-$1, London -$26, New York +$81/trade but only beat 856 of 1,000 random versions (p=0.14); session choice is not an edge.",
+      "url": "https://www.instagram.com/p/Demkd6hxn9e/"
+    }
+  ],
+  "C1174": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:8",
+      "statement": "Initial balance breakout: first break of the 9:30-10:30 range after 10:30 (buy above/sell below), hold to close: $180 vs −$25 random, 54% win, p=0.04, but +$330 first 3 yrs and −$43 last 2 yrs.",
+      "url": "https://www.instagram.com/p/DeUasm9xpWg/"
+    }
+  ],
+  "C1175": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:exit:3",
+      "statement": "5-min breakout (close beyond last 30-min range) with 25-pt stop and 5:1 target made $35 vs $11 random (p=0.015), but not with a 50-pt stop (p=0.13) and only $8/trade in the last 2 years.",
+      "url": "https://www.instagram.com/p/DeVjF6mRuEN/"
+    }
+  ],
+  "C1176": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:9",
+      "statement": "Waiting for a dip before investing in NQ doesn't help: waiting for a 10% dip matched buying day one (+73% vs +74%); demanding 15% meant it never came 28% of the time and cost 14 points of return.",
+      "url": "https://www.instagram.com/p/DeVulBeBg02/"
+    }
+  ],
+  "C1177": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:10",
+      "statement": "Fading (or breaking) the first touch of last week's high/low on NQ, held 1 hour, did not beat random entries (fade -$126/trade vs +$3 random, p=0.20, 265 trades); not an edge.",
+      "url": "https://www.instagram.com/p/DeYPXERxYWz/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:11",
+      "statement": "Fading the first touch of daily pivot P, R1 or S1 on NQ (classic floor pivots), held 1 hour, lost $52/trade vs -$3 random (p=0.22, 2,154 trades); made-up lines did as well.",
+      "url": "https://www.instagram.com/p/DeYPh_8xJW7/"
+    }
+  ],
+  "C1178": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:14",
+      "statement": "Missing the 10 best NQ days cuts returns sharply, but best and worst days cluster in the same bad years; removing both the 10 best and 10 worst left returns nearly unchanged (+98% vs +101%).",
+      "url": "https://www.instagram.com/p/DeZfz7hRFYL/"
+    }
+  ],
+  "C1179": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:13",
+      "statement": "CCI(20) cross above +100 buy / below -100 sell on NQ 5m and 15m, 1h hold, did not beat random entries in any of 4 tests (46,000 signals).",
+      "url": "https://www.instagram.com/p/Dea062-xBhD/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:14",
+      "statement": "Williams %R(14): buy when it climbs out of -80, sell when it drops out of -20 (NQ 5m/15m, 1h hold) did not beat random in any of 4 tests (67,000 signals).",
+      "url": "https://www.instagram.com/p/Dea22Bkxe8v/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:16",
+      "statement": "Money Flow Index(14): buy when it climbs out of 20, sell when it drops out of 80 (NQ 5m/15m, 1h hold); none of 4 tests beat random (15m closest, p=0.06).",
+      "url": "https://www.instagram.com/p/DedC3aXxTN5/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:25",
+      "statement": "Awesome Oscillator zero-line cross and histogram color flip on NQ 5m/15m, 1h hold: 0 of 8 tests significant; 15m zero-line buys +$50 first 3 years, -$26 last 2.",
+      "url": "https://www.instagram.com/p/Dep3tYsx0Qr/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:28",
+      "statement": "Connors RSI(2) (buy <10, sell >90) on NQ 5m/15m, 1h hold, with or without the 200-bar average trend filter: 0 of 8 tests significant; filtered 5m +$12 first 3 years, -$18 last 2.",
+      "url": "https://www.instagram.com/p/DestZf5xeyF/"
+    }
+  ],
+  "C1180": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:19",
+      "statement": "Daily momentum on NQ (buy after a rising stretch, lookbacks 5 days to 1 year) beat random in none of 6 lookbacks (best p=0.52); buying after falling stretches did as well or better.",
+      "url": "https://www.instagram.com/p/DegA1ZTR3yq/"
+    }
+  ],
+  "C1181": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:21",
+      "statement": "ICT Unicorn (breaker block overlapping a fair value gap, stop beyond the breaker) on NQ: 1R target won 54.7% vs 45.8% random; 2R target 35.5% vs 32.9%. Small edge only at 1:1, far below claimed 70%.",
+      "url": "https://www.instagram.com/p/DehWWjARjRc/"
+    }
+  ],
+  "C1182": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:time_filter:6",
+      "statement": "Lunar phase (full/new moon) as an NQ session filter is noise: full moon +$1,265 vs +$199 other days (p=0.08) and new moon was similar.",
+      "url": "https://www.instagram.com/p/DeieLBExzSa/"
+    }
+  ],
+  "C1183": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:22",
+      "statement": "VWAP bounce (buy pullback to VWAP that holds) on NQ 5m, 1h hold, lost $12/trade vs about -$1 random; not an edge.",
+      "url": "https://www.instagram.com/p/DekrAlIxFyK/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:61",
+      "statement": "Using VWAP as a trend filter on 20-bar breakouts (only take breakouts agreeing with VWAP) added only ~$3/trade on NQ ($61 vs $58 unfiltered).",
+      "url": "https://www.instagram.com/p/DekrAlIxFyK/"
+    }
+  ],
+  "C1184": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:17",
+      "statement": "When choosing the best of several variants (e.g. 3 sessions), expect the winner to land near the 75th percentile of random by luck alone; adjust significance for selection.",
+      "url": "https://www.instagram.com/p/Demkd6hxn9e/"
+    }
+  ],
+  "C1185": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:24",
+      "statement": "Three white soldiers / three black crows on NQ 5m and 15m (1h hold), including strict >=60% body versions: 0 of 8 tests significant vs random.",
+      "url": "https://www.instagram.com/p/Den353nNpqZ/"
+    },
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:26",
+      "statement": "Hammer candle (long lower wick, small body) buy next open, 1h hold on NQ, after 3 falling candles or at a 20-bar low: 0 of 8 tests significant vs random.",
+      "url": "https://www.instagram.com/p/Der316Hsd8g/"
+    }
+  ],
+  "C1186": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:30",
+      "statement": "Keltner Channel breakout (close outside 20 EMA +/- 2 ATR, trade the direction, 1h hold) on NQ 5m/15m: 0 of 4 tests significant (5m $8 vs $4 random, p=0.69).",
+      "url": "https://www.instagram.com/p/Deu5w2cRPWh/"
+    }
+  ],
+  "C1187": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:5",
+      "statement": "Yesterday's efficiency ratio weakly predicts the opposite today on NQ: after the most trending third of days 44% of next days trended above normal vs 54% after the choppiest; p=0.001 but <1% explained, too weak to trade.",
+      "url": "https://www.instagram.com/p/DezIowFxLmT/"
+    }
+  ],
+  "C1188": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:32",
+      "statement": "Chaikin Money Flow(20) zero-line cross (buy above, sell below) on NQ 5m/15m, 1h hold: none of 4 versions beat random; 5m buys +$14.76 vs +$10.33 random twins (p=0.61).",
+      "url": "https://www.instagram.com/p/DfA9-VdRkiZ/"
+    }
+  ],
+  "C1189": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:33",
+      "statement": "SMC setup (sweep 20-bar low, close back above, break of structure, buy FVG retest, stop under sweep, 1R) on NQ 5m won 53% vs 49% coin flip, p=0.30; last 2 years lost $21/trade; at 2R both lost.",
+      "url": "https://www.instagram.com/p/DfBfE3DxgAn/"
+    }
+  ],
+  "C1190": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:62",
+      "statement": "Relative volume >2 (breakout minute vs 20-session same-minute average) as an NQ 15m ORB filter did not significantly cut failures (32.6% vs 39.1%, p=0.16) and those breakouts lost $76/trade to noon.",
+      "url": "https://www.instagram.com/p/DfD6BdOx6s_/"
+    }
+  ],
+  "C1191": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:24",
+      "statement": "Walk-forward gate: split data into 3 folds and require the strategy to stay profitable in at least 2 of 3.",
+      "url": "https://www.instagram.com/p/DfD9XXiRaLX/"
+    }
+  ],
+  "C1192": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:7",
+      "statement": "Separate trade execution from trade checking: no trader should run both the desk and the back office that verifies their own positions (Barings/Leeson).",
+      "url": "https://www.instagram.com/p/DfGNVPKR8vD/"
+    }
+  ],
+  "C1193": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:63",
+      "statement": "Higher-timeframe trend filters (hourly, daily, weekly) on a 15m NQ ORB with 1R target did not lift win rate (53.3/52.6/51.3% vs 53%); they just halve the sample.",
+      "url": "https://www.instagram.com/p/DfJGDEkxLAN/"
+    }
+  ],
+  "C1194": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:25",
+      "statement": "Guard against look-ahead bias in multi-timeframe filters: only use a higher-timeframe bar after it has closed (an apparent 56.5% hourly-filter edge came from peeking at an unclosed hour).",
+      "url": "https://www.instagram.com/p/DfJGDEkxLAN/"
+    }
+  ],
+  "C1195": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:sizing:3",
+      "statement": "Run an ensemble of many different strategy versions rather than one optimized pick: 20 ORB versions together scored blind Calmar 1.49 vs -0.19 for the single best, positive every year.",
+      "url": "https://www.instagram.com/p/DfJO4RPx1NY/"
+    }
+  ],
+  "C1196": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:34",
+      "statement": "Doji at the day's high on NQ 5m (sell doji, sell gravestone, or buy doji; 1h hold): none beat random buys (buy doji +$75 inside -$89..+$117 band, p=0.24).",
+      "url": "https://www.instagram.com/p/DfOHIGbRDUA/"
+    }
+  ],
+  "C1197": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:35",
+      "statement": "Hull MA(21) color change (turn up buy, turn down sell) on NQ 5m, 1h hold: -$10/trade, 49% win, inside random's -$30..+$30 band (p=0.52).",
+      "url": "https://www.instagram.com/p/DfQMrj8hlfm/"
+    }
+  ],
+  "C1198": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:36",
+      "statement": "TJR model (sweep overnight low, snap back above recent high, buy dip into the gap, stop under dip, 2R, one trade/day) beat random only on 3m charts (p=0.03, 69 trades), ~0.1 after correcting for 4 chart speeds.",
+      "url": "https://www.instagram.com/p/DfRD0o-R8_3/"
+    }
+  ],
+  "C1199": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:regime:6",
+      "statement": "NQ 5%+ drawdowns from a closing high: 9 of 10 recovered since 2021, median ~63 trading days, but the 35% 2022 drop took 533 trading days; expect recovery but not on a schedule.",
+      "url": "https://www.instagram.com/p/DfTeXqURQ-v/"
+    }
+  ],
+  "C1200": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:37",
+      "statement": "Double top/bottom (two peaks within 0.15%, then close under the middle dip; mirror for bottoms) on NQ 15m, 1h hold: -$15/trade, 49% win, inside random -$39..+$39 band.",
+      "url": "https://www.instagram.com/p/DfTpNJpROCC/"
+    }
+  ],
+  "C1201": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:27",
+      "statement": "Treat a regime split chosen after seeing results as a lead, not a finding (double top: 2021-23 +$46/trade vs 2024+ -$79/trade).",
+      "url": "https://www.instagram.com/p/DfTpNJpROCC/"
+    }
+  ],
+  "C1202": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:38",
+      "statement": "CE 50% model on NQ: mark 8:30-9:30 ET high/low and its midpoint; if the first 3-min candle after 9:30 closes above the midpoint buy next open, below sell. Won 36%, +0.17R, PF 1.30, p=0.0002 vs coin flip.",
+      "url": "https://www.instagram.com/p/DfWG4bXOwKP/"
+    }
+  ],
+  "C1203": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:exit:4",
+      "statement": "CE 50% model exits: initial stop on the other side of the 8:30-9:30 ET range, trailed to each 15-minute swing; flat at 4:00 PM ET.",
+      "url": "https://www.instagram.com/p/DfWG4bXOwKP/"
+    }
+  ],
+  "C1204": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:28",
+      "statement": "Check whether an edge depends on a few outlier days: the CE 50% model loses on 64% of days and its average turns negative after removing its 27-35 best (>=5R) days.",
+      "url": "https://www.instagram.com/p/DfWG4bXOwKP/"
+    }
+  ],
+  "C1205": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:wisdom:29",
+      "statement": "Sweep all parameter combinations and check the fitness landscape: a strategy on a cliff edge (stop 2.0 ATR -> 2.6 ATR drops Sharpe 3.17 -> 1.53) is fragile.",
+      "url": "https://www.instagram.com/p/DfWO3QjxB53/"
+    }
+  ],
+  "C1206": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:entry:39",
+      "statement": "Buy NQ at the close of a 50-day closing low and hold 20 trading days: +3.0% vs +1.2% random (p=0.011, 67% win) and both halves beat random, but only 10 independent selloffs; 20-day lows were inside random.",
+      "url": "https://www.instagram.com/p/DfY2AtcRaka/"
+    }
+  ],
+  "C1207": [
+    {
+      "kb": "quantstackai",
+      "recordId": "quantstackai:risk:9",
+      "statement": "Trading frequency multiplies costs without adding edge: with $4.50 commission and 1 tick slippage each way, random NQ trades lost in 56% of runs at 1/day, 67% at 5/day and 83% at 20/day.",
+      "url": "https://www.instagram.com/p/DfbYUD6xSin/"
+    }
+  ],
+  "C1208": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:entry:1",
+      "statement": "Use a long call calendar spread, not shares or a long call, when you are bullish on a stock for roughly three months to two years.",
+      "url": "https://www.instagram.com/p/DfcycUDCjgD/"
+    }
+  ],
+  "C1209": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:1",
+      "statement": "Build the calendar from the call you would have bought: sell that call, then buy the same strike in the expiry with about twice the time.",
+      "url": "https://www.instagram.com/p/DfcycUDCjgD/"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:3",
+      "statement": "Use the same strike on both legs of the calendar.",
+      "url": "https://www.instagram.com/p/De9-bNriIup/"
+    }
+  ],
+  "C1210": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:2",
+      "statement": "Set the long leg's days to expiry at about double the short leg's (e.g. 161 DTE short, about 320 DTE long; take the nearest available chain).",
+      "url": "https://www.instagram.com/p/DL-YtXmANX6/"
+    }
+  ],
+  "C1211": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:4",
+      "statement": "Instead of holding a LEAP outright, sell a short-dated call at the same strike against it to offset part of its cost and gain a time-decay edge.",
+      "url": "https://www.instagram.com/p/DfdzaJJRyJt/"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:5",
+      "statement": "Variant: buy a long-dated call (about 380 DTE) and sell a 30-DTE call at the same strike, re-selling a new short leg each month after the front leg expires.",
+      "url": "https://www.instagram.com/p/DS76ddskVks/"
+    }
+  ],
+  "C1212": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:6",
+      "statement": "For an earnings play, sell the option expiring in earnings week and buy the same strike in the chain expiring the week after earnings, instead of buying the weekly outright.",
+      "url": "https://www.instagram.com/p/DNQirvZAuf1/"
+    }
+  ],
+  "C1213": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:1",
+      "statement": "Do not buy earnings-week calls or puts outright: implied volatility drops after the report and IV crush erodes the option even if the stock moves.",
+      "url": "https://www.instagram.com/p/DN3OawC4lV9/"
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:2",
+      "statement": "Expect an earnings calendar's graph max profit to shrink after the report, because implied volatility falls on both legs.",
+      "url": "https://www.instagram.com/p/DYkiW1BxYEt/"
+    }
+  ],
+  "C1214": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:exit:1",
+      "statement": "Take profit on a calendar once the stock price crosses the strike.",
+      "url": "https://www.instagram.com/p/CMNA9r7hKYo/"
+    }
+  ],
+  "C1215": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:exit:2",
+      "statement": "Hold the calendar while the stock trades between the two break-even points; time decay of the short leg adds profit there.",
+      "url": "https://www.instagram.com/p/DfNe90Rir_k/"
+    }
+  ],
+  "C1216": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:3",
+      "statement": "Choose calendar strikes and expiries so the lower break-even sits about 10-15% below the current price, leaving a downside buffer.",
+      "url": "https://www.instagram.com/p/DfNe90Rir_k/"
+    }
+  ],
+  "C1217": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:6",
+      "statement": "Keep living savings separate from the trading account; never trade with rent money.",
+      "url": "https://www.instagram.com/p/DehasGjR0wR/"
+    }
+  ],
+  "C1218": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:risk:7",
+      "statement": "Do not go full-time until a bad month would not break you.",
+      "url": "https://www.instagram.com/p/DehasGjR0wR/"
+    }
+  ],
+  "C1219": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:wisdom:2",
+      "statement": "Judge a strategy by whether it survives choppy markets and crashes, not by one good year.",
+      "url": "https://www.instagram.com/p/DehasGjR0wR/"
+    }
+  ],
+  "C1220": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:wisdom:3",
+      "statement": "Avoid buying options outright as a default, because they lose value every day to time decay; prefer structures where you are short the faster-decaying option.",
+      "url": "https://www.instagram.com/p/DMNsZHdAxFd/"
+    }
+  ],
+  "C1221": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:wisdom:4",
+      "statement": "Skip credit spreads when you want directional upside: they risk a lot to make a little and cap the move.",
+      "url": "https://www.instagram.com/p/DSc5StNEdgy/"
+    }
+  ],
+  "C1222": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:options_structure:1",
+      "statement": "Do not sell covered calls on high-conviction stocks you want to keep accumulating.",
+      "url": null
+    },
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:options_structure:8",
+      "statement": "Do not sell covered calls or run the wheel if you want the full upside: assignment or a capped short call misses the move.",
+      "url": "https://www.instagram.com/p/DfDPQnVi2_n/"
+    }
+  ],
+  "C1223": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:entry:2",
+      "statement": "Buy a bull flag when price breaks out of the flag after a move up.",
+      "url": "https://www.instagram.com/p/COQYkzFh_KH/"
+    }
+  ],
+  "C1224": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:exit:3",
+      "statement": "If a bull-flag breakout falls back into the flag, sell and take the small loss.",
+      "url": "https://www.instagram.com/p/COQYkzFh_KH/"
+    }
+  ],
+  "C1225": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:entry:3",
+      "statement": "On the weekly chart, treat old resistance that has turned into support plus a golden cross as a bullish setup for a call calendar.",
+      "url": "https://www.instagram.com/p/DMLIH8bAXSf/"
+    }
+  ],
+  "C1226": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:entry:5",
+      "statement": "Look for an undercut and rip below support (a brief break under support that reverses) as an entry signal.",
+      "url": "https://www.instagram.com/p/DfDICuBi4Tn/"
+    }
+  ],
+  "C1227": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:indicator:1",
+      "statement": "With his (unnamed) band indicator, treat a touch of the outer band as support/resistance with likely reversion to mid-range, a touch of the lower band as a buy signal, and confirm with RSI or MACD.",
+      "url": "https://www.instagram.com/p/DL-cttBA54s/"
+    }
+  ],
+  "C1228": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:indicator:2",
+      "statement": "Read support levels together with traded volume to anticipate moves.",
+      "url": "https://www.instagram.com/p/CPF_xc7BGal/"
+    }
+  ],
+  "C1229": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:regime:2",
+      "statement": "In times of uncertainty expect money to rotate into gold (GLD).",
+      "url": "https://www.instagram.com/p/DfXpWfWCTb0/"
+    }
+  ],
+  "C1230": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:entry:6",
+      "statement": "In crypto, expect liquidations of longs below a big psychological round number (e.g. $100K Bitcoin) to flush price lower, and buy into that flush.",
+      "url": "https://www.instagram.com/p/DQpDEWSkcXQ/"
+    }
+  ],
+  "C1231": [
+    {
+      "kb": "spreadstrader",
+      "recordId": "spreadstrader:wisdom:6",
+      "statement": "Once live, stay disciplined to your own rules and keep a feedback loop: analyse results, change, test, repeat.",
+      "url": "https://www.instagram.com/p/C-ESELwiImq/"
+    }
+  ],
+  "C1232": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:1",
+      "statement": "Treat price itself (breaks above resistance, losses of support) as the primary signal; other indicators are secondary.",
+      "url": null
+    }
+  ],
+  "C1233": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:2",
+      "statement": "Never FOMO into a trade after it has already run or because someone else bought it.",
+      "url": null
+    }
+  ],
+  "C1234": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:1",
+      "statement": "Use limit orders, never market orders, especially on options with wide bid-ask spreads.",
+      "url": null
+    }
+  ],
+  "C1235": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:2",
+      "statement": "Weight analysis about 90% technicals and 10% fundamentals, but for swings check fundamentals and upcoming events such as earnings.",
+      "url": null
+    }
+  ],
+  "C1236": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:3",
+      "statement": "Trade off a personal watchlist: scan it and set price alerts at buy levels; drop names under $10.",
+      "url": null
+    }
+  ],
+  "C1237": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:1",
+      "statement": "Never marry a stock or position; take profits instead of holding a favourite indefinitely.",
+      "url": null
+    }
+  ],
+  "C1238": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:3",
+      "statement": "Do not hold through earnings unless the position already shows about 10% profit (or more than the expected move).",
+      "url": null
+    }
+  ],
+  "C1239": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:2",
+      "statement": "Aim for the middle of the move, not the exact top or bottom.",
+      "url": null
+    }
+  ],
+  "C1240": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:7",
+      "statement": "Concentrate on a basket of about 6-8 stocks you know well, and add one or two only after mastering their levels.",
+      "url": null
+    }
+  ],
+  "C1241": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:8",
+      "statement": "Buy at support and sell at resistance using levels marked in advance.",
+      "url": null
+    }
+  ],
+  "C1242": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:3",
+      "statement": "Let news confirm the technicals, not the other way around; by the time it is mainstream news it is too late.",
+      "url": null
+    }
+  ],
+  "C1243": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:4",
+      "statement": "For options two or more weeks out, avoid a tight 20% stop: use about 50%, or take a smaller position and let it work.",
+      "url": null
+    }
+  ],
+  "C1244": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:2",
+      "statement": "With the TTM Squeeze, enter only clean, stacked setups.",
+      "url": null
+    }
+  ],
+  "C1245": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:4",
+      "statement": "After a TTM Squeeze fires, expect the move to last about 6-8 candles.",
+      "url": null
+    }
+  ],
+  "C1246": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:sizing:3",
+      "statement": "Take a full position only when the stock, its sector ETF and the market all trend the same way.",
+      "url": null
+    }
+  ],
+  "C1247": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:sizing:4",
+      "statement": "Play lotto options only with profits already made that week, and only a small part of them.",
+      "url": null
+    }
+  ],
+  "C1248": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:10",
+      "statement": "Trade only stocks with a relative strength rating of about 97 or higher, a rising RS line and the S&P 500 in an uptrend.",
+      "url": null
+    }
+  ],
+  "C1249": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:11",
+      "statement": "Buy at a higher low in an uptrend and stop out if price breaks the prior higher low.",
+      "url": null
+    }
+  ],
+  "C1250": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:6",
+      "statement": "For hot, high-RS trends, plan to hold about one to three days and then step off.",
+      "url": null
+    }
+  ],
+  "C1251": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:12",
+      "statement": "On a low-volume pullback, buy only when price is within about 1-2% of the 10, 20 or 50-day EMA.",
+      "url": null
+    }
+  ],
+  "C1252": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:7",
+      "statement": "Skip entries whose stop (e.g. prior day's low) would mean about 6% risk; wait for a pullback that cuts risk to about 3%.",
+      "url": null
+    }
+  ],
+  "C1253": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:13",
+      "statement": "Do not buy while the 5-day moving average is trending down; wait for it to flatten and turn up.",
+      "url": null
+    }
+  ],
+  "C1254": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:14",
+      "statement": "After a power earnings gap (up 7% or more on very heavy volume), look to buy the first tap of the 50-day EMA.",
+      "url": null
+    }
+  ],
+  "C1255": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:15",
+      "statement": "Favour the first two breakouts from a major base; later bases are less reliable.",
+      "url": null
+    }
+  ],
+  "C1256": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:7",
+      "statement": "When buying a pivot breakout, stop out below the pivot line or below the last higher low.",
+      "url": null
+    }
+  ],
+  "C1257": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:16",
+      "statement": "For a VCP, require a contraction with drying-up volume before buying the breakout.",
+      "url": null
+    }
+  ],
+  "C1258": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:3",
+      "statement": "Use the VWAP anchored at the earnings date as the line: own the stock above it, sell below it.",
+      "url": null
+    }
+  ],
+  "C1259": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:17",
+      "statement": "After a low-volume pullback, enter as price trades through the prior day's high.",
+      "url": null
+    }
+  ],
+  "C1260": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:regime:4",
+      "statement": "Once structure breaks and the trend is down, treat bounces as relief bounces, not new uptrends.",
+      "url": null
+    }
+  ],
+  "C1261": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:20",
+      "statement": "Stagger buys in thirds across a demand zone to build a better average price.",
+      "url": null
+    }
+  ],
+  "C1262": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:21",
+      "statement": "Prefer buying in demand zones, where the exit is clear and downside risk is smallest.",
+      "url": null
+    }
+  ],
+  "C1263": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:5",
+      "statement": "Mark demand zones at the 0.5-0.618 retracement of the prior swing, with other tools for confirmation.",
+      "url": null
+    }
+  ],
+  "C1264": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:22",
+      "statement": "If you are a strength buyer, enter on a reclaim of the 21 EMA or a break of major resistance instead of buying dips.",
+      "url": null
+    }
+  ],
+  "C1265": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:11",
+      "statement": "When day-trading a morning flush bounce in a high-beta stock, take profits and trim into resistance.",
+      "url": null
+    }
+  ],
+  "C1266": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:25",
+      "statement": "In sympathy plays, watch the price-action leader; the sympathy names follow its moves.",
+      "url": null
+    }
+  ],
+  "C1267": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:26",
+      "statement": "Prefer a sympathy name that has barely moved while the leader runs: downside is small relative to potential.",
+      "url": null
+    }
+  ],
+  "C1268": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:options_structure:2",
+      "statement": "Sell covered calls about 5-20% out of the money, never more than 30%.",
+      "url": null
+    }
+  ],
+  "C1269": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:options_structure:3",
+      "statement": "Sell covered calls into bouts of strength, after an explosive up day.",
+      "url": null
+    }
+  ],
+  "C1270": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:6",
+      "statement": "High open interest alone does not show whether contracts were bought or sold; do not read it as direction.",
+      "url": null
+    }
+  ],
+  "C1271": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:6",
+      "statement": "If options flow is too hard to interpret, ignore it.",
+      "url": null
+    }
+  ],
+  "C1272": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:7",
+      "statement": "Judge catalysts by quality: weak catalysts such as a single upgrade fade, strong ones last.",
+      "url": null
+    }
+  ],
+  "C1273": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:9",
+      "statement": "With speculative companies, always assume a share offering is possible.",
+      "url": null
+    }
+  ],
+  "C1274": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:7",
+      "statement": "A support or resistance level is stronger the more past pivots it intersects.",
+      "url": null
+    }
+  ],
+  "C1275": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:10",
+      "statement": "Keep starter positions small (about 3.5-5%) so a failed breakout is a paper cut while a winner still moves the portfolio.",
+      "url": null
+    }
+  ],
+  "C1276": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:exit:13",
+      "statement": "New traders must follow their stop rules; only experienced traders may give a strong name a small cushion past the risk point.",
+      "url": null
+    }
+  ],
+  "C1277": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:wisdom:8",
+      "statement": "If a stock falls after earnings you thought were good, the market judged them not good.",
+      "url": null
+    }
+  ],
+  "C1278": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:options_structure:4",
+      "statement": "When buying options, generally buy contracts below about 75% implied volatility (lower for low-beta names).",
+      "url": null
+    }
+  ],
+  "C1279": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:entry:28",
+      "statement": "Treat insider buying as a meaningful signal; insider selling is not.",
+      "url": null
+    }
+  ],
+  "C1280": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:11",
+      "statement": "Monitor technical health (e.g. 21 EMA breaks) for recently opened positions; long-term holdings need not react to it.",
+      "url": null
+    }
+  ],
+  "C1281": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:regime:6",
+      "statement": "Sell cyclical stocks when peak earnings become obvious.",
+      "url": null
+    }
+  ],
+  "C1282": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:risk:14",
+      "statement": "Take debt and liabilities far more seriously when the operating business is unprofitable.",
+      "url": null
+    }
+  ],
+  "C1283": [
+    {
+      "kb": "stock-talk-weekly",
+      "recordId": "stock-talk-weekly:indicator:8",
+      "statement": "Read sideways consolidation above the moving averages on falling volume as a lack of sellers (constructive).",
+      "url": null
+    }
+  ],
+  "C1284": [
+    {
+      "kb": "quantfinancetogo",
+      "recordId": "quantfinancetogo:risk:10",
+      "statement": "Report a Monte Carlo price or risk estimate together with its error bar, and remember that four times as many simulations only halve the error.",
+      "url": "https://www.instagram.com/p/Df4ReEaxOlJ/"
+    }
+  ],
+  "C1285": [
+    {
+      "kb": "quantfinancetogo",
+      "recordId": "quantfinancetogo:wisdom:14",
+      "statement": "Cut Monte Carlo error with mirrored (antithetic) paths and a control variate with a known mean (e.g. the simulated stock price) before adding more simulations.",
+      "url": "https://www.instagram.com/p/Df4ReEaxOlJ/"
+    }
+  ],
+  "C1286": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:1",
+      "statement": "Do not rely on the Sharpe ratio alone; check Sortino and Calmar because high-Sharpe strategies can hide short-volatility tail risk.",
+      "url": "https://www.instagram.com/p/DWU27--iNQl/"
+    }
+  ],
+  "C1287": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:sizing:4",
+      "statement": "Add a new strategy only if its Sharpe exceeds the correlation times your current Sharpe; negatively correlated strategies can help even when they lose money.",
+      "url": "https://www.instagram.com/p/Dd9td2ioU7M/"
+    }
+  ],
+  "C1288": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:4",
+      "statement": "Expect volatility to stay elevated for weeks after a shock; use a GARCH-type forecast instead of constant volatility.",
+      "url": "https://www.instagram.com/p/DVuIBbXCBxR/"
+    },
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:3",
+      "statement": "Do not use historical-simulation VaR after a crash; a GARCH model with Student-t errors adapts while historical VaR keeps missing.",
+      "url": "https://www.instagram.com/p/DgGl2BkIWOm/"
+    }
+  ],
+  "C1289": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:5",
+      "statement": "Treat Monte Carlo output as conditional on its assumptions; more paths shrink sampling error, not parameter error.",
+      "url": "https://www.instagram.com/p/DZfu60bOoMG/"
+    }
+  ],
+  "C1290": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:2",
+      "statement": "Reject a backtest whose probability of backtest overfitting exceeds 50%; below 30% it is probably real.",
+      "url": "https://www.instagram.com/p/DVY1YYqDPsk/"
+    }
+  ],
+  "C1291": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:3",
+      "statement": "Validate with combinatorial purged cross-validation (purge overlapping labels, embargo) to get a distribution of Sharpe ratios rather than one path.",
+      "url": "https://www.instagram.com/p/DZa20pwOqNP/"
+    }
+  ],
+  "C1292": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:entry:1",
+      "statement": "Stay long when price is above its level 12 months ago and step out when below, trading on yesterday's signal to avoid lookahead.",
+      "url": "https://www.instagram.com/p/DWCrnyEjHfl/"
+    }
+  ],
+  "C1293": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:entry:2",
+      "statement": "Go long on a close above the 20-day high and go flat or short on a close below the 20-day low (Donchian breakout).",
+      "url": "https://www.instagram.com/p/DbBwGWxuUSt/"
+    }
+  ],
+  "C1294": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:entry:4",
+      "statement": "Buy when the price z-score versus its rolling mean falls below -2 and sell when it reverts to 0; treat as a hypothesis to test, not proof.",
+      "url": "https://www.instagram.com/p/DVmrCyICCbp/"
+    }
+  ],
+  "C1295": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:regime:1",
+      "statement": "Reduce momentum exposure when comomentum (crowding) is in its top quintile; momentum returns fall sharply over the next two years.",
+      "url": "https://www.instagram.com/p/DaBjdeyOH9c/"
+    }
+  ],
+  "C1296": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:exit:1",
+      "statement": "Exit when the filtered probability of the bull regime drops below a threshold rather than at fixed price targets.",
+      "url": "https://www.instagram.com/p/DZvRJZTOdr5/"
+    }
+  ],
+  "C1297": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:regime:2",
+      "statement": "Penalise regime switches (statistical jump model, penalty tuned walk-forward) to avoid a regime signal that flips too often.",
+      "url": "https://www.instagram.com/p/DbG41_euiat/"
+    }
+  ],
+  "C1298": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:regime:3",
+      "statement": "Treat a high absorption ratio (variance captured by top eigenvalues) as a fragile, tightly coupled market prone to contagion.",
+      "url": "https://www.instagram.com/p/DaOqK1BobtF/"
+    }
+  ],
+  "C1299": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:6",
+      "statement": "Clean the covariance matrix (shrinkage, eigenvalue clipping) before optimising; most estimated entries are noise.",
+      "url": "https://www.instagram.com/p/DVzSswojLr5/"
+    }
+  ],
+  "C1300": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:7",
+      "statement": "Expect an optimised portfolio's realised risk to exceed its predicted risk by roughly 1/(1 - n/T).",
+      "url": "https://www.instagram.com/p/Dba3CkYoi14/"
+    }
+  ],
+  "C1301": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:7",
+      "statement": "Default to equal weighting unless you have centuries of data; estimation error wipes out mean-variance gains.",
+      "url": "https://www.instagram.com/p/DXK5cikiAR8/"
+    }
+  ],
+  "C1302": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:8",
+      "statement": "Do not count on diversification in a crisis; correlations spike in downturns and the correlation floor cannot be diversified away.",
+      "url": "https://www.instagram.com/p/DXpRg6SDPUH/"
+    }
+  ],
+  "C1303": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:risk:9",
+      "statement": "Shrink measured betas toward the cross-sectional mean before using them; extreme betas mean-revert.",
+      "url": "https://www.instagram.com/p/DgIybFdIDcZ/"
+    }
+  ],
+  "C1304": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:options_structure:2",
+      "statement": "When hedging a short call, use a hedging volatility above the market's realised volatility at every instant to cover the payoff on every path.",
+      "url": "https://www.instagram.com/p/Dd7dN0nIrxR/"
+    }
+  ],
+  "C1305": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:time_filter:1",
+      "statement": "Avoid executing at the open; price impact per dollar near 09:35 was about 6.9 times that near 15:50.",
+      "url": "https://www.instagram.com/p/DgLbyzqIhvD/"
+    }
+  ],
+  "C1306": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:time_filter:2",
+      "statement": "In the last 30 minutes, expect the move since the previous close to continue, especially when dealer gamma is negative.",
+      "url": "https://www.instagram.com/p/DflFxYaOa6X/"
+    }
+  ],
+  "C1307": [
+    {
+      "kb": "vince-quant",
+      "recordId": "vince-quant:wisdom:8",
+      "statement": "Do not assume post-earnings drift persists in large caps; since 2006 surprises have not predicted drift from day 2 to day 60.",
+      "url": "https://www.instagram.com/p/Dce6XAOIZck/"
     }
   ]
 };

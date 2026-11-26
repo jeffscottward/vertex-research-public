@@ -61,7 +61,7 @@ import {
 type LabFlowInstrument = Readonly<{
   price: number;
   tick: number;
-  ticker: FlowSnapshot["optionsFlow"]["ticker"];
+  ticker: NonNullable<FlowSnapshot["gex"]>["ticker"];
   basis: number;
   offExchangeShare: number | null;
   strike: number;

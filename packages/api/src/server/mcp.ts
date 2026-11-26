@@ -32,6 +32,7 @@ import {
 } from "../contracts/optimizations.ts";
 import {
   FlowControlInputSchema,
+  FlowOptionPrintsInputSchema,
   FlowSnapshotInputSchema,
 } from "../contracts/flow.ts";
 import {
@@ -178,7 +179,14 @@ export const presentOptimization = (
   };
 };
 
+// The agent tool keeps stocks and futures; the procedure marketData/bars also takes forex (CASH).
+// Reason: this tool definition (description and input schema) is part of every recorded Plan-mode model
+// call of the semantic-layer eval (tests/integration/semantic-layer/eval-replay.test.ts). A new value
+// makes all recorded trials stale, so forex for agents comes with a new recording (card
+// vertex-fx-mcp-market-bars).
+const MARKET_BARS_TOOL_SEC_TYPES = ["STK", "FUT", "CONTFUT"] as const;
 const MarketBarsToolInputSchema = MarketBarsInputSchema.safeExtend({
+  secType: z.enum(MARKET_BARS_TOOL_SEC_TYPES).default("STK"),
   lastBars: z
     .number()
     .int()
@@ -222,21 +230,26 @@ const OptionsGexContextToolInputSchema = z
   .strict();
 
 // The IV surface, skew, per-strike rows (displayedStrikeCount says how many are shown; the
-// totals cover every strike within 50-150% of spot) and flow events are dropped; the GEX
-// headline, its context (levels, dealer Greeks, flow bias, freshness, expiry, IV regime,
-// session, events, caveat factors) and the data notes stay.
+// totals cover every strike within 50-150% of spot), flow events and the 121-point spot
+// GEX profile curve (size) are dropped; the GEX headline, its context (levels, dealer
+// Greeks, flow bias, freshness, expiry, IV regime, session, events, caveat factors) and the
+// data notes stay.
 export const presentGexContext = (value: unknown): unknown => {
   if (typeof value !== "object" || value === null) return value;
   const output = value as OptionsAnalyticsOutput;
   if (
+    typeof output.context !== "object" ||
+    output.context === null ||
+    Array.isArray(output.context) ||
     typeof output.exposure !== "object" ||
     output.exposure === null ||
     typeof output.flow !== "object" ||
     output.flow === null
   )
     return value;
+  const { profile: _profile, ...context } = output.context;
   return {
-    context: output.context,
+    context,
     exposure: {
       displayedStrikeCount: output.exposure.strikes.length,
       gexExpiry: output.exposure.gexExpiry,
@@ -695,6 +708,15 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
       "Read-only control document for one index group (group: sp500 or nasdaq100): options state from net drift and futures state from the deep trades of the streamed ES or NQ tape (buyers, sellers, balanced, mixed or no_data with a reason; the futures side is never mixed, and its hold names the first failed entry check), since when, the measured ratio next to its limit (rules and futuresRules hold the numbers), the agreement of the two sides (agree, diverge, one_sided, both_balanced or not_comparable), net drift totals per option ticker; deep trades of the future (single large prints, each with its signing method: list, sums, covered seconds per minute, coverage of the rule window, absorption marks); session levels, an FOMC meeting day mark, freshness and the continuation study status. Tape coverage says that the stream was live; it is not checked against a second source. When capture is sampled, coverage is approximate and sums are lower bounds. Catalog terms: options_net_drift, futures_deep_trades, flow_control_state. Read the enums, not the label text. A no_data side has a reason: report it and do not estimate. Research only; never a trade instruction.",
     procedure: "flow/control",
     input: FlowControlInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "flow_option_prints",
+    title: "Live options order-flow prints (6 tickers)",
+    description:
+      "Read-only stored intraday options order-flow prints for SPY, SPX, QQQ, NDX, IWM or NVDA (windowMinutes 5-390, default 60; limit 1-200, default 50): full-window call/put/bullish/bearish premium, sweep/block/golden-sweep/unusual counts, newest prints, per-ticker freshness and unreadRanges (open flow_option_gaps count). Source: QuantData order-flow/consolidated, collected every ~2 minutes during US options hours (09:30-16:15 ET for SPY, SPX, QQQ, NDX, IWM; 09:30-16:00 ET for NVDA). When unreadRanges > 0, busy ranges are still catching up in flow_option_gaps. Research input only; never a trade signal.",
+    procedure: "flow/optionPrints",
+    input: FlowOptionPrintsInputSchema,
     readOnly: true,
   },
   {

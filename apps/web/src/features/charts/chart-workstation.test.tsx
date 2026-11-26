@@ -174,6 +174,7 @@ describe("chart workstation", () => {
     const window = host.querySelector("[data-data-window]");
     expect(window?.textContent).toContain("12.00");
     expect(window?.textContent).toContain("+1.00 (+9.09%)");
+    expect(host.querySelector("[data-no-volume]")).toBeNull();
     await act(async () => fake.hover(1000));
     expect(window?.textContent).toContain("1970-01-01T00:00:01.000Z");
     await act(async () => fake.hover(null));
@@ -421,6 +422,115 @@ describe("chart workstation", () => {
     return expect(
       host.querySelector("[data-object-tree]")?.textContent
     ).toContain("Candles");
+  });
+  it("shows No volume and keeps the volume pane and volume studies off for bars without volume", async () => {
+    const renderer = {
+      dispose: vi.fn(),
+      replace: vi.fn(),
+      resize: vi.fn(),
+      setStudies: vi.fn(),
+    };
+    const factory: CandleRendererFactory = async () => renderer;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const forex = candles.map(({ volume: _, ...bar }) => bar);
+    await act(async () =>
+      root.render(
+        <ChartWorkstation
+          candles={forex}
+          captions={captions}
+          factory={factory}
+          label="EUR.USD 1 day bars"
+          markers={[]}
+          pricePrecision={5}
+          storage={null}
+          studies={{
+            ema: [],
+            extra: ["vwap", "rvol", "alphatrend", "macd"],
+            panes: ["OBV", "RSI"],
+            sma: [],
+            volume: true,
+          }}
+          symbol="EUR.USD"
+        />
+      )
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(renderer.setStudies).toHaveBeenLastCalledWith({
+      ema: [],
+      extra: ["alphatrend", "macd"],
+      panes: ["RSI"],
+      sma: [],
+      volume: false,
+    });
+    expect(host.querySelector("[data-data-window] dl")?.textContent).toContain(
+      "VolumeNo volume"
+    );
+    expect(host.querySelector("[data-no-volume]")?.textContent).toContain(
+      "No volume for this instrument"
+    );
+    const tree = host.querySelector("[data-object-tree]")?.textContent ?? "";
+    expect(tree).toContain("AlphaTrend 14, 1 (RSI)");
+    expect(tree).not.toContain("VWAP");
+    expect(tree).not.toContain("OBV");
+    return expect(tree).not.toMatch(/Volume/);
+  });
+  it("keeps the volume pane but turns off VWAP and RVOL when only some bars have volume", async () => {
+    const renderer = {
+      dispose: vi.fn(),
+      replace: vi.fn(),
+      resize: vi.fn(),
+      setStudies: vi.fn(),
+    };
+    const factory: CandleRendererFactory = async () => renderer;
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const [first, second] = candles;
+    if (first === undefined || second === undefined) throw new Error("bars");
+    const { volume: _, ...noVolume } = first;
+    await act(async () =>
+      root.render(
+        <ChartWorkstation
+          candles={[noVolume, second]}
+          captions={captions}
+          factory={factory}
+          label="Mixed 1 day bars"
+          markers={[]}
+          pricePrecision={2}
+          storage={null}
+          studies={{
+            ema: [],
+            extra: ["vwap", "rvol", "alphatrend"],
+            panes: ["OBV"],
+            sma: [],
+            volume: true,
+          }}
+          symbol="MIX"
+        />
+      )
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(renderer.setStudies).toHaveBeenLastCalledWith({
+      ema: [],
+      extra: ["alphatrend"],
+      panes: ["OBV"],
+      sma: [],
+      volume: true,
+    });
+    expect(
+      host.querySelector("[data-no-volume='some']")?.textContent
+    ).toContain("Some bars have no volume");
+    return expect(
+      host.querySelector("[data-object-tree]")?.textContent
+    ).toContain("AlphaTrend 14, 1 (RSI)");
   });
 });
 

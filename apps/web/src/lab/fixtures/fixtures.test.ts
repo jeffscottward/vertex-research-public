@@ -8,6 +8,7 @@ import {
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
   FlowTradeBubblesSchema,
+  GreekHeatmapOutputSchema,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
@@ -48,6 +49,7 @@ import {
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labGreekHeatmap,
   labIvHistory,
   labMacroOutput,
   labOptionsAnalytics,
@@ -146,6 +148,19 @@ describe("lab market fixtures", () => {
     });
   });
 
+  it("quotes CASH pairs on MIDPOINT without volume", () => {
+    const output = labBarsOutput({ secType: "CASH", symbol: "EUR" });
+    expect(output.request.whatToShow).toBe("MIDPOINT");
+    expect(output.contract.localSymbol).toBe("EUR.USD");
+    expect(
+      labBarsOutput({ currency: "JPY", secType: "CASH", symbol: "USD" })
+        .contract.localSymbol
+    ).toBe("USD.JPY");
+    expect(output.bars.every((bar) => bar.v === null)).toBe(true);
+    expect(MarketBarsOutputSchema.parse(output)).toEqual(output);
+    expect(labBarsOutput({ symbol: "SPY" }).bars[0]?.v).toBeGreaterThan(0);
+  });
+
   it("follows the requested bar size and contract", () => {
     const output = labBarsOutput({
       barSize: "1 hour",
@@ -174,11 +189,14 @@ describe("lab market fixtures", () => {
     expect(weekdays).not.toContain(6);
   });
 
-  it("builds a valid options snapshot for cheap and expensive tickers", () => {
+  it("builds a valid options snapshot and Greek heatmap for cheap and expensive tickers", () => {
     for (const symbol of ["SPY", "NVDA", "SLV"]) {
       const snapshot = labOptionsAnalytics(symbol);
       expect(OptionsAnalyticsOutputSchema.parse(snapshot)).toEqual(snapshot);
       expect(labOptionsAnalytics(symbol)).toEqual(snapshot);
+      const heatmap = labGreekHeatmap(symbol);
+      expect(GreekHeatmapOutputSchema.parse(heatmap)).toEqual(heatmap);
+      expect(labGreekHeatmap(symbol)).toEqual(heatmap);
       // The strike profiles mark max pain at the smallest holder payout.
       const payouts = snapshot.strikeProfiles.strikes.map(
         (row) => row.holderPayout

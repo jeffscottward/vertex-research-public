@@ -6,6 +6,8 @@ import {
   type FlowEventsInput,
   type FlowEventsOutput,
   type FlowSnapshotEvent,
+  type GreekHeatmapMetricData,
+  type GreekHeatmapOutput,
   type JevVerdictOutput,
   type MarketBar,
   type MarketBarSize,
@@ -94,8 +96,11 @@ const MAX_BARS = 400;
 export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
   const symbol = input.symbol.trim().toUpperCase();
   const barSize = input.barSize ?? "1 day";
-  const bars = labBars(symbol, barSize === "1 day" ? 250 : MAX_BARS, barSize);
   const secType = input.secType ?? "STK";
+  // Forex (CASH) as the live service answers it: MIDPOINT bars without volume.
+  const forex = secType === "CASH";
+  const priced = labBars(symbol, barSize === "1 day" ? 250 : MAX_BARS, barSize);
+  const bars = forex ? priced.map((bar) => ({ ...bar, v: null })) : priced;
   return {
     asOf: LAB_NOW_ISO,
     bars,
@@ -105,7 +110,7 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
       currency: input.currency ?? "USD",
       exchange: input.exchange ?? "SMART",
       lastTradeDateOrContractMonth: null,
-      localSymbol: symbol,
+      localSymbol: forex ? `${symbol}.${input.currency ?? "USD"}` : symbol,
       longName: `${symbol} Demo Listing (fake data)`,
       matches: 1,
       multiplier: null,
@@ -124,7 +129,7 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
       secType,
       symbol,
       useRTH: input.useRTH ?? true,
-      whatToShow: input.whatToShow ?? "TRADES",
+      whatToShow: forex ? "MIDPOINT" : (input.whatToShow ?? "TRADES"),
     },
     source: "ibkr-gateway",
   };
@@ -189,9 +194,12 @@ const labGexContext = (
   spot: number,
   atm: number,
   strikeStep: number,
-  iv: number
+  iv: number,
+  totalGex: number
 ): OptionsAnalyticsOutput["context"] => {
   const dailyMove = (spot * iv) / Math.sqrt(252);
+  const flip = atm - strikeStep;
+  const profileScale = totalGex / (((spot - flip) / spot) * 1.25);
   const moves = (level: number) => roundTo((level - spot) / dailyMove, 2);
   const factor = (
     key: OptionsAnalyticsOutput["context"]["factors"][number]["key"],
@@ -270,6 +278,15 @@ const labGexContext = (
       putWall: atm - 2 * strikeStep,
       putWallMoves: moves(atm - 2 * strikeStep),
     },
+    profile: Array.from({ length: 121 }, (_, index) => {
+      const at = roundTo(spot * (0.7 + (0.6 * index) / 120), 4);
+      const offset = (at - flip) / spot;
+      const envelope = Math.exp(-(((at - spot) / (spot * 0.22)) ** 2));
+      return {
+        gex: roundTo(offset * profileScale * (0.25 + envelope), 0),
+        spot: at,
+      };
+    }),
     regime: "positive",
     session: "midday",
   };
@@ -360,15 +377,16 @@ export const labOptionsAnalytics = (
   const painRow = profileRows.reduce((best, row) =>
     row.holderPayout < best.holderPayout ? row : best
   );
+  const totalGex = strikes.reduce((sum, row) => sum + row.gex, 0);
   return {
-    context: labGexContext(spot, atm, strikeStep, baseIv),
+    context: labGexContext(spot, atm, strikeStep, baseIv, totalGex),
     exposure: {
       gexExpiry: labDaysAgo(-EXPIRY_DAYS[0]),
       maxPain: painRow.strike,
       message: null,
       status: "ok",
       strikes,
-      totalGex: strikes.reduce((sum, row) => sum + row.gex, 0),
+      totalGex,
     },
     flow: {
       buckets: Array.from({ length: 6 }, (_, index) => {
@@ -435,6 +453,90 @@ export const labOptionsAnalytics = (
         expiry,
       })),
     },
+  };
+};
+
+/** Deterministic Greek exposure heatmap fixture (GEX, VEX, Charm, DEX, Volume-GEX) for UI lab. */
+export const labGreekHeatmap = (rawSymbol: string): GreekHeatmapOutput => {
+  const symbol = rawSymbol.trim().toUpperCase();
+  const spot = labBasePrice(symbol);
+  const random = createSeededRandom(`greek-heatmap:${symbol}`);
+  const expiries = EXPIRY_DAYS.map((dte) => ({
+    dte,
+    expiry: labDaysAgo(-dte),
+  }));
+  const strikeStep = spot > 200 ? 10 : spot > 50 ? 5 : 1;
+  const atm = Math.round(spot / strikeStep) * strikeStep;
+  const strikes = Array.from(
+    { length: 11 },
+    (_, index) => atm + (5 - index) * strikeStep
+  );
+  const buildMetric = (
+    scale: number,
+    flip: number | null
+  ): GreekHeatmapMetricData => {
+    const rows = strikes.map((strike) => {
+      const distance = Math.abs(strike - spot) / strikeStep;
+      const signBias = strike >= spot ? 1 : -1;
+      const values = expiries.map(({ dte }) => {
+        const decay = 1 / (1 + distance * 0.6) / Math.sqrt(dte / 7);
+        const raw = (signBias * 0.75 + (random() - 0.5) * 0.5) * scale * decay;
+        return roundTo(raw, 0);
+      });
+      const total = values.reduce((sum, v) => sum + v, 0);
+      return { strike, total, values };
+    });
+    const expiryTotals = expiries.map((_, col) =>
+      rows.reduce(
+        (sum, row) => sum + defined(row.values[col], "expiry cell"),
+        0
+      )
+    );
+    const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+    let king = defined(rows[0], "first strike row");
+    let callWall = defined(rows[0], "first strike row");
+    let putWall = defined(rows.at(-1), "last strike row");
+    for (const row of rows) {
+      if (Math.abs(row.total) > Math.abs(king.total)) king = row;
+      if (row.total > callWall.total) callWall = row;
+      if (row.total < putWall.total) putWall = row;
+    }
+    return {
+      expiryTotals,
+      grandTotal,
+      marks: {
+        callWall: callWall.strike,
+        flip,
+        kingStrike: king.strike,
+        putWall: putWall.strike,
+      },
+      message: null,
+      rows,
+      status: "ok",
+    };
+  };
+  const gexFlip = roundTo(spot - strikeStep * 0.4, 2);
+  const volFlip = roundTo(spot - strikeStep * 0.15, 2);
+  return {
+    expiries,
+    message: null,
+    metrics: {
+      charm: buildMetric(1_200_000, null),
+      dex: buildMetric(45_000_000, null),
+      gex: buildMetric(6_500_000, gexFlip),
+      vex: buildMetric(2_800_000, null),
+      volumeGex: buildMetric(2_400_000, volFlip),
+    },
+    notes: [
+      "UI lab: fake per-expiry Greek exposure heatmap for dark/light and responsive layout review.",
+    ],
+    rateLimited: false,
+    receivedAt: LAB_NOW_ISO,
+    retryAfterSeconds: null,
+    source: "quantdata",
+    spot,
+    status: "ok",
+    symbol,
   };
 };
 

@@ -1,4 +1,8 @@
-import type { GexContext } from "@darkfactory/api";
+import type {
+  GexContext,
+  GreekHeatmapMetricData,
+  GreekHeatmapOutput,
+} from "@darkfactory/api";
 
 // Dummy GEX context for mocked optionsAnalytics.snapshot answers in browser specs: no value
 // was computed (no GEX estimate, flow not received, no IV term data), no factors. The panel
@@ -32,6 +36,43 @@ export const EMPTY_GEX_CONTEXT: GexContext = {
     putWall: null,
     putWallMoves: null,
   },
+  profile: [],
   regime: "no_data",
   session: "closed",
+};
+
+const EMPTY_GREEK_HEATMAP_METRIC: GreekHeatmapMetricData = {
+  expiryTotals: [],
+  grandTotal: null,
+  marks: {
+    callWall: null,
+    flip: null,
+    kingStrike: null,
+    putWall: null,
+  },
+  message: null,
+  rows: [],
+  status: "empty",
+};
+
+// Dummy empty answer for mocked optionsAnalytics.greekHeatmap requests in browser specs
+// where CI has no QuantData API key.
+export const EMPTY_GREEK_HEATMAP: GreekHeatmapOutput = {
+  expiries: [],
+  message: null,
+  metrics: {
+    charm: EMPTY_GREEK_HEATMAP_METRIC,
+    dex: EMPTY_GREEK_HEATMAP_METRIC,
+    gex: EMPTY_GREEK_HEATMAP_METRIC,
+    vex: EMPTY_GREEK_HEATMAP_METRIC,
+    volumeGex: EMPTY_GREEK_HEATMAP_METRIC,
+  },
+  notes: [],
+  rateLimited: false,
+  receivedAt: "2024-06-09T00:00:01Z",
+  retryAfterSeconds: null,
+  source: "quantdata",
+  spot: null,
+  status: "empty",
+  symbol: "SPY",
 };

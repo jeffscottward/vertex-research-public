@@ -686,15 +686,11 @@ export const shortTermBadge = (
 /** What the collector does not read for a symbol, or null when it reads trades and option prints. */
 export const notCollectedLine = (symbol: FlowSymbol): string | null => {
   const { sources } = FLOW_INSTRUMENTS[symbol];
-  const missing = [
-    ...(sources.includes("ticks") ? [] : ["trades"]),
-    ...(sources.includes("options") ? [] : ["option prints"]),
-  ];
-  if (missing.length === 0) return null;
+  if (sources.includes("ticks")) return null;
   const holders = Object.values(FLOW_INSTRUMENTS)
     .filter((instrument) => instrument.sources.includes("ticks"))
     .map((instrument) => instrument.symbol)
     .sort();
   const names = `${holders.slice(0, -1).join(", ")} and ${holders.at(-1)}`;
-  return `Not collected for ${symbol}: ${missing.join(" and ")}. The IBKR and vendor budgets go to ${names}.`;
+  return `Not collected for ${symbol}: trades. The IBKR budget goes to ${names}.`;
 };

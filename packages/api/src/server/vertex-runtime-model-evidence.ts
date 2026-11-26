@@ -135,8 +135,8 @@ const minimum = (...values: string[]): string =>
       ? left
       : right
   );
-const requireFact = (condition: unknown): void => {
-  if (!condition) throw new Error("Current model-use evidence unavailable");
+const requireFact = (condition: unknown, cause: string): void => {
+  if (!condition) throw new Error(cause);
 };
 
 export const createVertexRuntimeModelEvidence = (
@@ -150,7 +150,8 @@ export const createVertexRuntimeModelEvidence = (
     const now = options.clock.now();
     requireFact(
       !options.signal?.aborted &&
-        timestampToEpochNanoseconds(now) >= timestampToEpochNanoseconds(at)
+        timestampToEpochNanoseconds(now) >= timestampToEpochNanoseconds(at),
+      "Model-use evidence check stopped: request cancelled or clock behind evaluation time"
     );
     return now;
   };
@@ -160,23 +161,38 @@ export const createVertexRuntimeModelEvidence = (
     digest: string,
     expectedLength?: number
   ): Promise<Uint8Array> => {
-    requireFact(!options.signal?.aborted);
+    requireFact(
+      !options.signal?.aborted,
+      "Model-use object read cancelled by caller signal"
+    );
     const capability = options.objectCapabilities(scope);
-    requireFact(typeof capability.getBounded === "function");
+    requireFact(
+      typeof capability.getBounded === "function",
+      "Model-use object store has no bounded read capability"
+    );
     const result = await present(capability.getBounded)(key, 1_048_576);
-    requireFact(!options.signal?.aborted);
+    requireFact(
+      !options.signal?.aborted,
+      "Model-use object read cancelled by caller signal"
+    );
+    if (result.status === "not-found")
+      throw new Error("Model-use object not found in object store");
     if (result.status !== "ok")
-      throw new Error("Current model-use evidence unavailable");
+      throw new Error(`Model-use object store is ${result.state}`);
     const body = result.value.body;
     requireFact(
       body instanceof Uint8Array &&
         body.byteLength <= 1_048_576 &&
         result.value.metadata.key === key &&
         result.value.metadata.size === body.byteLength &&
-        (expectedLength === undefined || body.byteLength === expectedLength)
+        (expectedLength === undefined || body.byteLength === expectedLength),
+      "Model-use object body failed size or key verification"
     );
     const captured = new Uint8Array(body);
-    requireFact((await hashArtifact(captured)) === digest);
+    requireFact(
+      (await hashArtifact(captured)) === digest,
+      "Model-use object digest did not match expected hash"
+    );
     return captured;
   };
   const readGrant = async (
@@ -199,17 +215,24 @@ export const createVertexRuntimeModelEvidence = (
         resourceId,
         action: "read",
         now: at,
-      })
+      }),
+      "Model-use read grant authorization denied"
     );
     const found = (
       await tx.execute(
         sql`select v.payload, v.record_hash, c.current_version, c.revision from vertex_grant_bindings b join vertex_grant_current c on c.account_alias = b.account_alias and c.environment = b.environment and c.grant_id = b.grant_id join vertex_grant_versions v on v.account_alias = c.account_alias and v.environment = c.environment and v.grant_id = c.grant_id and v.version = c.current_version join vertex_grant_actions a on a.account_alias = v.account_alias and a.environment = v.environment and a.grant_id = v.grant_id and a.version = v.version where b.account_alias = ${scope.accountAlias} and b.environment = ${scope.environment} and b.grantee_actor_id = ${principal.actorId} and b.collection_key = ${collectionId ?? ""} and b.resource_id = ${resourceId} and a.action = 'read' and v.status = 'granted' order by v.expires_at_ns desc limit 129`
       )
     ).rows as Record<string, unknown>[];
-    requireFact(found.length <= 128);
+    requireFact(
+      found.length <= 128,
+      "Model-use read grant query exceeded row bound"
+    );
     for (const row of found) {
       const value = row["payload"] as VertexGrantVersion;
-      requireFact((await hashArtifact(value)) === row["record_hash"]);
+      requireFact(
+        (await hashArtifact(value)) === row["record_hash"],
+        "Model-use read grant record hash mismatch"
+      );
       const now = timestampToEpochNanoseconds(current(at));
       if (
         value.granteeActorId === principal.actorId &&
@@ -233,7 +256,9 @@ export const createVertexRuntimeModelEvidence = (
         };
       }
     }
-    throw new Error("Current model-use read grant unavailable");
+    throw new Error(
+      "No active model-use read grant covers this scope and evaluation time"
+    );
   };
   const rights = async (
     tx: Transaction,
@@ -259,7 +284,7 @@ export const createVertexRuntimeModelEvidence = (
       sql`collection_key = ${collectionId ?? ""} and policy_id = ${policyId}`,
       sql`order by revision desc`
     );
-    requireFact(row);
+    requireFact(row, "Model-use rights record not found in store");
     const value = WorkerCurrentRightsOutputSchema.parse(
       present(row)["payload"]
     );
@@ -277,7 +302,8 @@ export const createVertexRuntimeModelEvidence = (
           timestampToEpochNanoseconds(at) &&
         timestampToEpochNanoseconds(present(value.expiresAt)) > now &&
         (value.retentionUntil === null ||
-          timestampToEpochNanoseconds(value.retentionUntil) > now)
+          timestampToEpochNanoseconds(value.retentionUntil) > now),
+      "Model-use rights record failed integrity or expiry check"
     );
     requireFact(
       present(row)["checked_at_ns"] ===
@@ -287,7 +313,8 @@ export const createVertexRuntimeModelEvidence = (
         present(row)["retention_until_ns"] ===
           (value.retentionUntil === null
             ? null
-            : timestampToEpochNanoseconds(value.retentionUntil).toString())
+            : timestampToEpochNanoseconds(value.retentionUntil).toString()),
+      "Model-use rights index columns do not match stored payload"
     );
     return {
       value,
@@ -315,7 +342,7 @@ export const createVertexRuntimeModelEvidence = (
       scope,
       sql`artifact_id = ${reference.artifactId}`
     );
-    requireFact(row);
+    requireFact(row, "Model-use artifact metadata record not found in store");
     const metadata = present(row)["payload"] as VertexArtifactMetadata;
     requireFact(
       (await hashArtifact(metadata)) === present(row)["metadata_hash"] &&
@@ -328,14 +355,16 @@ export const createVertexRuntimeModelEvidence = (
         metadata.byteLength > 0 &&
         metadata.byteLength <= 1_048_576 &&
         metadata.rights.policyId === reference.rightsPolicyId &&
-        metadata.rights.version === reference.rightsVersion
+        metadata.rights.version === reference.rightsVersion,
+      "Model-use artifact metadata failed integrity or reference match"
     );
     requireFact(
       present(row)["artifact_sha256"] === metadata.artifactSha256 &&
         present(row)["object_key"] === metadata.objectKey &&
         String(present(row)["byte_length"]) === String(metadata.byteLength) &&
         present(row)["rights_policy_id"] === reference.rightsPolicyId &&
-        present(row)["rights_version"] === reference.rightsVersion
+        present(row)["rights_version"] === reference.rightsVersion,
+      "Model-use artifact metadata index columns do not match payload"
     );
     const grant = await readGrant(
       tx,
@@ -365,7 +394,8 @@ export const createVertexRuntimeModelEvidence = (
           timestampToEpochNanoseconds(current(at)) &&
         (pinned.retentionUntil === null ||
           timestampToEpochNanoseconds(pinned.retentionUntil) >
-            timestampToEpochNanoseconds(current(at)))
+            timestampToEpochNanoseconds(current(at))),
+      "Model-use pinned artifact rights do not grant read access"
     );
     const latest = await vertexRuntimeModelRow(
       tx,
@@ -374,7 +404,7 @@ export const createVertexRuntimeModelEvidence = (
       sql`collection_key = ${metadata.collectionId ?? ""} and artifact_id = ${reference.artifactId} and purpose = 'research'`,
       sql`order by reviewed_at_ns desc, review_id desc`
     );
-    requireFact(latest);
+    requireFact(latest, "Model-use accepted review record not found in store");
     const review = AcceptedReviewSchema.parse(present(latest)["payload"]);
     requireFact(
       (await hashArtifact(review)) === present(latest)["record_hash"] &&
@@ -390,7 +420,8 @@ export const createVertexRuntimeModelEvidence = (
         timestampToEpochNanoseconds(review.reviewedAt) <=
           timestampToEpochNanoseconds(at) &&
         timestampToEpochNanoseconds(review.expiresAt) >
-          timestampToEpochNanoseconds(current(at))
+          timestampToEpochNanoseconds(current(at)),
+      "Model-use review record failed integrity or scope match"
     );
     requireFact(
       present(latest)["review_id"] === review.reviewId &&
@@ -402,7 +433,8 @@ export const createVertexRuntimeModelEvidence = (
         present(latest)["review_version"] === review.reviewVersion &&
         present(latest)["artifact_sha256"] === review.artifactSha256 &&
         present(latest)["actor_id"] === review.actorId &&
-        present(latest)["policy_version"] === review.policyVersion
+        present(latest)["policy_version"] === review.policyVersion,
+      "Model-use review index columns do not match payload"
     );
     const link = await vertexRuntimeModelRow(
       tx,
@@ -410,7 +442,7 @@ export const createVertexRuntimeModelEvidence = (
       scope,
       sql`review_id = ${review.reviewId} and artifact_id = ${reference.artifactId} and artifact_sha256 = ${reference.artifactSha256} and collection_key = ${metadata.collectionId ?? ""}`
     );
-    requireFact(link);
+    requireFact(link, "Model-use review does not link the requested artifact");
     const reviewGrant = await readGrant(
       tx,
       principal,
@@ -426,7 +458,8 @@ export const createVertexRuntimeModelEvidence = (
           metadata.collectionId,
           "manifest",
           reference.artifactSha256
-        )
+        ),
+      "Model-use artifact object key does not match scoped path"
     );
     const bytes = await objectBytes(
       scope,
@@ -441,7 +474,8 @@ export const createVertexRuntimeModelEvidence = (
       (await hashArtifact(evidence)) === reference.artifactSha256 &&
         metadata.sourceContentSha256 === evidence.contentHash &&
         evidence.collectionId === metadata.collectionId &&
-        evidence.rightsPolicyId === reference.rightsPolicyId
+        evidence.rightsPolicyId === reference.rightsPolicyId,
+      "Model-use evidence payload hash or rights policy mismatch"
     );
     const published = await vertexRuntimeModelRow(
       tx,
@@ -455,7 +489,8 @@ export const createVertexRuntimeModelEvidence = (
         published["record_hash"] === reference.artifactSha256 &&
         (await hashArtifact(
           ResearchEvidenceSchema.parse(published["payload"])
-        )) === reference.artifactSha256
+        )) === reference.artifactSha256,
+      "Model-use published evidence record missing or hash mismatch"
     );
     // Hash the original source too. AcceptedReview remains an overlay and does
     // not replace immutable source bytes with an accepted rewritten manifest.

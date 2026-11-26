@@ -71,6 +71,7 @@ describe("MCP tool registry", () => {
       "master_rules_search",
       "flow_snapshot",
       "flow_control",
+      "flow_option_prints",
       "openbb_status",
       "openbb_vol_context",
       "openbb_iv_history",
@@ -697,7 +698,14 @@ describe("callMcpTool", () => {
   });
 
   it("returns the GEX headline and its context from options_gex_context", async () => {
-    const context = { factors: [], regime: "positive" };
+    const context = {
+      factors: [],
+      profile: [
+        { gex: -250_000, spot: 90 },
+        { gex: 400_000, spot: 110 },
+      ],
+      regime: "positive",
+    };
     const value = {
       context,
       exposure: {
@@ -728,8 +736,9 @@ describe("callMcpTool", () => {
       flowHours: 6,
       symbol: "AAPL",
     });
-    expect(result["structuredContent"]).toEqual({
-      context,
+    const structured = result["structuredContent"] as Record<string, unknown>;
+    expect(structured).toEqual({
+      context: { factors: [], regime: "positive" },
       exposure: {
         displayedStrikeCount: 2,
         gexExpiry: "2026-11-09",
@@ -747,6 +756,9 @@ describe("callMcpTool", () => {
       spot: 101,
       symbol: "AAPL",
     });
+    expect(
+      "profile" in (structured["context"] as Record<string, unknown>)
+    ).toBe(false);
     const rejected = await callMcpTool(
       "options_gex_context",
       { flowHours: 2, symbol: "AAPL" },
@@ -755,7 +767,25 @@ describe("callMcpTool", () => {
     expect(rejected["isError"]).toBe(true);
     expect(presentGexContext(null)).toBeNull();
     expect(presentGexContext({ symbol: "X" })).toEqual({ symbol: "X" });
-    const noFlow = { exposure: value.exposure, flow: null };
+    const noContext = {
+      context: null,
+      exposure: value.exposure,
+      flow: value.flow,
+    };
+    expect(presentGexContext(noContext)).toBe(noContext);
+    const arrayContext = {
+      context: [],
+      exposure: value.exposure,
+      flow: value.flow,
+    };
+    expect(presentGexContext(arrayContext)).toBe(arrayContext);
+    const noExposure = { context, exposure: null, flow: value.flow };
+    expect(presentGexContext(noExposure)).toBe(noExposure);
+    expect(presentGexContext({ context, symbol: "X" })).toEqual({
+      context,
+      symbol: "X",
+    });
+    const noFlow = { context, exposure: value.exposure, flow: null };
     return expect(presentGexContext(noFlow)).toBe(noFlow);
   });
 

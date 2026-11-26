@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   FLOW_CAPTURE_VALUES,
+  FLOW_EXTRA_OPTION_TICKER_VALUES,
+  FLOW_INDEX_OPTION_TICKER_VALUES,
+  FLOW_OPTION_PRINT_SYMBOL_VALUES,
   FLOW_OPTION_TICKER_VALUES,
   FLOW_SOURCE_VALUES,
   FLOW_SYMBOL_VALUES,
@@ -64,7 +67,7 @@ describe("0052_flow_pipeline migration", () => {
       const sqlColumns = [...body.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map(
         (match) => match[1]
       );
-      // Columns added by later migrations (0095_flow_gex_king_node) are verified in their own suites.
+      // Columns added by later migrations (0098_flow_gex_king_node) are verified in their own suites.
       expect([...sqlColumns].sort()).toEqual(
         config.columns
           .map((column) => column.name)
@@ -216,7 +219,7 @@ describe("0077_flow_net_drift migration", () => {
   it("every schema symbol, ticker and source value is in the check text of the migration", () => {
     for (const symbol of FLOW_SYMBOL_VALUES)
       expect(addText("flow_samples_check")).toContain(`'${symbol}'`);
-    for (const ticker of FLOW_OPTION_TICKER_VALUES) {
+    for (const ticker of FLOW_INDEX_OPTION_TICKER_VALUES) {
       expect(addText("flow_gex_check")).toContain(`'${ticker}'`);
       expect(addText("flow_option_prints_check")).toContain(`'${ticker}'`);
     }
@@ -449,11 +452,84 @@ describe("0088_flow_market_premium migration", () => {
   });
 });
 
-describe("0095_flow_gex_king_node migration", () => {
+describe("0095_flow_option_tickers migration", () => {
   const read = (path: string) =>
     readFileSync(new URL(path, import.meta.url), "utf8");
-  const migration = read("../../migrations/0095_flow_gex_king_node.sql");
-  const rollback = read("../../rollback/0095_flow_gex_king_node.down.sql");
+  const migration = read("../../migrations/0095_flow_option_tickers.sql");
+  const rollback = read("../../rollback/0095_flow_option_tickers.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: Array<{ tag: string }>;
+  };
+
+  const CHECKS = [
+    "flow_events_check",
+    "flow_option_gaps_check",
+    "flow_option_prints_check",
+    "flow_samples_check",
+  ] as const;
+
+  const addText = (sql: string, name: string): string =>
+    sql
+      .split("\n")
+      .find((line) => line.includes(`ADD CONSTRAINT "${name}" CHECK`)) ?? "";
+
+  it("widens the four option-print table checks to include every option-print symbol and ticker", () => {
+    for (const name of CHECKS) {
+      expect(migration.split(`DROP CONSTRAINT "${name}"`).length - 1).toBe(1);
+      expect(migration.split(`ADD CONSTRAINT "${name}"`).length - 1).toBe(1);
+    }
+    for (const symbol of FLOW_OPTION_PRINT_SYMBOL_VALUES) {
+      expect(addText(migration, "flow_option_prints_check")).toContain(
+        `'${symbol}'`
+      );
+      expect(addText(migration, "flow_option_gaps_check")).toContain(
+        `'${symbol}'`
+      );
+      expect(addText(migration, "flow_samples_check")).toContain(`'${symbol}'`);
+      expect(addText(migration, "flow_events_check")).toContain(`'${symbol}'`);
+    }
+    for (const ticker of FLOW_OPTION_TICKER_VALUES)
+      expect(addText(migration, "flow_option_prints_check")).toContain(
+        `'${ticker}'`
+      );
+    // Added option-only tickers are restricted to options samples and quantdata events.
+    expect(addText(migration, "flow_samples_check")).toContain(
+      'and "flow_samples"."source" = \'options\''
+    );
+    expect(addText(migration, "flow_events_check")).toContain(
+      'and "flow_events"."source" = \'quantdata\''
+    );
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0095_flow_option_tickers"
+    );
+  });
+
+  it("the rollback refuses while rows for added tickers exist, deletes no rows and restores the four pre-0095 checks", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DELETE /u);
+    expect(rollback).toContain("RAISE EXCEPTION");
+    for (const ticker of FLOW_EXTRA_OPTION_TICKER_VALUES)
+      expect(rollback).toContain(`'${ticker}'`);
+    for (const name of CHECKS) {
+      expect(rollback).toContain(`DROP CONSTRAINT "${name}";`);
+      const restored = addText(rollback, name);
+      expect(restored).toContain("in ('SPY', 'ES', 'QQQ', 'NQ')");
+      for (const ticker of FLOW_EXTRA_OPTION_TICKER_VALUES)
+        expect(restored).not.toContain(`'${ticker}'`);
+    }
+    expect(addText(rollback, "flow_samples_check")).toContain(
+      "'market_premium'"
+    );
+  });
+});
+
+describe("0098_flow_gex_king_node migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0098_flow_gex_king_node.sql");
+  const rollback = read("../../rollback/0098_flow_gex_king_node.down.sql");
   const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
     entries: { idx: number; tag: string }[];
   };
@@ -472,7 +548,7 @@ describe("0095_flow_gex_king_node migration", () => {
 
   it("has a journal entry with its tag", () => {
     expect(journal.entries.map((entry) => entry.tag)).toContain(
-      "0095_flow_gex_king_node"
+      "0098_flow_gex_king_node"
     );
   });
 

@@ -44,6 +44,7 @@ import {
   VERTEX_STUDY_IDS,
   type VertexStudyId,
 } from "./vertex-studies.ts";
+import { NO_VOLUME_LABEL, volumeField } from "./volume.ts";
 import {
   type ChartType,
   type Drawing,
@@ -83,7 +84,7 @@ export const validDisplayCandles = (
       bar.id.length <= 160 &&
       Number.isSafeInteger(bar.timestamp) &&
       Math.abs(bar.timestamp) <= 8_640_000_000_000_000 &&
-      [bar.open, bar.high, bar.low, bar.close, bar.volume].every(
+      [bar.open, bar.high, bar.low, bar.close, bar.volume ?? 0].every(
         (value) =>
           Number.isFinite(value) && value >= 0 && value <= 1_000_000_000_000
       ) &&
@@ -774,6 +775,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
           upWickColor: palette.rising,
         },
         priceMark: { show: false },
+        // Only volume can be missing from a bar (forex, non-USD stocks).
+        tooltip: { defaultValue: NO_VOLUME_LABEL },
         type: library.CandleType.CandleUpStroke,
       },
       grid: {
@@ -967,7 +970,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
         low: last.low,
         open: last.open,
         timestamp: last.timestamp,
-        volume: last.volume,
+        ...volumeField(last.volume),
       });
     } else {
       chart.applyNewData(
@@ -977,7 +980,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
           low: bar.low,
           open: bar.open,
           timestamp: bar.timestamp,
-          volume: bar.volume,
+          ...volumeField(bar.volume),
         })),
         false
       );

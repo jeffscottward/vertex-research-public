@@ -1,5 +1,5 @@
 {
-  "id": "4dd3976d-e36b-47b1-920e-c78d080e12ad",
+  "id": "8418d9b9-d5fa-48c4-abc1-8f2664a6a5f9",
   "prevId": "99d7820f-97f1-4cde-8fad-a74d84120493",
   "version": "7",
   "dialect": "postgresql",
@@ -4322,7 +4322,7 @@
       "checkConstraints": {
         "flow_events_check": {
           "name": "flow_events_check",
-          "value": "\"flow_events\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_events\".\"direction\" in ('bullish', 'bearish', 'neutral') and \"flow_events\".\"source\" in ('ibkr', 'quantdata') and length(\"flow_events\".\"detail\") <= 300 and length(\"flow_events\".\"key\") <= 160"
+          "value": "(\"flow_events\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') or (\"flow_events\".\"symbol\" in ('IWM', 'NVDA') and \"flow_events\".\"source\" = 'quantdata')) and \"flow_events\".\"direction\" in ('bullish', 'bearish', 'neutral') and \"flow_events\".\"source\" in ('ibkr', 'quantdata') and length(\"flow_events\".\"detail\") <= 300 and length(\"flow_events\".\"key\") <= 160"
         }
       },
       "isRLSEnabled": false
@@ -4360,12 +4360,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "king_node": {
-          "name": "king_node",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
         },
         "max_pain": {
           "name": "max_pain",
@@ -4916,7 +4910,7 @@
       "checkConstraints": {
         "flow_option_gaps_check": {
           "name": "flow_option_gaps_check",
-          "value": "\"flow_option_gaps\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_option_gaps\".\"end_time\" >= \"flow_option_gaps\".\"start_time\""
+          "value": "\"flow_option_gaps\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA') and \"flow_option_gaps\".\"end_time\" >= \"flow_option_gaps\".\"start_time\""
         }
       },
       "isRLSEnabled": false
@@ -5112,7 +5106,7 @@
       "checkConstraints": {
         "flow_option_prints_check": {
           "name": "flow_option_prints_check",
-          "value": "\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_option_prints\".\"ticker\" in ('SPY', 'SPX', 'QQQ', 'NDX') and \"flow_option_prints\".\"right\" in ('call', 'put') and \"flow_option_prints\".\"premium\" >= 0 and length(\"flow_option_prints\".\"id\") <= 64"
+          "value": "\"flow_option_prints\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ', 'IWM', 'NVDA') and \"flow_option_prints\".\"ticker\" in ('SPY', 'SPX', 'QQQ', 'NDX', 'IWM', 'NVDA') and \"flow_option_prints\".\"right\" in ('call', 'put') and \"flow_option_prints\".\"premium\" >= 0 and length(\"flow_option_prints\".\"id\") <= 64"
         }
       },
       "isRLSEnabled": false
@@ -5171,7 +5165,7 @@
       "checkConstraints": {
         "flow_samples_check": {
           "name": "flow_samples_check",
-          "value": "\"flow_samples\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') and \"flow_samples\".\"source\" in ('ticks', 'depth', 'options', 'gex', 'net_drift', 'market_premium') and \"flow_samples\".\"status\" in ('ok', 'empty', 'unavailable', 'skipped') and \"flow_samples\".\"items\" >= 0 and length(coalesce(\"flow_samples\".\"message\", '')) <= 300"
+          "value": "(\"flow_samples\".\"symbol\" in ('SPY', 'ES', 'QQQ', 'NQ') or (\"flow_samples\".\"symbol\" in ('IWM', 'NVDA') and \"flow_samples\".\"source\" = 'options')) and \"flow_samples\".\"source\" in ('ticks', 'depth', 'options', 'gex', 'net_drift', 'market_premium') and \"flow_samples\".\"status\" in ('ok', 'empty', 'unavailable', 'skipped') and \"flow_samples\".\"items\" >= 0 and length(coalesce(\"flow_samples\".\"message\", '')) <= 300"
         }
       },
       "isRLSEnabled": false

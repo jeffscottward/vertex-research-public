@@ -908,6 +908,12 @@ describe("FlowWorkspace control panel", () => {
     ];
     expect(blocks).toEqual([panel, snapshot]);
     expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
+    const wallDrift = container.querySelector("[data-wall-drift]");
+    expect(wallDrift?.getAttribute("data-wall-drift-ticker")).toBe("SPY");
+    expect(
+      wallDrift?.compareDocumentPosition(panel as Node) ??
+        Node.DOCUMENT_POSITION_PRECEDING
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const titles = [...container.querySelectorAll("h2")].map(
       (heading) => heading.textContent
     );
@@ -930,10 +936,11 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-not-collected]")?.textContent
     ).toBe(
-      "Not collected for QQQ: trades and option prints. The IBKR and vendor budgets go to ES, NQ and SPY."
+      "Not collected for QQQ: trades. The IBKR budget goes to ES, NQ and SPY."
     );
     await click(button(container, "NQ"));
     await idle(container);
+    expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
     await click(button(container, "ES"));
     await idle(container);
     expect(controlCalls.map((call) => call.group)).toEqual([
@@ -961,6 +968,12 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-control-empty]")?.textContent
     ).toMatch(/^Control document failed to load \(/u);
+    // The workspace clock is real time, so the lab GEX reads as stale: an explicit no-data.
+    expect(
+      container
+        .querySelector("[data-wall-drift]")
+        ?.getAttribute("data-wall-drift")
+    ).toBe("no-data");
     fail = false;
     await click(button(container, "Refresh"));
     await idle(container);
@@ -1417,9 +1430,13 @@ describe("FlowWorkspace hedging pressure panel", () => {
         expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
       );
       expect(panel(container)).toBeNull();
-      expect(
-        container.querySelector("[data-flow-not-collected]")?.textContent
-      ).toContain("option prints");
+      if (symbol === "QQQ") {
+        expect(
+          container.querySelector("[data-flow-not-collected]")?.textContent
+        ).toContain("trades");
+      } else {
+        expect(container.querySelector("[data-flow-not-collected]")).toBeNull();
+      }
     }
     expect(hedgingCalls).toEqual([
       { symbol: "SPY" },

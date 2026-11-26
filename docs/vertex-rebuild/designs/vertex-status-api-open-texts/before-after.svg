@@ -1,0 +1,362 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 560"
+  width="1120"
+  height="560"
+  font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+>
+  <title>API Status Language Guard: 16 Open Vague Entries to 0</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f14" />
+      <stop offset="100%" stop-color="#131922" />
+    </linearGradient>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#d4af37" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="560" fill="url(#bg)" rx="16" />
+
+  <!-- Header -->
+  <text x="44" y="48" fill="#f3f4f6" font-size="22" font-weight="700">
+    API Status Language Guard: 16 Open Vague Entries → 0
+  </text>
+  <text x="44" y="72" fill="#9ca3af" font-size="13">
+    packages/api/src/status-language.test.ts (MAX_OPEN 16 → 0) ·
+    apps/web/src/features/experience/status-labels.ts
+  </text>
+
+  <!-- Mini visual bar gauge top-right -->
+  <g transform="translate(810, 26)">
+    <rect width="266" height="54" rx="10" fill="#18202c" stroke="#2d3748" />
+    <text x="14" y="21" fill="#9ca3af" font-size="11" font-weight="600">
+      OPEN GUARD ENTRIES
+    </text>
+    <!-- Before bar -->
+    <rect
+      x="14"
+      y="30"
+      width="150"
+      height="12"
+      rx="6"
+      fill="#ef4444"
+      opacity="0.85"
+    />
+    <text x="172" y="40" fill="#fca5a5" font-size="11" font-weight="700">
+      16 before
+    </text>
+    <!-- After dot -->
+    <circle cx="244" cy="36" r="6" fill="#10b981" />
+    <text
+      x="255"
+      y="40"
+      fill="#6ee7b7"
+      font-size="11"
+      font-weight="700"
+      text-anchor="end"
+    >
+      0
+    </text>
+  </g>
+
+  <!-- Column headers -->
+  <g transform="translate(44, 102)">
+    <rect width="462" height="32" rx="8" fill="#2a1518" stroke="#7f1d1d" />
+    <circle cx="20" cy="16" r="5" fill="#ef4444" />
+    <text x="34" y="21" fill="#fca5a5" font-size="13" font-weight="700">
+      BEFORE · 16 open entries (vague or printed raw)
+    </text>
+  </g>
+  <g transform="translate(614, 102)">
+    <rect width="462" height="32" rx="8" fill="#0f2922" stroke="#065f46" />
+    <circle cx="20" cy="16" r="5" fill="#10b981" />
+    <text x="34" y="21" fill="#6ee7b7" font-size="13" font-weight="700">
+      AFTER · 0 open entries (definite state + cause)
+    </text>
+  </g>
+
+  <!-- Row 1: Contract 503s (8) -->
+  <g transform="translate(44, 152)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#374151" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#7f1d1d" />
+    <text
+      x="30"
+      y="30"
+      fill="#fecaca"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      8
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Contract 503 messages
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#fca5a5"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      "… storage unavailable" / "… service unavailable"
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      8 oRPC contracts · no cause, no save state, no next step
+    </text>
+  </g>
+  <line
+    x1="516"
+    y1="194"
+    x2="602"
+    y2="194"
+    stroke="#d4af37"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+  <g transform="translate(614, 152)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#065f46" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#064e3b" />
+    <text
+      x="30"
+      y="30"
+      fill="#a7f3d0"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      0
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Definite 503 causes + retry guidance
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#6ee7b7"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      "… database request failed; no filings were read; retry"
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      Names config/cancel/store cause + reload/retry · OpenAPI updated
+    </text>
+  </g>
+
+  <!-- Row 2: Deep value '?' (1 entry, 3 places) -->
+  <g transform="translate(44, 250)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#374151" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#7f1d1d" />
+    <text
+      x="30"
+      y="30"
+      fill="#fecaca"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      1
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Deep Value score placeholders (×3)
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#fca5a5"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      (n=?) · (FY ?) · (since ?)
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      deep-value-score.ts · bare question marks hide missing source fields
+    </text>
+  </g>
+  <line
+    x1="516"
+    y1="292"
+    x2="602"
+    y2="292"
+    stroke="#d4af37"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+  <g transform="translate(614, 250)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#065f46" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#064e3b" />
+    <text
+      x="30"
+      y="30"
+      fill="#a7f3d0"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      0
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Named missing SEC / peer fields
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#6ee7b7"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      (peer count not in peer data) · (fiscal year not in SEC data)
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      100% branch coverage preserved in deep-value-score.test.ts
+    </text>
+  </g>
+
+  <!-- Row 3: Model-use errors (3) -->
+  <g transform="translate(44, 348)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#374151" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#7f1d1d" />
+    <text
+      x="30"
+      y="30"
+      fill="#fecaca"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      3
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Runtime model-use thrown Errors
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#fca5a5"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      "Current model-use evidence / read grant / context unavailable"
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      55 requireFact() checks threw one generic string
+    </text>
+  </g>
+  <line
+    x1="516"
+    y1="390"
+    x2="602"
+    y2="390"
+    stroke="#d4af37"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+  <g transform="translate(614, 348)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#065f46" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#064e3b" />
+    <text
+      x="30"
+      y="30"
+      fill="#a7f3d0"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      0
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Per-check cause messages
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#6ee7b7"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      "… cancelled by caller signal" / "… store returned status …"
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      Every requireFact() names its exact failure cause; fail-closed preserved
+    </text>
+  </g>
+
+  <!-- Row 4: Frozen wire values mapped in UI (4) -->
+  <g transform="translate(44, 446)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#374151" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#7f1d1d" />
+    <text
+      x="30"
+      y="30"
+      fill="#fecaca"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      4
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Frozen wire values printed raw in UI
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#fca5a5"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      Continuity: unavailable · State: unknown · Freshness unknown
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      today · portfolio · utilities · strategies · research-views
+    </text>
+  </g>
+  <line
+    x1="516"
+    y1="488"
+    x2="602"
+    y2="488"
+    stroke="#d4af37"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+  <g transform="translate(614, 446)">
+    <rect width="462" height="84" rx="10" fill="#161d27" stroke="#065f46" />
+    <rect x="14" y="14" width="32" height="24" rx="6" fill="#064e3b" />
+    <text
+      x="30"
+      y="30"
+      fill="#a7f3d0"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      0
+    </text>
+    <text x="58" y="30" fill="#e5e7eb" font-size="14" font-weight="600">
+      Mapped via status-labels.ts (100% cov)
+    </text>
+    <text
+      x="14"
+      y="54"
+      fill="#6ee7b7"
+      font-size="12"
+      font-family="ui-monospace, monospace"
+    >
+      "source reported no data" · "not confirmed by native owner"
+    </text>
+    <text x="14" y="72" fill="#9ca3af" font-size="11">
+      Frozen wire enums untouched · UI never prints raw unavailable/unknown
+    </text>
+  </g>
+</svg>

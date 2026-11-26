@@ -843,7 +843,7 @@ describe("net drift sessions and four symbols", () => {
   it("lists freshness only for the sources a symbol collects", () => {
     expect(
       buildFreshness(rowsOf({ symbol: "QQQ" })).map((row) => row.source)
-    ).toEqual(["depth", "gex"]);
+    ).toEqual(["depth", "options", "gex"]);
   });
 
   it("keeps the SPY freshness rows unchanged", () => {
@@ -855,7 +855,7 @@ describe("net drift sessions and four symbols", () => {
     ]);
   });
 
-  it("QQQ confluence has no order-flow or options factor with data", () => {
+  it("QQQ confluence has no order-flow data and uses options when present", () => {
     const fresh = (["ticks", "depth", "options", "gex"] as const).map(
       (source) => ({ ...sample(source, ago(30)), symbol: "QQQ" as const })
     );
@@ -868,6 +868,7 @@ describe("net drift sessions and four symbols", () => {
     );
     expect(snapshot.freshness.map((row) => row.source)).toEqual([
       "depth",
+      "options",
       "gex",
     ]);
     expect(values["order_flow"]).toBe("no_data");
@@ -877,7 +878,7 @@ describe("net drift sessions and four symbols", () => {
       "No vote: not collected for QQQ"
     );
     expect(snapshot.confluence.factors[2]?.value).toBe(
-      "No vote: not collected for QQQ"
+      "No vote: no signed premium in last 30 min"
     );
   });
 
@@ -922,17 +923,16 @@ describe("net drift sessions and four symbols", () => {
     );
     expect(qqq.notes[1]).toMatch(/^QQQ book is IEX depth/);
     expect(qqq.notes[0]).toBe(
-      "Trades and option prints are not collected for QQQ; this view shows depth and GEX only."
+      "Trades are not collected for QQQ; this view shows depth, options flow and GEX."
     );
     expect(qqq.notes).toHaveLength(3);
-    // NQ reads the streamed tape but has no option prints.
+    // NQ reads the streamed tape and QuantData option prints.
     expect(nq.notes[0]).toBe(
       "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
     );
     expect(nq.notes[1]).toBe(
-      "Trade side: quote rule, then tick rule. Option prints are not collected for NQ."
+      "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData."
     );
-    // The tick note follows the tick mode: streamed for ES, sampled for SPY.
     expect(buildFlowSnapshot(rowsOf({ symbol: "ES" })).notes[0]).toBe(
       "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
     );

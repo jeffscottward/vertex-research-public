@@ -165,6 +165,35 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     renderer.replace([bar]);
     return expect(mocks.dispose).toHaveBeenCalledTimes(1);
   });
+  it("passes a bar with no volume to the chart without a volume field", async () => {
+    stubBrowser();
+    const instance = chart();
+    mocks.init.mockReturnValue(instance);
+    const renderer = await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    const init = mocks.init.mock.calls[0]?.[1] as {
+      styles: { candle: { tooltip: { defaultValue: string } } };
+    };
+    // The chart's own tooltip says "No volume" like the data window, not "n/a".
+    expect(init.styles.candle.tooltip.defaultValue).toBe("No volume");
+    const { volume: _, ...noVolume } = bar;
+    expect(validDisplayCandles([noVolume])).toBe(true);
+    renderer.replace([noVolume]);
+    expect(instance.applyNewData).toHaveBeenCalledWith(
+      [{ close: 10.5, high: 11, low: 9, open: 10, timestamp: 1000 }],
+      false
+    );
+    renderer.replace([{ ...noVolume, close: 10.75 }]);
+    return expect(instance.updateData).toHaveBeenCalledWith({
+      close: 10.75,
+      high: 11,
+      low: 9,
+      open: 10,
+      timestamp: 1000,
+    });
+  });
   it("rejects NaN, oversized prices and nonincreasing coordinates", () => {
     expect(validDisplayCandles([{ ...bar, high: Number.NaN }])).toBe(false);
     expect(validDisplayCandles([{ ...bar, high: 1_000_000_000_001 }])).toBe(

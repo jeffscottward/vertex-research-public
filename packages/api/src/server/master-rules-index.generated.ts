@@ -3,14 +3,17 @@
 import type { MasterRulesIndexBase } from "../contracts/master-rules.ts";
 
 export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
-  "clusters": 889,
+  "clusters": 1307,
   "debates": 12,
   "kbTiers": {
     "andrea-cimitan": null,
     "argus-media": null,
     "brandon-kioseff": null,
+    "breadth-gamma-iv": null,
     "bridgingcycles-instagram": null,
     "damien-wursten": null,
+    "davidtrades-model-instagram": null,
+    "deepedgeintelligence": null,
     "define-your-risk-instagram": null,
     "deltatrendtrading": null,
     "dumbmoneyhunter": null,
@@ -26,7 +29,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
     "jan-smolen": null,
     "jay-medrow": "top",
     "jaymo-callsbyjmo": null,
+    "josholdmixon-instagram": null,
     "junnyyang": null,
+    "kish-quant-video-list": null,
     "kobeissi-letter": null,
     "lars-schmeldtenkopf": null,
     "lifegoalinvestments": null,
@@ -37,16 +42,21 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
     "owner-advisories": null,
     "patrick-nill": null,
     "quantfinancetogo": null,
+    "quantstackai": null,
     "serge-hoffmann": null,
+    "shaantheinvestor-instagram": null,
     "skydweller": null,
     "smbcapital": null,
     "sp-global-platts": null,
     "sparta-commodities": null,
+    "spreadstrader": null,
+    "stock-talk-weekly": null,
     "tom-vorwald": null,
     "trade-finance-global": null,
     "trading-fraternity": null,
     "trading-verrillo-aleks": null,
     "trafigura": null,
+    "vince-quant": null,
     "worldclassedge": null,
     "worldclassedge-creators": null
   },
@@ -58,7 +68,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "C",
       "reason": "Needs: Order-flow / footprint feed.",
-      "consensus": 16,
+      "consensus": 17,
       "kbs": [
         "bridgingcycles-instagram",
         "dumbmoneyhunter",
@@ -75,7 +85,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "tom-vorwald",
         "trading-verrillo-aleks",
         "worldclassedge",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -84,8 +95,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Take only a few high-quality setups, avoid overtrading, and accept no-trade days; knowing when not to trade preserves capital.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 13 knowledge bases agree.",
-      "consensus": 13,
+      "reason": "High conviction: 14 knowledge bases agree.",
+      "consensus": 14,
       "kbs": [
         "damien-wursten",
         "enrico-stucchi",
@@ -99,7 +110,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "tom-vorwald",
         "trading-fraternity",
         "worldclassedge",
-        "jay-medrow"
+        "jay-medrow",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -109,7 +121,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X06; the debate outcome rule X06 replaces both sides.",
-      "consensus": 13,
+      "consensus": 16,
       "kbs": [
         "dumbmoneyhunter",
         "ericnomics",
@@ -123,7 +135,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "trading-verrillo-aleks",
         "worldclassedge",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "kish-quant-video-list",
+        "spreadstrader",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -171,8 +186,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "In positive gamma, fade moves and trade reversion between gamma levels; in negative gamma, expect amplified trending moves and trade with momentum.",
       "kind": "regime",
       "cls": "A",
-      "reason": "High conviction: 9 knowledge bases agree.",
-      "consensus": 9,
+      "reason": "High conviction: 10 knowledge bases agree.",
+      "consensus": 10,
       "kbs": [
         "andrea-cimitan",
         "fabio-valentini",
@@ -182,7 +197,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "skydweller",
         "trading-verrillo-aleks",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "breadth-gamma-iv"
       ]
     },
     {
@@ -191,8 +207,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Before every trade, define and record the max loss, stop, targets and position size, and confirm the account can absorb the loss.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 12 knowledge bases agree.",
-      "consensus": 12,
+      "reason": "High conviction: 14 knowledge bases agree.",
+      "consensus": 14,
       "kbs": [
         "define-your-risk-instagram",
         "ericnomics",
@@ -205,7 +221,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "trading-fraternity",
         "trading-verrillo-aleks",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "spreadstrader",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -215,7 +233,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 10,
+      "consensus": 12,
       "kbs": [
         "brandon-kioseff",
         "bridgingcycles-instagram",
@@ -226,7 +244,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "patrick-nill",
         "quantfinancetogo",
         "tom-vorwald",
-        "worldclassedge"
+        "worldclassedge",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -258,8 +278,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "After a level or value edge breaks, enter on the pullback or retest of that level, with targets at the next level.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 11 knowledge bases agree.",
-      "consensus": 11,
+      "reason": "High conviction: 13 knowledge bases agree.",
+      "consensus": 13,
       "kbs": [
         "andrea-cimitan",
         "bridgingcycles-instagram",
@@ -271,7 +291,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "patrick-nill",
         "worldclassedge-creators",
         "jay-medrow",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "quantstackai",
+        "spreadstrader"
       ]
     },
     {
@@ -280,8 +302,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Take partial profits (often ~50%) at the first target, move the stop on the remainder to breakeven, and let a runner work.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 11 knowledge bases agree.",
-      "consensus": 11,
+      "reason": "High conviction: 12 knowledge bases agree.",
+      "consensus": 12,
       "kbs": [
         "andrea-cimitan",
         "dumbmoneyhunter",
@@ -293,7 +315,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "smbcapital",
         "trading-fraternity",
         "worldclassedge-creators",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -303,7 +326,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "sizing",
       "cls": "D",
       "reason": "Debated in X07; the debate outcome rule X07 replaces both sides.",
-      "consensus": 9,
+      "consensus": 11,
       "kbs": [
         "bridgingcycles-instagram",
         "ericnomics",
@@ -313,7 +336,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "nicholas-crown",
         "sparta-commodities",
         "trading-fraternity",
-        "jay-medrow"
+        "jay-medrow",
+        "shaantheinvestor-instagram",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -360,7 +385,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X04; the debate outcome rule X04 replaces both sides.",
-      "consensus": 8,
+      "consensus": 9,
       "kbs": [
         "andrea-cimitan",
         "dumbmoneyhunter",
@@ -369,7 +394,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "inthemoneyadam",
         "patrick-nill",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -419,7 +445,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "C",
       "reason": "Needs: Volume / market profile engine.",
-      "consensus": 7,
+      "consensus": 10,
       "kbs": [
         "ericnomics",
         "imre-gams",
@@ -427,7 +453,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "kobeissi-letter",
         "nicholas-crown",
         "tom-vorwald",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list",
+        "spreadstrader",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -455,7 +484,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X02; the debate outcome rule X02 replaces both sides.",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "damien-wursten",
         "dumbmoneyhunter",
@@ -463,7 +492,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "patrick-nill",
         "serge-hoffmann",
         "trading-verrillo-aleks",
-        "jay-medrow"
+        "jay-medrow",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -472,8 +502,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Never increase size or re-enter to win back losses; after a loss, stick to the plan or stop.",
       "kind": "risk",
       "cls": "A",
-      "reason": "High conviction: 8 knowledge bases agree.",
-      "consensus": 8,
+      "reason": "High conviction: 9 knowledge bases agree.",
+      "consensus": 9,
       "kbs": [
         "andrea-cimitan",
         "enrico-stucchi",
@@ -482,7 +512,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "trading-fraternity",
         "trading-verrillo-aleks",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "quantstackai"
       ]
     },
     {
@@ -508,13 +539,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "C",
       "reason": "Needs: Order-flow / footprint feed.",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "fredy-sarmiento",
         "skydweller",
         "trading-verrillo-aleks",
         "worldclassedge",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "breadth-gamma-iv"
       ]
     },
     {
@@ -523,8 +555,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Size stop width, and targets, to current volatility (ATR multiples, IV, VIX) and regime rather than using fixed points.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 7 knowledge bases agree.",
-      "consensus": 7,
+      "reason": "High conviction: 9 knowledge bases agree.",
+      "consensus": 9,
       "kbs": [
         "brandon-kioseff",
         "deltatrendtrading",
@@ -532,7 +564,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "inthemoneyadam",
         "matteo-conti",
         "skydweller",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -574,8 +608,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Prefer simple strategies and a few core tools, removing extra indicators and complexity as noise and fragility.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 8 knowledge bases agree.",
-      "consensus": 8,
+      "reason": "High conviction: 9 knowledge bases agree.",
+      "consensus": 9,
       "kbs": [
         "dumbmoneyhunter",
         "ericnomics",
@@ -584,7 +618,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "not-a-lil-fish",
         "patrick-nill",
         "worldclassedge-creators",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -594,14 +629,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "D",
       "reason": "Debated in X09; the debate outcome rule X09 replaces both sides.",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "andrea-cimitan",
         "define-your-risk-instagram",
         "dumbmoneyhunter",
         "enrico-stucchi",
         "not-a-lil-fish",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "quantstackai"
       ]
     },
     {
@@ -628,7 +664,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "D",
       "reason": "Debated in X11; the debate outcome rule X11 replaces both sides.",
-      "consensus": 8,
+      "consensus": 10,
       "kbs": [
         "ericnomics",
         "inthemoneyadam",
@@ -637,7 +673,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "nicholas-crown",
         "trading-fraternity",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "shaantheinvestor-instagram",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -663,8 +701,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Check volume, open interest and bid/ask spreads before trading, and avoid illiquid instruments with wide spreads.",
       "kind": "risk",
       "cls": "A",
-      "reason": "High conviction: 8 knowledge bases agree.",
-      "consensus": 8,
+      "reason": "High conviction: 9 knowledge bases agree.",
+      "consensus": 9,
       "kbs": [
         "bridgingcycles-instagram",
         "imre-gams",
@@ -673,7 +711,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "patrick-nill",
         "quantfinancetogo",
         "serge-hoffmann",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -700,7 +739,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X07; the debate outcome rule X07 replaces both sides.",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "bridgingcycles-instagram",
         "durga-analytics",
@@ -708,7 +747,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "fredy-sarmiento",
         "inthemoneyadam",
         "junnyyang",
-        "trading-fraternity"
+        "trading-fraternity",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -717,8 +757,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Set contract count as the fixed dollar risk divided by the stop distance (plus costs), so every trade risks the same amount.",
       "kind": "sizing",
       "cls": "A",
-      "reason": "High conviction: 9 knowledge bases agree.",
-      "consensus": 9,
+      "reason": "High conviction: 10 knowledge bases agree.",
+      "consensus": 10,
       "kbs": [
         "dumbmoneyhunter",
         "enrico-stucchi",
@@ -728,7 +768,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "smbcapital",
         "trading-verrillo-aleks",
         "worldclassedge-creators",
-        "jay-medrow"
+        "jay-medrow",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -755,14 +796,17 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Treat optimized parameters as curve-fit historical bests: prefer robust parameter regions and validate before trading.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 8 knowledge bases agree.",
+      "consensus": 8,
       "kbs": [
         "brandon-kioseff",
         "enrico-stucchi",
         "matteo-conti",
         "quantfinancetogo",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "josholdmixon-instagram",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -772,14 +816,16 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X03; the debate outcome rule X03 replaces both sides.",
-      "consensus": 6,
+      "consensus": 8,
       "kbs": [
         "define-your-risk-instagram",
         "imre-gams",
         "nicholas-crown",
         "smbcapital",
         "trading-fraternity",
-        "jay-medrow"
+        "jay-medrow",
+        "breadth-gamma-iv",
+        "spreadstrader"
       ]
     },
     {
@@ -838,14 +884,17 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 6,
+      "consensus": 9,
       "kbs": [
         "deltatrendtrading",
         "fabio-valentini",
         "matteo-conti",
         "not-a-lil-fish",
         "quantfinancetogo",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "josholdmixon-instagram",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -855,12 +904,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X09; the debate outcome rule X09 replaces both sides.",
-      "consensus": 4,
+      "consensus": 6,
       "kbs": [
         "jan-smolen",
         "lars-schmeldtenkopf",
         "trading-fraternity",
-        "worldclassedge"
+        "worldclassedge",
+        "spreadstrader",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -884,15 +935,16 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Treat extreme one-sided or consensus positioning, long or short, as a crowded trade vulnerable to sharp reversals and squeezes.",
       "kind": "indicator",
       "cls": "A",
-      "reason": "High conviction: 6 knowledge bases agree.",
-      "consensus": 6,
+      "reason": "High conviction: 7 knowledge bases agree.",
+      "consensus": 7,
       "kbs": [
         "hc-commodities-podcast",
         "junnyyang",
         "kobeissi-letter",
         "nicholas-crown",
         "sparta-commodities",
-        "jay-medrow"
+        "jay-medrow",
+        "vince-quant"
       ]
     },
     {
@@ -902,7 +954,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Debated in X05; the debate outcome rule X05 replaces both sides.",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "damien-wursten",
         "inthemoneyadam",
@@ -910,7 +962,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "junnyyang",
         "lifegoalinvestments",
         "quantfinancetogo",
-        "trading-fraternity"
+        "trading-fraternity",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -919,14 +972,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Expect edges to decay as they become popular or markets become more efficient, and keep searching for new ones.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "andrea-cimitan",
         "jan-smolen",
         "matteo-conti",
         "quantfinancetogo",
-        "trafigura"
+        "trafigura",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -935,14 +989,16 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Evaluate performance by risk-adjusted, durable returns relative to drawdown, not by raw P&L.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 7 knowledge bases agree.",
+      "consensus": 7,
       "kbs": [
         "durga-analytics",
         "fabio-valentini",
         "nicholas-crown",
         "quantfinancetogo",
-        "worldclassedge"
+        "worldclassedge",
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -969,7 +1025,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "exit",
       "cls": "D",
       "reason": "Debated in X12; the debate outcome rule X12 replaces both sides.",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "dumbmoneyhunter",
         "fabio-valentini",
@@ -977,7 +1033,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "inthemoneyadam",
         "smbcapital",
         "tom-vorwald",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -1033,14 +1090,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "brandon-kioseff",
         "inthemoneyadam",
         "matteo-conti",
         "not-a-lil-fish",
         "patrick-nill",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -1050,7 +1108,7 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "sizing",
       "cls": "D",
       "reason": "Debated in X05; the debate outcome rule X05 replaces both sides.",
-      "consensus": 7,
+      "consensus": 8,
       "kbs": [
         "bridgingcycles-instagram",
         "define-your-risk-instagram",
@@ -1058,7 +1116,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "junnyyang",
         "lifegoalinvestments",
         "trading-fraternity",
-        "jay-medrow"
+        "jay-medrow",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -1198,13 +1257,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "time_filter",
       "cls": "D",
       "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 5,
+      "consensus": 6,
       "kbs": [
         "dumbmoneyhunter",
         "fredy-sarmiento",
         "not-a-lil-fish",
         "skydweller",
-        "trading-fraternity"
+        "trading-fraternity",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -1229,12 +1289,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 4,
+      "consensus": 6,
       "kbs": [
         "dumbmoneyhunter",
         "matteo-conti",
         "worldclassedge",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list",
+        "spreadstrader"
       ]
     },
     {
@@ -1243,13 +1305,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Run several uncorrelated strategies, such as trend-following and mean-reversion, so every environment is covered and no single strategy's slump is fatal.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "matteo-conti",
         "quantfinancetogo",
         "worldclassedge",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -1274,12 +1338,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "D",
       "reason": "Futures/commodity spread mean reversion; we trade listed equity options.",
-      "consensus": 4,
+      "consensus": 6,
       "kbs": [
         "deltatrendtrading",
         "durga-analytics",
         "quantfinancetogo",
-        "sparta-commodities"
+        "sparta-commodities",
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -1289,11 +1355,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 3,
+      "consensus": 5,
       "kbs": [
         "deltatrendtrading",
         "matteo-conti",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -1302,14 +1370,17 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Include commissions, spreads and slippage in research, since costs can exhaust small edges.",
       "kind": "risk",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 8 knowledge bases agree.",
+      "consensus": 8,
       "kbs": [
         "deltatrendtrading",
         "matteo-conti",
         "not-a-lil-fish",
         "patrick-nill",
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "josholdmixon-instagram",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -1407,11 +1478,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "entry",
       "cls": "D",
       "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 3,
+      "consensus": 4,
       "kbs": [
         "fabio-valentini",
         "skydweller",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "quantstackai"
       ]
     },
     {
@@ -1463,12 +1535,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "risk",
       "cls": "D",
       "reason": "Prop-firm evaluation pass-probability rule.",
-      "consensus": 4,
+      "consensus": 6,
       "kbs": [
         "deltatrendtrading",
         "matteo-conti",
         "not-a-lil-fish",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "josholdmixon-instagram",
+        "quantstackai"
       ]
     },
     {
@@ -1477,14 +1551,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Never trade on social-media tips or others' callouts; treat them only as a starting point for your own due diligence.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "inthemoneyadam",
         "jaymo-callsbyjmo",
         "junnyyang",
         "lifegoalinvestments",
-        "trading-fraternity"
+        "trading-fraternity",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -1522,8 +1597,8 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trade smaller in more volatile assets or stressed regimes, using volatility targeting.",
       "kind": "sizing",
       "cls": "A",
-      "reason": "High conviction: 7 knowledge bases agree.",
-      "consensus": 7,
+      "reason": "High conviction: 9 knowledge bases agree.",
+      "consensus": 9,
       "kbs": [
         "matteo-conti",
         "nicholas-crown",
@@ -1531,7 +1606,9 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
         "quantfinancetogo",
         "skydweller",
         "jay-medrow",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list",
+        "vince-quant"
       ]
     },
     {
@@ -1569,13 +1646,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Treat volatility or range compression as a precursor to a big move, and enter as price expands away.",
       "kind": "indicator",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "bridgingcycles-instagram",
         "imre-gams",
         "kobeissi-letter",
-        "smbcapital"
+        "smbcapital",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -1585,14 +1663,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "exit",
       "cls": "D",
       "reason": "Scratch-on-hesitation is an intraday tape habit.",
-      "consensus": 6,
+      "consensus": 7,
       "kbs": [
         "imre-gams",
         "inthemoneyadam",
         "junnyyang",
         "trading-verrillo-aleks",
         "worldclassedge",
-        "jay-medrow"
+        "jay-medrow",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -1616,12 +1695,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Explicitly detect the current regime, testing models live if needed, and deploy the strategy that fits it.",
       "kind": "regime",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "deltatrendtrading",
         "fabio-valentini",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -1645,14 +1725,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Exit and accept the loss when fundamentals or physical supply/demand no longer support the position.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "damien-wursten",
         "ericnomics",
         "hc-commodities-podcast",
         "inthemoneyadam",
-        "junnyyang"
+        "junnyyang",
+        "shaantheinvestor-instagram"
       ]
     },
     {
@@ -1808,14 +1889,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Judge decisions by process across a large sample, not by single outcomes or streaks.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "define-your-risk-instagram",
         "deltatrendtrading",
         "imre-gams",
         "not-a-lil-fish",
-        "jay-medrow"
+        "jay-medrow",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -2026,13 +2108,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Sell cash-secured puts, put spreads and covered calls only on quality stocks at strikes where you would be happy to be assigned.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "bridgingcycles-instagram",
         "ericnomics",
         "inthemoneyadam",
-        "jay-medrow"
+        "jay-medrow",
+        "spreadstrader"
       ]
     },
     {
@@ -2057,12 +2140,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trigger exits on closes beyond a structural level or indicator, not on a single intraday pierce.",
       "kind": "exit",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "imre-gams",
         "nicholas-crown",
-        "smbcapital"
+        "smbcapital",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -2181,12 +2265,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Hypothesis-driven research pipeline",
       "rule": "Start from a falsifiable hypothesis and follow a structured research pipeline; use coding tools only to speed testing.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "deltatrendtrading",
-        "matteo-conti"
+        "matteo-conti",
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -2195,13 +2281,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Limit discretionary trading to a short early window and stop for the day after the first trade or profit, because decision quality declines.",
       "kind": "time_filter",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "not-a-lil-fish",
         "worldclassedge",
         "worldclassedge-creators",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "spreadstrader"
       ]
     },
     {
@@ -2307,13 +2394,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Size option positions on the maximum possible loss, so that losing the entire premium is tolerable.",
       "kind": "sizing",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "define-your-risk-instagram",
         "ericnomics",
         "inthemoneyadam",
-        "jay-medrow"
+        "jay-medrow",
+        "breadth-gamma-iv"
       ]
     },
     {
@@ -2323,12 +2411,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 4,
+      "consensus": 6,
       "kbs": [
         "deltatrendtrading",
         "matteo-conti",
         "not-a-lil-fish",
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -2380,14 +2470,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "After an extended or overbought move, stand aside until consolidation forms a new setup.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "inthemoneyadam",
         "junnyyang",
         "kobeissi-letter",
         "lars-schmeldtenkopf",
-        "smbcapital"
+        "smbcapital",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -2642,12 +2733,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Don't trade off moving averages",
       "rule": "Do not use lagging indicators like moving averages as the reason for a trade.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "fredy-sarmiento",
-        "trading-fraternity"
+        "trading-fraternity",
+        "quantstackai",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -2669,14 +2762,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Favor assets with price leadership versus the market, and treat relative weakness as a warning.",
       "kind": "indicator",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "lars-schmeldtenkopf",
         "nicholas-crown",
         "not-a-lil-fish",
         "quantfinancetogo",
-        "smbcapital"
+        "smbcapital",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -2684,12 +2778,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Fit trading to your lifestyle",
       "rule": "Pick strategies that fit your available time and trade around your life, not the reverse.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "bridgingcycles-instagram",
-        "imre-gams"
+        "imre-gams",
+        "spreadstrader"
       ]
     },
     {
@@ -2699,11 +2794,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "exit",
       "cls": "D",
       "reason": "Flat-by-close is an intraday rule (now also day-trade options); our book does not day trade.",
-      "consensus": 3,
+      "consensus": 4,
       "kbs": [
         "brandon-kioseff",
         "inthemoneyadam",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -2769,11 +2865,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "indicator",
       "cls": "D",
       "reason": "0DTE / same-day options are outside our style (short-dated premium is capped at 2% NLV and we do not trade same-day).",
-      "consensus": 3,
+      "consensus": 4,
       "kbs": [
         "andrea-cimitan",
         "worldclassedge-creators",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "breadth-gamma-iv"
       ]
     },
     {
@@ -2808,12 +2905,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "When implied volatility is high, use debit spreads or sell put spreads instead of buying outright options.",
       "kind": "options_structure",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 5 knowledge bases agree.",
+      "consensus": 5,
       "kbs": [
         "define-your-risk-instagram",
         "inthemoneyadam",
-        "trading-fraternity"
+        "trading-fraternity",
+        "breadth-gamma-iv",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -2875,15 +2974,16 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Keep a structured trading journal and review it regularly to improve.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 6 knowledge bases agree.",
-      "consensus": 6,
+      "reason": "High conviction: 7 knowledge bases agree.",
+      "consensus": 7,
       "kbs": [
         "ericnomics",
         "fredy-sarmiento",
         "inthemoneyadam",
         "not-a-lil-fish",
         "jay-medrow",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -3151,11 +3251,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "indicator",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 3,
+      "consensus": 5,
       "kbs": [
         "brandon-kioseff",
         "deltatrendtrading",
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -3410,12 +3512,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trade the size of a data surprise versus consensus, conditioned on quantified thresholds, not the absolute value.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "inthemoneyadam",
         "lars-schmeldtenkopf",
-        "jay-medrow"
+        "jay-medrow",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -3461,10 +3564,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Treat elevated aggregate valuations (Rule of 20, ~21x P/E, Buffett Indicator) as expensive, with low forward returns.",
       "kind": "indicator",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "lifegoalinvestments"
+        "lifegoalinvestments",
+        "shaantheinvestor-instagram"
       ]
     },
     {
@@ -3499,13 +3603,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Take only planned trades where your edge is present and every checklist item is clear; skip impulse trades.",
       "kind": "entry",
       "cls": "A",
-      "reason": "High conviction: 4 knowledge bases agree.",
-      "consensus": 4,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "imre-gams",
         "not-a-lil-fish",
         "smbcapital",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "spreadstrader",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -3541,10 +3647,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "indicator",
       "cls": "C",
       "reason": "Needs: IV term-structure / skew surface and IV-rank history.",
-      "consensus": 2,
+      "consensus": 3,
       "kbs": [
         "lars-schmeldtenkopf",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "breadth-gamma-iv"
       ]
     },
     {
@@ -3764,10 +3871,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Normalize thresholds and features by ATR or percentages to remove scale and volatility bias.",
       "kind": "indicator",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "deltatrendtrading"
+        "deltatrendtrading",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -3851,9 +3959,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "exit",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 1,
+      "consensus": 2,
       "kbs": [
-        "matteo-conti"
+        "matteo-conti",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -3862,10 +3971,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trade reversals only with aligned signals such as momentum divergence, a structure break and a resistance zone, not on overbought readings alone.",
       "kind": "entry",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "imre-gams"
+        "imre-gams",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -3958,12 +4068,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Yield curve recession signal",
       "rule": "Treat a flat yield curve and especially its un-inversion as recession signals.",
       "kind": "regime",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "lifegoalinvestments",
-        "jay-medrow"
+        "jay-medrow",
+        "deepedgeintelligence"
       ]
     },
     {
@@ -4178,12 +4289,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Automate mechanical strategies",
       "rule": "Automate mechanical strategies so human deviations don't invalidate them.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "not-a-lil-fish",
-        "worldclassedge"
+        "worldclassedge",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -4353,10 +4465,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Use the bond market as an indicator rather than a trading vehicle if you cannot trade it well.",
       "kind": "indicator",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "jan-smolen"
+        "jan-smolen",
+        "deepedgeintelligence"
       ]
     },
     {
@@ -4633,12 +4746,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Close near-the-money shorts before expiry",
       "rule": "Close or manage near-the-money short strikes into expiration to avoid pin and assignment risk.",
       "kind": "risk",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "define-your-risk-instagram",
-        "inthemoneyadam"
+        "inthemoneyadam",
+        "breadth-gamma-iv"
       ]
     },
     {
@@ -4719,11 +4833,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Compare to passive benchmark",
       "rule": "Compare strategy results against a relevant passive benchmark.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
-        "deltatrendtrading"
+        "deltatrendtrading",
+        "kish-quant-video-list",
+        "quantstackai"
       ]
     },
     {
@@ -5257,9 +5373,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "sizing",
       "cls": "D",
       "reason": "Debated in X07; the debate outcome rule X07 replaces both sides.",
-      "consensus": 1,
+      "consensus": 2,
       "kbs": [
-        "kobeissi-letter"
+        "kobeissi-letter",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -5847,10 +5964,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Sell defined-risk premium when you expect less movement than priced, and buy options when you expect more.",
       "kind": "options_structure",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -6052,14 +6170,15 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Account for volatility decay in leveraged ETFs.",
       "kind": "wisdom",
       "cls": "A",
-      "reason": "High conviction: 5 knowledge bases agree.",
-      "consensus": 5,
+      "reason": "High conviction: 6 knowledge bases agree.",
+      "consensus": 6,
       "kbs": [
         "inthemoneyadam",
         "jaymo-callsbyjmo",
         "junnyyang",
         "not-a-lil-fish",
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -6237,11 +6356,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Mine academic papers for ideas",
       "rule": "Use academic papers as a hypothesis source, extracting value rather than copying.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
-        "matteo-conti"
+        "matteo-conti",
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -6273,11 +6394,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Monitor strategies across regimes",
       "rule": "Monitor and re-optimize strategies over time because regime changes alter behavior.",
       "kind": "wisdom",
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 1,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "andrea-cimitan"
+        "andrea-cimitan",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -6313,9 +6435,10 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "D",
       "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 1,
+      "consensus": 2,
       "kbs": [
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "quantstackai"
       ]
     },
     {
@@ -6396,12 +6519,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Never stretch risk limits",
       "rule": "Never stretch risk limits temporarily after a good P&L run.",
       "kind": "risk",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "durga-analytics",
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "quantstackai"
       ]
     },
     {
@@ -6434,10 +6558,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Remember that theta decay is non-linear and erodes static ATM long options to zero.",
       "kind": "indicator",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "define-your-risk-instagram"
+        "define-your-risk-instagram",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -6861,10 +6986,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Rebalance delta-neutral hedges as delta changes.",
       "kind": "options_structure",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "deltatrendtrading"
+        "deltatrendtrading",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -6945,10 +7071,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Ensure your research process can reject losing strategies.",
       "kind": "wisdom",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "matteo-conti"
+        "matteo-conti",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -7247,12 +7374,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Size so that no single day's stop or profit changes your life emotionally.",
       "kind": "sizing",
       "cls": "A",
-      "reason": "High conviction: 3 knowledge bases agree.",
-      "consensus": 3,
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "junnyyang",
         "not-a-lil-fish",
-        "worldclassedge-creators"
+        "worldclassedge-creators",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -8282,12 +8410,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Grade trades C to A-plus and size by grade",
       "rule": "Grade each trade from C to A-plus and size up only on A and A-plus setups.",
       "kind": "sizing",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "smbcapital",
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -8489,11 +8618,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Trade new strategies tiny for the first 20 reps",
       "rule": "Trade a new strategy live very small for the first 20 tagged reps before scaling up.",
       "kind": "sizing",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
-        "smbcapital"
+        "smbcapital",
+        "josholdmixon-instagram",
+        "kish-quant-video-list",
+        "spreadstrader"
       ]
     },
     {
@@ -8576,10 +8708,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Buy in-the-money options for a low break-even rather than out-of-the-money options; choose by break-even, not by what you can afford.",
       "kind": "options_structure",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "inthemoneyadam"
+        "inthemoneyadam",
+        "spreadstrader"
       ]
     },
     {
@@ -8782,12 +8915,14 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Buy channel bottom, sell top or middle",
       "rule": "In a price channel, buy near the bottom and sell near the top or middle.",
       "kind": "entry",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 4 knowledge bases agree.",
+      "consensus": 4,
       "kbs": [
         "inthemoneyadam",
-        "junnyyang"
+        "junnyyang",
+        "kish-quant-video-list",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -8937,11 +9072,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Keep a standing cash reserve as dry powder",
       "rule": "Keep a standing cash sleeve (at least about 10%) as dry powder so you can buy when quality assets go on sale instead of being forced to sell.",
       "kind": "sizing",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
-        "junnyyang"
+        "junnyyang",
+        "shaantheinvestor-instagram",
+        "spreadstrader"
       ]
     },
     {
@@ -8974,10 +9111,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Hedge long holdings with a short on a correlated index or risk asset, or offsetting positions, instead of selling the core.",
       "kind": "risk",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "junnyyang"
+        "junnyyang",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -8985,12 +9123,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Core, swing and tactical sleeves",
       "rule": "Split the book into core, swing and tactical sleeves; only the small tactical sleeve reacts to headline weeks.",
       "kind": "entry",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 2 knowledge bases.",
-      "consensus": 2,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
         "junnyyang",
-        "jay-medrow"
+        "jay-medrow",
+        "shaantheinvestor-instagram"
       ]
     },
     {
@@ -9374,11 +9513,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Never bet more than Kelly",
       "rule": "Size bets at or below the Kelly fraction (for even-money bets, the edge), and below full Kelly because the true edge is uncertain; overbetting destroys growth.",
       "kind": "sizing",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "kish-quant-video-list",
+        "vince-quant"
       ]
     },
     {
@@ -9435,10 +9576,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Trade mean reversion only in series with a statistically proven pull back (spreads, ratios, rates), using a strict t-statistic limit of about -3 and the half-life.",
       "kind": "entry",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -9482,11 +9624,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Pair VaR with expected shortfall",
       "rule": "Assume fat tails and add expected shortfall to value at risk, since VaR says nothing about how bad the worst days get.",
       "kind": "risk",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "kish-quant-video-list",
+        "vince-quant"
       ]
     },
     {
@@ -9508,10 +9652,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Hedge short options with delta shares and rebalance repeatedly as delta changes.",
       "kind": "options_structure",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "quantfinancetogo"
+        "quantfinancetogo",
+        "vince-quant"
       ]
     },
     {
@@ -10136,9 +10281,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "kind": "wisdom",
       "cls": "C",
       "reason": "Needs: Logged trade journal + backtest harness.",
-      "consensus": 1,
+      "consensus": 3,
       "kbs": [
-        "not-a-lil-fish"
+        "not-a-lil-fish",
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
       ]
     },
     {
@@ -10543,10 +10690,11 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "rule": "Do not rely on an asset to hedge another when both share the same driver, as gold and equities can.",
       "kind": "risk",
       "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "jay-medrow"
+        "jay-medrow",
+        "quantstackai"
       ]
     },
     {
@@ -11142,11 +11290,13 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Analyze from macro down to the stock",
       "rule": "Analyze top down: macro, regional markets, sector, peers, then the stock.",
       "kind": "wisdom",
-      "cls": "B",
-      "reason": "Fits our style and existing data; 1 knowledge base.",
-      "consensus": 1,
+      "cls": "A",
+      "reason": "High conviction: 3 knowledge bases agree.",
+      "consensus": 3,
       "kbs": [
-        "jay-medrow"
+        "jay-medrow",
+        "deepedgeintelligence",
+        "stock-talk-weekly"
       ]
     },
     {
@@ -11406,11 +11556,12 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "title": "Check regime before blaming yourself",
       "rule": "When a working setup suddenly stops working, first check whether the volatility regime changed before blaming yourself or changing the strategy.",
       "kind": "regime",
-      "cls": "D",
-      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
-      "consensus": 1,
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
       "kbs": [
-        "trading-verrillo-aleks"
+        "trading-verrillo-aleks",
+        "josholdmixon-instagram"
       ]
     },
     {
@@ -11567,6 +11718,5032 @@ export const MASTER_RULES_INDEX_BASE: MasterRulesIndexBase = {
       "consensus": 1,
       "kbs": [
         "trading-verrillo-aleks"
+      ]
+    },
+    {
+      "id": "C890",
+      "title": "Extreme breadth washout precedes bounce",
+      "rule": "Treat fewer than about 10% of S&P 500 stocks above their 20-day average, or a McClellan Oscillator below -80, as an extreme washout that often comes before a sharp relief bounce.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C891",
+      "title": "Washout alone is not a bottom",
+      "rule": "Do not treat a breadth washout as a bottom on its own, because washouts repeat in structural bear markets before the final low.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C892",
+      "title": "Confirm lows with Zweig Breadth Thrust",
+      "rule": "Treat a washout low as confirmed only when the 10-day EMA of NYSE advancing ratio goes from below 0.40 to above 0.615 within 10 days.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C893",
+      "title": "Bounces below 200-day tend to fail",
+      "rule": "Expect a deep washout bounce that stays below the 200-day average without a breadth thrust to fail as a bear-market rally.",
+      "kind": "risk",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C894",
+      "title": "Cross-check NYSE breadth with S&P breadth",
+      "rule": "Cross-check NYSE breadth against common-stock-only S&P 500 breadth (S5FI, S5TH), since rate shocks can drag NYSE breadth down through rate-sensitive issues.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C895",
+      "title": "Check equal-weight before calling washout",
+      "rule": "Before calling a washout in a cap-weighted index, check equal-weight and constituent moving-average participation for megacap divergence.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C896",
+      "title": "Verify breadth indicator definitions",
+      "rule": "Check a breadth indicator's exact formula and issue universe before comparing its historical hit rates across vendors.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C897",
+      "title": "No short-dated calls into unconfirmed washout",
+      "rule": "Do not buy outright short-dated calls into an active, unconfirmed breadth washout, because high IV and rising realized volatility expose them to more downside and IV crush.",
+      "kind": "options_structure",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C898",
+      "title": "Use spreads or longer DTE after confirmed washout",
+      "rule": "Once a washout is confirmed by a breadth thrust or stabilization, prefer call debit spreads or 60-90 DTE structures over single long calls.",
+      "kind": "options_structure",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C899",
+      "title": "Range-bound structures in positive gamma",
+      "rule": "In positive dealer-gamma regimes, prefer near-the-money range-bound defined-risk structures over far out-of-the-money momentum bets.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C900",
+      "title": "Size conservatively in negative gamma",
+      "rule": "In negative-gamma regimes, size conservatively, avoid tight intraday stops, and prefer defined-risk or longer-dated options.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C901",
+      "title": "Distrust naive GEX in flow regimes",
+      "rule": "Distrust naive GEX during retail call-buying waves or customer put selling, because the assumed dealer sign flips.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C902",
+      "title": "Classify IV inversions event vs systemic",
+      "rule": "Before acting on an IV inversion, classify it: event-driven inversions collapse on the event date, while systemic-stress inversions can last days or weeks with high realized volatility, so do not assume an immediate peak.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C903",
+      "title": "Avoid front-month longs when VIX/VIX3M above 1",
+      "rule": "Avoid buying front-month single-leg calls or puts when VIX/VIX3M is above 1.0, because you pay peak implied volatility.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C904",
+      "title": "Go longer-dated during IV inversion",
+      "rule": "During an IV term-structure inversion, prefer longer-dated defined-risk structures, which suffer less vega crush when the curve normalizes.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C905",
+      "title": "Triple confirmation of recovery",
+      "rule": "Confirm a recovery only with a breadth thrust, spot reclaiming the zero-gamma flip, and VIX/VIX3M back below 1.0.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "breadth-gamma-iv"
+      ]
+    },
+    {
+      "id": "C906",
+      "title": "Short index only as tactical hedge",
+      "rule": "Short the index only as a tactical portfolio hedge, never as a long-run bet against it.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C907",
+      "title": "Nasdaq failed breakout is red flag",
+      "rule": "Treat a failed Nasdaq 100 breakout as a first red flag and reduce risk or hedge.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C908",
+      "title": "Skip dip if leader fails demand",
+      "rule": "Do not buy the dip when the strongest sector fails to attract buyers at a key demand zone during a selloff.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C909",
+      "title": "Scale in gradually when VIX is extreme",
+      "rule": "When VIX is above about 35, add to long-term positions gradually and keep cash for lower prices.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C910",
+      "title": "Exit IPO proxy before listing",
+      "rule": "When trading a listed proxy for an upcoming IPO, exit before the IPO debuts because proxies tend to peak before listing.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C911",
+      "title": "PCE print drives growth stocks",
+      "rule": "Read a hotter PCE print as a headwind and a cooler print as a tailwind for high-valuation growth stocks.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C912",
+      "title": "Oil supply spikes rotate sectors",
+      "rule": "When oil rises on supply-risk premium, favour oil producers and expect airlines, transport and cruise lines to suffer most.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C913",
+      "title": "Index inclusion plus high short interest",
+      "rule": "Look for setups combining forced index-inclusion buying, short interest above 20% and a building catalyst.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C914",
+      "title": "Buy strong stocks sold after good earnings",
+      "rule": "Consider buying a fundamentally strong stock that sold off after a strong earnings quarter.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "shaantheinvestor-instagram"
+      ]
+    },
+    {
+      "id": "C915",
+      "title": "Skip GHLZ intraday momentum on SPY",
+      "rule": "Do not trade the first-half-hour-predicts-last-half-hour intraday momentum rule on SPY, because the edge faded after 2012.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "davidtrades-model-instagram"
+      ]
+    },
+    {
+      "id": "C916",
+      "title": "ZAB noise-band rule unvalidated",
+      "rule": "Treat the noise-band plus VWAP-trail momentum rule as unvalidated until its pre-registered study confirms it.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "davidtrades-model-instagram"
+      ]
+    },
+    {
+      "id": "C917",
+      "title": "High SOFR signals funding stress",
+      "rule": "Treat a high SOFR as funding stress and a risk-off signal.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C918",
+      "title": "Use COT data to gauge crowding",
+      "rule": "Use weekly CFTC Commitment of Traders positioning and open interest to judge how crowded or exhausted a futures trade is.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: CFTC COT positioning feed.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C919",
+      "title": "Big VIX spike signals exhaustion",
+      "rule": "Read a big VIX spike as likely panic exhaustion, since professionals have usually already hedged.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C920",
+      "title": "Low VIX is not safety",
+      "rule": "Do not read a quiet, low VIX as safety, because selling can happen unseen.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C921",
+      "title": "Read NYSE TICK extremes",
+      "rule": "Read NYSE TICK near +800 as broad buying and near -800 as broad selling.",
+      "kind": "indicator",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C922",
+      "title": "Unconfirmed TICK signals exhaustion",
+      "rule": "When price ticks higher but the NYSE TICK does not confirm, treat the bounce as running out of steam.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C923",
+      "title": "Use Red Book over sentiment",
+      "rule": "Gauge the consumer by weekly Red Book sales rather than consumer sentiment surveys.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: Sentiment series (put/call, AAII, VIX term).",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C924",
+      "title": "Review scheduled events before the open",
+      "rule": "Before the US open, check the day's scheduled events such as earnings releases and Fed actions.",
+      "kind": "time_filter",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C925",
+      "title": "Treat Jackson Hole speech as event risk",
+      "rule": "Treat the Jackson Hole Fed chair speech as a market-moving event, because a single hawkish or dovish line can move the market sharply.",
+      "kind": "time_filter",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C926",
+      "title": "Watch short yields for Fed",
+      "rule": "Anticipate Fed policy by watching Treasury yields from 3-month bills to 2-year notes.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C927",
+      "title": "Positive divergence long entry",
+      "rule": "Treat a price lower low with a higher indicator reading as a possible long entry, and backtest it before relying on it.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "deepedgeintelligence"
+      ]
+    },
+    {
+      "id": "C928",
+      "title": "Pick pairs from same sector",
+      "rule": "Build pair candidates from economically linked stocks in the same sector or industry before testing, and prefer cointegration over correlation.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C929",
+      "title": "Explainable economic link for pairs",
+      "rule": "Only trade a pair whose economic link you can explain in plain terms without statistics.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C930",
+      "title": "Pairs universe liquidity screen",
+      "rule": "Screen pair stocks for price of at least $50, average volume above 1 million shares, shortability and a listing history of a few years.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C931",
+      "title": "Regress log prices for pair spread",
+      "rule": "Regress the log prices of the two legs to get alpha, the hedge ratio and the spread.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C932",
+      "title": "Confirm cointegration with a test",
+      "rule": "Do not judge a spread by eye; a trending spread is unlikely to be cointegrated, but confirm it with a formal test such as ADF.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C933",
+      "title": "Use rolling Kalman hedge ratio",
+      "rule": "Replace a constant cointegration beta with a rolling (Kalman filter) hedge ratio, because pairs drift in and out of cointegration.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C934",
+      "title": "Check hedge ratio stability for pairs",
+      "rule": "Even if a pair tests cointegrated, check the (Kalman) hedge ratio; if it trends or flips rather than staying stable, treat the pair as unreliable.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C935",
+      "title": "HMM detects pair regime change",
+      "rule": "Use a hidden Markov model on spread, volatility or returns to detect when a pair falls out of cointegration.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C936",
+      "title": "Trade spread band crossings",
+      "rule": "When the spread crosses above the upper band go long X and short Y, and when it crosses below the lower band go short X and long Y.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C937",
+      "title": "Exit pair near spread mean",
+      "rule": "Close a pairs trade when the spread returns near its mean, using an inner exit bound about half a standard deviation from the mean.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C938",
+      "title": "Avoid crowded retail pairs",
+      "rule": "Avoid the most popular retail pairs, such as near-identical ETFs, because funds trade against retail there and moves snap back fast.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C939",
+      "title": "Denoise the spread before signalling",
+      "rule": "Consider denoising the spread, for example with a wavelet low-pass, so small noisy moves do not trigger trades.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C940",
+      "title": "Trade a portfolio of many pairs",
+      "rule": "Never trade a single pair; run many pairs so individual cointegration breakdowns average out.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C941",
+      "title": "Long cointegration rarely persists",
+      "rule": "Do not assume cointegration holds over five-year lookbacks, because it rarely lasts that long.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C942",
+      "title": "HMM regimes as filter only",
+      "rule": "Use hidden Markov regime estimates as a pre-trade filter, not as a standalone trading signal.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C943",
+      "title": "Define concrete rules before testing",
+      "rule": "Write concrete, testable entry, exit and trigger rules before looking at any results.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "josholdmixon-instagram",
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C944",
+      "title": "Every strategy needs explicit risk limits",
+      "rule": "Give every strategy explicit risk management such as maximum position sizes, stop losses or exposure limits.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C945",
+      "title": "Use penalized regression for correlated features",
+      "rule": "With correlated, similar features, use a penalized fit such as ridge regression instead of OLS.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C946",
+      "title": "Match forecast and target horizons",
+      "rule": "Compare a forecast with a target of the same horizon.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C947",
+      "title": "Beginner core-satellite allocation",
+      "rule": "As a beginner, hold about 80% in an S&P 500 fund and 10% in a 2x S&P fund for full market exposure, and use only about 10% for active trading.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C948",
+      "title": "Grow trading capital as strategies prove out",
+      "rule": "Increase the share of capital used for active trading only as your strategies demonstrate they work.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C949",
+      "title": "Inverted IV term means event",
+      "rule": "When 30-day implied volatility is much higher than 60-day, assume the market is pricing a near-term event.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C950",
+      "title": "Measure fear as put skew",
+      "rule": "Measure priced fear as 25-delta put implied volatility minus at-the-money implied volatility.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: IV term-structure / skew surface and IV-rank history.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C951",
+      "title": "Use 25-delta risk reversal for skew",
+      "rule": "Compare downside and upside skew using the 25-delta put versus 25-delta call, not arbitrary strikes.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: IV term-structure / skew surface and IV-rank history.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C952",
+      "title": "Volatility is a surface",
+      "rule": "Never treat a symbol as having one volatility; specify strike and expiration and compare against the surface.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C953",
+      "title": "Trade the strike that breaks from neighbours",
+      "rule": "Do not trade the largest model-market difference; trade only a contract whose deviation breaks clearly from neighbouring strikes and is large enough to be worth it.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C954",
+      "title": "Calibrate the vol model before trading",
+      "rule": "Before looking for trades, fit the model level at the ATM anchor to near-zero error, then fit skew and wings so model-market differences are uniform across strikes, investigating any failure to fit.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: IV term-structure / skew surface and IV-rank history.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C955",
+      "title": "Target reversion to neighbours' range",
+      "rule": "For a pattern-break options trade, target the deviation shrinking back toward its neighbours' range rather than all the way to model price.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C956",
+      "title": "Model mispricing is not a trade",
+      "rule": "Do not treat a market price below your model price as a trade by itself.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C957",
+      "title": "Exit when model gap turns against you",
+      "rule": "Exit a model-based options trade when the model price drops or the price gap starts moving against you.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C958",
+      "title": "Risk-neutral crash odds overstate reality",
+      "rule": "Treat option-implied crash probabilities as possibly higher than real-world odds, because investors overpay for protection.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C959",
+      "title": "TLT put on hawkish Fed under-reaction",
+      "rule": "Buy a TLT put only when prediction-market Fed expectations turn more hawkish, the model expects TLT to fall, and TLT has under-reacted.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C960",
+      "title": "Standardize under-reaction residuals",
+      "rule": "Standardize the gap between the expected and actual move to judge whether an under-reaction is actually unusual.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C961",
+      "title": "Predict tick from queue depletion",
+      "rule": "Estimate which best-quote queue empties first, accounting for limit orders, cancellations and market orders rather than imbalance alone, and expect an up-tick when its probability exceeds 50%.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C962",
+      "title": "Cross-venue arb needs minimum edge and size",
+      "rule": "Act on cross-venue arbitrage only when one venue's bid exceeds the other's ask by a minimum edge with a minimum size.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C963",
+      "title": "Limit arbitrage size to sellable quantity",
+      "rule": "In arbitrage, buy only as many shares as you can immediately sell on the other venue to avoid inventory risk.",
+      "kind": "sizing",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C964",
+      "title": "Market making carries adverse selection",
+      "rule": "Account for inventory risk and adverse selection when market making, since counterparties may be better informed.",
+      "kind": "risk",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C965",
+      "title": "Use richer models to find mispricing",
+      "rule": "Look for options mispricing where a stochastic-volatility-plus-jumps model prices volatility and jump risk differently from the market.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "josholdmixon-instagram"
+      ]
+    },
+    {
+      "id": "C966",
+      "title": "Volatility-scaled continuous forecasts",
+      "rule": "Express each rule as a continuous forecast proportional to expected Sharpe, scaled to an average absolute value of 10, and size positions as forecast divided by instrument volatility.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C967",
+      "title": "Trend forecast as slope over volatility",
+      "rule": "Compute trend as the rolling OLS price slope over n days divided by volatility, giving no estimate until at least n/4 days of data exist.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C968",
+      "title": "Trade a family of lookbacks",
+      "rule": "Rather than picking one optimal parameter, trade a family of fast-to-slow parameter sets (e.g., 10-200 day windows spaced by √2) as one unit.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C969",
+      "title": "Trend lookback a fraction of trend length",
+      "rule": "Set the trend lookback to about one-half to one-third of the expected trend length and avoid lookbacks that are too slow.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C970",
+      "title": "Cap trading costs in Sharpe units",
+      "rule": "Drop rule variations whose trading costs exceed about 13 bp of Sharpe ratio per year.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C971",
+      "title": "Cost per trade in risk units",
+      "rule": "Estimate cost per trade as commission plus half the spread, divided by volatility.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C972",
+      "title": "Don't abandon rules on short underperformance",
+      "rule": "Keep a systematic rule through poor recent results, because short-run underperformance is not statistically significant.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C973",
+      "title": "Gamma scalp a delta-hedged long call",
+      "rule": "Hedge a long ATM call with short stock, buying stock on dips and selling on rallies to stay delta neutral and offset theta decay.",
+      "kind": "options_structure",
+      "cls": "D",
+      "reason": "Intraday scalping / prop-firm rules do not fit a swing and LEAPS options book.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C974",
+      "title": "Gamma scalping must beat theta",
+      "rule": "When delta-hedging long options, make sure scalping profits exceed daily theta plus transaction costs.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday scalping / prop-firm rules do not fit a swing and LEAPS options book.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C975",
+      "title": "Fade lopsided retail positioning",
+      "rule": "When retail traders are about 75% positioned one way, trade the opposite side.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C976",
+      "title": "Expect strategy-type return profiles",
+      "rule": "Expect trend/momentum (divergent) strategies to lose small often and win big rarely, and mean-reversion (convergent) the reverse, and combine both.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C977",
+      "title": "Clean and adjust price data",
+      "rule": "Before analysis, check data for errors, duplicates, gaps and spikes, and use split/dividend-adjusted prices.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C978",
+      "title": "ATR measures volatility, not direction",
+      "rule": "Measure volatility with ATR (default 14) from true range, and read rising ATR only as expanding volatility, never as a direction signal.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C979",
+      "title": "Build portfolio across market states",
+      "rule": "Label periods as up, down or sideways and combine algorithms that excel in each state, keeping one that loses in a state if it adds strongly elsewhere and others cover it.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C980",
+      "title": "Require enough data and trades per rule",
+      "rule": "Require long history, many trades relative to rules and parameters, few indicators, included costs, and performance across similar instruments.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C981",
+      "title": "Require economic significance",
+      "rule": "Require economic as well as statistical significance, and reject patterns that only capture the bid-ask spread.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C982",
+      "title": "MACD beat Alligator on Tesla (backtest)",
+      "rule": "Record only, not a rule: one backtest found a MACD strategy outperformed a Williams Alligator strategy on Tesla in 2018-2021.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C983",
+      "title": "Commodity pairs by minimum distance",
+      "rule": "Pair futures within a commodity group by smallest squared normalized-price deviation over 12 months and open when the spread diverges beyond 2 standard deviations.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C984",
+      "title": "Trade pre-earnings drift deciles",
+      "rule": "Go long the top decile and short the bottom decile by past earnings-announcement returns during the five days before announcements.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C985",
+      "title": "High t-stat bar for new factors",
+      "rule": "Require a t-statistic of at least 3.0 for a new factor, and test it with microcaps removed and value-weighted returns.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C986",
+      "title": "Trade momentum across anomalies",
+      "rule": "Rank published anomalies by past performance and trade only the best-performing ones.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C987",
+      "title": "Seek edge in research blind spots",
+      "rule": "Look for edge in under-researched areas such as bonds, REITs, FX, intraday and short-only, where there is less competition.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C988",
+      "title": "Optimize for Sharpe, not MSE",
+      "rule": "Optimize models for Sharpe ratio rather than price-prediction error.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C989",
+      "title": "Track record length scales with 1/Sharpe²",
+      "rule": "Expect proof of profitability to take about 1/Sharpe² years, so favour frequent-trading models that give more samples.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C990",
+      "title": "Connors RSI(2) above 200-day SMA",
+      "rule": "Trade long only above the 200-day SMA, buying when RSI(2) drops under 10 and adding under 6.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Breadth series (partial in market-health).",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C991",
+      "title": "RSI(2) exit on SMA closes",
+      "rule": "Close an RSI(2) mean-reversion long on a close above the 5-day SMA or a close below the 200-day SMA.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C992",
+      "title": "Execute backtest signals on next bar",
+      "rule": "In backtests, fill signals at the next bar (previous position times current return), never on the signal bar.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C993",
+      "title": "Use ML to blend alphas, not predict returns",
+      "rule": "Use machine learning to combine independent alpha sources or classify regimes, not to predict from raw past returns.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C994",
+      "title": "Avoid ML on small daily datasets",
+      "rule": "Avoid ML on daily bars, technical indicators and single series; prefer large data such as tick, order-book, fundamental, news or cross-sectional.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C995",
+      "title": "Bootstrap preserving autocorrelation",
+      "rule": "When resampling time series, use a method that preserves serial autocorrelation.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C996",
+      "title": "Prefer feature-selecting models",
+      "rule": "Reduce features and prefer feature-selecting models over neural networks in non-stationary markets.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C997",
+      "title": "Sentiment ML long/short with 20-day hold",
+      "rule": "Use separate up/down classification trees on social sentiment and other factors to enter five positions daily and exit each after 20 days, expecting live results below paper.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C998",
+      "title": "Small prediction correlation can suffice",
+      "rule": "Treat a prediction-to-outcome correlation around 0.12 as enough to trade profitably after costs.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C999",
+      "title": "Regularize KNN and trees",
+      "rule": "Control ML overfitting with larger k or leaf sizes and normalize features for KNN.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1000",
+      "title": "Prove predictive power before backtesting",
+      "rule": "Test indicators and signals for predictive power on their own first, and build a strategy only after evidence of edge.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1001",
+      "title": "Avoid unjustified rules and parameters",
+      "rule": "Keep rules few, base parameter ranges on economic rationale, and do not add indicators, stops or tuning without theory.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1002",
+      "title": "Rainfall signal is not tradable as is",
+      "rule": "Treat the HQ rainfall long/short signal (short above 0.85, buy below 0.15, weekly rebalance) as a zero-cost backtest idea, not a tradable strategy.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1003",
+      "title": "Check factor quantile monotonicity",
+      "rule": "Use quantile analysis to confirm signal direction and monotonicity, flipping inverse signals.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1004",
+      "title": "Warm up indicators before trading",
+      "rule": "Warm up indicators with history and confirm readiness before acting on signals.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1005",
+      "title": "Evaluate entries and exits separately",
+      "rule": "Test entries with naive exits and exits with random entries.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1006",
+      "title": "Shorter holds tested better",
+      "rule": "Test shorter holding times for swing entries, since they were typically found superior to longer holds.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1007",
+      "title": "Size from Monte Carlo worst cases",
+      "rule": "Size from Monte Carlo bootstrap worst-case drawdowns, not the single backtest path.",
+      "kind": "sizing",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1008",
+      "title": "Keep backup infrastructure for automation",
+      "rule": "Maintain backup power, internet and computer for automated trading to limit operational risk.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1009",
+      "title": "Combine many independent weak models",
+      "rule": "Combine many independent low signal-to-noise models to raise combined signal-to-noise.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1010",
+      "title": "Buy moderate Nasdaq gap downs",
+      "rule": "Buy the Nasdaq Composite at the open after a -1% to -2% overnight gap and exit at the close.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1011",
+      "title": "Sweep slippage to break-even",
+      "rule": "Sweep slippage assumptions to find the cost level at which the strategy stops being profitable.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1012",
+      "title": "Sharpe thresholds for strategies",
+      "rule": "Skip strategies with Sharpe below about 1 or long drawdowns, treat 1–3 as good, higher bars for prop shops, and very high Sharpe as low capacity.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1013",
+      "title": "Use rolling beta and Sharpe",
+      "rule": "Judge strategies with rolling beta and rolling Sharpe rather than single summary numbers, since markets are non-stationary.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1014",
+      "title": "Market-neutral means near-zero exposures",
+      "rule": "For market-neutral allocations, require beta and factor exposures near zero.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1015",
+      "title": "Cross-exchange arbitrage suffers leg lag",
+      "rule": "Account for price moves between legs in cross-exchange crypto arbitrage and compare only widely listed pairs.",
+      "kind": "risk",
+      "cls": "D",
+      "reason": "We do not trade crypto.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1016",
+      "title": "Distrust limit-fill backtests",
+      "rule": "Distrust backtests relying on limit-order fills and prefer strategies profitable with market orders.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1017",
+      "title": "Use survivorship-bias-free data",
+      "rule": "Backtest stock strategies on survivorship-free, point-in-time universes including delisted names.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1018",
+      "title": "Prevent look-ahead bias",
+      "rule": "Avoid look-ahead bias by using only past data (rolling estimates, no full-sample fits or same-day highs/lows) and verifying truncation does not change earlier positions.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1019",
+      "title": "SPY 5/15 SMA close rule",
+      "rule": "Just before the close, buy SPY if the 5-day SMA is above the 15-day SMA, otherwise sell.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1020",
+      "title": "Validate in event-driven backtester",
+      "rule": "Use vectorized backtests only as a first filter and validate in an event-driven, portfolio-aware engine sharing code with live trading.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1021",
+      "title": "Being early equals being wrong",
+      "rule": "Treat alpha as skill in timing, selection and sizing, since being right too early is being wrong.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1022",
+      "title": "Model costs from quotes and depth",
+      "rule": "Model transaction costs from bid/ask quotes and order book size, not a flat assumption.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1023",
+      "title": "Live shortfall means unrealistic backtest",
+      "rule": "If live results fall far below a high-Sharpe backtest, conclude the backtest was unrealistic.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1024",
+      "title": "Develop signal, allocation, execution in order",
+      "rule": "Develop and measure signal, risk allocation and execution separately, not working on execution until the signal is good.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1025",
+      "title": "A/B test execution when edge is thin",
+      "rule": "When edge per unit is thin, A/B test execution algorithms.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1026",
+      "title": "High Sharpe from many modest bets",
+      "rule": "Expect high-Sharpe strategies to win only slightly over half of trades but most days through many independent bets.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1027",
+      "title": "Filter out bad trades",
+      "rule": "Improve simple strategies by adding filters (e.g., a random-forest overlay) that remove bad trades rather than adding complexity.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1028",
+      "title": "Split large orders",
+      "rule": "Split large orders into small pieces to reduce slippage.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1029",
+      "title": "Trade FX in its active session",
+      "rule": "Account for session timing and seasonality in FX, for example by focusing EUR trading on the London session.",
+      "kind": "time_filter",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1030",
+      "title": "Select pairs by cointegration",
+      "rule": "Select pairs by cointegration rather than correlation alone.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1031",
+      "title": "Test on synthetic price series",
+      "rule": "Test strategies on synthetic series with controlled trend signal-to-noise, especially when history is short.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1032",
+      "title": "Prefer retail-heavy emerging markets",
+      "rule": "Prefer emerging, retail-dominated markets for higher signal-to-noise and less institutional competition.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1033",
+      "title": "Fitness threshold for data mining",
+      "rule": "When data mining signals, require a fitness threshold such as profit factor above 2.5 plus out-of-sample splits and cross-validation.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1034",
+      "title": "Prefer non-parametric counting signals",
+      "rule": "Prefer non-parametric counting signals, such as consecutive higher highs, over optimized lookback parameters.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1035",
+      "title": "Simulate degraded win rate by reshuffling",
+      "rule": "Reshuffle trades and simulate a degraded win rate to get the outcome distribution for the next N trades.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1036",
+      "title": "Prefer asymmetric risk-reward",
+      "rule": "Accept a lower win rate in exchange for wins larger than losses.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1037",
+      "title": "Confirm cointegration before pairs trading",
+      "rule": "Confirm cointegration with ADF or Johansen tests, then buy the underperforming leg and sell the outperforming one.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1038",
+      "title": "EMA 10/20 crossover",
+      "rule": "Buy when EMA(10) crosses above EMA(20) and sell when it crosses below.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1039",
+      "title": "Split large orders to hide size",
+      "rule": "Split large orders into small random pieces spread over time and venues to hide size.",
+      "kind": "risk",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1040",
+      "title": "Measure crypto data latency",
+      "rule": "Record event time separately from receive time and measure latency in crypto data.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "We do not trade crypto.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1041",
+      "title": "Measure signals by information coefficient",
+      "rule": "Measure signals by rank correlation with forward returns that survives constraints and execution.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1042",
+      "title": "Alpha is residual to known factors",
+      "rule": "Regress new models or indicators on known factors and existing alphas, counting only the residual as alpha.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1043",
+      "title": "Backtests check frictions, not predictiveness",
+      "rule": "Use backtests to check survival of frictions and validate predictiveness in exploration and out-of-sample.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1044",
+      "title": "Check risk constraints don't kill alpha",
+      "rule": "Check whether risk-constrained weights drift far from the model's preferred weights.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1045",
+      "title": "Red-candle ES dip buy failed",
+      "rule": "Do not trade buying daily ES after a red candle with a green-candle, $500 target or $200 stop exit; it lost money over about 1,500 trades in testing from 2003 to 2016.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1046",
+      "title": "Fair-price envelope breakout",
+      "rule": "Reset a fair-price level after large moves, build envelopes around it, and take a position when price breaks an envelope.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1047",
+      "title": "Beginners use liquid instruments",
+      "rule": "Test on liquid instruments and expect slippage versus backtest, e.g. on gap opens.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1048",
+      "title": "Use permutation tests before out-of-sample",
+      "rule": "Run in-sample and walk-forward permutation tests, rejecting strategies with p above about 1%, before using out-of-sample data.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1049",
+      "title": "Donchian breakout failed walk-forward test",
+      "rule": "Do not trade a Donchian breakout on hourly BTC that passes in-sample permutation but fails walk-forward permutation.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1050",
+      "title": "Pick lookbacks from a plateau",
+      "rule": "Do not optimize indicator lookbacks; choose one from a plateau range where many values perform decently and keep it fixed.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1051",
+      "title": "Score with bar-level returns",
+      "rule": "Score strategies with bar-level returns rather than per-trade returns.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1052",
+      "title": "Reject obviously overfit results",
+      "rule": "Reject in-sample results that are obviously overfit, such as 100% win rates or data leaks.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1053",
+      "title": "Match calibration sample to frequency",
+      "rule": "Use short samples only for HFT and calibrate low-frequency strategies on 5–10+ years covering full cycles.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Seasonality / cycle module.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1054",
+      "title": "Crude momentum demo (hypothetical)",
+      "rule": "Record only, not a rule: a demo crude-oil momentum strategy with a $2,500 stop and a $5,000 target, with illustrative hypothetical results.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1055",
+      "title": "Check backtest sensitivity",
+      "rule": "Check sensitivity to start date, capacity and benchmark, and whether you can tolerate the drawdowns.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1056",
+      "title": "Maintain a strategy pipeline",
+      "rule": "Assume all strategies decay and keep developing new ones plus risk infrastructure.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1057",
+      "title": "1-minute price/volume momentum entry",
+      "rule": "Buy when the 3-period price and volume averages are above their 8-period averages with two higher closes, and short the mirror.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1058",
+      "title": "Accelerated ROC momentum exit",
+      "rule": "Exit a momentum trade when the change in 5-period log-return ROC moves against the position twice in a row.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1059",
+      "title": "HFT exits avoid lagging indicators",
+      "rule": "In HFT momentum, do not base exits on lagging indicators and post quotes rather than hitting the market, since costs dominate thin targets.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1060",
+      "title": "Be wary of automated news signals",
+      "rule": "Treat automated news and social signals cautiously, since misread or fake headlines trigger false momentum trades.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1061",
+      "title": "8-EMA, SAR and Stochastic trend setup",
+      "rule": "Go long (or short) when a candle closes above (below) the 8 EMA, SAR is on the matching side and Stochastic confirms, and stay out if any of the three disagrees.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1062",
+      "title": "Skip trend signals at Stochastic extremes",
+      "rule": "Skip longs when Stochastic is above 80 and shorts when it is below 20.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1063",
+      "title": "Sell before buying when rebalancing",
+      "rule": "With fixed cash, sequence rebalancing so reductions and sales execute before increases.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1064",
+      "title": "Debounce crossover signals",
+      "rule": "Debounce moving-average crossover signals so they cannot flip many times a day, because each flip pays fees.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1065",
+      "title": "Filtered MA mean reversion",
+      "rule": "Sell when the 30-day MA is above the 90-day MA and buy when it is below, but only when the gap exceeds one standard deviation.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1066",
+      "title": "Prefer well-executed standard signals",
+      "rule": "Prefer a standard signal with good parameters and execution over a novel poorly optimized one.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1067",
+      "title": "Quote the Granger-leading leg",
+      "rule": "Use Granger causality to find the leading leg of a pair, quote passively in it and hedge in the lagging leg to cut slippage.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1068",
+      "title": "Simulate passive fills realistically",
+      "rule": "When backtesting passive quoting, simulate fills by comparing the resting quote with the last traded price instead of assuming fills.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1069",
+      "title": "Use correlation analogs for bias",
+      "rule": "Correlate the last 20-50 days with every past window and use the average forward path of the top-10 matches as a bias.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1070",
+      "title": "Confirm analogs with second market",
+      "rule": "Count an analog period only if a second market also matched, and use the result as a bias combined with discretion, not a signal.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1071",
+      "title": "Volatile non-penny stocks for breakouts",
+      "rule": "For intraday breakouts, pick high-volatility stocks and exclude penny stocks.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1072",
+      "title": "Line-of-least-resistance filter",
+      "rule": "Take longs only when the close is above the high of two days ago, and shorts only when it is below the low of two days ago.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1073",
+      "title": "SMA crossover with RSI filter failed",
+      "rule": "Do not rely on fast/slow SMA crossover systems on daily stocks; backtests lost money even after optimization and with an RSI 30-70 filter.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1074",
+      "title": "Global 8% stop and 12% target",
+      "rule": "Apply a global 8% stop loss and 12% profit target to every trade of the automated strategy.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1075",
+      "title": "Stops suit trend following, not mean reversion",
+      "rule": "Use stop losses in trend-following strategies, recognising they are harder to apply to mean reversion.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1076",
+      "title": "Conservative futures slippage",
+      "rule": "Charge futures backtests slippage of about 5% of the day's high-low range.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1077",
+      "title": "Prefer low turnover after costs",
+      "rule": "Prefer low-turnover strategies, since frequent trading often turns zero-cost profits into losses after costs.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1078",
+      "title": "Predict categories with simple voting models",
+      "rule": "Predict return categories with simple models and vote across several predictions.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1079",
+      "title": "Detect overfitting via train-test gap",
+      "rule": "Compare training and test error and reject non-reproducible algorithms.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1080",
+      "title": "Try ATR filter before HMM",
+      "rule": "Try a simple ATR volatility regime filter before a complex model, as it can capture most of an HMM's benefit.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1081",
+      "title": "Paper-trade strategies nearing drawdown limits",
+      "rule": "Set drawdown and losing-streak thresholds from worst out-of-sample results and move a live strategy to paper when it nears them.",
+      "kind": "risk",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1082",
+      "title": "Fixed pip TP/SL cut drawdown",
+      "rule": "Consider fixed take-profit and stop-loss levels (e.g. 100 pips on AUD/USD daily) to reduce drawdown.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1083",
+      "title": "9/24 EMA with RSI 60/40",
+      "rule": "Go long when 9 EMA > 24 EMA and RSI > 60, short when 9 EMA < 24 EMA and RSI < 40, and exit on the RSI condition.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1084",
+      "title": "Compounding backtest profit claim (unverified)",
+      "rule": "Record only, not a rule: a backtest claims that reinvesting realized P&L into trade size raised profit about sixfold versus fixed sizing.",
+      "kind": "sizing",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1085",
+      "title": "Hedge volatility spikes with VIX longs",
+      "rule": "Hedge a portfolio against volatility spikes with long VIX derivative positions.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1086",
+      "title": "Bollinger low-volatility breakouts",
+      "rule": "Use Bollinger Bands to find low-volatility phases and scan for breakouts from them.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1087",
+      "title": "Absolute momentum long/short",
+      "rule": "Go long if price is above its level F periods ago and short otherwise.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1088",
+      "title": "Reconcile automated systems daily",
+      "rule": "Monitor automated systems daily, reconciling trades and comparing live with simulated performance.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1089",
+      "title": "Don't chase short-term winning records",
+      "rule": "Do not allocate on short-term winning records; use short-term results only to gradually cut allocation.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1090",
+      "title": "Crypto grid market making",
+      "rule": "When a resting grid buy fills, place a sell a fixed profit above it and a new buy one interval below.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "We do not trade crypto.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1091",
+      "title": "Size grid spacing to survive a crash",
+      "rule": "Set the grid buy-down interval from a chosen free-fall hedge (about 30-33%), account balance, trade size and price so cash is not exhausted in a crash.",
+      "kind": "sizing",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1092",
+      "title": "Use maker limit orders to avoid fees",
+      "rule": "Use resting maker limit orders in market-making bots so you rarely pay taker fees under maker-taker pricing.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1093",
+      "title": "Long-only fast/slow SMA trend",
+      "rule": "Be long when the 5-period SMA is above the 15-period SMA and flat otherwise, and validate it out of sample before using it.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1094",
+      "title": "Manage risk at portfolio level",
+      "rule": "Cap positions by ADV share, limit sector exposure, and add strategies only if they lower risk or raise expected return.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1095",
+      "title": "Crypto moving average reversal",
+      "rule": "Buy after price drops below the moving average and turns back up, and exit when it crosses back over (exits early, no stop).",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "We do not trade crypto.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1096",
+      "title": "Run bots in print-only mode first",
+      "rule": "Before sending real orders, run a bot in print-only mode showing where it would buy and sell, so you can check its logic.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Crypto-only rule; we do not trade crypto.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1097",
+      "title": "Don't trust ADF blindly",
+      "rule": "Do not trust a stationarity test blindly, since periodic mean trends can pass as stationary.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1098",
+      "title": "Short daily RSI 80",
+      "rule": "Short when daily RSI hits 80, target the 20-day MA and stop one ATR above entry.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1099",
+      "title": "Test discretionary rules on many examples",
+      "rule": "Check a discretionary rule on at least 10, ideally 20-30, historical examples other than the one it came from before trusting it.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1100",
+      "title": "RSI thresholds depend on regime",
+      "rule": "Adapt RSI overbought/oversold levels to the market and regime rather than using fixed levels like buying at 30.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1101",
+      "title": "Avoid repainting smoother signals",
+      "rule": "Do not use signals from smoothers that revise history, such as kernel regression turning points, because they create look-ahead bias.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1102",
+      "title": "Use mark-to-market equity curves",
+      "rule": "Evaluate strategies on a mark-to-market equity curve rather than closed-trade equity so open-trade drawdowns are visible.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1103",
+      "title": "Recalibrate models on a rolling schedule",
+      "rule": "Refit the model on a rolling schedule (e.g. about every 120 hours) instead of fitting once.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1104",
+      "title": "Cross-validate on related markets",
+      "rule": "Test a system on related markets (e.g. other currencies) and gain confidence only if it passes there too.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1105",
+      "title": "Long-short StockTwits sentiment",
+      "rule": "Go long stocks with a high 3-day average bull-minus-bear sentiment score and short those with a low score, while noting long drawdowns even before costs.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Opening share shorts is forbidden by the options-only rule (Crown copy book excepted).",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1106",
+      "title": "Wait for enough out-of-sample trades",
+      "rule": "Do not judge live or walk-forward performance until out-of-sample trades reach at least 10% of the backtest trade count.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1107",
+      "title": "Pair negatively correlated algorithms",
+      "rule": "Pair negatively correlated strategies (e.g. long ES with 10-year notes) to make the package direction agnostic.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1108",
+      "title": "AR(1) sign shows regime",
+      "rule": "Fit an AR(1) of next return on last return, reading a negative weight as mean reversion and a positive weight as momentum.",
+      "kind": "indicator",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1109",
+      "title": "Use mid price as signal input",
+      "rule": "Use the mid price rather than the last trade as the signal input to avoid bid-ask bounce noise.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1110",
+      "title": "Skew quotes toward predicted mid move",
+      "rule": "When market making, skew quotes in the direction of the forecast mid-price move.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1111",
+      "title": "Same code for research and live",
+      "rule": "Use the same code for research and live trading to avoid translation errors.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1112",
+      "title": "Forecast volatility from historical volatility",
+      "rule": "Use historical volatility to predict future volatility, such as short-squeeze risk.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1113",
+      "title": "Beware value traps in screens",
+      "rule": "In valuation screens, avoid stocks cheap for a reason and calendarize and normalize fundamental data.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1114",
+      "title": "Out-of-sample trades per parameter",
+      "rule": "Require roughly 20-50 out-of-sample trades per free parameter before accepting a system.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1115",
+      "title": "Trade against less sophisticated competitors",
+      "rule": "Prefer markets where competitors are less sophisticated, such as manual or less electronic venues.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1116",
+      "title": "Prefer relative-value cross-market systems",
+      "rule": "Prefer systems that use information from related markets, since they hold up better out of sample than single-asset systems.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1117",
+      "title": "Clean data before backtesting",
+      "rule": "Before backtesting, drop duplicate timestamps, fill missing bars and verify price or volume spikes before adjusting them.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1118",
+      "title": "Event-study patterns against baseline drift",
+      "rule": "Test a pattern with an event study that compares average forward returns after signals with baseline drift across asset classes.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1119",
+      "title": "Support/resistance no better than random",
+      "rule": "Do not trust support/resistance lines, because random levels look just as respected and no test shows S/R beats them.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1120",
+      "title": "Mean-revert stocks, trend-follow futures",
+      "rule": "Fade three-sigma days and RSI extremes in stocks, and use channel breakouts in futures.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1121",
+      "title": "Avoid buying 52-week highs",
+      "rule": "Avoid buying stocks at 52-week highs, which on average lose over the next month.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1122",
+      "title": "Roll futures on open interest",
+      "rule": "Roll futures based on open interest and evaluate leveraged results as path-dependent due to margin calls.",
+      "kind": "risk",
+      "cls": "D",
+      "reason": "Margin-financed equity positions do not fit the options-only book.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1123",
+      "title": "12-month momentum hypothesis",
+      "rule": "Treat the idea that stocks with positive past-year returns keep rising the next month as a hypothesis, and test it on many stocks before trading.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1124",
+      "title": "Model returns, not price levels",
+      "rule": "Model returns rather than price levels, because prices are strongly autocorrelated while returns are not.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "kish-quant-video-list",
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1125",
+      "title": "Test regression residuals",
+      "rule": "Before trusting regression signals, test residuals for autocorrelation (Durbin-Watson) and heteroskedasticity (Breusch-Pagan).",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1126",
+      "title": "Discount wide-spread OTM strikes in calibration",
+      "rule": "When calibrating implied volatility, down-weight out-of-the-money strikes with wide bid-ask spreads, as they produce the largest errors.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1127",
+      "title": "Scale features and keep kernels simple",
+      "rule": "Scale ML features before training and keep kernels simple (e.g. degree 2) to limit overfitting.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "kish-quant-video-list"
+      ]
+    },
+    {
+      "id": "C1128",
+      "title": "NQ intraday hour-of-day effects (unproven)",
+      "rule": "Treat NQ hour-of-day tendencies as unproven, not as a confirmed edge: 11am-noon ET has been the best hour to hold long (p≈0.075), 10-11am ET the worst, and the volatile 9:30 hour made little.",
+      "kind": "time_filter",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1129",
+      "title": "Candle-colour NQ momentum is fading",
+      "rule": "Do not rely on buying green and selling red 15-min NQ candles, because profits clustered in 2022 and the edge is fading.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1130",
+      "title": "Judas swing fade has no edge",
+      "rule": "Do not fade the first 15 minutes of the NY open, which did worse than random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1131",
+      "title": "Liquidity sweeps are not signals",
+      "rule": "Do not fade sweeps of overnight, prior-day or Asian-range highs and lows that close back inside, because they are common and fading them does not beat random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1132",
+      "title": "NQ extremes often set early",
+      "rule": "Expect about 62% of NQ days to set their high or low in the first 30 minutes of the NY open, without knowing which extreme in advance.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1133",
+      "title": "Equal highs/lows are not magnets",
+      "rule": "Do not treat equal highs or lows as magnets or fade their sweeps, because they behave like made-up levels.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1134",
+      "title": "Classic indicator entries don't beat random",
+      "rule": "Do not trust standard indicator and pattern entries (MACD, EMA crosses, SMA/VWAP bounces, Bollinger, Fibonacci, engulfing, stochastic, Supertrend, inside bars, Ichimoku, TTM Squeeze, Heikin Ashi, Donchian, ADX, PSAR) as intraday NQ entries, because held for 1h they did not beat random entries.",
+      "kind": "indicator",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1135",
+      "title": "Split-sample check for parameter winners",
+      "rule": "When testing many variants, expect about 5% false positives and require any winner to survive an early-versus-late split-sample check.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1136",
+      "title": "Order blocks have no edge",
+      "rule": "Do not trade order blocks as an edge, because they do no better than random entries.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1137",
+      "title": "Fair value gaps have no edge",
+      "rule": "Do not trade fair value gap retests or fills as an edge, because they fill no more often than made-up zones and do not beat random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1138",
+      "title": "Do not fade SMT divergence",
+      "rule": "Do not fade NQ/ES SMT divergences, which lost to random in every test.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1139",
+      "title": "Correct for multiple comparisons",
+      "rule": "Apply a multiple-testing correction across all variants and treat a single significant result among several tests as noise until it repeats.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1140",
+      "title": "Test prop evals from every start date",
+      "rule": "Simulate a prop evaluation starting on every trading day with trades in their real order and report pass rate and median days to pass, not the best start.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1141",
+      "title": "NQ reverts to VWAP after stretch",
+      "rule": "Expect NQ to return to VWAP most of the time after stretching 0.25% away from it.",
+      "kind": "regime",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1142",
+      "title": "RSI 30/70 reversal fails intraday",
+      "rule": "Do not buy RSI-oversold or sell RSI-overbought on intraday NQ, because it fails to beat random and oversold tends to signal trend.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1143",
+      "title": "Intraday death cross short, weak retest",
+      "rule": "Treat shorting the intraday 50/200 SMA death cross on NQ as a lead only, because the later retest was not significant.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1144",
+      "title": "Prop evals reward high-variance sizing",
+      "rule": "Do not treat passing a prop evaluation as proof of edge, because large size with high reward:risk lets even negative-EV random trades pass often.",
+      "kind": "sizing",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1145",
+      "title": "Consistency rules kill big-size prop approach",
+      "rule": "Check prop eval consistency rules before using a big-size, few-trade approach, as a 50% rule can erase its expectancy.",
+      "kind": "risk",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1146",
+      "title": "Do not fade VWAP 2SD bands",
+      "rule": "Do not fade closes outside the VWAP 2-standard-deviation bands, which lose even with high win rates.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1147",
+      "title": "RSI-below-30 short not robust",
+      "rule": "Do not treat shorting 15-min NQ RSI crosses below 30 as an edge, because random sets matched it and the 5-min version lost.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1148",
+      "title": "Flipping a losing signal is not an edge",
+      "rule": "Do not assume reversing a losing strategy creates a winner; treat the flip as selection bias and retest it on other timeframes and markets after costs.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1149",
+      "title": "Fibonacci extensions show no edge",
+      "rule": "Do not treat Fibonacci extension levels as special targets, since tests showed reversals there no more common than at arbitrary levels.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1150",
+      "title": "Index rotation by last month is noise",
+      "rule": "Do not rotate into last month's best of NQ/ES/YM, as it does not beat a random pick.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1151",
+      "title": "Cheat-code opening range loses",
+      "rule": "Do not trade the 8:12-9:12 range break back toward the other end, which lost money despite a higher hit rate.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1152",
+      "title": "Overlapping returns are not independent",
+      "rule": "Treat overlapping daily-start return samples as clustered streaks, not independent observations.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1153",
+      "title": "Do not buy intraday golden crosses",
+      "rule": "Do not buy intraday 50/200 SMA golden crosses on NQ, which lost against random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1154",
+      "title": "Judge rare signals against base rate",
+      "rule": "Compare rare signal outcomes with the unconditional base rate and do not accept results from a tiny sample of trades.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1155",
+      "title": "Big NQ range days cluster, not direction",
+      "rule": "Expect big-range NQ days to be followed by more big-range days, but do not infer next-day direction from them.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1156",
+      "title": "Size to the edge, not income goals",
+      "rule": "Derive size from the strategy's measured per-contract edge and the risk it implies, not from a target daily income.",
+      "kind": "sizing",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1157",
+      "title": "Test data-mined strategies once on unseen data",
+      "rule": "Test genetic or data-mined strategies a single time on fresh unseen data and compare survivors against the number expected by chance.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1158",
+      "title": "Buying after red streaks is weak, fading",
+      "rule": "Do not rely on buying NQ after 3+ consecutive red days, as the edge is not significant and has more than halved recently.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1159",
+      "title": "NQ Monday long effect",
+      "rule": "Consider the NQ Monday effect, where buying the full-session open and selling the close on Mondays has been significantly profitable (p≈0.002) while other weekdays lost on average.",
+      "kind": "time_filter",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1160",
+      "title": "Do not trade gap fills",
+      "rule": "Do not fade opening or weekend gaps expecting a fill, because fills happen no more often than at made-up levels and expectancy is negative.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1161",
+      "title": "Test session folklore before applying it",
+      "rule": "Do not blindly follow folklore like 'never trade the open' or 'never trade lunch'; test it, because breakout results by session did not differ significantly, even though lunch moves were smaller.",
+      "kind": "time_filter",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1162",
+      "title": "Round-number levels have no edge",
+      "rule": "Do not trade first-touch bounces at round NQ levels, which hold no better than made-up levels.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1163",
+      "title": "Prior-day high/low breaks have no edge",
+      "rule": "Do not trade first breaks of the prior day's high or low, which did not beat random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1164",
+      "title": "Plain 15-min ORB has no edge",
+      "rule": "Do not trade a plain 15-minute opening range breakout as an edge, because it does not beat random variants significantly and has faded recently.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1165",
+      "title": "Session return leadership flips",
+      "rule": "Do not assume overnight or regular session carries NQ returns, since leadership flips over time.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1166",
+      "title": "Do not timeframe-shop a failing signal",
+      "rule": "Do not move a failing signal to other chart timeframes looking for edge, because the timeframe mostly changes trade frequency.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1167",
+      "title": "RSI divergence edge is timing-sensitive",
+      "rule": "Treat 5-min NQ RSI bullish divergence as a possible edge only when entered right away, because a 5-minute delay removes significance.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1168",
+      "title": "Run an entry-delay robustness test",
+      "rule": "Stress-test any signal by entering one bar later (and splitting the sample), and reject edges that vanish under the delay.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1169",
+      "title": "200 MA trend filter adds nothing",
+      "rule": "Do not expect a 200 MA trend filter to improve short-term range breakouts.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1170",
+      "title": "Prior-day POC is not a special level",
+      "rule": "Do not trade prior-day volume-profile POC bounces, as touch rates and bounce returns match random levels.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1171",
+      "title": "Selling after green streaks has no edge",
+      "rule": "Do not sell NQ after 5 consecutive green days, as the result is insignificant and flips with session definition.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1172",
+      "title": "Turtle Soup has no edge",
+      "rule": "Do not fade 20-bar fakeout breaks (or take the breakouts), because neither beat random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1173",
+      "title": "ICT sweep-then-FVG setups unproven",
+      "rule": "Do not treat ICT sweep-then-FVG entries (Silver Bullet or by session) as an edge, because none were significantly better than random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1174",
+      "title": "Initial balance breakout is decaying",
+      "rule": "Treat the initial balance breakout with caution, because its significant early profits turned negative in the last 2 years.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1175",
+      "title": "Breakout edge fragile to stop size",
+      "rule": "Record only, not a rule: a 5-min range breakout with tight stop and 5:1 target beat random in tests but failed with a wider stop and decayed recently.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1176",
+      "title": "Do not wait for a dip to invest",
+      "rule": "Invest now rather than waiting for a dip, since waiting does not help and deeper dip thresholds often never trigger.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1177",
+      "title": "Weekly levels and pivots have no edge",
+      "rule": "Do not fade or break first touches of prior-week highs/lows or floor pivots, because they do no better than random lines.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1178",
+      "title": "Best and worst days cluster together",
+      "rule": "Do not over-read the 'missing the best days' statistic, because best and worst days cluster in the same bad years and removing both leaves returns nearly unchanged.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1179",
+      "title": "Oscillator signals fail on NQ intraday",
+      "rule": "Do not trade CCI, Williams %R, MFI, Awesome Oscillator or Connors RSI(2) signals on intraday NQ, because none beat random entries.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1180",
+      "title": "Daily momentum on NQ has no edge",
+      "rule": "Do not buy NQ after rising stretches of any lookback, as daily momentum did not beat random.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1181",
+      "title": "ICT Unicorn edge only at 1R",
+      "rule": "If you trade the breaker-plus-FVG Unicorn, use a 1R target, because the small edge disappears at 2R and is far below claims.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1182",
+      "title": "Reject lunar phase filters",
+      "rule": "Do not use lunar phase (full or new moon) as a session filter, because its apparent effect is noise.",
+      "kind": "time_filter",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1183",
+      "title": "VWAP bounces and filters add nothing",
+      "rule": "Do not rely on VWAP bounces or VWAP breakout filters, because they lose or add only trivially.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1184",
+      "title": "Adjust significance for best-of selection",
+      "rule": "When picking the best of several variants, expect it to look good by luck alone and adjust significance for the selection.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1185",
+      "title": "Candlestick patterns have no edge",
+      "rule": "Do not trade three soldiers/crows or hammer candles on intraday NQ, because none of the tests were significant.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1186",
+      "title": "Keltner breakout has no edge",
+      "rule": "Do not trade Keltner Channel breakouts on intraday NQ, because none of the tests were significant.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1187",
+      "title": "Efficiency ratio too weak to trade",
+      "rule": "Treat yesterday's efficiency ratio as only weak, untradeable context for whether today trends.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1188",
+      "title": "CMF zero-line cross has no edge",
+      "rule": "Do not trade Chaikin Money Flow(20) zero-line crosses on NQ intraday, as they failed to beat random entries.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1189",
+      "title": "SMC sweep-BOS-FVG setup has no edge",
+      "rule": "Do not rely on the liquidity sweep, break of structure and FVG retest setup on NQ 5m, as it did not beat a coin flip and lost money recently.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1190",
+      "title": "Relative volume filter does not fix ORB",
+      "rule": "Do not use relative volume above 2 as an opening-range breakout filter, as it did not significantly reduce failures.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1191",
+      "title": "Walk-forward gate of 2 of 3 folds",
+      "rule": "Split data into 3 walk-forward folds and require the strategy to be profitable in at least 2.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1192",
+      "title": "Separate execution from trade checking",
+      "rule": "Never let a trader both execute trades and verify their own positions.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1193",
+      "title": "HTF trend filter does not lift ORB",
+      "rule": "Do not add higher-timeframe trend filters to a 15m NQ ORB, because they do not raise win rate and only shrink the sample.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1194",
+      "title": "Use only closed higher-timeframe bars",
+      "rule": "In multi-timeframe filters, use a higher-timeframe bar only after it has closed to avoid look-ahead bias.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1195",
+      "title": "Run an ensemble of strategy versions",
+      "rule": "Trade an ensemble of many strategy variants rather than a single optimized version, because the ensemble holds up better out of sample.",
+      "kind": "sizing",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1196",
+      "title": "Doji at day high has no edge",
+      "rule": "Do not trade doji or gravestone candles at the day's high on NQ 5m, as they did not beat random.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1197",
+      "title": "Hull MA color change has no edge",
+      "rule": "Do not trade Hull MA(21) color changes on NQ 5m, as results fell inside the random band.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1198",
+      "title": "TJR model edge does not survive correction",
+      "rule": "Do not trust the overnight-low sweep plus gap-dip TJR model, as its only significant result vanished after correcting for multiple chart speeds.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1199",
+      "title": "Drawdowns recover but unscheduled",
+      "rule": "Expect NQ 5%+ drawdowns to usually recover, but not on any reliable schedule.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1200",
+      "title": "Double top/bottom has no edge",
+      "rule": "Do not trade double top/bottom breaks on NQ 15m, as they performed within the random band.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1201",
+      "title": "Post-hoc regime splits are leads only",
+      "rule": "Treat a regime split chosen after seeing results as a hypothesis to test, not a finding.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1202",
+      "title": "Trade first candle vs pre-open midpoint",
+      "rule": "Mark the 8:30-9:30 ET range midpoint on NQ and buy if the first 3-minute candle after 9:30 closes above it, sell if below.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1203",
+      "title": "Opening-range stop with swing trail",
+      "rule": "Place the initial stop beyond the 8:30-9:30 ET range, trail it to each 15-minute swing, and be flat by 4:00 PM ET.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1204",
+      "title": "Check edge dependence on outlier days",
+      "rule": "Remove the best outlier days to check whether a strategy's average return depends on a few big winners.",
+      "kind": "wisdom",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1205",
+      "title": "Check the parameter fitness landscape",
+      "rule": "Sweep all parameter combinations and reject strategies that sit on a cliff edge where small changes collapse performance.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1206",
+      "title": "Buy NQ 50-day closing lows (thin sample)",
+      "rule": "Consider buying NQ at a 50-day closing low and holding 20 days, but treat it as tentative because there were only about 10 independent selloffs.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1207",
+      "title": "Higher frequency multiplies costs",
+      "rule": "Avoid raising trade frequency without edge, since commissions and slippage make losses more likely.",
+      "kind": "risk",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "quantstackai"
+      ]
+    },
+    {
+      "id": "C1208",
+      "title": "Use call calendars for medium-term bullishness",
+      "rule": "When bullish on a stock for about three months to two years, use a long call calendar spread instead of shares or a long call.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1209",
+      "title": "Build same-strike calendar from intended call",
+      "rule": "Build a calendar by selling the call you would have bought and buying the same strike in a later expiry.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1210",
+      "title": "Long leg about double short leg DTE",
+      "rule": "Set the calendar's long-leg days to expiry at about twice the short leg's, using the nearest available chain.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1211",
+      "title": "Sell short-dated calls against a LEAP",
+      "rule": "Instead of holding a LEAP outright, sell short-dated (e.g. 30 DTE) same-strike calls against it and re-sell a new one after each expires, to offset cost and collect time decay.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1212",
+      "title": "Earnings calendar instead of weekly",
+      "rule": "For earnings, sell the option expiring in earnings week and buy the same strike expiring the week after, instead of buying the weekly outright.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1213",
+      "title": "IV crush after earnings",
+      "rule": "Expect implied volatility to fall after earnings, eroding outright options and shrinking calendar max profit.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1214",
+      "title": "Take calendar profit at strike cross",
+      "rule": "Take profit on a calendar spread once the stock price crosses the strike.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1215",
+      "title": "Hold calendar between break-evens",
+      "rule": "Hold a calendar spread while the stock trades between its break-even points so short-leg decay adds profit.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1216",
+      "title": "Leave 10-15% downside break-even buffer",
+      "rule": "Choose calendar strikes and expiries so the lower break-even sits about 10-15% below price.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1217",
+      "title": "Never trade with living money",
+      "rule": "Keep living savings separate from the trading account and never trade rent money.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1218",
+      "title": "Go full-time only with a cushion",
+      "rule": "Do not go full-time until a bad month would not break you.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1219",
+      "title": "Strategy must survive chop and crashes",
+      "rule": "Judge a strategy by whether it survives choppy markets and crashes, not by one good year.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1220",
+      "title": "Avoid outright option buying by default",
+      "rule": "Avoid buying options outright by default because of time decay, and prefer structures that are short the faster-decaying option.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1221",
+      "title": "Skip credit spreads for directional upside",
+      "rule": "Do not use credit spreads when you want directional upside, since they risk a lot to make a little and cap the move.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1222",
+      "title": "No covered calls on keep-and-grow stocks",
+      "rule": "Do not sell covered calls or run the wheel on high-conviction stocks where you want full upside or to keep accumulating, because assignment caps the move.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 2 knowledge bases.",
+      "consensus": 2,
+      "kbs": [
+        "spreadstrader",
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1223",
+      "title": "Buy bull flag breakout",
+      "rule": "Buy a bull flag when price breaks out of the flag after an up move.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1224",
+      "title": "Sell failed flag breakout",
+      "rule": "If a bull-flag breakout falls back into the flag, sell and take the small loss.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1225",
+      "title": "Weekly flipped support plus golden cross",
+      "rule": "Treat weekly resistance turned support plus a golden cross as a bullish setup for a call calendar.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1226",
+      "title": "Undercut and rip entry",
+      "rule": "Enter when price briefly breaks below support and then reverses back up.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1227",
+      "title": "Fade outer band touches with confirmation",
+      "rule": "Treat an outer band touch as support/resistance with likely reversion to mid-range, buy lower-band touches, and confirm with RSI or MACD.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1228",
+      "title": "Read support with volume",
+      "rule": "Read support levels together with traded volume to anticipate moves.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1229",
+      "title": "Uncertainty rotates into gold",
+      "rule": "In times of uncertainty, expect money to rotate into gold.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1230",
+      "title": "Buy liquidation flush below round numbers",
+      "rule": "Expect long liquidations below big psychological round numbers in crypto to flush price lower, and buy into the flush.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "We do not trade crypto.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1231",
+      "title": "Stay disciplined with a feedback loop",
+      "rule": "Once live, stick to your own rules and keep improving in a loop: analyse, change, test, repeat.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "spreadstrader"
+      ]
+    },
+    {
+      "id": "C1232",
+      "title": "Price is the primary signal",
+      "rule": "Treat price action, such as breaks above resistance or losses of support, as the main signal and other indicators as secondary.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1233",
+      "title": "Never FOMO into trades",
+      "rule": "Never chase a trade after it has run or because someone else bought it.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1234",
+      "title": "Use limit orders, not market orders",
+      "rule": "Use limit orders rather than market orders, especially on wide-spread options.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1235",
+      "title": "Mostly technicals, check events for swings",
+      "rule": "Weight analysis about 90% technicals and 10% fundamentals, but check fundamentals and upcoming events like earnings for swing trades.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1236",
+      "title": "Trade from a personal watchlist",
+      "rule": "Trade from a personal watchlist with price alerts at buy levels, and drop names under $10.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1237",
+      "title": "Never marry a position",
+      "rule": "Take profits rather than holding a favourite stock indefinitely.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1238",
+      "title": "Hold through earnings only with cushion",
+      "rule": "Hold through earnings only if the position already shows about 10% profit or more than the expected move.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1239",
+      "title": "Aim for the middle of the move",
+      "rule": "Aim to capture the middle of a move rather than the exact top or bottom.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1240",
+      "title": "Concentrate on 6-8 known stocks",
+      "rule": "Focus on about 6-8 stocks you know well, and add more only after mastering their levels.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1241",
+      "title": "Buy support, sell resistance",
+      "rule": "Buy at support and sell at resistance using levels marked in advance.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1242",
+      "title": "News confirms technicals",
+      "rule": "Use news to confirm the technicals rather than to lead, since mainstream news usually arrives too late.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1243",
+      "title": "Use wider stops on longer options",
+      "rule": "For options two or more weeks out, use about a 50% stop or a smaller position instead of a tight 20% stop.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1244",
+      "title": "Take only clean stacked squeezes",
+      "rule": "With the TTM Squeeze, enter only clean, stacked setups.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1245",
+      "title": "TTM Squeeze move lasts 6-8 candles",
+      "rule": "After a TTM Squeeze fires, expect the move to last about 6-8 candles.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1246",
+      "title": "Full size only with aligned trends",
+      "rule": "Take a full position only when the stock, its sector ETF and the market all trend in the same direction.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1247",
+      "title": "Fund lotto options from weekly profits",
+      "rule": "Buy speculative lotto options only with a small part of profits already made that week.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1248",
+      "title": "Trade only RS leaders in uptrend",
+      "rule": "Trade only stocks with an RS rating of about 97+, a rising RS line, and the S&P 500 in an uptrend.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1249",
+      "title": "Buy higher low, stop below it",
+      "rule": "Buy a higher low in an uptrend and stop out if price breaks the prior higher low.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1250",
+      "title": "Hold hot trends one to three days",
+      "rule": "For hot, high-relative-strength trends, plan to hold about one to three days and then step off.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1251",
+      "title": "Buy pullbacks near key EMAs",
+      "rule": "On low-volume pullbacks, buy only within about 1-2% of the 10, 20 or 50-day EMA.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1252",
+      "title": "Wait for pullback to cut entry risk",
+      "rule": "Skip entries needing about 6% risk to the stop and wait for a pullback cutting risk to about 3%.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1253",
+      "title": "Wait for 5-day MA to turn up",
+      "rule": "Do not buy while the 5-day MA is falling, and wait for it to flatten and turn up.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1254",
+      "title": "Buy first 50 EMA tap after earnings gap",
+      "rule": "After a 7%+ earnings gap on heavy volume, buy the first tap of the 50-day EMA.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1255",
+      "title": "Favour early-stage base breakouts",
+      "rule": "Favour the first two breakouts from a major base, because later bases are less reliable.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1256",
+      "title": "Stop below pivot or higher low",
+      "rule": "When buying a pivot breakout, place the stop below the pivot line or the last higher low.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1257",
+      "title": "VCP needs drying volume",
+      "rule": "Require a contraction with drying-up volume before buying a VCP breakout.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1258",
+      "title": "Hold above earnings-anchored VWAP",
+      "rule": "Use the VWAP anchored at the earnings date as the line, owning the stock above it and selling below it.",
+      "kind": "indicator",
+      "cls": "C",
+      "reason": "Needs: Volume / market profile engine.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1259",
+      "title": "Enter through prior day high",
+      "rule": "After a low-volume pullback, enter as price trades through the prior day's high.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1260",
+      "title": "Downtrend bounces are relief only",
+      "rule": "Once structure breaks and the trend is down, treat bounces as relief bounces, not new uptrends.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1261",
+      "title": "Stagger buys in thirds",
+      "rule": "Stagger buys in thirds across a demand zone to improve the average price.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1262",
+      "title": "Prefer buying demand zones",
+      "rule": "Prefer buying in demand zones, where the exit is clear and downside risk is smallest.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1263",
+      "title": "Demand zones at 0.5-0.618 retracement",
+      "rule": "Mark demand zones at the 0.5-0.618 retracement of the prior swing and confirm with other tools.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1264",
+      "title": "Strength buyers use reclaims and breaks",
+      "rule": "If you buy strength, enter on a 21 EMA reclaim or a break of major resistance rather than buying dips.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1265",
+      "title": "Trim flush bounces into resistance",
+      "rule": "When day-trading a morning flush bounce in a high-beta stock, take profits and trim into resistance.",
+      "kind": "exit",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1266",
+      "title": "Follow the sympathy leader",
+      "rule": "In sympathy plays, watch the leader, because sympathy names follow its moves.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1267",
+      "title": "Prefer lagging sympathy names",
+      "rule": "Prefer a sympathy name that has barely moved while the leader runs, because its downside is small relative to its potential.",
+      "kind": "entry",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1268",
+      "title": "Covered call strikes 5-20% OTM",
+      "rule": "Sell covered calls about 5-20% out of the money and never more than 30%.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1269",
+      "title": "Sell covered calls into strength",
+      "rule": "Time covered call sales into bouts of strength, such as after an explosive up day.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1270",
+      "title": "Open interest is not direction",
+      "rule": "Do not read high open interest as direction, since it doesn't show whether contracts were bought or sold.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1271",
+      "title": "Ignore options flow you can't read",
+      "rule": "Ignore options flow if it is too hard to interpret.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1272",
+      "title": "Judge catalysts by quality",
+      "rule": "Rate catalysts by quality: weak ones such as a single upgrade fade, while strong ones last.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1273",
+      "title": "Assume speculative firms may dilute",
+      "rule": "Always assume a share offering is possible with speculative companies.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1274",
+      "title": "More pivots mean stronger level",
+      "rule": "Treat a support or resistance level as stronger the more past pivots it intersects.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1275",
+      "title": "Keep starter positions small",
+      "rule": "Keep starter positions around 3.5-5% so failures are small while winners still matter.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1276",
+      "title": "New traders follow stop rules strictly",
+      "rule": "Follow stop rules strictly as a new trader; only experienced traders should allow a strong name a small cushion past the risk point.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1277",
+      "title": "Post-earnings drop means bad earnings",
+      "rule": "If a stock falls after earnings you thought were good, accept that the market judged them not good.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1278",
+      "title": "Buy options below about 75% IV",
+      "rule": "When buying options, generally choose contracts with implied volatility below about 75%, and lower for low-beta names.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1279",
+      "title": "Insider buying matters, selling does not",
+      "rule": "Treat insider buying as a meaningful signal and ignore insider selling.",
+      "kind": "entry",
+      "cls": "C",
+      "reason": "Needs: Insider / 13F filings feed.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1280",
+      "title": "Watch technicals on new positions only",
+      "rule": "Monitor technical health such as 21 EMA breaks for new positions, not long-term holdings.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1281",
+      "title": "Sell cyclicals at obvious peak earnings",
+      "rule": "Sell cyclical stocks when peak earnings become obvious.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1282",
+      "title": "Weigh debt more when unprofitable",
+      "rule": "Take debt and liabilities far more seriously when the operating business is unprofitable.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1283",
+      "title": "Quiet consolidation above MAs is constructive",
+      "rule": "Read sideways consolidation above the moving averages on falling volume as a lack of sellers.",
+      "kind": "indicator",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "stock-talk-weekly"
+      ]
+    },
+    {
+      "id": "C1284",
+      "title": "Report Monte Carlo error bars",
+      "rule": "Report Monte Carlo estimates with error bars, noting four times the simulations only halves the error.",
+      "kind": "risk",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "quantfinancetogo"
+      ]
+    },
+    {
+      "id": "C1285",
+      "title": "Use variance reduction in Monte Carlo",
+      "rule": "Reduce Monte Carlo error with antithetic paths and control variates with known means before adding more simulations.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "quantfinancetogo"
+      ]
+    },
+    {
+      "id": "C1286",
+      "title": "Look beyond Sharpe ratio",
+      "rule": "Do not rely on Sharpe alone; check Sortino and Calmar because high Sharpe can hide short-volatility tail risk.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1287",
+      "title": "Add strategy if Sharpe beats correlation hurdle",
+      "rule": "Add a new strategy only if its Sharpe exceeds its correlation times the current portfolio Sharpe, noting negatively correlated strategies can help even when losing.",
+      "kind": "sizing",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1288",
+      "title": "Use GARCH volatility, not static estimates",
+      "rule": "Expect volatility to stay elevated after shocks and use a GARCH-type (e.g. Student-t) forecast instead of constant volatility or historical-simulation VaR.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1289",
+      "title": "Monte Carlo is conditional on assumptions",
+      "rule": "Treat Monte Carlo output as conditional on its assumptions, since more paths reduce sampling error but not parameter error.",
+      "kind": "risk",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1290",
+      "title": "Reject backtests with high overfitting probability",
+      "rule": "Reject a backtest whose probability of backtest overfitting exceeds 50%, and treat below 30% as probably real.",
+      "kind": "wisdom",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1291",
+      "title": "Validate with combinatorial purged cross-validation",
+      "rule": "Use combinatorial purged cross-validation with purging and embargo to get a distribution of Sharpe ratios rather than one path.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1292",
+      "title": "12-month time-series momentum filter",
+      "rule": "Stay long when price is above its level 12 months ago and step out when below, acting on the prior day's signal to avoid lookahead.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1293",
+      "title": "Trade 20-day Donchian breakouts",
+      "rule": "Go long on a close above the 20-day high and go flat or short on a close below the 20-day low.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1294",
+      "title": "Z-score mean-reversion entry",
+      "rule": "Buy when the price z-score versus its rolling mean falls below -2 and sell when it reverts to 0, treating this as a hypothesis to test.",
+      "kind": "entry",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1295",
+      "title": "Cut momentum when crowding is high",
+      "rule": "Reduce momentum exposure when comomentum is in its top quintile, as subsequent momentum returns fall sharply.",
+      "kind": "regime",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1296",
+      "title": "Exit on falling bull-regime probability",
+      "rule": "Exit when the filtered probability of the bull regime drops below a threshold rather than at fixed price targets.",
+      "kind": "exit",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1297",
+      "title": "Penalise regime switches",
+      "rule": "Use a jump model with a walk-forward-tuned switching penalty so the regime signal does not flip too often.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: Logged trade journal + backtest harness.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1298",
+      "title": "High absorption ratio signals fragility",
+      "rule": "Treat a high absorption ratio as a sign of a fragile, tightly coupled market prone to contagion.",
+      "kind": "regime",
+      "cls": "C",
+      "reason": "Needs: Order-flow / footprint feed.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1299",
+      "title": "Clean covariance before optimising",
+      "rule": "Clean the covariance matrix with shrinkage or eigenvalue clipping before optimising, since most estimated entries are noise.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1300",
+      "title": "Optimised portfolios understate realised risk",
+      "rule": "Expect an optimised portfolio's realised risk to exceed predicted risk by roughly 1/(1 - n/T).",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1301",
+      "title": "Default to equal weighting",
+      "rule": "Default to equal weighting unless you have very long data histories, because estimation error wipes out mean-variance gains.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1302",
+      "title": "Diversification fails in crises",
+      "rule": "Do not count on diversification in a crisis, since correlations spike in downturns and the correlation floor cannot be diversified away.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1303",
+      "title": "Shrink betas toward the mean",
+      "rule": "Shrink measured betas toward the cross-sectional mean before use, because extreme betas mean-revert.",
+      "kind": "risk",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1304",
+      "title": "Hedge short calls with higher volatility",
+      "rule": "When hedging a short call, use a hedging volatility above realised volatility at every instant to cover the payoff on every path.",
+      "kind": "options_structure",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1305",
+      "title": "Avoid executing at the open",
+      "rule": "Avoid executing near the open, where price impact per dollar is several times higher than near the close.",
+      "kind": "time_filter",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1306",
+      "title": "Expect late-day momentum continuation",
+      "rule": "In the last 30 minutes, expect the move since the previous close to continue, especially when dealer gamma is negative.",
+      "kind": "time_filter",
+      "cls": "D",
+      "reason": "Intraday-only rule for futures/order-flow trading; our book holds options for days to years.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
+      ]
+    },
+    {
+      "id": "C1307",
+      "title": "Post-earnings drift gone in large caps",
+      "rule": "Do not assume post-earnings drift persists in large caps, as recent earnings surprises have not predicted drift from day 2 to day 60.",
+      "kind": "wisdom",
+      "cls": "B",
+      "reason": "Fits our style and existing data; 1 knowledge base.",
+      "consensus": 1,
+      "kbs": [
+        "vince-quant"
       ]
     },
     {

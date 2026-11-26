@@ -3,6 +3,7 @@ import type {
   FlowEvent,
   GexContext,
   GexContextFactor,
+  GexProfilePoint,
   OptionsAnalyticsOutput,
 } from "../contracts/options-analytics.ts";
 import {
@@ -24,7 +25,7 @@ import {
 // Sign convention everywhere: dealers are long calls and short puts.
 
 const TRADING_DAYS = 252;
-const DAYS_PER_YEAR = 365;
+export const DAYS_PER_YEAR = 365;
 // Flow bias needs this share of signed premium on one side.
 const FLOW_BIAS_SHARE = 0.2;
 // Front/back ATM IV ratio outside 0.95-1.05 is inverted or contango.
@@ -32,8 +33,8 @@ const IV_TERM_BAND = 0.05;
 // The back point for the term regime: the first expiry at least this far out.
 const IV_BACK_MIN_DTE = 25;
 // Flip search: spot x (1 +/- FLIP_RANGE) in FLIP_STEPS steps.
-const FLIP_RANGE = 0.3;
-const FLIP_STEPS = 120;
+export const FLIP_RANGE = 0.3;
+export const FLIP_STEPS = 120;
 const DAY_MS = 86_400_000;
 
 type StrikeOi = ExposureSection["strikes"][number];
@@ -94,7 +95,7 @@ const totalsAt = (
   priced: readonly PricedStrike[],
   years: number,
   spot: number
-): DealerTotals | null => {
+): DealerTotals => {
   let gex = 0;
   let dex = 0;
   let vanna = 0;
@@ -112,7 +113,7 @@ const totalsAt = (
     vanna += (calls * call.vanna - puts * put.vanna) * spot * 0.01;
     charm += ((calls * call.charm - puts * put.charm) * spot) / DAYS_PER_YEAR;
   }
-  return priced.length === 0 ? null : { charm, dex, gex, vanna };
+  return { charm, dex, gex, vanna };
 };
 
 // Dealer totals at a hypothetical spot over the given strikes; null when no strike has IV.
@@ -120,34 +121,68 @@ export const dealerTotals = (
   strikes: readonly StrikeOi[],
   model: GammaModel,
   spot: number
-): DealerTotals | null =>
-  totalsAt(pricedStrikes(strikes, model), model.years, spot);
+): DealerTotals | null => {
+  const priced = pricedStrikes(strikes, model);
+  return priced.length === 0 ? null : totalsAt(priced, model.years, spot);
+};
+
+// Estimated net GEX across the +/-30% hypothetical spot sweep (121 steps).
+// Empty when no strike has IV or spot is not positive.
+export const gexProfile = (
+  strikes: readonly StrikeOi[],
+  model: GammaModel,
+  spot: number
+): GexProfilePoint[] => {
+  if (!Number.isFinite(spot) || spot <= 0) return [];
+  const priced = pricedStrikes(strikes, model);
+  if (priced.length === 0) return [];
+  const low = spot * (1 - FLIP_RANGE);
+  const step = (spot * 2 * FLIP_RANGE) / FLIP_STEPS;
+  const points: GexProfilePoint[] = [];
+  for (let index = 0; index <= FLIP_STEPS; index += 1) {
+    const at = low + step * index;
+    points.push({ gex: totalsAt(priced, model.years, at).gex, spot: at });
+  }
+  return points;
+};
+
+// Spot where a GEX profile changes sign, nearest to spot (linear interpolation).
+export const flipFromProfile = (
+  profile: readonly GexProfilePoint[],
+  spot: number
+): number | null => {
+  let best: number | null = null;
+  let lastNonZero: GexProfilePoint | null = null;
+  let zeroStart: number | null = null;
+  let zeroEnd = 0;
+  for (const point of profile) {
+    if (point.gex === 0) {
+      if (zeroStart === null) zeroStart = point.spot;
+      zeroEnd = point.spot;
+      continue;
+    }
+    if (lastNonZero !== null && lastNonZero.gex > 0 !== point.gex > 0) {
+      const crossing =
+        zeroStart === null
+          ? lastNonZero.spot +
+            ((point.spot - lastNonZero.spot) * lastNonZero.gex) /
+              (lastNonZero.gex - point.gex)
+          : (zeroStart + zeroEnd) / 2;
+      if (best === null || Math.abs(crossing - spot) < Math.abs(best - spot))
+        best = crossing;
+    }
+    lastNonZero = point;
+    zeroStart = null;
+  }
+  return best;
+};
 
 // Spot where the GEX profile changes sign, nearest to spot (linear interpolation).
 export const gexFlip = (
   strikes: readonly StrikeOi[],
   model: GammaModel,
   spot: number
-): number | null => {
-  const priced = pricedStrikes(strikes, model);
-  const low = spot * (1 - FLIP_RANGE);
-  const step = (spot * 2 * FLIP_RANGE) / FLIP_STEPS;
-  let best: number | null = null;
-  let previous: Readonly<{ at: number; gex: number }> | null = null;
-  for (let index = 0; index <= FLIP_STEPS; index += 1) {
-    const at = low + step * index;
-    const gex = totalsAt(priced, model.years, at)?.gex ?? null;
-    if (gex === null) return null;
-    if (previous !== null && Math.sign(previous.gex) !== Math.sign(gex)) {
-      const crossing =
-        previous.at + (step * previous.gex) / (previous.gex - gex);
-      if (best === null || Math.abs(crossing - spot) < Math.abs(best - spot))
-        best = crossing;
-    }
-    previous = { at, gex };
-  }
-  return best;
-};
+): number | null => flipFromProfile(gexProfile(strikes, model, spot), spot);
 
 // Call wall: largest positive estimated GEX strike; put wall: most negative;
 // king node: strike with the largest absolute estimated GEX (dealer gamma magnet).
@@ -390,6 +425,7 @@ const dealerContext = (
 ): Readonly<{
   levels: Levels;
   greeks: Greeks;
+  profile: GexProfilePoint[];
   // Null exactly when the three Greeks were computed.
   greeksCause: string | null;
 }> => {
@@ -409,9 +445,11 @@ const dealerContext = (
       greeks: NO_GREEKS,
       greeksCause: greeksMissingCause(spot, strikes.length, model),
       levels: NO_LEVELS,
+      profile: [],
     };
   const walls = gexWalls(strikes);
-  const flip = gexFlip(strikes, model, spot);
+  const profile = gexProfile(strikes, model, spot);
+  const flip = flipFromProfile(profile, spot);
   const dailyMove = (spot * atmIv) / Math.sqrt(TRADING_DAYS);
   const distance = (level: number | null): number | null =>
     level === null ? null : (level - spot) / dailyMove;
@@ -432,10 +470,14 @@ const dealerContext = (
       putWall: walls.putWall,
       putWallMoves: distance(walls.putWall),
     },
+    profile,
   };
 };
 
-type FactorParts = Omit<GexContext, "factors" | "dealerSignAssumption">;
+type FactorParts = Omit<
+  GexContext,
+  "factors" | "dealerSignAssumption" | "profile"
+>;
 
 const levelFactor = (levels: Levels): GexContextFactor => {
   // Moves are null exactly when the level is null (dailyMove always exists with levels).
@@ -737,7 +779,7 @@ const buildFactors = (
 
 export const buildGexContext = (input: GexContextInput): GexContext => {
   const today = newYorkDate(input.now);
-  const { levels, greeks, greeksCause } = dealerContext(input, today);
+  const { levels, greeks, greeksCause, profile } = dealerContext(input, today);
   const total = input.totalGex;
   // Exactly zero has no sign to report; it is a state of its own, not a missing estimate.
   const regime =
@@ -785,5 +827,6 @@ export const buildGexContext = (input: GexContextInput): GexContext => {
     dealerSignAssumption: "dealers long calls, short puts",
     // The cause is read only for a null Greek, and dealerContext sets it for each of them.
     factors: buildFactors(parts, input, closedToday, greeksCause ?? ""),
+    profile,
   };
 };

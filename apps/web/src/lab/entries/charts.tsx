@@ -28,12 +28,13 @@ import {
 } from "../../features/stock-detail/fake-gateways.ts";
 import { StockDetailWorkspace } from "../../features/stock-detail/stock-detail-workspace.tsx";
 import { LAB_NOW, labBasePrice, labReadOnly } from "../fixtures/core.ts";
-import { labFlowSnapshot } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
+import { labFlowControl, labFlowSnapshot } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import {
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labGreekHeatmap,
   labIvHistory,
   labJevVerdict,
   labMacroOutput,
@@ -48,6 +49,8 @@ const labMarketDataGateway: MarketDataGateway = {
 };
 
 export const labOptionsAnalyticsGateway: OptionsAnalyticsGateway = {
+  flowControl: ({ group }) => Promise.resolve(labFlowControl(group)),
+  greekHeatmap: (input) => Promise.resolve(labGreekHeatmap(input.symbol)),
   snapshot: (input) =>
     Promise.resolve(
       labOptionsAnalytics(input.symbol, Number(input.flowHours ?? 24))
@@ -158,6 +161,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
           <StockDetailWorkspace
             ivHistory={labOpenbbIvHistoryGateway}
             marketData={labStockMarketData}
+            operator
             optionsAnalytics={labOptionsAnalyticsGateway}
             optionsChain={labStockOptionsChain}
             symbol={symbol}
