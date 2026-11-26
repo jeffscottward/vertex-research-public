@@ -70,6 +70,7 @@ const VOL: OpenbbVolContextOutput = {
       callWall: 600,
       contracts: 10,
       gammaFlip: 580,
+      historyState: "affected",
       ivPercentile: 42,
       netGex: null,
       putIv25d30d: 0.2,
@@ -89,6 +90,7 @@ const VOL: OpenbbVolContextOutput = {
       callWall: null,
       contracts: 10,
       gammaFlip: null,
+      historyState: "source_unverified",
       ivPercentile: null,
       netGex: null,
       putIv25d30d: null,
@@ -98,6 +100,26 @@ const VOL: OpenbbVolContextOutput = {
       sessions: 3,
       underlying: "QQQ",
       underlyingPrice: 500,
+    },
+    {
+      asOf: "2026-11-06",
+      atmIv30d: 0.18,
+      callIv25d30d: null,
+      callOi: 1,
+      callVolume: 1,
+      callWall: 610,
+      contracts: 10,
+      gammaFlip: 590,
+      historyState: "clean",
+      ivPercentile: 25,
+      netGex: null,
+      putIv25d30d: null,
+      putOi: 1,
+      putVolume: 1,
+      putWall: 570,
+      sessions: 30,
+      underlying: "DIA",
+      underlyingPrice: 400,
     },
   ],
   ivOneYear: [
@@ -204,6 +226,41 @@ const VOL: OpenbbVolContextOutput = {
       reason: null,
       sessions: 252,
       underlying: "IWM",
+      unit: "vol_points",
+      windowSessions: 252,
+    },
+    {
+      asOf: "2026-11-06",
+      basis: "vol_index_proxy",
+      ivPercentile: 25,
+      ivRank: 20,
+      latestValue: 18,
+      minSessions: 252,
+      own: {
+        asOf: "2026-11-06",
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: 0.18,
+        minSessions: 252,
+        reason: "Needs 252 sessions with ATM IV (30 stored)",
+        sessions: 30,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: "2026-11-06",
+        index: "VXD",
+        ivPercentile: 25,
+        ivRank: 20,
+        latestValue: 18,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxyIndex: "VXD",
+      reason: null,
+      sessions: 252,
+      underlying: "DIA",
       unit: "vol_points",
       windowSessions: 252,
     },
@@ -521,6 +578,7 @@ const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
   shorts: vi.fn(async () => SHORTS),
   status: vi.fn(async () => ({
     checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+    lastFallbackAt: null,
     overdueCount: 0,
     runs: [],
     sources: [],
@@ -609,6 +667,7 @@ describe("OpenbbMarketsSection", () => {
     const gateway = gatewayOf({
       status: async () => ({
         checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+        lastFallbackAt: null,
         overdueCount: 0,
         runs: [
           runOf("cboe-option-iv", {
@@ -651,6 +710,7 @@ describe("OpenbbMarketsSection", () => {
     const fallback = gatewayOf({
       status: async () => ({
         checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+        lastFallbackAt: null,
         overdueCount: 0,
         runs: [
           runOf("cboe-option-iv", {
@@ -672,8 +732,21 @@ describe("OpenbbMarketsSection", () => {
       <OpenbbMarketsSection gateway={fallback} now={() => NOW} />
     );
     expect(notices(shown.container, "iv")).toEqual([
-      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.",
+      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each own option-chain percentile sample; this notice and the table come from separate reads.",
     ]);
+  });
+
+  it("shows per-underlying history evidence without hiding the IV value", async () => {
+    const { container } = await render(
+      <OpenbbMarketsSection gateway={gatewayOf()} now={() => NOW} />
+    );
+    const iv = text(container, '[data-openbb-block="iv"]');
+    expect(iv).toContain("15.0%");
+    expect(iv).toContain("Yahoo IV in sample");
+    expect(iv).toContain("Source not verified");
+    // DIA has clean own rows, but its percentile uses the VXD proxy index.
+    expect(iv).toContain("Proxy index basis");
+    expect(iv).not.toContain("Cboe only");
   });
 
   it("renders the panels without notices when the status read fails", async () => {
@@ -991,6 +1064,7 @@ describe("createBrowserOpenbbGateway", () => {
         macro: vi.fn(async () => ({ from: "2025-10-04", series: [] })),
         status: vi.fn(async () => ({
           checkedAt: new Date("2026-11-23T16:00:00.000Z"),
+          lastFallbackAt: null,
           overdueCount: 0,
           runs: [],
           sources: [],

@@ -518,6 +518,17 @@ export const OpenbbOptionIvDailyRowSchema = z.strictObject({
   underlying: symbol,
   underlyingPrice: price,
 });
+const OpenbbOptionIvDailyProducerSourceSchema = z.enum([
+  "cboe",
+  "yahoo_fallback",
+]);
+const OpenbbOptionIvDailyIngestRowSchema = OpenbbOptionIvDailyRowSchema.extend({
+  source: OpenbbOptionIvDailyProducerSourceSchema.optional(),
+});
+const OpenbbOptionIvDailyProducerRowSchema =
+  OpenbbOptionIvDailyRowSchema.extend({
+    source: OpenbbOptionIvDailyProducerSourceSchema,
+  });
 export const OpenbbOptionIvTermRowSchema = z
   .strictObject({
     asOf: date,
@@ -856,7 +867,7 @@ export const OPENBB_ROW_SCHEMAS = {
   factor_returns: OpenbbFactorRowSchema,
   finra_otc_weekly: OpenbbFinraOtcRowSchema,
   macro_points: OpenbbMacroPointRowSchema,
-  option_iv_daily: OpenbbOptionIvDailyRowSchema,
+  option_iv_daily: OpenbbOptionIvDailyProducerRowSchema,
   option_iv_term: OpenbbOptionIvTermRowSchema,
   sec_13f_filings: OpenbbSec13fFilingRowSchema,
   sec_13f_holdings: OpenbbSec13fRowSchema,
@@ -890,7 +901,7 @@ const tableRows = (max?: number) => {
       table: z.literal("vx_curve"),
     }),
     z.strictObject({
-      rows: rows(OpenbbOptionIvDailyRowSchema),
+      rows: rows(OpenbbOptionIvDailyIngestRowSchema),
       table: z.literal("option_iv_daily"),
     }),
     z.strictObject({
@@ -999,7 +1010,7 @@ export const OpenbbBatchDocumentSchema = z
     job: z.enum(OPENBB_JOBS),
     openbbVersion: label(40).nullable(),
     schemaVersion: z.literal(OPENBB_BATCH_SCHEMA_VERSION),
-    tables: z.array(tableRows()),
+    tables: z.array(tableRows(undefined)),
     warnings: z.array(utf16Text(2000)).max(500),
   })
   .refine(
@@ -1084,6 +1095,7 @@ export const OpenbbSourceStatusSchema = z.object({
 
 export const OpenbbStatusOutputSchema = z.object({
   checkedAt: z.date(),
+  lastFallbackAt: z.date().nullable(),
   overdueCount: count,
   runs: z.array(OpenbbRunSchema),
   sources: z.array(OpenbbSourceStatusSchema),
@@ -1143,6 +1155,7 @@ export const OpenbbVolContextOutputSchema = z.object({
   ),
   ivDaily: z.array(
     OpenbbOptionIvDailyRowSchema.extend({
+      historyState: z.enum(["affected", "clean", "source_unverified"]),
       ivPercentile: finite.min(0).max(100).nullable(),
       sessions: count,
     })

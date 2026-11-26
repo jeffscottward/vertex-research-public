@@ -75,12 +75,47 @@ def test_option_iv_rows_are_consistent() -> None:
     daily = result.table("option_iv_daily")
     term = result.table("option_iv_term")
     assert {r["underlying"] for r in daily} == {"SPY", "GLD"}
+    assert all(row["source"] == "yahoo_fallback" for row in daily)
     for row in daily:
         assert 0 < row["atmIv30d"] < 2
         mine = [t for t in term if t["underlying"] == row["underlying"]]
         assert row["callOi"] == sum(t["callOi"] for t in mine)
         assert row["putVolume"] == sum(t["putVolume"] for t in mine)
     assert any("non-standard" in w or "OCC" in w for w in result.document["warnings"])
+
+
+def test_shared_daily_iv_fixtures_match_source_contract() -> None:
+    shared_fixtures = (
+        ROOT.parent.parent
+        / "packages"
+        / "api"
+        / "src"
+        / "contracts"
+        / "fixtures"
+    )
+    v1 = json.loads(
+        (shared_fixtures / "openbb-option-iv-daily-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    v2 = json.loads(
+        (shared_fixtures / "openbb-option-iv-daily-v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    v1_rows = next(
+        table["rows"] for table in v1["tables"] if table["table"] == "option_iv_daily"
+    )
+    v2_rows = next(
+        table["rows"] for table in v2["tables"] if table["table"] == "option_iv_daily"
+    )
+    assert all("source" not in row for row in v1_rows)
+    assert [
+        {key: value for key, value in row.items() if key != "source"}
+        for row in v2_rows
+    ] == v1_rows
+    assert [row["source"] for row in v2_rows] == ["cboe", "yahoo_fallback"]
+    assert all(rows.row_problem("option_iv_daily", row) is None for row in v2_rows)
 
 
 def test_sec_ftd_uses_files_listed_on_the_sec_page() -> None:
@@ -615,6 +650,7 @@ def test_option_iv_uses_yahoo_when_cboe_is_blocked() -> None:
     assert result.code == 0, result.stderr
     daily = result.table("option_iv_daily")
     assert {r["underlying"] for r in daily} == {"SPY", "GLD"}
+    assert all(row["source"] == "yahoo_fallback" for row in daily)
     assert all(r["asOf"] == "2026-11-20" for r in daily)  # Friday's quote, Saturday run
     assert "blocked" not in result.document
     for symbol in ("SPY", "GLD"):
@@ -632,12 +668,25 @@ def test_option_iv_yahoo_failure_keeps_blocked() -> None:
     assert any("cboe chain SPY: ContentTypeError: 403" in w for w in result.document["warnings"])
 
 
+def test_option_iv_invalid_yahoo_row_has_no_success_warning() -> None:
+    payload = yahoo_payload()
+    for chain in payload["chains"].values():
+        for side in ("calls", "puts"):
+            for contract in chain[side]:
+                contract["impliedVolatility"] = 20.0  # above the atmIv30d limit of 10
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", payload)]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls)
+    assert result.table("option_iv_daily") == []
+    assert not any(YAHOO_NOTE in w for w in result.document["warnings"])
+
+
 def test_option_iv_cboe_ok_never_calls_yahoo() -> None:
     # Real trimmed Cboe payloads of the 2026-11-08 recording (before the fallback existed).
     inline = json.loads((FIXTURES / "inline" / "cboe-option-iv-cboe-ok.json").read_text(encoding="utf-8"))
     result = run(["cboe-option-iv", "--symbols", "SPY,GLD"], inline, today=date(2026, 11, 8))
     assert result.code == 0, result.stderr
     assert {r["underlying"] for r in result.table("option_iv_daily")} == {"SPY", "GLD"}
+    assert all(row["source"] == "cboe" for row in result.table("option_iv_daily"))
     assert not any(YAHOO_NOTE in w for w in result.document["warnings"])
 
 
@@ -648,6 +697,10 @@ def test_option_iv_mixed_sources_marks_only_the_yahoo_symbol() -> None:
     result = run(["cboe-option-iv", "--symbols", "SPY,GLD"], calls, today=date(2026, 11, 21))
     assert result.code == 0, result.stderr
     assert {r["underlying"] for r in result.table("option_iv_daily")} == {"SPY", "GLD"}
+    assert {
+        row["underlying"]: row["source"]
+        for row in result.table("option_iv_daily")
+    } == {"SPY": "cboe", "GLD": "yahoo_fallback"}
     marked = [w for w in result.document["warnings"] if YAHOO_NOTE in w]
     assert len(marked) == 1 and marked[0].startswith("cboe chain GLD:")
 
