@@ -113,8 +113,7 @@ export const chainKpis = (state: ChainState): ChainKpis => {
         ? "No price in this chain snapshot"
         : `$${chain.spot.toFixed(2)}`,
     // A short value; the muted detail under it carries the reason and the counts.
-    putCallOiDetail:
-      ratio === null ? noRatioReason(summary) : "OI for the selected expiry",
+    putCallOiDetail: putCallOiDetail(summary),
     putCallOiValue: ratio === null ? NO_RATIO : ratio.toFixed(2),
     strike:
       summary.atmStrike === null
@@ -139,21 +138,24 @@ const complete = (side: OiSide): boolean =>
   side.contracts > 0 && side.reported === side.contracts;
 
 /**
- * Why there is no put/call ratio. No contracts, open interest the source did not report, and a
- * reported 0 stay distinct: a missing value is never summed as 0. The counts cover the contracts
- * of the returned chain only, which can be fewer than the expiry lists.
+ * The muted detail of the Put/call OI tile: the contracts behind the ratio, or why there is none.
+ * No contracts, open interest the source did not report, and a reported 0 stay distinct: a missing
+ * value is never summed as 0. Every text speaks for the returned chain only, which can hold fewer
+ * contracts than the expiry lists.
  */
-const noRatioReason = ({ calls, puts }: ChainSummary): string => {
+const putCallOiDetail = ({ calls, puts, putCallOi }: ChainSummary): string => {
   const reported = (side: OiSide, name: "calls" | "puts"): string =>
     `${side.reported} of ${side.contracts} ${name}`;
   if (calls.contracts === 0 && puts.contracts === 0)
-    return "No contracts for the selected expiry";
+    return "No contracts in the returned chain";
   if (calls.contracts === 0)
     return `No call contracts; OI reported for ${reported(puts, "puts")} in the returned chain`;
   if (puts.contracts === 0)
     return `No put contracts; OI reported for ${reported(calls, "calls")} in the returned chain`;
   if (!(complete(calls) && complete(puts)))
     return `OI reported for ${reported(calls, "calls")} and ${reported(puts, "puts")} in the returned chain`;
+  if (putCallOi !== null)
+    return `OI reported for all ${calls.contracts} calls and ${puts.contracts} puts in the returned chain`;
   if (puts.total === 0) return "Reported call and put OI totals are 0";
   return "Call OI is 0; a ratio needs call OI above 0";
 };

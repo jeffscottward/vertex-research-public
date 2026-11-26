@@ -673,43 +673,79 @@ describe("chainFlow", () => {
 });
 
 describe("chainKpis", () => {
-  it("keeps value and detail separate for every chain state", async () => {
-    const loading = chainKpis({ type: "loading" });
-    expect(loading.putCallOiValue).toBe("No ratio");
-    expect(loading.putCallOiDetail).toBe("Loading…");
-    const failed = chainKpis({
-      failure: {
-        code: "UNAVAILABLE",
-        message: "The options feed did not answer.",
-      },
-      type: "error",
+  it("names the chain state while there is no chain", () => {
+    // Every tile shows the state; the Put/call OI tile keeps it in the detail under a short value.
+    const notReady = (text: string) => ({
+      atmIv: text,
+      expiry: text,
+      price: text,
+      putCallOiDetail: text,
+      putCallOiValue: "No ratio",
+      strike: text,
     });
-    expect(failed.putCallOiValue).toBe("No ratio");
-    expect(failed.putCallOiDetail).toBe(
-      "Not loaded: The options feed did not answer."
+    expect(chainKpis({ type: "loading" })).toEqual(notReady("Loading…"));
+    expect(
+      chainKpis({
+        failure: {
+          code: "UNAVAILABLE",
+          message: "The options feed did not answer.",
+        },
+        type: "error",
+      })
+    ).toEqual(notReady("Not loaded: The options feed did not answer."));
+    expect(chainKpis({ startedAt: 0, type: "no-answer" })).toEqual(
+      notReady("Not loaded: no answer after 30 s")
     );
-    const silent = chainKpis({ startedAt: 0, type: "no-answer" });
-    expect(silent.putCallOiValue).toBe("No ratio");
-    expect(silent.putCallOiDetail).toBe("Not loaded: no answer after 30 s");
+  });
 
+  it("names each value a loaded chain lacks", async () => {
     const chain = await createFakeOptionsChainGateway().chain({
       symbol: "NVDA",
     });
     const full = chainKpis({ chain, type: "ready" });
+    expect(full.price).toBe("$251.64");
+    expect(full.strike).toMatch(/^Strike \d+\.\d{2}$/u);
+    expect(full.atmIv).toMatch(/^\d+\.\d%$/u);
     expect(full.putCallOiValue).toMatch(/^\d+\.\d{2}$/u);
-    expect(full.putCallOiDetail).toBe("OI for the selected expiry");
+    expect(full.putCallOiDetail).toBe(
+      "OI reported for all 41 calls and 41 puts in the returned chain"
+    );
+    expect(
+      chainKpis({ chain: { ...chain, rows: [], spot: null }, type: "ready" })
+    ).toEqual({
+      atmIv: "No ATM strike for this expiry",
+      expiry: full.expiry,
+      price: "No price in this chain snapshot",
+      putCallOiDetail: "No contracts in the returned chain",
+      putCallOiValue: "No ratio",
+      strike: "No ATM strike for this expiry",
+    });
+    const noIv = chainKpis({
+      chain: {
+        ...chain,
+        rows: [{ call: null, put: null, strike: 250 }],
+        spot: 250,
+      },
+      type: "ready",
+    });
+    expect(noIv.atmIv).toBe("No IV at the ATM strike");
+    expect(noIv.strike).toBe("Strike 250.00");
+  });
 
-    type Leg = number | null | "absent";
-    const leg = chain.rows.find((row) => row.put !== null && row.call !== null);
-    const call = leg?.call ?? null;
-    const put = leg?.put ?? null;
-    expect(call).not.toBeNull();
+  it("keeps the put/call OI value short and gives the reason in the detail", async () => {
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    const legs = chain.rows.find(
+      (row) => row.put !== null && row.call !== null
+    );
+    const put = legs?.put ?? null;
+    const call = legs?.call ?? null;
     expect(put).not.toBeNull();
-    const expectOi = (
-      rows: readonly (readonly [Leg, Leg])[],
-      value: string,
-      detail: string
-    ) => {
+    expect(call).not.toBeNull();
+    // Each row: call and put open interest, null when not reported, "absent" for no contract.
+    type Leg = number | null | "absent";
+    const oi = (...rows: readonly (readonly [Leg, Leg])[]) => {
       const kpis = chainKpis({
         chain: {
           ...chain,
@@ -728,45 +764,55 @@ describe("chainKpis", () => {
         },
         type: "ready",
       });
-      expect(kpis.putCallOiValue).toBe(value);
-      expect(kpis.putCallOiDetail).toBe(detail);
+      return [kpis.putCallOiValue, kpis.putCallOiDetail];
     };
-    expectOi([], "No ratio", "No contracts for the selected expiry");
-    expectOi(
-      [["absent", 1200]],
+    expect(oi([400, 600])).toEqual([
+      "1.50",
+      "OI reported for all 1 calls and 1 puts in the returned chain",
+    ]);
+    // A reported put total of 0 is a ratio of 0, not a missing ratio.
+    expect(oi([400, 0], [100, 0])).toEqual([
+      "0.00",
+      "OI reported for all 2 calls and 2 puts in the returned chain",
+    ]);
+    expect(oi(["absent", "absent"])).toEqual([
       "No ratio",
-      "No call contracts; OI reported for 1 of 1 puts in the returned chain"
-    );
-    expectOi(
-      [[400, "absent"]],
+      "No contracts in the returned chain",
+    ]);
+    expect(oi([0, 0])).toEqual([
       "No ratio",
-      "No put contracts; OI reported for 1 of 1 calls in the returned chain"
-    );
-    expectOi(
-      [[null, null]],
+      "Reported call and put OI totals are 0",
+    ]);
+    expect(oi([0, 1200])).toEqual([
       "No ratio",
-      "OI reported for 0 of 1 calls and 0 of 1 puts in the returned chain"
-    );
-    expectOi(
-      [[400, null]],
+      "Call OI is 0; a ratio needs call OI above 0",
+    ]);
+    // Puts and no call contracts: no ratio, and the puts are not zero.
+    expect(oi(["absent", 1200])).toEqual([
       "No ratio",
-      "OI reported for 1 of 1 calls and 0 of 1 puts in the returned chain"
-    );
-    expectOi([[0, 0]], "No ratio", "Reported call and put OI totals are 0");
-    expectOi(
-      [[0, 1200]],
+      "No call contracts; OI reported for 1 of 1 puts in the returned chain",
+    ]);
+    expect(oi(["absent", null], ["absent", 300])).toEqual([
       "No ratio",
-      "Call OI is 0; a ratio needs call OI above 0"
-    );
-    expectOi([[400, 0]], "0.00", "OI for the selected expiry");
-    expectOi(
-      [
-        [400, 600],
-        [null, 300],
-      ],
+      "No call contracts; OI reported for 1 of 2 puts in the returned chain",
+    ]);
+    expect(oi([400, "absent"], [null, "absent"], [null, "absent"])).toEqual([
       "No ratio",
-      "OI reported for 1 of 2 calls and 2 of 2 puts in the returned chain"
-    );
+      "No put contracts; OI reported for 1 of 3 calls in the returned chain",
+    ]);
+    expect(oi([null, null])).toEqual([
+      "No ratio",
+      "OI reported for 0 of 1 calls and 0 of 1 puts in the returned chain",
+    ]);
+    expect(oi([400, null])).toEqual([
+      "No ratio",
+      "OI reported for 1 of 1 calls and 0 of 1 puts in the returned chain",
+    ]);
+    // A partly reported side is never summed as complete.
+    expect(oi([0, 1200], [null, 300], [null, null])).toEqual([
+      "No ratio",
+      "OI reported for 1 of 3 calls and 2 of 3 puts in the returned chain",
+    ]);
   });
 });
 
