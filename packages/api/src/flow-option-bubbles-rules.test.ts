@@ -329,7 +329,7 @@ describe("foldOptionBubbles", () => {
     expect(fold.totals.latestPrice).toBeNull();
   });
 
-  it("does not show Quant Data flags of a print with open interest 0", () => {
+  it("reports Quant Data flags of a print with open interest 0 as not reported", () => {
     const flagged = { opening: true, volumeOverOi: true };
     const fold = foldOptionBubbles({
       gaps: [],
@@ -340,6 +340,11 @@ describe("foldOptionBubbles", () => {
           ...flagged,
           openInterest: 0,
         }),
+        makePrint("stored", "2026-11-20T14:40:30.000Z", {
+          opening: null,
+          openInterest: 0,
+          volumeOverOi: null,
+        }),
         makePrint("known", "2026-11-20T14:41:00.000Z", {
           ...flagged,
           openInterest: 900,
@@ -349,7 +354,8 @@ describe("foldOptionBubbles", () => {
     });
 
     expect(fold.bubbles.map((b) => [b.id, b.opening, b.volumeOverOi])).toEqual([
-      ["zero", false, false],
+      ["zero", null, null],
+      ["stored", null, null],
       ["known", true, true],
     ]);
   });

@@ -290,6 +290,7 @@ export const labFlowSnapshot = (
       blocks: 3,
       bullishPremium: 4_200_000,
       callPremium: 5_600_000,
+      oiFlagsNotReported: 0,
       openingPremiumShare: 0.47,
       otmPremiumShare: 0.62,
       putCallPremiumRatio: 0.66,

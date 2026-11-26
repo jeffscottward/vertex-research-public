@@ -70,9 +70,11 @@ export type OptionBubblesPrintRow = Readonly<{
   moneyness: StoredMoneyness;
   unusual: boolean;
   goldenSweep: boolean;
-  opening: boolean;
-  volumeOverOi: boolean;
-  /** Open interest on the print; 0 means the Opening and Vol > OI flags are not known. */
+  /** Null: not reported (see `oiFlags`). */
+  opening: boolean | null;
+  /** Null: not reported (see `oiFlags`). */
+  volumeOverOi: boolean | null;
+  /** Open interest on the print; 0 means the Opening and Vol > OI flags are not reported. */
   openInterest: number | null;
   iv: number | null;
 }>;

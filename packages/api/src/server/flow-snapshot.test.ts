@@ -4,6 +4,7 @@ import {
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
   type FlowFreshness,
+  FlowOptionsSummarySchema,
   FlowSnapshotSchema,
 } from "../contracts/flow.ts";
 import type {
@@ -624,6 +625,7 @@ describe("buildOptionsSummary", () => {
       ticker: "SPY",
       trades: prints.length + 4,
       unusual: prints.length + 3,
+      oiFlagsNotReported: 0,
       volumeOverOi: prints.length + 3,
     });
     expect(summary.putCallPremiumRatio).toBeCloseTo(1500 / call);
@@ -663,11 +665,19 @@ describe("buildOptionsSummary", () => {
     });
   });
 
-  it("does not count Quant Data flags of prints with open interest 0", () => {
-    // Card vertex-flow-print-flags-oi-zero: Quant Data sets Opening and Vol > OI on every print
-    // whose open interest is 0, so those flags are not known.
+  it("reports the Quant Data flags of prints with open interest 0 as not reported", () => {
+    // Card vertex-flow-print-flags-oi-zero-third-state: Quant Data sets Opening and Vol > OI on
+    // every print whose open interest is 0. Rows stored before the null state keep true; new rows
+    // store null. Both read as not reported.
     const summary = buildOptionsSummary("SPY", [
       printRow(MON_10_00, { id: "a", openInterest: 0, premium: 4000 }),
+      printRow(MON_10_00, {
+        id: "n",
+        openInterest: 0,
+        opening: null,
+        premium: 2000,
+        volumeOverOi: null,
+      }),
       printRow(MON_10_00, { id: "b", openInterest: 50, premium: 1000 }),
       printRow(MON_10_00, {
         id: "c",
@@ -677,21 +687,29 @@ describe("buildOptionsSummary", () => {
         volumeOverOi: false,
       }),
     ]);
+    expect(FlowOptionsSummarySchema.parse(summary)).toEqual(summary);
     expect(summary.volumeOverOi).toBe(1);
+    expect(summary.oiFlagsNotReported).toBe(2);
     expect(summary.openingPremiumShare).toBeCloseTo(1000 / 4000);
     expect(summary.topPrints[0]).toMatchObject({
-      opening: false,
+      opening: null,
       premium: 4000,
-      volumeOverOi: false,
+      volumeOverOi: null,
+    });
+    expect(summary.topPrints[2]).toMatchObject({
+      opening: null,
+      premium: 2000,
+      volumeOverOi: null,
     });
   });
 
-  it("returns a null opening share when no print has a known flag", () => {
+  it("returns a null opening share when no print reports the flag", () => {
     const summary = buildOptionsSummary("SPY", [
       printRow(MON_10_00, { openInterest: 0 }),
     ]);
     expect(summary.openingPremiumShare).toBeNull();
     expect(summary.volumeOverOi).toBe(0);
+    expect(summary.oiFlagsNotReported).toBe(1);
   });
 });
 

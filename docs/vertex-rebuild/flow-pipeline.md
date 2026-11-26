@@ -217,11 +217,20 @@ check of the tape against IBKR history is a future improvement.
 - **Options:** premium by right, sentiment, aggressor side (QuantData `tradeSideCode`), sweep/block,
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or
   $1M (SPX), and every golden sweep. A print that reports open interest 0 has QuantData's Opening
-  and Vol > OI flags set on every print (card `vertex-flow-print-flags-oi-zero`), so readers treat
-  them as not known (`oiFlags` in `packages/api/src/flow-options.ts`): the print views, bubbles
-  and options summary never show or count those flags, and the opening premium share leaves their
-  premium out. The stored print row keeps the values as sent. Option event text is written at
-  collect time, so only events stored after this change leave out ", vol > OI" for such prints.
+  and Vol > OI flags set on every print (cards `vertex-flow-print-flags-oi-zero` and
+  `vertex-flow-print-flags-oi-zero-third-state`). Migration `0099_flow_option_prints_oi_flags`
+  makes `flow_option_prints.opening` and `volume_over_oi` nullable and extends
+  `flow_option_prints_check` so both flags are `NULL` together and only when `open_interest = 0`.
+  `parseOptionPrints` stores `NULL` ("not reported") for both flags when `openInterest === 0`,
+  while rows stored before migration keep QuantData's raw booleans until the 14-day retention prune
+  removes them. `oiFlags` and `oiFlagsKnown` (`packages/api/src/flow-options.ts`) read both legacy
+  OI-0 rows and stored `NULL` rows as `{ opening: null, volumeOverOi: null }`. Print views and
+  bubbles return `null` flags, `FlowOptionsSummary.oiFlagsNotReported` counts them, `volumeOverOi`
+  and `openingPremiumShare` exclude them, `/flow` discloses the gap on the `Vol > OI` and `Opening
+  share` tiles, top-prints `Flags` column (`no OI flags`), and bubble inspector (`Opening and Vol >
+  OI not reported`), and option event text leaves out ", vol > OI" for such prints. See
+  `docs/vertex-rebuild/designs/vertex-flow-oi-flags-not-reported/plan.md` for the read-only
+  QuantVPS SQL verification query and rollback rules.
 - **GEX:** estimate (dealers assumed long calls, short puts). ES uses SPX levels shifted by the
   ES − SPX basis (ES book mid or last price minus the SPX spot at the snapshot).
 
