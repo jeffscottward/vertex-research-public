@@ -73,4 +73,12 @@ describe("chart intervals", () => {
     ]);
     expect(aggregateCandles([], "week")).toEqual([]);
   });
+
+  it("leaves out the volume of a merged bar when a day has no volume", () => {
+    const { volume: _, ...noVolume } = day("2026-01-06", 11);
+    const weeks = aggregateCandles([day("2026-01-05", 10), noVolume], "week");
+    expect(weeks).toHaveLength(1);
+    expect(weeks[0]).toMatchObject({ close: 11, open: 9.5 });
+    return expect(weeks[0]).not.toHaveProperty("volume");
+  });
 });

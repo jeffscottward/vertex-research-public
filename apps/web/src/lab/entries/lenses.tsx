@@ -21,6 +21,7 @@ import { InsiderClustersWorkspace } from "../../components/portal/insider-cluste
 import { MarketContextPage } from "../../components/portal/market-context-page.tsx";
 import type { MarketContextGateway } from "../../components/portal/market-context-workspace.tsx";
 import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
+import type { MarketRegimeGateway } from "../../components/portal/market-regime-section.tsx";
 import type { ResearchLensesGateway } from "../../components/portal/research-lenses-client.ts";
 import type { RiskAllocatorGateway } from "../../components/portal/risk-allocator-client.ts";
 import { parseRiskAllocatorParams } from "../../components/portal/risk-allocator-params.ts";
@@ -39,6 +40,7 @@ import { SmartMoneyWorkspace } from "../../components/portal/smart-money-workspa
 import { LAB_NOW, labDaysAgo } from "../fixtures/core.ts";
 import {
   LAB_MARKET_CONTEXT,
+  LAB_MARKET_REGIME,
   LAB_MARKET_VOLATILITY,
   LAB_SECTOR_UNIVERSES,
   labCongressFeed,
@@ -153,6 +155,10 @@ const labMarketFeedsGateway: MarketFeedsGateway = {
   context: () => Promise.resolve(LAB_MARKET_CONTEXT),
 };
 
+const labMarketRegimeGateway: MarketRegimeGateway = {
+  get: () => Promise.resolve(LAB_MARKET_REGIME),
+};
+
 const GROUP = "Markets & Research";
 
 export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
@@ -250,6 +256,7 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
         contextGateway={labMarketContextGateway}
         feedsGateway={labMarketFeedsGateway}
         now={() => LAB_NOW}
+        regimeGateway={labMarketRegimeGateway}
       />
     ),
     route: "/markets",

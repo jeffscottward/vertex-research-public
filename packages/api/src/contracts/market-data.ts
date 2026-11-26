@@ -5,7 +5,8 @@ import { z } from "zod";
 // parsed by server/history-answer.ts).
 // Bars only; the service holds the only IB session (client id 77) and enforces IBKR pacing.
 
-export const MARKET_SEC_TYPES = ["STK", "FUT", "CONTFUT"] as const;
+// CASH = IBKR forex (symbol EUR + currency USD, usually on IDEALPRO); bars only, always MIDPOINT.
+export const MARKET_SEC_TYPES = ["STK", "FUT", "CONTFUT", "CASH"] as const;
 export const MARKET_BAR_SIZES = [
   "1 min",
   "5 mins",
@@ -40,8 +41,9 @@ export const marketDurationAllowed = (
 };
 
 // Server-side reads of vertex-history 1.3.0 (card vertex-yahoo-terms-decision): the Yahoo replacements also use
-// forex (CASH), indices (IND, TRADES only), dividend-adjusted daily bars (ADJUSTED_LAST, no end date) and daily
-// windows up to 30 Y (above 365 days in Y units only). The /charts UI keeps the MARKET_* lists above.
+// indices (IND, TRADES only), BID_ASK bars, dividend-adjusted daily bars (ADJUSTED_LAST, no end date) and daily
+// windows up to 30 Y (above 365 days in Y units only). The /charts UI keeps the MARKET_* lists above
+// (forex, CASH, is in both).
 export const HISTORY_SEC_TYPES = [
   "STK",
   "FUT",
@@ -116,7 +118,8 @@ export const MarketBarsInputSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["exchange"],
-        message: "Futures need an exchange, for example CME",
+        message:
+          "Futures and forex need an exchange, for example CME or IDEALPRO",
       });
     }
     if (!marketDurationAllowed(input.barSize, input.duration)) {
@@ -260,6 +263,16 @@ const instrumentRefinements = (
   },
   ctx: z.RefinementCtx
 ) => {
+  if (input.secType === "CASH") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["secType"],
+      message:
+        "Forex (CASH) has bars only: IBKR gives no ticks or depth for it",
+    });
+    // No other issue: a hint to add an exchange would point at a request that can never work.
+    return;
+  }
   if (input.secType !== "STK" && input.exchange === undefined) {
     ctx.addIssue({
       code: "custom",
