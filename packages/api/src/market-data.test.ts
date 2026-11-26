@@ -652,13 +652,15 @@ describe("market_bars MCP tool", () =>
     );
     expect(call).toHaveBeenCalledWith("marketData/bars", { symbol: "SPY" });
     expect(result["isError"]).toBe(false);
-    // Forex goes through the same schema; the description tells a caller how to write a pair.
-    const forex = { exchange: "IDEALPRO", secType: "CASH", symbol: "EUR" };
-    const forexResult = await callMcpTool("market_bars", forex, call);
-    expect(call).toHaveBeenLastCalledWith("marketData/bars", forex);
-    expect(forexResult["isError"]).toBe(false);
-    expect(tool?.description).toContain("STK|FUT|CONTFUT|CASH");
-    expect(tool?.description).toContain("symbol EUR, currency USD");
+    // The agent tool keeps stocks and futures (mcp.ts says why); the procedure itself takes forex.
+    const forexResult = await callMcpTool(
+      "market_bars",
+      { exchange: "IDEALPRO", secType: "CASH", symbol: "EUR" },
+      call
+    );
+    expect(forexResult["isError"]).toBe(true);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(tool?.description).toContain("secType STK|FUT|CONTFUT,");
     const presented = presentMarketBars(
       { bars: [{ t: 1 }, { t: 2 }], count: 2 },
       1

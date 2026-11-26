@@ -468,7 +468,7 @@
       marker-end="url(#arrow-green)"
     />
 
-    <!-- Step 2: oRPC / MCP Contract -->
+    <!-- Step 2: oRPC contract -->
     <g transform="translate(276, 60)">
       <rect
         width="222"
@@ -486,7 +486,7 @@
         font-size="12"
         font-weight="700"
       >
-        oRPC + MCP Contract
+        oRPC contract (bars)
       </text>
       <!-- Bars check -->
       <circle cx="28" cy="52" r="9" fill="#14532d" stroke="#22c55e" />

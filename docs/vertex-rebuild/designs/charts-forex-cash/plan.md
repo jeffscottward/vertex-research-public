@@ -1,6 +1,6 @@
 # Plan: put forex (`CASH`) back in Charts
 
-![Before and after: the Charts forex (CASH) path from the picker through oRPC and MCP to the live history service](./before-after.png)
+![Before and after: the Charts forex (CASH) path from the picker through oRPC to the live history service](./before-after.png)
 
 In the picture, the BEFORE panel and the history service results are verified facts. The AFTER panel shows the planned state, and its price chart is a mock (labelled MOCK).
 
@@ -21,11 +21,11 @@ Both are resolved. PR #345 (merged 2026-11-20) upgraded the service to `ibapi` 1
 | The same for `USD`+`JPY` | HTTP 200, 259 bars, contract `USD.JPY`, no volume |
 | `/bars` `EUR`+`USD`, `1 hour`, `1 M`, `whatToShow=TRADES` | HTTP 200, 506 bars; the answer says `whatToShow: MIDPOINT` |
 
-So the history service needs no change and no reinstall. Only the web side still refuses `CASH`. The request path is: browser form on `/charts`, oRPC procedure `marketData/bars` in `packages/api`, `vertex-history`, IB Gateway. The MCP tool `market_bars` validates with the same input schema as the oRPC procedure, so one contract change opens both. The note in `docs/vertex-rebuild/quantvps-status-endpoint.md` that says `CASH` is not deployed is stale.
+So the history service needs no change and no reinstall. Only the web side still refuses `CASH`. The request path is: browser form on `/charts`, oRPC procedure `marketData/bars` in `packages/api`, `vertex-history`, IB Gateway. The MCP tool `market_bars` (the tool that agents call) builds its input schema from the same contract. The note in `docs/vertex-rebuild/quantvps-status-endpoint.md` that says `CASH` is not deployed is stale.
 
 ## Goal
 
-An operator can open a forex pair in `/charts` again, by the `Forex (CASH)` security type or by a quick pick, and can see which pair the chart shows. The oRPC procedure `marketData/bars` and the MCP tool `market_bars` return forex bars for the same request.
+An operator can open a forex pair in `/charts` again, by the `Forex (CASH)` security type or by a quick pick, and can see which pair the chart shows. The oRPC procedure `marketData/bars` returns forex bars for the same request. The MCP tool `market_bars` does not change in this plan (see "Out of scope").
 
 ## Design rule
 
@@ -48,7 +48,7 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 | Decision | Chosen | Rejected, with the reason |
 | --- | --- | --- |
 | Restore or redesign | Restore the removed code, plus the listed differences | A redesign (new lists, new defaults) for one enum value. The removed code ran before and its tests exist. A literal `git revert` does not apply: later commits changed the same files. |
-| Exchange for `CASH` | Required, as before | A default of `IDEALPRO` in the API. The existing rule "not `STK` needs an exchange" already covers `CASH` with no code, and the form presets the value. The error text names `IDEALPRO`, so an MCP caller can correct the request. |
+| Exchange for `CASH` | Required, as before | A default of `IDEALPRO` in the API. The existing rule "not `STK` needs an exchange" already covers `CASH` with no code, and the form presets the value. The error text names `IDEALPRO`, so a direct caller can correct the request. |
 | `TRADES` for `CASH` | Replace with `MIDPOINT` | A validation error. `TRADES` is the schema default, so every caller that omits the field would fail. The history service replaces the value too; the API server repeats the rule so that the contract does not depend on an upstream side effect. |
 | Ticks and depth | Shared list `MARKET_SEC_TYPES` plus a refusal in the refinement | A second, narrower list for ticks, depth and the order flow panel. It changes about three more files. Cost of the chosen form: `openapi.json` lists `CASH` as a `secType` value for ticks and depth although the server always refuses it. |
 
@@ -58,6 +58,7 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 - Forex ticks, depth, order flow, options panels, and `BID_ASK` bars.
 - A "no volume" display in place of `Volume 0`. The web app does not read the volume unit; this is a separate change for all instruments without volume.
 - A forex chart in the page URL. The URL holds stock symbols only, as for futures today.
+- Forex for agents. The definition of the MCP tool `market_bars` (description and input schema) is part of every recorded model call of the semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`). A new `secType` value in that definition makes all 90 recorded trials stale; CI showed this on the first run of the PR. A new recording needs about 200 model calls and 270 grading calls (`docs/vertex-rebuild/agent-semantic-layer.md`). So the tool keeps `STK`, `FUT` and `CONTFUT`, and forex for agents is the follow-up card `vertex-fx-mcp-market-bars`.
 - Indices (`IND`).
 - Orders, arming, risk settings, sizing and live trading units. This change reads historical bars only.
 
@@ -65,7 +66,7 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 
 | Risk | Handling |
 | --- | --- |
-| A direct oRPC or MCP caller sends `CASH` with the default `whatToShow: "TRADES"` | The API server replaces it with `MIDPOINT` (behavior 2). |
+| A direct oRPC caller sends `CASH` with the default `whatToShow: "TRADES"` | The API server replaces it with `MIDPOINT` (behavior 2). |
 | Security | No new procedure and no new data class. `marketData.bars` is already on the operator read-key list and returns market data only. |
 | Load on the history service | Unchanged rules: the service paces IBKR requests (6 distinct requests in 120 s) and caches answers. A pick loads nothing until the operator submits. A paced request shows the existing typed `PACED` error with the retry time. |
 | IBKR or the history service refuses forex after a later change | Accepted for a read-only chart: the chart panel shows the typed error, as for every other symbol. The history installer (`infra/quant-vps/history/install-history.sh`) already runs `EUR.USD` and `GBP.USD` smoke checks and rolls back on a failure. |
@@ -75,13 +76,13 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 
 ## Acceptance criteria
 
-- Behaviors 1 to 9 hold, and each has an automated test (steps 2 and 5 of the implementation plan). The MCP tool `market_bars` has one test with a `CASH` request.
+- Behaviors 1 to 9 hold, and each has an automated test (steps 2 and 5 of the implementation plan). One test shows that the MCP tool `market_bars` still refuses `CASH` and that its description did not change.
 - `bun run verify:prepush` passes, and the PR check `ci-gate` passes on the reviewed head.
 - After the deploy, the live `/charts` page draws `EUR.USD` daily bars and one intraday interval from the live history service, the title says `EUR.USD`, and the browser console logs no error.
 
 ## Implementation Plan
 
-Reference for the restored code: `git show 1c7987817` (read it in reverse). The change has three commits: the design folder; the feature (steps 1 to 7, differences 1 to 6 and 9); and the fixes from the code review (differences 7 and 8, and the pair name of the lab contract in difference 4). Work order inside the feature commit: contract (step 1), tests (steps 2 and 5, failing), then implementation (steps 3, 4, 6). The tree does not type-check between step 1 and step 4, because `SEC_TYPE_LABELS` is an exhaustive record; this is expected.
+Reference for the restored code: `git show 1c7987817` (read it in reverse). The change has these commits: the design folder; the feature (steps 1 to 7, differences 1 to 5 and 9); the fixes from the code review (differences 7 and 8, and the pair name of the lab contract in difference 4); and the fix after the first CI run (difference 6: the MCP tool stays as it was). Work order inside the feature commit: contract (step 1), tests (steps 2 and 5, failing), then implementation (steps 3, 4, 6). The tree does not type-check between step 1 and step 4, because `SEC_TYPE_LABELS` is an exhaustive record; this is expected.
 
 ### Restored from `1c7987817`
 
@@ -108,10 +109,10 @@ Reference for the restored code: `git show 1c7987817` (read it in reverse). The 
 3. **Marks line for forex** (behavior 8; visible defect). `apps/web/src/components/portal/order-flow-marks-bar.tsx` (Modify): in the `unsupported` state with `secType === "CASH"`, show `Order-flow marks: none for forex (CASH). IBKR gives no ticks or depth for a forex pair.` in place of the text that points to the order flow panel. Add the case to `order-flow-marks-bar.test.tsx`.
 4. **Lab bars without volume** (behavior 9). `labBarsOutput` maps the bars to `v: null` for `CASH` and names the contract as the pair (`EUR.USD`), as the live service does; the restored fixture test also asserts both. The lab price scale for a forex symbol stays the made-up scale of every unlisted lab symbol.
 5. **Shared sample answer** (`market-data.test.ts`). The test `reads the shared sample answers as expected.json says for charts` now filters out only `-ind.json` and expects one file fewer than the cases in `packages/api/src/fixtures/history-answers/expected.json`, so it reads `bars-v2-cash.json` (three bars, volumes `null`). Correct the comment above the filter.
-6. **MCP tool** (`packages/api/src/server/mcp.ts`, Modify). The `market_bars` description becomes: `Read-only IBKR historical OHLCV bars from the QuantVPS history service (IB Gateway, client id 77): symbol, secType STK|FUT|CONTFUT|CASH, exchange (SMART for stocks; required for futures, e.g. CME, and for forex, e.g. IDEALPRO), currency, barSize (1 min to 1 day), duration (daily <= 1 Y, intraday <= 1 M, 1 min <= 2 D), whatToShow TRADES|MIDPOINT, useRTH. Forex (CASH): symbol is the base currency and currency is the quote currency (EUR.USD is symbol EUR, currency USD); bars are always MIDPOINT and v is null. Bars are {t epoch seconds UTC, o, h, l, c, v}; includes contract, asOf, fetchedAt and cache age. The service paces IBKR requests; PACED errors say when to retry.` In the test block `market_bars MCP tool`, add one call with `{ symbol: "EUR", secType: "CASH", exchange: "IDEALPRO" }` and assert that the tool accepts it and forwards it to `marketData/bars`, and that the description names `CASH` and the pair format. (The `MIDPOINT` rule sits behind that procedure; step 2 tests it.)
+6. **MCP tool unchanged** (`packages/api/src/server/mcp.ts`, Modify). The tool input overrides `secType` with its own list `["STK", "FUT", "CONTFUT"]`, so the tool definition that agents receive is the same as before, byte for byte; the description text does not change. A comment gives the reason and the follow-up card. In the test block `market_bars MCP tool`, one call with `{ symbol: "EUR", secType: "CASH", exchange: "IDEALPRO" }` must return an error without a call of `marketData/bars`. The semantic-layer integration tests (`tests/integration/semantic-layer`) must pass without a change to the recording.
 7. **One issue for ticks and depth** (code review finding). The removed code added a second issue, `Futures need an exchange, for example CME`, for a `CASH` ticks or depth request without an exchange. That hint points at a request that can never work, so `instrumentRefinements` returns after the forex issue. The test covers the request with and without an exchange.
 8. **Status texts.** The status language guard of the repository (`status-language.test.ts` in `apps/web/src` and `packages/api/src`) refuses the words "not available" in a displayed text. So the two forex texts name the cause. The ticks and depth text differs from the text of the removed code; the marks line text is new.
-9. **Documents.** `docs/vertex-rebuild/quantvps-status-endpoint.md`: replace the stale note with: `CASH` is verified live on service 1.8.0 (probe of 2026-11-25), and the web/API side (`MARKET_SEC_TYPES`, the charts picker, MCP `market_bars`) exposes it for bars; ticks and depth refuse it. `CHANGELOG.md`: one line under `[Unreleased]`, `Added`.
+9. **Documents.** `docs/vertex-rebuild/quantvps-status-endpoint.md`: replace the stale note with: `CASH` is verified live on service 1.8.0 (probe of 2026-11-25), and the web/API side (`MARKET_SEC_TYPES`, the charts picker, `marketData.bars`) exposes it for bars; ticks and depth refuse it, and the MCP tool `market_bars` keeps stocks and futures. `CHANGELOG.md`: one line under `[Unreleased]`, `Added`.
 
 Not planned: the Graphify update of `AGENTS.md` work-sequence step 7 is deferred (the graph is optional and not committed); this plan makes no graph claim.
 
@@ -120,6 +121,7 @@ Not planned: the Graphify update of `AGENTS.md` work-sequence step 7 is deferred
 1. Focused, from the repository root: `pnpm exec vitest run --config vitest.config.ts --project unit` with the four changed test files (`packages/api/src/market-data.test.ts`; in `apps/web/src`: `components/portal/charts-workspace.test.tsx`, `components/portal/order-flow-marks-bar.test.tsx`, `lab/fixtures/fixtures.test.ts`).
 2. Coverage of the changed files: the same run with `--coverage` must show no uncovered statement, branch or function on a changed line. `order-flow-marks-bar.tsx` and `lab/fixtures/market.ts` are 100% files; the other source files are in the baseline list, and the full coverage lane of CI checks their minimums.
 3. `bun run check`, then `bun run verify:prepush` (it includes `openapi:check`).
+4. The semantic-layer integration tests: `bun scripts/with-test-env.ts pnpm exec vitest run --config vitest.config.ts --project integration tests/integration/semantic-layer`.
 
 ### Merge and deploy
 
