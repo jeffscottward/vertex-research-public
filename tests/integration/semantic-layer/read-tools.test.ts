@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ASSISTANT_CHART_TOOLS } from "../../../packages/api/src/server/assistant-chart-tools.ts";
-import { assistantToolsFor } from "../../../packages/api/src/server/assistant-runtime.ts";
+import {
+  ASSISTANT_TOOL_RESULT_MAX_CHARS,
+  assistantToolsFor,
+} from "../../../packages/api/src/server/assistant-runtime.ts";
 import {
   callMcpTool,
   MCP_TOOLS,
@@ -48,6 +51,13 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
   model_runs_get: ok({ id: "mr_nvda_1" }),
   model_runs_list: ok(),
   model_runs_search: ok({ query: "support" }),
+  openbb_13f_changes: ok(),
+  openbb_congress_trades: ok(),
+  openbb_insider_clusters: ok(),
+  openbb_sec: ok({ symbol: "NVDA" }),
+  openbb_shorts: ok({ symbol: "NVDA" }),
+  openbb_smart_money_ranking: ok(),
+  openbb_status: ok(),
   optimizations_get: ok({ id: "opt_orb_1" }),
   optimizations_list: ok(),
   options_gex_context: {
@@ -70,6 +80,7 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
 /** Parameters for the terms that refuse a query without one (terms_list marks them `required`). */
 const REQUIRED_TERM_PARAMS: Readonly<Record<string, unknown>> = {
   position: { symbol: "NVDA" },
+  short_volume: { symbol: "NVDA" },
 };
 
 /**
@@ -80,12 +91,17 @@ const REQUIRED_TERM_PARAMS: Readonly<Record<string, unknown>> = {
 const ANSWERING_TERMS: readonly string[] = [
   "backtest_max_drawdown",
   "backtest_sharpe",
+  "congress_trades",
   "deployment_request",
   "drift_level",
+  "insider_cluster_buys",
+  "institutional_13f_changes",
+  "large_options_premium_ranking",
   "net_liquidation",
   "open_risk",
   "pnl",
   "position",
+  "short_volume",
   "strategy_gate_pass",
 ];
 
@@ -135,6 +151,20 @@ describe("read tools on the eval backend", () => {
       }
     }
   );
+
+  it("keeps every certified term of terms_list whole inside the cut of an assistant tool result", async () => {
+    const result = await callMcpTool("terms_list", {}, backend.callProcedure);
+    const { terms } = result["structuredContent"] as Readonly<{
+      terms: readonly Readonly<{ certified: boolean; id: string }>[];
+    }>;
+    const certified = terms.filter((term) => term.certified);
+    // Certified terms come first, and the tool text is compact JSON, so the certified block whole
+    // fits the cut when its own JSON does.
+    expect(certified.every((term, index) => terms[index] === term)).toBe(true);
+    expect(JSON.stringify({ terms: certified }).length).toBeLessThanOrEqual(
+      ASSISTANT_TOOL_RESULT_MAX_CHARS
+    );
+  });
 
   it("answers terms_query for every term of terms_list with the status its catalog entry requires", async () => {
     const result = await callMcpTool("terms_list", {}, backend.callProcedure);

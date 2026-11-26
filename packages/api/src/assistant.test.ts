@@ -48,6 +48,7 @@ import {
   ASSISTANT_MAX_STEPS,
   ASSISTANT_MAX_TOOL_CALLS_PER_STEP,
   ASSISTANT_PROCEDURES,
+  ASSISTANT_SMART_MONEY_TOOLS,
   ASSISTANT_WRITE_TOOLS,
   type AssistantBudget,
   AssistantBudgetError,
@@ -261,14 +262,27 @@ describe("assistant tools", () => {
     );
     for (const name of [...ASSISTANT_WRITE_TOOLS, ...ASSISTANT_CONFIRM_TOOLS])
       expect(plan).not.toContain(name);
-    // OpenBB tools exist on /api/mcp but wait for the semantic-layer eval re-record.
-    expect(MCP_TOOLS.some((tool) => tool.name === "openbb_status")).toBe(true);
-    for (const mode of ["plan", "act"] as const)
-      expect(
-        assistantToolsFor(mode).filter((tool) =>
-          tool.function.name.startsWith("openbb_")
-        )
-      ).toEqual([]);
+    // Exactly the 7 smart-money read tools are exposed; non-smart-money openbb_* tools stay deferred.
+    for (const mode of ["plan", "act"] as const) {
+      const exposedOpenbb = assistantToolsFor(mode)
+        .map((tool) => tool.function.name)
+        .filter((name) => name.startsWith("openbb_"))
+        .sort();
+      expect(exposedOpenbb).toEqual([...ASSISTANT_SMART_MONEY_TOOLS].sort());
+    }
+    for (const deferred of [
+      "openbb_vol_context",
+      "openbb_iv_history",
+      "openbb_cot",
+      "openbb_macro",
+      "openbb_events",
+      "openbb_factors",
+      "openbb_future_unreviewed",
+      "market_notes_list",
+      "flow_option_prints",
+    ]) {
+      expect(ASSISTANT_DEFERRED_TOOL_PATTERN.test(deferred)).toBe(true);
+    }
     expect(plan).toContain("backtests_list");
     // The master-rules search is read-only, so both modes get it.
     for (const mode of ["plan", "act"] as const)
