@@ -23,7 +23,9 @@
 Vertex shows GEX levels and QuantData net drift in separate panels. This change adds one pure, versioned rule that
 grades where price stands against a GEX wall from both inputs, a compact badge on `/flow` and `/stock`, and a
 pre-registered study that tests the rule. Until the study has a verdict, every badge says "Unvalidated: study
-accruing". The read describes what was observed; it never places, arms or sizes anything.
+accruing". The study stays `accruing` until its stopping rule is met (at least 170 counted touches in every
+compared group, not before 2027-03-01; final `needs-more-data` on 2027-11-26 otherwise). The read describes what was
+observed; it never places, arms or sizes anything.
 
 ### Terms
 
@@ -43,7 +45,9 @@ accruing". The read describes what was observed; it never places, arms or sizes 
   newest settled minute. **Share:** the change of one side over the window divided by the gross premium (sum of the
   absolute per-minute changes of both sides). A side is **rising** at a share of 0.30 or more.
 - **Push side:** the side that drives price through the wall (puts at the put wall, calls at the call wall). **Hold
-  side:** the other side. The names come from the reel; the study tests whether they mean anything.
+  side:** the other side. The names come from the reel; the study tests whether they mean anything. Only rising lines
+  count: a falling line (net selling, for example put selling at the put wall) reads as no flow on that side in v1,
+  because the reel speaks of rising flow; the study reports such touches as their own row.
 - **Read time:** the minute a read is made (every minute on the pages). **Touch:** the study's event, a first entry
   into the band from the inside (spec "Event").
 - **Operator:** an account in the server's operator list (`requireOperator`; read-only agent viewers count too).

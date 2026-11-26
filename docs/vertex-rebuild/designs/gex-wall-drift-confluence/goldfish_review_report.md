@@ -46,3 +46,22 @@ raw finding.
 | C29 | PROPOSE FIX | Rule: age limits written as numbers; a test keeps them no looser than the collector limits. |
 | Nits | PROPOSE FIX | Renamed vague words (`no_flip`, `hold_no_flip`), New York input times, `groupOfSymbol(flowSymbolForTicker())` for the group, help text, money text through `Intl`, `page.tsx` prop order restored, SPX band in strikes. |
 | Study runner | DECLINE | Out of scope for this card; Future Improvements. |
+
+## Full read of the stage reports
+
+All eight stage reports were read in full before this resolution was closed. Findings that are not named above map as
+follows.
+
+| Stage report finding | Disposition |
+| --- | --- |
+| Readiness M1, M3; Comprehension B1, M1 (rule semantics, clocks, read time) | PROPOSE FIX: C6, C20 and the Pages clock column |
+| Readiness M2 (flip side of no-data reads) | PROPOSE FIX: C15 |
+| Readiness M4, M7; Structural M1-M5, N6-N13 (file allowlist, phases, template sections) | PROPOSE FIX: C19 |
+| Readiness M5 (untested truth-table cells and boundaries) | PROPOSE FIX: boundary and call-wall cell tests in `gex-wall-drift-rules.test.ts` |
+| Readiness M6 (copy is the advice mitigation) | PROPOSE FIX: a test scans every reason and the help text for advice words |
+| Readiness N1-N7; Comprehension N1-N6 | PROPOSE FIX: terms, file table, pages table, acceptance tests named |
+| Comprehension M2 (falling lines) | CONTEST as C27; the design now says so in Terms |
+| Comprehension M3, M9 (touch vs read; accruing end condition) | PROPOSE FIX: C25; Overview states the stopping rule |
+| Comprehension M4-M8 (sources, levels, visibility, links, shorthand) | PROPOSE FIX: C20, C21, Pages table |
+| Inventive 1 (event qualifier in the shared module) | DECLINE for v1: the help text names the difference (C25); the qualifier belongs with the runner |
+| Inventive 2, 3, 4, 5, 6 | C13, C22, C26, C29, and the keep-last-answer reload on `/stock` |

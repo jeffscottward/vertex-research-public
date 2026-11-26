@@ -70,6 +70,35 @@ const snapshotAt = (
 
 const ready = (control: FlowControl) => ({ control, kind: "ready" }) as const;
 
+describe("wall drift copy", () => {
+  it("describes and never advises", () => {
+    const advice =
+      /\b(do not|don't|wait|buy|sell|enter|exit|catch|should|must)\b/iu;
+    const reads = [
+      flowWallDriftView(
+        snapshotAt(),
+        null,
+        ready(controlWith("SPY", risingCallPoints)),
+        LAB_NOW
+      ),
+      flowWallDriftView(
+        snapshotAt({
+          levels: { callWall: 601, flip: null, maxPain: null, putWall: 590 },
+        }),
+        null,
+        ready(controlWith("SPY", risingCallPoints)),
+        LAB_NOW
+      ),
+      flowWallDriftView(null, null, { kind: "loading" }, LAB_NOW),
+    ];
+    for (const view of reads) {
+      expect(view.reason).not.toMatch(advice);
+      expect(view.label).not.toMatch(advice);
+    }
+    expect(WALL_DRIFT_HELP).not.toMatch(advice);
+  });
+});
+
 describe("wall drift tickers", () => {
   it("covers the four net drift tickers and maps them to their group", () => {
     expect(["SPY", "SPX", "QQQ", "NDX", "AAPL"].map(isWallDriftTicker)).toEqual(
