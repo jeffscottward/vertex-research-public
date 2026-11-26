@@ -2,7 +2,7 @@
 
 ![Dark infographic showing exact-sample states and the separate fully written-run audit timestamp](openbb-iv-history-caveat.svg)
 
-- **Status:** Source-tagged history/status/API/UI implementation is complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction. A fresh-context review found four issues; all are fixed. The method and timestamp policy were **provisional** until card `kbchat-default-omp-vertex` issued its server-issued one-task claim and the required KB consultation ran.
+- **Status:** Source-tagged history/status/API/UI implementation is complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction. A fresh-context review found four issues; all are fixed. The method and timestamp policy stay **provisional** until the claimed KB consultation runs (see the merge decision below).
 - **Merge decision (2026-11-25, card `orphan-pr-vertex-research-public-411`):** the merge hold is lifted. The claim of card `kbchat-default-omp-vertex` is a local commit on no remote branch, so the claimed consultation cannot run yet. Both earlier KB answers found no source on this subject, the method follows the repository contract and code, and the change is research-only. Card `kbchat-vertex-claim-ship-and-iv-consult` ships the claim and runs the consultation; if the KB answers differ, a new PR changes the policy.
 
 ## Goal
