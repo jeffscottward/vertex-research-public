@@ -5,7 +5,7 @@
 ![MOCK: IV table before and after the history caveat](openbb-iv-history-before-after.svg)
 
 * **Author:** OMP agent (`openbb-iv-history-caveat`)
-* **Status:** EGM review and source-tagging/history/status/API/UI implementation are complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract tests, 684 integration tests, 197 browser tests). A fresh-context review found four issues; all are fixed. The method stays **provisional**: the required KB consultation waits for the server-issued one-task claim on card `kbchat-default-omp-vertex`. The two earlier KB threads ran before that claim and do not count as the required consultation. If that consultation changes the timestamp policy, a new PR changes it.
+* **Status:** EGM review and source-tagging/history/status/API/UI implementation are complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract tests, 684 integration tests, 197 browser tests). A fresh-context review found four issues; all are fixed. The method stays **provisional**: the required KB consultation waits for the server-issued one-task claim on card `kbchat-default-omp-vertex`. The two earlier KB threads ran before that claim and do not count as the required consultation. The claimed consultation ran on 2026-11-25 and confirmed the policy (see the status of [plan.md](plan.md)).
 * **Merge decision (2026-11-25):** the merge hold is lifted; see the status of [plan.md](plan.md). Card `kbchat-vertex-claim-ship-and-iv-consult` runs the claimed consultation later; if the KB answers differ, a new PR changes the policy.
 
 * **Date:** 2026-11-22

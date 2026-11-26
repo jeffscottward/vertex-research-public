@@ -2,8 +2,8 @@
 
 ![Dark infographic showing exact-sample states and the separate fully written-run audit timestamp](openbb-iv-history-caveat.svg)
 
-- **Status:** Source-tagged history/status/API/UI implementation is complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction. A fresh-context review found four issues; all are fixed. The method and timestamp policy stay **provisional** until the claimed KB consultation runs (see the merge decision below).
-- **Merge decision (2026-11-25, card `orphan-pr-vertex-research-public-411`):** the merge hold is lifted. The claim of card `kbchat-default-omp-vertex` is a local commit on no remote branch, so the claimed consultation cannot run yet. Both earlier KB answers found no source on this subject, the method follows the repository contract and code, and the change is research-only. Card `kbchat-vertex-claim-ship-and-iv-consult` ships the claim and runs the consultation; if the KB answers differ, a new PR changes the policy.
+- **Status:** Source-tagged history/status/API/UI implementation is complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction. A fresh-context review found four issues; all are fixed. The claimed KB consultation ran on 2026-11-25 (card `kbchat-vertex-claim-ship-and-iv-consult`, QuantFinanceToGo and DeepEdge only, Spreads Trading excluded). Both KBs had no direct coverage and both agreed with this plan: legacy rows stay `unknown`, and `lastFallbackAt` is audit-only. The method and timestamp policy are **final**; no policy change. The private record is `openbb-iv-history-caveat-claimed-consult.md` in the FIRSTMATE reports folder.
+- **Merge decision (2026-11-25, card `orphan-pr-vertex-research-public-411`):** the merge hold is lifted. The claim of card `kbchat-default-omp-vertex` is a local commit on no remote branch, so the claimed consultation could not run at that time; it ran later the same day (see the status above). Both earlier KB answers found no source on this subject, the method follows the repository contract and code, and the change is research-only. Card `kbchat-vertex-claim-ship-and-iv-consult` ships the claim and runs the consultation; if the KB answers differ, a new PR changes the policy.
 
 ## Goal
 
@@ -17,7 +17,7 @@ Keep the newest-run source note separate from provenance of rows in the exact sa
 - Do not use a date cutoff, warning absence, or aggregate counts to classify legacy rows. Keep a row unknown unless exact row-level evidence proves its source.
 - Keep raw source private. The public history state is `affected`, `clean`, or `source_unverified`, computed from the same ranked sample as the percentile.
 
-## Method and route decision (provisional)
+## Method and route decision (confirmed 2026-11-25 by the claimed consultation)
 
 - The owner approved the current OMP default and the fixed QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading remains excluded and the allowlist is unchanged. The required consultation waits for a server-issued one-task claim from card `kbchat-default-omp-vertex`.
 - Two earlier KB threads ran before that claim. Live kb-chat health then reported the current OMP route as Claude over OMP, and both threads' provenance metadata showed only the approved origin. These threads do not count as the required consultation. The private report records route evidence and both answers.
