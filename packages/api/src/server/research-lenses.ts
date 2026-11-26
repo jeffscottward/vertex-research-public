@@ -1,3 +1,4 @@
+import type { SemanticEvent } from "@darkfactory/observability/port";
 import { implement } from "@orpc/server";
 import type { z } from "zod";
 import { appContract } from "../contract.ts";
@@ -529,6 +530,45 @@ const mapFailure = (
   return failures.UPSTREAM_ERROR({ message: fallback });
 };
 
+// Unexpected and gateway failures are reported as a semantic event with the
+// request context, so a 502/503 from a lens is never silent. Reporting never
+// fails the request.
+const reportLensFailure = (
+  context: ApiContext,
+  procedure: "rotationMatrix" | "deepValue" | "deepValueScore",
+  error: unknown,
+  attributes: Readonly<Record<string, string>> = {}
+): void => {
+  if (context.semanticEvents === undefined) return;
+  if (error instanceof ResearchLensError && error.code !== "UNAVAILABLE")
+    return;
+  const event: SemanticEvent = {
+    action: procedure,
+    attributes,
+    correlation: {
+      ...(context.span?.correlation ?? {}),
+      procedure: `researchLenses.${procedure}`,
+      requestId: context.requestId,
+    },
+    entityType: "research-lens",
+    errorCategory:
+      error instanceof ResearchLensError ? "unavailable" : "unexpected",
+    eventId: crypto.randomUUID(),
+    name: `vertex.researchLenses.${procedure}`,
+    occurredAt: new Date().toISOString(),
+    outcome: "failure",
+    source: "api",
+  };
+  const sink = context.semanticEvents;
+  void (async () => {
+    try {
+      await sink.emit(event);
+    } catch {
+      // Reporting never fails the request.
+    }
+  })();
+};
+
 const rotationMatrix = api.researchLenses.rotationMatrix
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -539,6 +579,7 @@ const rotationMatrix = api.researchLenses.rotationMatrix
         researchLensOptions
       );
     } catch (error) {
+      reportLensFailure(context, "rotationMatrix", error);
       throw mapFailure(errors, error, "Rotation matrix request failed");
     }
   });
@@ -552,6 +593,7 @@ const deepValue = api.researchLenses.deepValue
         researchLensOptions
       );
     } catch (error) {
+      reportLensFailure(context, "deepValue", error);
       throw mapFailure(errors, error, "Deep value request failed");
     }
   });
@@ -566,6 +608,9 @@ const deepValueScore = api.researchLenses.deepValueScore
         { ...researchLensOptions, marketHistory: context.marketHistory ?? null }
       );
     } catch (error) {
+      reportLensFailure(context, "deepValueScore", error, {
+        symbol: input.symbol,
+      });
       throw mapFailure(errors, error, "Scoring failed");
     }
   });

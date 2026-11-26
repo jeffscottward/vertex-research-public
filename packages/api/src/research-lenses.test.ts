@@ -4,6 +4,10 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import type { Repositories } from "@darkfactory/db/server";
+import type {
+  SemanticEvent,
+  SemanticEventPort,
+} from "@darkfactory/observability/port";
 import { ORPCError } from "@orpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -673,7 +677,8 @@ const session = (userId: string): SafeAuthSession => ({
 const clientFor = (
   requestSession: SafeAuthSession | null,
   researchLenses: DeployStatusConfig | null,
-  marketHistory: DeployStatusConfig | null = null
+  marketHistory: DeployStatusConfig | null = null,
+  semanticEvents?: SemanticEventPort
 ) => {
   const repositories = {
     addresses: {},
@@ -705,6 +710,7 @@ const clientFor = (
         return requestSession;
       },
       researchLenses,
+      ...(semanticEvents === undefined ? {} : { semanticEvents }),
     });
     return handleApiRequest(request, context);
   };
@@ -826,6 +832,86 @@ describe("researchLenses procedures", () => {
       configured.researchLenses.deepValue({}),
       "UPSTREAM_ERROR",
       502
+    );
+  });
+
+  it("report unexpected and gateway failures with request context", async () => {
+    const events: SemanticEvent[] = [];
+    const sink: SemanticEventPort = {
+      emit: async (event) => {
+        events.push(event);
+        return {
+          analytics: "skipped",
+          span: "skipped",
+          structuredEvent: "emitted",
+        };
+      },
+    };
+    const client = clientFor(session("operator"), config, null, sink);
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 404 }),
+      now: () => {
+        throw new Error("clock failed");
+      },
+    });
+    await expectCode(
+      client.researchLenses.deepValue({}),
+      "UPSTREAM_ERROR",
+      502
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      correlation: {
+        procedure: "researchLenses.deepValue",
+        requestId: "request-1",
+      },
+      errorCategory: "unexpected",
+      name: "vertex.researchLenses.deepValue",
+      outcome: "failure",
+    });
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 503 }),
+      now: () => at,
+    });
+    await expectCode(
+      client.researchLenses.rotationMatrix({ period: "1M" }),
+      "UNAVAILABLE",
+      503
+    );
+    expect(events[1]).toMatchObject({
+      correlation: { procedure: "researchLenses.rotationMatrix" },
+      errorCategory: "unavailable",
+    });
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 404 }),
+      now: () => at,
+    });
+    await expectCode(
+      client.researchLenses.deepValueScore({ symbol: "ZZZZ" }),
+      "NOT_FOUND",
+      404
+    );
+    // A typed answer such as NOT_FOUND is not a failure to report.
+    expect(events).toHaveLength(2);
+    // A broken sink never changes the answer the caller gets.
+    const broken: SemanticEventPort = {
+      emit: async () => {
+        throw new Error("sink down");
+      },
+    };
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 503 }),
+      now: () => at,
+    });
+    return await expectCode(
+      clientFor(
+        session("operator"),
+        config,
+        null,
+        broken
+      ).researchLenses.deepValue({}),
+      "UNAVAILABLE",
+      503
     );
   });
 
