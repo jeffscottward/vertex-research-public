@@ -188,7 +188,47 @@ const uiLabSchema = z.preprocess(
     .enum(["on", "off"], { error: "VERTEX_UI_LAB must be on or off" })
     .default("off")
 );
+// Experimental UI/research feature flags (comma-separated kebab-case tokens,
+// optional =on|off|true|false|1|0 or leading -/!). Default empty (all flags off).
+// UI/research views only; never gates execution, live orders, arming, or risk settings.
+const UI_FLAG_TOKEN =
+  /^(?:[!-][a-z0-9]+(?:-[a-z0-9]+)*|[a-z0-9]+(?:-[a-z0-9]+)*(?:=(?:on|off|true|false|1|0))?)$/iu;
 
+const isValidUiFlagsList = (value: string): boolean => {
+  const parts = value.split(",").map((part) => part.trim());
+  return parts.every((part) => part.length > 0 && UI_FLAG_TOKEN.test(part));
+};
+
+const uiFlagsSchema = z.preprocess(
+  emptyStringToUndefined,
+  z
+    .string()
+    .trim()
+    .max(2048, "VERTEX_UI_FLAGS must be at most 2048 characters")
+    .refine(isValidUiFlagsList, {
+      message:
+        "VERTEX_UI_FLAGS must be a comma-separated list of kebab-case flag tokens (optionally =on|off|true|false|1|0 or -flag)",
+    })
+    .optional()
+);
+
+/**
+ * True only when APP_ENV is explicitly development or test AND APP_URL is absent
+ * or points to a local hostname (localhost, *.localhost, loopback).
+ * Production, an unset APP_ENV, and deployed non-local origins (including the
+ * QuantVPS production serve, which uses APP_ENV=development on a non-local tailnet
+ * APP_URL) disable client-side query (?ff=) and localStorage flag overrides.
+ */
+export const areUiFlagClientOverridesAllowed = (
+  source: Readonly<Record<string, string | undefined>>
+): boolean => {
+  const appEnv = source["APP_ENV"];
+  if (appEnv !== "development" && appEnv !== "test") return false;
+  const appUrl = source["APP_URL"]?.trim();
+  if (appUrl === undefined || appUrl.length === 0) return true;
+  const host = parseUrl(appUrl)?.hostname;
+  return host !== undefined && isLocalHostname(host);
+};
 /**
  * True only when VERTEX_UI_LAB=on and APP_ENV is explicitly development or test.
  * Production, an unset APP_ENV and any other value keep /lab closed (404).
@@ -686,6 +726,7 @@ const baseServerEnvSchema = z.object({
   // Tailnet-only read-only research lens documents (researchLenses.*), e.g.
   // https://<vps>.ts.net:8443/vertex-research-lenses/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
   VERTEX_RESEARCH_LENSES_URL: tailnetServiceUrl("VERTEX_RESEARCH_LENSES_URL"),
+  VERTEX_UI_FLAGS: uiFlagsSchema,
   VERTEX_UI_LAB: uiLabSchema,
   WORKFLOW_REPOSITORY_GRANTS: optionalString,
 });

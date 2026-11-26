@@ -133,6 +133,8 @@ const E2E_UNCONFIGURED_READS = [
   "/api/orpc/smartMoney/ranking",
   // The Form 4 cluster read on /insider-clusters answers 503 when its storage is not configured.
   "/api/orpc/openbb/insiderClusters",
+  // preview-capture.ts intentionally leaves status.json absent (404), so /engines answers 503.
+  "/api/orpc/engines/status",
 ] as const;
 const MEMBER_SETTINGS_TABS = ["Account", "Appearance", "Workspace"] as const;
 const ADMIN_SETTINGS_TABS = [
@@ -1387,6 +1389,13 @@ test.describe
         method: "POST",
         pathname: "/api/orpc/sectorRotation/map",
         status: 404,
+      });
+      // Alice is an operator (VERTEX_OPERATOR_EMAILS) with role "member", not "admin";
+      // /portfolio mounts operator order reads whose endpoint requires admin (HTTP 403).
+      browserErrors.allowHttpError({
+        method: "POST",
+        pathname: "/api/orpc/vertexOrders/status",
+        status: 403,
       });
       await signInAs(page, E2E_IDENTITIES.alice);
       await page.goto("/settings/account/profile");

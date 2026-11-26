@@ -11,11 +11,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ refresh: vi.fn() }),
 }));
+vi.mock("../../../components/portal/flow-option-tape-panel.tsx", () => ({
+  FlowOptionTapePanel: () => <div data-panel="option-tape" />,
+}));
 
 vi.mock("../../../components/portal/flow-workspace.tsx", () => ({
   FlowWorkspace: () => <div data-workspace="flow" />,
 }));
-
 vi.mock("../../../features/openbb/openbb-panels.tsx", () => ({
   OpenbbShortsPanel: (props: { symbol?: string }) => (
     <div data-openbb="shorts" data-symbol={props.symbol} />
@@ -48,6 +50,9 @@ describe("flow route files", () => {
     expect(metadata).toEqual({ title: "Flow" });
     expect(container.querySelector("h1")?.textContent).toBe("Flow");
     expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(
+      container.querySelector('[data-panel="option-tape"]')
+    ).not.toBeNull();
     expect(
       container
         .querySelector('[data-openbb="shorts"]')

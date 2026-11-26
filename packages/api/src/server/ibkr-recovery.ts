@@ -6,9 +6,9 @@ import { z } from "zod";
 import { appContract } from "../contract.ts";
 import {
   IBKR_RECOVERY_LOGIN_STATES,
-  IbkrRecoveryLastKnownSchema,
   IBKR_RECOVERY_REQUEST_STATES,
   IBKR_RECOVERY_TERMINAL_STATES,
+  IbkrRecoveryLastKnownSchema,
   type IbkrRecoveryRequest,
   type IbkrRecoveryRequestOutput,
   type IbkrRecoveryStatusOutput,
@@ -109,11 +109,11 @@ const UpstreamStatusSchema = z
       .object({
         // VPS 1.1.0 and later. Older services omit it: unknown counts as false.
         feedsMissing: z.boolean().default(false),
+        lastKnown: IbkrRecoveryLastKnownSchema.nullable().optional(),
         loginState: z.enum(IBKR_RECOVERY_LOGIN_STATES),
         needsLogin: z.boolean(),
         reason: z.string().max(60),
         since: iso.nullable(),
-        lastKnown: IbkrRecoveryLastKnownSchema.nullable().optional(),
       })
       .strict(),
     generatedAt: iso,
@@ -192,6 +192,11 @@ const call = async (
       throw new IbkrRecoveryError(
         "UNAVAILABLE",
         `IBKR recovery endpoint returned HTTP ${response.status}`
+      );
+    if (response.status === 401 || response.status === 403)
+      throw new IbkrRecoveryError(
+        "UPSTREAM_ERROR",
+        `IBKR recovery endpoint returned HTTP ${response.status} (authentication failed — check VERTEX_IBKR_RECOVERY_TOKEN)`
       );
     if (
       !/^application\/json\b/i.test(response.headers.get("content-type") ?? "")

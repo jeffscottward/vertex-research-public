@@ -1,12 +1,15 @@
 // Read-only QuantData HTTP client (port of Gamma Forge QuantDataProvider).
 // - POST JSON with a bearer key; the key and URL never appear in messages.
 // - One request start per `minIntervalMs` (default 1 s) per client, serialized.
-// - At most `maxRequestsPerMinute` (default 30) request starts in any 60 s window. The budget,
-//   the quota wait and the cooldown live in this client, so they hold per server instance
-//   (one `vite preview` process on QuantVPS); keep the key out of other deployments.
+// - At most `maxRequestsPerMinute` (default 54) request starts in any 60 s window. Measured over
+//   10 trading days (2026-11-10 to 2026-11-23): market-watch-gex peaks at 122 req / 60 s at the
+//   open, leaving 240 - 122 - 60 (25% margin) = 58 req / 60 s; cap 54 keeps 64 req / 60 s (26.7%)
+//   margin while allowing 48 collector starts + 6 reserved for /charts. The budget, the quota wait
+//   and the cooldown live in this client, so they hold per server instance (one `vite preview`
+//   process on QuantVPS); keep the key out of other deployments.
 // - QuantData allows 240 requests per 60 s per user, shared by every key and job on the
 //   account (the market-watch-bot GEX and flow jobs use the same key). When a response
-//   reports fewer than `quotaReserve` (default 120) requests left (X-RateLimit-Remaining),
+//   reports fewer than `quotaReserve` (default 60, 25% of 240) requests left (X-RateLimit-Remaining),
 //   the client waits until X-RateLimit-Reset (held to 1-60 s, else 60 s) so those jobs keep
 //   headroom. A low reading counts only when the counter is live: it fell since the previous
 //   response, or the response is HTTP 429. QuantData was seen to send a constant
@@ -18,31 +21,36 @@
 //   The flow collector uses `withCallerReserve(client, 6)`, so /charts option reads (keepFree 0) always
 //   find 6 starts free; `freeStarts()` reports the starts left in the current 60 s window.
 // - HTTP 429 starts a cooldown (Retry-After seconds, else 60 s); requests during it fail fast.
+// - HTTP 401/403 starts an auth-failure cooldown (default 300 s) and classifies as "auth_failed"
+//   so repeated ticks and UI loads fail fast instead of hammering QuantData with a rejected key,
+//   while keeping `cooldownSeconds()` dedicated to rate-limit waits.
 // - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`.
 // - Timeout, 2 MiB body cap, redirects never followed.
 
 const QUANTDATA_DEFAULT_BASE_URL = "https://api.quantdata.us";
 export const QUANTDATA_ENDPOINTS = {
-  termStructure: "/v1/options/tool/term-structure",
+  gainersLosers: "/v1/options/tool/gainers-losers",
+  netDrift: "/v1/options/tool/net-drift",
   openInterest: "/v1/options/tool/open-interest-by-strike",
   orderFlow: "/v1/options/tool/order-flow/consolidated",
-  netDrift: "/v1/options/tool/net-drift",
-  gainersLosers: "/v1/options/tool/gainers-losers",
+  termStructure: "/v1/options/tool/term-structure",
 } as const;
 export type QuantDataEndpoint = keyof typeof QUANTDATA_ENDPOINTS;
 
 const DEFAULT_COOLDOWN_S = 60;
+const DEFAULT_AUTH_COOLDOWN_S = 300;
 const MAX_COOLDOWN_S = 3600;
 const MAX_CACHE_ENTRIES = 200;
 const WINDOW_S = 60;
 const WINDOW_MS = WINDOW_S * 1000;
-export const DEFAULT_MAX_PER_MINUTE = 30;
-const DEFAULT_QUOTA_RESERVE = 120;
+export const DEFAULT_MAX_PER_MINUTE = 54;
+const DEFAULT_QUOTA_RESERVE = 60;
 const WHOLE_NUMBER = /^\d+$/u;
 
 export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;
 
 export type QuantDataFailureReason =
+  | "auth_failed"
   | "rate_limited"
   | "reserved"
   | "http"
@@ -73,6 +81,7 @@ export type QuantDataFetch = (
 ) => Promise<Response>;
 
 export type QuantDataClientOptions = Readonly<{
+  authCooldownSeconds?: number;
   fetch?: QuantDataFetch;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
@@ -84,6 +93,9 @@ export type QuantDataClientOptions = Readonly<{
 }>;
 
 export interface QuantDataClient {
+  readonly cooldownSeconds: () => number;
+  /** maxRequestsPerMinute minus the request starts of the last 60 s. */
+  readonly freeStarts: () => number;
   readonly request: (
     endpoint: QuantDataEndpoint,
     payload: Readonly<Record<string, unknown>>,
@@ -91,9 +103,6 @@ export interface QuantDataClient {
     cacheKey?: string,
     keepFree?: number
   ) => Promise<QuantDataResult>;
-  readonly cooldownSeconds: () => number;
-  /** maxRequestsPerMinute minus the request starts of the last 60 s. */
-  readonly freeStarts: () => number;
 }
 
 // Accepts only https URLs without credentials; returns null otherwise or when no key.
@@ -166,6 +175,10 @@ export const createQuantDataClient = (
   const sleep =
     options.sleep ??
     ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const authCooldownS = Math.min(
+    Math.max(0, options.authCooldownSeconds ?? DEFAULT_AUTH_COOLDOWN_S),
+    MAX_COOLDOWN_S
+  );
   const minInterval = options.minIntervalMs ?? 1000;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const maxBytes = options.maxBytes ?? 2 * 1024 * 1024;
@@ -178,6 +191,8 @@ export const createQuantDataClient = (
     string,
     { expires: number; fetchedAt: number; body: Record<string, unknown> }
   >();
+  let authCooldownUntil = 0;
+  let lastAuthStatus: 401 | 403 | null = null;
   let cooldownUntil = 0;
   let yieldUntil = 0;
   const starts: number[] = [];
@@ -187,6 +202,14 @@ export const createQuantDataClient = (
 
   const cooldownSeconds = (): number =>
     Math.max(0, (Math.max(cooldownUntil, yieldUntil) - now()) / 1000);
+
+  const authMessage = (
+    endpoint: QuantDataEndpoint,
+    status: 401 | 403
+  ): string =>
+    status === 401
+      ? `QuantData ${endpoint}: HTTP 401 (authentication failed — check QUANTDATA_API_KEY).`
+      : `QuantData ${endpoint}: HTTP 403 (access forbidden — check QUANTDATA_API_KEY or subscription).`;
 
   const failure = (
     reason: QuantDataFailureReason,
@@ -201,9 +224,18 @@ export const createQuantDataClient = (
     ...(httpStatus === undefined ? {} : { httpStatus }),
   });
 
-  // A provider cooldown (HTTP 429) or a low shared quota stops requests before they start.
+  // An auth-failure cooldown (HTTP 401/403), provider cooldown (HTTP 429) or low shared quota
+  // stops requests before they start.
   const blocked = (endpoint: QuantDataEndpoint): QuantDataResult | null => {
     const at = now();
+    if (authCooldownUntil > at && lastAuthStatus !== null) {
+      return failure(
+        "auth_failed",
+        authMessage(endpoint, lastAuthStatus),
+        (authCooldownUntil - at) / 1000,
+        lastAuthStatus
+      );
+    }
     const until = Math.max(cooldownUntil, yieldUntil);
     if (until <= at) return null;
     return failure(
@@ -314,6 +346,22 @@ export const createQuantDataClient = (
           429
         );
       }
+      if (response.status === 401 || response.status === 403) {
+        const authStatus = response.status;
+        lastAuthStatus = authStatus;
+        if (authCooldownS > 0) {
+          authCooldownUntil = Math.max(
+            authCooldownUntil,
+            now() + authCooldownS * 1000
+          );
+        }
+        return failure(
+          "auth_failed",
+          authMessage(endpoint, authStatus),
+          authCooldownS > 0 ? authCooldownS : null,
+          authStatus
+        );
+      }
       if (response.status !== 200)
         return failure(
           "http",
@@ -348,6 +396,8 @@ export const createQuantDataClient = (
           "invalid",
           `QuantData ${endpoint}: unsupported response format.`
         );
+      authCooldownUntil = 0;
+      lastAuthStatus = null;
       return { body: parsed, data: parsed["data"], fetchedAt: now(), ok: true };
     } finally {
       clearTimeout(timer);
