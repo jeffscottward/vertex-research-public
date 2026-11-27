@@ -164338,8 +164338,8 @@
                                         "anyOf": [
                                           {
                                             "enum": [
-                                              "quantdata",
-                                              "yahoo"
+                                              "yahoo",
+                                              "quantdata"
                                             ],
                                             "type": "string"
                                           },
@@ -164598,8 +164598,8 @@
                                         "anyOf": [
                                           {
                                             "enum": [
-                                              "quantdata",
-                                              "yahoo"
+                                              "yahoo",
+                                              "quantdata"
                                             ],
                                             "type": "string"
                                           },

@@ -1,0 +1,959 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="860"
+  viewBox="0 0 1200 860"
+  role="img"
+  aria-label="Before and after: open interest source of the options chain"
+>
+  <defs>
+    <marker
+      id="mf87171"
+      markerWidth="9"
+      markerHeight="9"
+      refX="8"
+      refY="4.5"
+      orient="auto"
+    >
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="m34d399"
+      markerWidth="9"
+      markerHeight="9"
+      refX="8"
+      refY="4.5"
+      orient="auto"
+    >
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="m9ca3af"
+      markerWidth="9"
+      markerHeight="9"
+      refX="8"
+      refY="4.5"
+      orient="auto"
+    >
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#9ca3af" />
+    </marker>
+  </defs>
+  <rect width="1200" height="860" fill="#0b0f17" />
+  <text
+    x="40"
+    y="48"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="26"
+    font-weight="700"
+  >
+    Options chain open interest: Yahoo first, Quant Data print value only as a
+    filler
+  </text>
+  <text x="40" y="76" fill="#9ca3af" font-family="sans-serif" font-size="15">
+    Live check 2026-11-26, SPY and NVDA, 58 contracts with a Quant Data print
+    value. Checked against the Nasdaq option chain: 18 of 57 wrong before, 0
+    after.
+  </text>
+  <text
+    x="40"
+    y="130"
+    fill="#f87171"
+    font-family="sans-serif"
+    font-size="18"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text x="130" y="130" fill="#9ca3af" font-family="sans-serif" font-size="14">
+    SPY 2026-11-27 700P
+  </text>
+  <text x="40" y="154" fill="#e5e7eb" font-family="sans-serif" font-size="14">
+    Order: 1. Quant Data print 2. Yahoo
+  </text>
+  <rect
+    x="40"
+    y="174"
+    width="190"
+    height="64"
+    rx="10"
+    fill="#111827"
+    stroke="#fbbf24"
+    stroke-width="2"
+  />
+  <text
+    x="135.0"
+    y="205.0"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    Quant Data print
+  </text>
+  <text
+    x="135.0"
+    y="224.0"
+    fill="#fbbf24"
+    font-family="sans-serif"
+    font-size="14"
+    text-anchor="middle"
+  >
+    0
+  </text>
+  <rect
+    x="40"
+    y="264"
+    width="190"
+    height="64"
+    rx="10"
+    fill="#111827"
+    stroke="#fbbf24"
+    stroke-width="2"
+  />
+  <text
+    x="135.0"
+    y="295.0"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    Yahoo
+  </text>
+  <text
+    x="135.0"
+    y="314.0"
+    fill="#fbbf24"
+    font-family="sans-serif"
+    font-size="14"
+    text-anchor="middle"
+  >
+    35,063
+  </text>
+  <rect
+    x="300"
+    y="219"
+    width="150"
+    height="64"
+    rx="10"
+    fill="#111827"
+    stroke="#9ca3af"
+    stroke-width="2"
+  />
+  <text
+    x="375.0"
+    y="256.0"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    first value wins
+  </text>
+  <line
+    x1="230"
+    y1="206"
+    x2="298"
+    y2="242"
+    stroke="#f87171"
+    stroke-width="2.5"
+    marker-end="url(#mf87171)"
+  />
+  <line
+    x1="230"
+    y1="296"
+    x2="298"
+    y2="262"
+    stroke="#9ca3af"
+    stroke-width="2.5"
+    stroke-dasharray="6 5"
+    marker-end="url(#m9ca3af)"
+  />
+  <text
+    x="375"
+    y="316"
+    fill="#f87171"
+    font-family="sans-serif"
+    font-size="17"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    chain shows 0
+  </text>
+  <text
+    x="40"
+    y="440"
+    fill="#34d399"
+    font-family="sans-serif"
+    font-size="18"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text x="130" y="440" fill="#9ca3af" font-family="sans-serif" font-size="14">
+    SPY 2026-11-27 700P
+  </text>
+  <text x="40" y="464" fill="#e5e7eb" font-family="sans-serif" font-size="14">
+    Order: 1. Yahoo 2. Quant Data print (0 = not reported)
+  </text>
+  <rect
+    x="40"
+    y="484"
+    width="190"
+    height="64"
+    rx="10"
+    fill="#111827"
+    stroke="#fbbf24"
+    stroke-width="2"
+  />
+  <text
+    x="135.0"
+    y="515.0"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    Quant Data print
+  </text>
+  <text
+    x="135.0"
+    y="534.0"
+    fill="#fbbf24"
+    font-family="sans-serif"
+    font-size="14"
+    text-anchor="middle"
+  >
+    0
+  </text>
+  <rect
+    x="40"
+    y="574"
+    width="190"
+    height="64"
+    rx="10"
+    fill="#111827"
+    stroke="#fbbf24"
+    stroke-width="2"
+  />
+  <text
+    x="135.0"
+    y="605.0"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    Yahoo
+  </text>
+  <text
+    x="135.0"
+    y="624.0"
+    fill="#fbbf24"
+    font-family="sans-serif"
+    font-size="14"
+    text-anchor="middle"
+  >
+    35,063
+  </text>
+  <rect
+    x="300"
+    y="529"
+    width="150"
+    height="64"
+    rx="10"
+    fill="#111827"
+    stroke="#9ca3af"
+    stroke-width="2"
+  />
+  <text
+    x="375.0"
+    y="566.0"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    first value wins
+  </text>
+  <line
+    x1="230"
+    y1="516"
+    x2="298"
+    y2="552"
+    stroke="#9ca3af"
+    stroke-width="2.5"
+    stroke-dasharray="6 5"
+    marker-end="url(#m9ca3af)"
+  />
+  <line
+    x1="230"
+    y1="606"
+    x2="298"
+    y2="572"
+    stroke="#34d399"
+    stroke-width="2.5"
+    marker-end="url(#m34d399)"
+  />
+  <text
+    x="375"
+    y="626"
+    fill="#34d399"
+    font-family="sans-serif"
+    font-size="17"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    chain shows 35,063
+  </text>
+  <text x="40" y="700" fill="#e5e7eb" font-family="sans-serif" font-size="15">
+    Yahoo = Nasdaq:
+    <tspan fill="#34d399" font-weight="700">54 of 54</tspan>
+    contracts
+  </text>
+  <text x="40" y="726" fill="#e5e7eb" font-family="sans-serif" font-size="15">
+    Print value 0:
+    <tspan fill="#f87171" font-weight="700">16</tspan>
+    (15 have open interest)
+  </text>
+  <text x="40" y="752" fill="#e5e7eb" font-family="sans-serif" font-size="15">
+    Print value above 0 but not the Nasdaq value:
+    <tspan fill="#f87171" font-weight="700">3 of 42</tspan>
+  </text>
+  <text
+    x="520"
+    y="116"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="16"
+    font-weight="600"
+  >
+    The 18 wrong values: open interest shown before and after
+  </text>
+  <text
+    x="642"
+    y="147"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-11-27 700P
+  </text>
+  <rect x="650" y="130" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="133"
+    width="490.0"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="131" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="1132.0"
+    y="147"
+    fill="#0b0f17"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="end"
+  >
+    0 to 35,063
+  </text>
+  <text
+    x="642"
+    y="178"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-11-27 150P
+  </text>
+  <rect x="650" y="161" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="164"
+    width="297.7899780395289"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="162" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="955.7899780395289"
+    y="178"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 21,309
+  </text>
+  <text
+    x="642"
+    y="209"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-11-27 710P
+  </text>
+  <rect x="650" y="192" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="195"
+    width="200.91635056897584"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="193" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="858.9163505689759"
+    y="209"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 14,377
+  </text>
+  <text
+    x="642"
+    y="240"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-11-27 720C
+  </text>
+  <rect x="650" y="223" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="226"
+    width="166.8317029347175"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="224" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="824.8317029347174"
+    y="240"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 11,938
+  </text>
+  <text
+    x="642"
+    y="271"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-11-27 150C
+  </text>
+  <rect x="650" y="254" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="257"
+    width="140.8664404072669"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="255" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="798.866440407267"
+    y="271"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 10,080
+  </text>
+  <text
+    x="642"
+    y="302"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-11-27 140C
+  </text>
+  <rect x="650" y="285" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="288"
+    width="139.832301856658"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="286" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="797.832301856658"
+    y="302"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 10,006
+  </text>
+  <text
+    x="642"
+    y="333"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-11-27 705P
+  </text>
+  <rect x="650" y="316" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="319"
+    width="136.11499301257737"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="317" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="794.1149930125773"
+    y="333"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 9,740
+  </text>
+  <text
+    x="642"
+    y="364"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-12-18 155C
+  </text>
+  <rect x="650" y="347" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="350"
+    width="119.80634857256938"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="348" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="777.8063485725694"
+    y="364"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 8,573
+  </text>
+  <text
+    x="642"
+    y="395"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-12-11 180C
+  </text>
+  <rect x="650" y="378" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="381"
+    width="109.50688760231583"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="379" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="767.5068876023158"
+    y="395"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 7,836
+  </text>
+  <text
+    x="642"
+    y="426"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-12-31 180C
+  </text>
+  <rect x="650" y="409" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="412"
+    width="106.82371730884408"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="410" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="764.823717308844"
+    y="426"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 7,644
+  </text>
+  <text
+    x="642"
+    y="457"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2027-01-15 615P
+  </text>
+  <rect x="650" y="440" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="443"
+    width="98.36893591535237"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect
+    x="650"
+    y="441"
+    width="96.31463365941306"
+    height="22"
+    fill="#f87171"
+    opacity="0.9"
+  />
+  <text
+    x="756.3689359153524"
+    y="457"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    6,892 to 7,039
+  </text>
+  <text
+    x="642"
+    y="488"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-11-27 715P
+  </text>
+  <rect x="650" y="471" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="474"
+    width="96.06308644440008"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="472" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="754.0630864444001"
+    y="488"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 6,874
+  </text>
+  <text
+    x="642"
+    y="519"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-12-24 185C
+  </text>
+  <rect x="650" y="502" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="505"
+    width="79.37712118187262"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="503" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="737.3771211818727"
+    y="519"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 5,680
+  </text>
+  <text
+    x="642"
+    y="550"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    NVDA 2026-12-31 160C
+  </text>
+  <rect x="650" y="533" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="536"
+    width="70.85246556198842"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="534" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="728.8524655619884"
+    y="550"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    100 to 5,070
+  </text>
+  <text
+    x="642"
+    y="581"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-12-11 760C
+  </text>
+  <rect x="650" y="564" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="567"
+    width="47.458574565781596"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="565" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="705.4585745657816"
+    y="581"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 3,396
+  </text>
+  <text
+    x="642"
+    y="612"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2027-01-15 690C
+  </text>
+  <rect x="650" y="595" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="598"
+    width="47.151127969654624"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect
+    x="650"
+    y="596"
+    width="46.71790776602116"
+    height="22"
+    fill="#f87171"
+    opacity="0.9"
+  />
+  <text
+    x="705.1511279696547"
+    y="612"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    3,343 to 3,374
+  </text>
+  <text
+    x="642"
+    y="643"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-12-11 740C
+  </text>
+  <rect x="650" y="626" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="629"
+    width="29.94809343182272"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="627" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="687.9480934318227"
+    y="643"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 2,143
+  </text>
+  <text
+    x="642"
+    y="674"
+    fill="#9ca3af"
+    font-family="sans-serif"
+    font-size="12.5"
+    text-anchor="end"
+  >
+    SPY 2026-12-04 725C
+  </text>
+  <rect x="650" y="657" width="490" height="24" fill="#1f2937" rx="4" />
+  <rect
+    x="650"
+    y="660"
+    width="20.03992812936714"
+    height="18"
+    fill="#34d399"
+    rx="3"
+    opacity="0.85"
+  />
+  <rect x="650" y="658" width="3" height="22" fill="#f87171" opacity="0.9" />
+  <text
+    x="678.0399281293671"
+    y="674"
+    fill="#e5e7eb"
+    font-family="sans-serif"
+    font-size="12.5"
+    font-weight="600"
+    text-anchor="start"
+  >
+    0 to 1,434
+  </text>
+  <rect x="650" y="693" width="14" height="14" fill="#f87171" />
+  <text x="672" y="704" fill="#9ca3af" font-family="sans-serif" font-size="13">
+    before: Quant Data print value
+  </text>
+  <rect x="900" y="693" width="22" height="14" fill="#34d399" rx="3" />
+  <text x="930" y="704" fill="#9ca3af" font-family="sans-serif" font-size="13">
+    after: Yahoo value (= Nasdaq)
+  </text>
+  <text x="520" y="744" fill="#e5e7eb" font-family="sans-serif" font-size="15">
+    SPY 2026-11-27 totals. Puts:
+    <tspan fill="#f87171" font-weight="700">306,680</tspan>
+    to
+    <tspan fill="#34d399" font-weight="700">372,734</tspan>
+    . Calls:
+    <tspan fill="#f87171" font-weight="700">465,781</tspan>
+    to
+    <tspan fill="#34d399" font-weight="700">477,719</tspan>
+    .
+  </text>
+  <text x="520" y="768" fill="#e5e7eb" font-family="sans-serif" font-size="15">
+    Put/call open interest ratio of that expiry:
+    <tspan fill="#f87171" font-weight="700">0.66</tspan>
+    to
+    <tspan fill="#34d399" font-weight="700">0.78</tspan>
+  </text>
+  <text x="40" y="840" fill="#9ca3af" font-family="sans-serif" font-size="12">
+    After values: the saved live chains with the new rule applied
+    (probe-after.json). Market data only.
+  </text>
+</svg>
