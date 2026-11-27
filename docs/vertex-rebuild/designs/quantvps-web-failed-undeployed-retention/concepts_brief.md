@@ -33,6 +33,10 @@ All families rename to the same `dist.prune-<TS>` / `.wrangler.prune-<TS>` names
 * **Old script copies (codebase, structural, synthesizer; reproduced).** A baseline copy running after an interrupted new-style rename deletes `dist.prune-T` and leaves `.wrangler.failed-T` with a misleading skip reason forever. Require step 8 to run from a checkout at or after the merge, or use family rename names (fix a).
 * **Preview says "keep" for a pair the next run deletes (comprehension).** Use a separate word such as `later`, and state the order bak, failed, undeployed, oldest first.
 
+* **Undeletable hand-made pairs stop `bak` retention (readiness; reproduced).** A parked pair with root-owned or mode-555 folders is renamed, fails `rm -rf`, and keeps taking the run budget. After that, no `bak` pair is ever deleted again. Require a "deletable by this user" check before a non-`bak` delete line, and add a test.
+* **No kill switch; a revert does not reach 91 checkouts (readiness).** Every checkout that pulled the merge applies the new rule. Add a host-side switch on QuantVPS (for example a `families-off` file), and fix the Rollback text.
+* **A normal deploy can delete before the required tar backup (readiness).** Hold the `deploy:quantvps-web` claim from merge until the card's first run, or re-check that counts are at most 2 at merge time.
+
 ### Nits
 
 Half pairs lose their size in the report; the delete log line lacks size; the contract test matches an exact `mv` string; the "first run deletes nothing" claim rests on one preview (verification re-checks it); the failed keep slots can hold two copies of one SHA; staging builds with `rsync --link-dest` (as `stage-runtime.sh` does) would make every kept pair cheap (follow-up, outside this card); `stage-runtime.sh` line 132 names only `dist.bak-*`.
