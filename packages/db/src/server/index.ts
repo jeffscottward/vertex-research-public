@@ -594,7 +594,6 @@ export type {
 export {
   createNodeDatabase,
   createRequestDatabase,
-  REQUEST_DATABASE_POOL_MAX_CONNECTIONS,
   RequestDatabaseCapacityError,
   withTransaction,
 } from "./client.ts";
@@ -817,6 +816,10 @@ export {
   REQUEST_DATABASE_RETRY_AFTER_SECONDS,
   requestDatabaseCapacityResponse,
 } from "./request-scope.ts";
+export {
+  REQUEST_DATABASE_POOL_MAX_CONNECTIONS,
+  REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS,
+} from "./request-slots.ts";
 export {
   checkStrategyParamValue,
   normalizeStrategyParams,

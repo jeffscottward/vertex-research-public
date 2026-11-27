@@ -6,6 +6,12 @@ import { Client, Pool } from "pg";
 // biome-ignore lint/performance/noNamespaceImport: Drizzle consumes the complete schema module object as its relational schema.
 import * as schema from "../schema/index.ts";
 import { normalizePlanetScaleSystemRoot } from "./connection-string.ts";
+import {
+  acquireRequestSlot,
+  REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS,
+  type RequestSlotLease,
+  releaseRequestSlot,
+} from "./request-slots.ts";
 
 export type Database = NodePgDatabase<typeof schema>;
 export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -24,6 +30,8 @@ export type RequestDatabaseOptions = Pick<
 > &
   Readonly<{
     diagnosticSink?: RequestDatabaseDiagnosticSink;
+    /** URL path of the request (no query string); named when its slot is reclaimed. */
+    route?: string;
   }>;
 
 export type DatabaseResource = Readonly<{
@@ -127,13 +135,24 @@ export const createNodeDatabase = (
 
 const DEFAULT_REQUEST_CONNECTION_TIMEOUT_MILLISECONDS = 10_000;
 const REQUEST_QUERY_TIMEOUT_MILLISECONDS = 10_000;
-export const REQUEST_DATABASE_POOL_MAX_CONNECTIONS = 8;
 export const REQUEST_DATABASE_CLOSE_TIMEOUT_MILLISECONDS = 5000;
 const UNSAFE_REQUEST_CONNECTION_STRING_PATTERN = /[\u0000-\u001f]|\u0020$/u;
+// Reported for a request that names no route.
+const UNKNOWN_REQUEST_ROUTE = "unknown";
 
-export type RequestDatabaseDiagnostic = Readonly<{
-  code: "REQUEST_DATABASE_CLIENT_ERROR" | "REQUEST_DATABASE_CLIENT_CLOSE_ERROR";
-}>;
+export type RequestDatabaseDiagnostic =
+  | Readonly<{
+      code:
+        | "REQUEST_DATABASE_CLIENT_ERROR"
+        | "REQUEST_DATABASE_CLIENT_CLOSE_ERROR";
+    }>
+  | Readonly<{
+      /** A slot older than REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS was taken back. */
+      code: "REQUEST_DATABASE_SLOT_RECLAIMED";
+      /** URL path of the request that held the slot; never a query string. */
+      route: string;
+      ageSeconds: number;
+    }>;
 export type RequestDatabaseDiagnosticSink = (
   diagnostic: RequestDatabaseDiagnostic
 ) => void;
@@ -180,44 +199,6 @@ const assertSafeRequestConnectionString = (connectionString: string): void => {
   }
 };
 
-let activeRequestConnections = 0;
-
-/** How long createRequestDatabase waits for a released slot before RequestDatabaseCapacityError. */
-export const REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS = 2000;
-
-/** FIFO waiters for a request slot; a release hands its slot straight to the first one. */
-const requestSlotWaiters: Array<() => void> = [];
-
-const releaseRequestSlot = (): void => {
-  const next = requestSlotWaiters.shift();
-  if (next === undefined) {
-    activeRequestConnections -= 1;
-    return;
-  }
-  // The slot passes to the waiter: activeRequestConnections stays unchanged.
-  next();
-};
-
-/** Resolves true once this caller owns a slot, false when the wait timed out. */
-const acquireRequestSlot = (): Promise<boolean> => {
-  if (activeRequestConnections < REQUEST_DATABASE_POOL_MAX_CONNECTIONS) {
-    activeRequestConnections += 1;
-    return Promise.resolve(true);
-  }
-  return new Promise((resolve) => {
-    const waiter = () => {
-      clearTimeout(timer);
-      resolve(true);
-    };
-    const timer = setTimeout(() => {
-      const index = requestSlotWaiters.indexOf(waiter);
-      requestSlotWaiters.splice(index, 1);
-      resolve(false);
-    }, REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS);
-    requestSlotWaiters.push(waiter);
-  });
-};
-
 const endWithinCloseTimeout = async (client: Client): Promise<void> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -234,12 +215,43 @@ const endWithinCloseTimeout = async (client: Client): Promise<void> => {
   }
 };
 
-const closeRequestDatabaseClient = (
+type RequestClientLifecycle = Readonly<{
+  close: () => Promise<void>;
+  /** True once this request ends its client on purpose: socket errors after that are noise. */
+  isClosing: () => boolean;
+}>;
+
+// Owns the end of one request client: `close` (end, and destroy when end fails or hangs) and
+// the age limit. Both free the slot once.
+const manageRequestClient = (
   client: Client,
+  lease: RequestSlotLease,
   diagnosticSink: RequestDatabaseDiagnosticSink | undefined
-): (() => Promise<void>) => {
+): RequestClientLifecycle => {
+  let closing = false;
   let closePromise: Promise<void> | undefined;
-  return () => {
+  // At the maximum age the request ends its own client. In workerd only the request that
+  // opened a socket can end it, and its timers run while it is alive, also when its handler
+  // waits for good on something another request owns.
+  const ageLimit = setTimeout(() => {
+    closing = true;
+    // `close` clears this timer, so no close has started: a later close has nothing to end.
+    closePromise = Promise.resolve();
+    emitRequestDatabaseDiagnostic(diagnosticSink, {
+      ageSeconds: REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS / 1000,
+      code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+      route: lease.route,
+    });
+    try {
+      client.connection.stream.destroy();
+    } catch {
+      // The socket is already unusable; freeing the slot is what matters.
+    }
+    releaseRequestSlot(lease);
+  }, REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS);
+  const close = (): Promise<void> => {
+    closing = true;
+    clearTimeout(ageLimit);
     closePromise ??= (async (): Promise<void> => {
       try {
         await endWithinCloseTimeout(client);
@@ -256,12 +268,14 @@ const closeRequestDatabaseClient = (
         }
         throw error;
       } finally {
-        // Release on every path: a rejected or hung end() used to leak the slot for the isolate's lifetime.
-        releaseRequestSlot();
+        // Release on every path: a rejected or hung end() used to leak the slot for the isolate's
+        // lifetime. Release is once per lease, so a slot that was reclaimed is not freed twice.
+        releaseRequestSlot(lease);
       }
     })();
     return closePromise;
   };
+  return Object.freeze({ close, isClosing: () => closing });
 };
 
 export class RequestDatabaseCapacityError extends Error {
@@ -281,34 +295,45 @@ export const createRequestDatabase = async (
     options.connectionString
   );
   assertSupportedRuntimeNegotiation(connectionString);
-  if (!(await acquireRequestSlot())) {
+  const lease = await acquireRequestSlot({
+    onReclaim: ({ ageSeconds, route }) =>
+      emitRequestDatabaseDiagnostic(diagnosticSink, {
+        ageSeconds,
+        code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        route,
+      }),
+    route: options.route ?? UNKNOWN_REQUEST_ROUTE,
+  });
+  if (lease === null) {
     throw new RequestDatabaseCapacityError();
   }
   const connectionTimeoutMillis =
     options.connectionTimeoutMillis ??
     DEFAULT_REQUEST_CONNECTION_TIMEOUT_MILLISECONDS;
-  const client = new Client({
-    connectionString,
-    connectionTimeoutMillis,
-    query_timeout: REQUEST_QUERY_TIMEOUT_MILLISECONDS,
-  });
-  let closing = false;
+  let client: Client;
+  try {
+    client = new Client({
+      connectionString,
+      connectionTimeoutMillis,
+      query_timeout: REQUEST_QUERY_TIMEOUT_MILLISECONDS,
+    });
+  } catch (error) {
+    releaseRequestSlot(lease);
+    throw error;
+  }
+  const lifecycle = manageRequestClient(client, lease, diagnosticSink);
   client.on("error", () => {
     // The listener stays attached (an unhandled "error" event throws). Once this
     // request ends its own client, socket errors are teardown noise: on Workers
     // (pg-cloudflare 1.4.1), the read loop rejects "This socket has been closed." after
     // every end(). A real close failure is reported as CLIENT_CLOSE_ERROR instead.
-    if (closing) return;
+    if (lifecycle.isClosing()) return;
     return emitRequestDatabaseDiagnostic(
       diagnosticSink,
       REQUEST_DATABASE_CLIENT_ERROR_DIAGNOSTIC
     );
   });
-  const endClient = closeRequestDatabaseClient(client, diagnosticSink);
-  const close = (): Promise<void> => {
-    closing = true;
-    return endClient();
-  };
+  const close = lifecycle.close;
   try {
     await client.connect();
   } catch (error) {

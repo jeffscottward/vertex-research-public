@@ -29,6 +29,7 @@ const driver = vi.hoisted(() => {
   }> = [];
   let nextConnectionError: unknown;
   let nextEndError: unknown;
+  let nextConstructionError: unknown;
 
   class Client {
     options: unknown;
@@ -52,6 +53,11 @@ const driver = vi.hoisted(() => {
     connection = { stream: { destroy: vi.fn() } };
 
     constructor(options: unknown) {
+      if (nextConstructionError !== undefined) {
+        const error = nextConstructionError;
+        nextConstructionError = undefined;
+        throw error;
+      }
       this.options = options;
       if (nextEndError !== undefined) {
         this.end.mockRejectedValueOnce(nextEndError);
@@ -86,10 +92,14 @@ const driver = vi.hoisted(() => {
   const failNextEnd = (error: unknown): void => {
     nextEndError = error;
   };
+  const failNextConstruction = (error: unknown): void => {
+    nextConstructionError = error;
+  };
 
   const resetFailures = (): void => {
     nextConnectionError = undefined;
     nextEndError = undefined;
+    nextConstructionError = undefined;
   };
 
   return {
@@ -98,6 +108,7 @@ const driver = vi.hoisted(() => {
     databases,
     drizzle,
     failNextConnection,
+    failNextConstruction,
     failNextEnd,
     Pool,
     pools,
@@ -116,13 +127,17 @@ import { migrate } from "@darkfactory/db/server/migration";
 import {
   createNodeDatabase,
   createRequestDatabase,
-  REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS,
   REQUEST_DATABASE_CLOSE_TIMEOUT_MILLISECONDS,
-  REQUEST_DATABASE_POOL_MAX_CONNECTIONS,
   RequestDatabaseCapacityError,
   withTransaction,
 } from "./client.ts";
 import { normalizePlanetScaleSystemRoot } from "./connection-string.ts";
+import {
+  REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS,
+  REQUEST_DATABASE_POOL_MAX_CONNECTIONS,
+  REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS,
+  REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS,
+} from "./request-slots.ts";
 
 const CONNECTION_STRING = "postgresql://localhost/darkfactory_test";
 const PLANETSCALE_SYSTEM_ROOT_CONNECTION_STRING =
@@ -1008,6 +1023,289 @@ describe("database client factories", () => {
     return await Promise.all(
       [...resources.slice(1), replacement].map(({ close }) => close())
     );
+  });
+
+  describe("slot leases", () => {
+    const MINUTE = 60_000;
+    type Resource = Awaited<ReturnType<typeof createRequestDatabase>>;
+    // Fills the pool; the first slot is a minute older than the other seven.
+    const openFull = async (
+      first: Readonly<{ route: string; diagnosticSink?: () => void }>
+    ): Promise<Resource[]> => {
+      const oldest = await createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+        ...first,
+      });
+      await vi.advanceTimersByTimeAsync(MINUTE);
+      const rest = await Promise.all(
+        Array.from({ length: REQUEST_DATABASE_POOL_MAX_CONNECTIONS - 1 }, () =>
+          createRequestDatabase({
+            connectionString: CONNECTION_STRING,
+            route: "/api/orpc/flow/collect",
+          })
+        )
+      );
+      return [oldest, ...rest];
+    };
+    // A request whose workerd context ended: its own timers (the age limit) never run.
+    const withoutOwnTimers = async <Value>(
+      open: () => Promise<Value>
+    ): Promise<Value> => {
+      const spy = vi
+        .spyOn(globalThis, "setTimeout")
+        .mockImplementation(
+          () => 0 as unknown as ReturnType<typeof setTimeout>
+        );
+      try {
+        return await open();
+      } finally {
+        spy.mockRestore();
+      }
+    };
+    // Under this block's fake clock: a full pool rejects after the 2 s wait.
+    const expectCapacityRejection = async (): Promise<void> => {
+      const rejected = expect(
+        createRequestDatabase({ connectionString: CONNECTION_STRING })
+      ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS
+      );
+      await rejected;
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
+
+    it("ends a slot whose request never closes at the maximum age, from that request's own timer", async () => {
+      // A canceled request whose work never settles keeps its scope open: before the age limit,
+      // every later request got DATABASE_CAPACITY until the process restarted.
+      const ownerSink = vi.fn();
+      const resources = await openFull({
+        diagnosticSink: ownerSink,
+        route: "/api/orpc/optionsChain/chain",
+      });
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS -
+          MINUTE -
+          REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS -
+          1
+      );
+      await expectCapacityRejection();
+      expect(ownerSink).not.toHaveBeenCalled();
+
+      // The socket is gone already: the destroy throws, and the slot is freed anyway.
+      driver.clients[0]!.connection.stream.destroy.mockImplementationOnce(
+        () => {
+          throw new Error("socket already gone");
+        }
+      );
+      await vi.advanceTimersByTimeAsync(1);
+      expect(ownerSink).toHaveBeenCalledExactlyOnceWith({
+        ageSeconds: REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS / 1000,
+        code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        route: "/api/orpc/optionsChain/chain",
+      });
+      expect(
+        driver.clients[0]!.connection.stream.destroy
+      ).toHaveBeenCalledOnce();
+      const admitted = await createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      });
+
+      // The late close ends nothing more and frees nothing: the pool is still full.
+      await resources[0]!.close();
+      expect(driver.clients[0]!.end).not.toHaveBeenCalled();
+      expect(ownerSink).toHaveBeenCalledOnce();
+      await expectCapacityRejection();
+      await Promise.all(
+        [...resources.slice(1), admitted].map(({ close }) => close())
+      );
+      return expect(vi.getTimerCount()).toBe(0);
+    });
+
+    // The oldest request's context ended (its own timers never run); seven younger ones are alive
+    // and end their slots a minute after its reclaim age.
+    const openFullWithDeadOldest = async (
+      route: string
+    ): Promise<[Resource, Resource[]]> => {
+      const oldest = await withoutOwnTimers(() =>
+        createRequestDatabase({ connectionString: CONNECTION_STRING, route })
+      );
+      await vi.advanceTimersByTimeAsync(MINUTE);
+      const rest = await Promise.all(
+        Array.from({ length: REQUEST_DATABASE_POOL_MAX_CONNECTIONS - 1 }, () =>
+          createRequestDatabase({ connectionString: CONNECTION_STRING })
+        )
+      );
+      return [oldest, rest];
+    };
+
+    it("lets another request reclaim a slot whose own timer never ran", async () => {
+      const [oldest, rest] = await openFullWithDeadOldest(
+        "/api/orpc/optionsAnalytics/snapshot"
+      );
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS -
+          MINUTE -
+          REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS -
+          1
+      );
+      await expectCapacityRejection();
+      await vi.advanceTimersByTimeAsync(1);
+      const diagnosticSink = vi.fn();
+      const admitted = await createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+        diagnosticSink,
+      });
+      expect(diagnosticSink).toHaveBeenCalledExactlyOnceWith({
+        ageSeconds: REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS / 1000,
+        code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        route: "/api/orpc/optionsAnalytics/snapshot",
+      });
+      // The late close of the reclaimed slot frees nothing: the pool is still full.
+      await oldest.close();
+      await expectCapacityRejection();
+      return await Promise.all([...rest, admitted].map(({ close }) => close()));
+    });
+
+    it("reclaims for a waiting request when a slot passes the reclaim age during its wait", async () => {
+      const [oldest, rest] = await openFullWithDeadOldest(
+        "/api/orpc/flow/events"
+      );
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS - MINUTE - 1000
+      );
+      const diagnosticSink = vi.fn();
+      const waiting = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+        diagnosticSink,
+      });
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS
+      );
+      const admitted = await waiting;
+      expect(diagnosticSink).toHaveBeenCalledExactlyOnceWith({
+        ageSeconds:
+          (REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS + 1000) / 1000,
+        code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        route: "/api/orpc/flow/events",
+      });
+      return await Promise.all(
+        [oldest, ...rest, admitted].map(({ close }) => close())
+      );
+    });
+
+    it("names an unknown route and keeps admitting when the reclaim report throws", async () => {
+      const resources = await withoutOwnTimers(async () => [
+        await createRequestDatabase({
+          connectionString: CONNECTION_STRING,
+          route: "/named",
+        }),
+        ...(await Promise.all(
+          Array.from(
+            { length: REQUEST_DATABASE_POOL_MAX_CONNECTIONS - 1 },
+            () => createRequestDatabase({ connectionString: CONNECTION_STRING })
+          )
+        )),
+      ]);
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS
+      );
+      const diagnosticSink = vi.fn(() => {
+        throw new Error("sink failed");
+      });
+      const admitted = await createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+        diagnosticSink,
+      });
+      // Every slot passed the reclaim age: all eight are reported and freed.
+      expect(diagnosticSink).toHaveBeenCalledTimes(
+        REQUEST_DATABASE_POOL_MAX_CONNECTIONS
+      );
+      expect(diagnosticSink).toHaveBeenCalledWith({
+        ageSeconds: REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS / 1000,
+        code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        route: "unknown",
+      });
+      expect(diagnosticSink).toHaveBeenCalledWith(
+        expect.objectContaining({ route: "/named" })
+      );
+      return await Promise.all(
+        [...resources, admitted].map(({ close }) => close())
+      );
+    });
+
+    it("lets a waiter's timeout remove only itself when clearTimeout from another request does nothing", async () => {
+      // In workerd a release runs in the releasing request, where clearTimeout cannot see the
+      // waiter's timer, so the timer of a waiter that got a slot still fires.
+      vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => undefined);
+      const resources = await openFull({ route: "/a" });
+      const first = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      const second = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      await resources[0]!.close();
+      const firstResource = await first;
+      // The first waiter's timer fires now; it must not drop the second waiter.
+      await vi.advanceTimersByTimeAsync(1500);
+      await resources[1]!.close();
+      const secondResource = await second;
+      return await Promise.all(
+        [...resources.slice(2), firstResource, secondResource].map(
+          ({ close }) => close()
+        )
+      );
+    });
+
+    it("skips a waiter whose own wait timer never ran, so the next waiter gets the slot", async () => {
+      const resources = await openFull({ route: "/a" });
+      // Its request context ended before its timer ran: in workerd that timer never fires.
+      vi.spyOn(globalThis, "setTimeout").mockImplementationOnce(
+        () => 0 as unknown as ReturnType<typeof setTimeout>
+      );
+      const skipped = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      }).then(
+        () => "admitted",
+        (error: unknown) => error
+      );
+      await vi.advanceTimersByTimeAsync(3000);
+      const live = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      await resources[0]!.close();
+      const liveResource = await live;
+      // Skipped, it ends with DATABASE_CAPACITY (dropped in workerd when its context is gone).
+      expect(await skipped).toBeInstanceOf(RequestDatabaseCapacityError);
+      return await Promise.all(
+        [...resources.slice(1), liveResource].map(({ close }) => close())
+      );
+    });
+
+    it("frees the slot when the client cannot be constructed", async () => {
+      const failure = new TypeError("invalid connection parameters");
+      driver.failNextConstruction(failure);
+      await expect(
+        createRequestDatabase({ connectionString: CONNECTION_STRING })
+      ).rejects.toBe(failure);
+      const resources = await Promise.all(
+        Array.from({ length: REQUEST_DATABASE_POOL_MAX_CONNECTIONS }, () =>
+          createRequestDatabase({ connectionString: CONNECTION_STRING })
+        )
+      );
+      return await Promise.all(resources.map(({ close }) => close()));
+    });
   });
 
   it("runs migrations from the package folder unless explicitly overridden", async () => {

@@ -283,6 +283,8 @@ const openReaderConnection = async (
   const resource = await createRequestDatabase({
     connectionString,
     connectionTimeoutMillis: 5000,
+    // Named in request-database.slot-reclaimed if this slot is ever reclaimed.
+    route: "semantic-layer/reader",
   });
   const client = (resource.db as unknown as { $client: SemanticReaderClient })
     .$client;
