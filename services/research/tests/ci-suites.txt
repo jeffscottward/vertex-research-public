@@ -182,3 +182,4 @@ tests/test_order_flow_amt_study.py
 tests/test_order_flow_amt_data.py
 tests/test_order_flow_amt_nautilus.py
 tests/test_smart_money_backtests.py
+tests/test_stoploss_premium.py
