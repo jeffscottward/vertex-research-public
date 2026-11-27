@@ -1431,13 +1431,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--min-sessions",
         type=int,
         default=TASK2_MIN_SESSIONS,
-        help="Minimum aligned qualifying streamed RTH sessions required (default 20).",
+        help="Minimum aligned qualifying streamed RTH sessions required (default and floor 20).",
     )
     parser.add_argument(
         "--min-covered",
         type=int,
         default=MIN_STREAMED_COVERED_MINUTES,
-        help="Minimum covered minutes of 390 per futures symbol (default 370).",
+        help="Minimum covered minutes of 390 per futures symbol (default and floor 370).",
     )
     parser.add_argument("--data", type=Path, default=None, help="QuantData net-drift root folder (outside repo).")
     parser.add_argument(
@@ -1478,10 +1478,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         norm_to = _validate_iso_day(args.to_day) if args.to_day is not None else None
         if norm_to is not None and norm_to < norm_from:
             raise ValueError(f"--to-day ({norm_to}) precedes --from-day ({norm_from})")
-        if args.min_covered < 1 or args.min_covered > SESSION_MINUTES:
-            raise ValueError(f"--min-covered must be between 1 and {SESSION_MINUTES}, got {args.min_covered}")
-        if args.min_sessions < 1:
-            raise ValueError(f"--min-sessions must be at least 1, got {args.min_sessions}")
+        # The 20-session / 370-minute gate is a floor: flags may only make it stricter, never
+        # lower it, so returns can never be computed below the Task 2 time gate.
+        if args.min_covered < MIN_STREAMED_COVERED_MINUTES or args.min_covered > SESSION_MINUTES:
+            raise ValueError(
+                f"--min-covered must be between {MIN_STREAMED_COVERED_MINUTES} and {SESSION_MINUTES}, "
+                f"got {args.min_covered}"
+            )
+        if args.min_sessions < TASK2_MIN_SESSIONS:
+            raise ValueError(f"--min-sessions must be at least {TASK2_MIN_SESSIONS}, got {args.min_sessions}")
         data_dir = outside_repository(data.data_root(args.data), REPO_ROOT)
         out_dir = outside_repository(args.out, REPO_ROOT) if args.out is not None else None
         market_dir = (

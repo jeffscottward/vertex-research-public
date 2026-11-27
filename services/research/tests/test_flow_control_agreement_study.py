@@ -497,6 +497,46 @@ def test_cli_time_gated_exits_3_with_zero_peeking_and_no_writes(tmp_path, monkey
     assert not out_dir.exists()
 
 
+def test_cli_rejects_flags_that_lower_the_time_gate(tmp_path, monkeypatch, capsys):
+    days = _full_rth_days("2026-11-20", 6)
+    raw_min, raw_tr = _make_raw_rows_for_days(days)
+    _, loaded = _synthetic_pair(days)
+
+    monkeypatch.setattr(agreement_study, "load_rows_from_psql", lambda **_: (raw_min, raw_tr))
+    monkeypatch.setattr(agreement_study.data, "load_all", lambda *_a, **_kw: loaded)
+
+    out_dir = tmp_path / "lowered-gate-out"
+    for flags in (["--min-sessions", "5"], ["--min-covered", "369"], ["--min-covered", "391"]):
+        rc = agreement_study.main([
+            "--dsn", "postgresql://ro@localhost/vertex",
+            "--data", str(tmp_path / "net-drift-root"),
+            "--out", str(out_dir),
+            "--no-nautilus",
+            "--format", "json",
+            *flags,
+        ])
+        assert rc == 2
+        captured = capsys.readouterr()
+        assert flags[0] in captured.err
+        assert "rows" not in captured.out
+        assert not out_dir.exists()
+
+    # A stricter gate is allowed and still time-gates without peeking.
+    rc = agreement_study.main([
+        "--dsn", "postgresql://ro@localhost/vertex",
+        "--data", str(tmp_path / "net-drift-root"),
+        "--out", str(out_dir),
+        "--min-sessions", "25",
+        "--min-covered", "380",
+        "--format", "json",
+    ])
+    assert rc == EXIT_TIME_GATED
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["minSessions"] == 25
+    assert "rows" not in payload
+    assert not out_dir.exists()
+
+
 def test_cli_ready_runs_study_and_writes_html_and_markdown(tmp_path, monkeypatch, capsys):
     days = _full_rth_days("2026-11-20", 20)
     raw_min, raw_tr = _make_raw_rows_for_days(days)
