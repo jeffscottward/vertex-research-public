@@ -39,7 +39,7 @@
 * ***Justification:*** Valid major gap.
 * ***Proposed Edit:***
   * Location: `plan.md` Execution order, Verification, and Rollback sections
-  * Change: Add dedicated Execution Order, Verification, and Rollback sections with exact `fm claim` / `fm release` commands, post-claim re-check, absolute path `/home/jeffscottward/Github/trading/vertex-research-public`, `storeDir` + `virtualStoreDir` verification, and rollback procedures (pause `vertex-janitor.timer` instead of reverting to `ln -s`).
+  * Change: Add dedicated Execution Order, Verification, and Rollback sections with exact `fm claim` / `fm release` commands, post-claim re-check, explicit main checkout path `$HOME/Github/trading/vertex-research-public`, `storeDir` + `virtualStoreDir` verification, and rollback procedures (pause `vertex-janitor.timer` instead of reverting to `ln -s`).
 
 ### [Issue 4] [`egm-implementation-readiness`, `egm-design`] - Severity: Major
 

@@ -4,7 +4,7 @@
 
 ## Problem
 
-On `omarchy-rig` (the Linux compute host), the main checkout at `/home/jeffscottward/Github/trading/vertex-research-public` (clean detached `HEAD` at `b78791a1`, snapshot checked 2026-11-27 07:48 ET) has broken `node_modules` symlinks. Its `node_modules/.modules.yaml` (mtime 2026-11-15) records:
+On `omarchy-rig` (the Linux compute host), the main checkout at `$HOME/Github/trading/vertex-research-public` (clean detached `HEAD` at `b78791a1`, snapshot checked 2026-11-27 07:48 ET) has broken `node_modules` symlinks. Its `node_modules/.modules.yaml` (mtime 2026-11-15) records:
 
 - `virtualStoreDir: ../../../../../../tmp/vertex-research-janitor-20261115-1100/node_modules/.pnpm`
 - `storeDir: /tmp/.pnpm-store/v11`
@@ -26,7 +26,7 @@ Every Sunday at 06:00 ET, the systemd user timer `vertex-janitor.timer` starts `
 
 ### 1. Live main checkout repair on `omarchy-rig`
 
-Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` in place without changing its git branch, commit, or working tree (must run from an un-sandboxed host shell on `omarchy-rig`; autogrind `bwrap` worktree sessions mount the main checkout read-only and exit with `EROFS`):
+Repair `$HOME/Github/trading/vertex-research-public/node_modules` in place without changing its git branch, commit, or working tree (must run from an un-sandboxed host shell on `omarchy-rig`; autogrind `bwrap` worktree sessions mount the main checkout read-only and exit with `EROFS`):
 
 - Point-in-time audit (2026-11-27 07:48 ET): 0 of 92 linked worktrees symlinked to `${main}/node_modules`, and 0 running processes held a `cwd` or open file descriptor in `${main}/node_modules`. Re-verify both immediately after acquiring the claim before running `pnpm install`.
 - Acquire the coordinator claim (`fm claim`, the rig's task-coordination lock CLI) before modifying `${main}/node_modules`, and release it (`fm release`) in all outcomes (success or failure).
@@ -66,7 +66,7 @@ Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` 
    ```bash
    fm claim vertex-public-main-node-modules-dangling "file:vertex-research-public:node_modules"
    # Re-verify 0 worktree symlinks and 0 processes with cwd/fd in main/node_modules
-   cd /home/jeffscottward/Github/trading/vertex-research-public
+   cd "$HOME/Github/trading/vertex-research-public"
    pnpm install --frozen-lockfile --offline \
      --config.virtual-store-dir=node_modules/.pnpm \
      --config.confirm-modules-purge=false
@@ -85,12 +85,12 @@ Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` 
 
 ## Out of scope
 
-- Changing the checked-out commit or branch of `/home/jeffscottward/Github/trading/vertex-research-public`.
+- Changing the checked-out commit or branch of `$HOME/Github/trading/vertex-research-public`.
 - Modifying `fm-spawn` (the rig worktree launcher).
 
 ## Acceptance criteria
 
-1. **Main checkout repaired and verified live:** In `/home/jeffscottward/Github/trading/vertex-research-public`:
+1. **Main checkout repaired and verified live:** In `$HOME/Github/trading/vertex-research-public`:
    - `node_modules/.modules.yaml` has a local `virtualStoreDir` and a `/home`-backed `storeDir` (neither references `/tmp`).
    - 0 broken symlinks exist across root `node_modules` and all 20 workspace `apps/*/node_modules` and `packages/*/node_modules` directories.
    - `node -e "require.resolve('vitest'); require.resolve('@playwright/test')"` and `pnpm exec vitest --version` exit 0.
@@ -99,4 +99,4 @@ Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` 
 3. **Repository gates and merge:** `bun run verify:prepush`, `node scripts/public-names.ts`, EGM drift report (`No drift detected`), fresh-context code review, and PR `ci-gate` pass; PR merges to `vertex/rebuild-darkfactory-20260921` via `scripts/merge-pr`.
 4. **Post-merge live check:**
    - `vertex-janitor-run --dry-run` exits 0 and prints the merged `origin/vertex/rebuild-darkfactory-20260921` short SHA.
-   - A real worktree setup + isolated `pnpm install` + teardown smoke test under `$HOME/.cache/vertex-research-janitor/` exits 0, removes its temporary worktree, leaves `/tmp/.pnpm-store` absent, and leaves `/home/jeffscottward/Github/trading/vertex-research-public/node_modules/.modules.yaml` unchanged.
+   - A real worktree setup + isolated `pnpm install` + teardown smoke test under `$HOME/.cache/vertex-research-janitor/` exits 0, removes its temporary worktree, leaves `/tmp/.pnpm-store` absent, and leaves `$HOME/Github/trading/vertex-research-public/node_modules/.modules.yaml` unchanged.
