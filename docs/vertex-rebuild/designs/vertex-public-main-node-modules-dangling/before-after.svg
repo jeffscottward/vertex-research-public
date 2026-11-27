@@ -1,0 +1,778 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 560"
+  width="1120"
+  height="560"
+  role="img"
+  aria-label="Before and after diagram of main checkout node_modules repair and weekly janitor worktree isolation"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#131922" />
+    </linearGradient>
+    <linearGradient id="redPane" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e1418" />
+      <stop offset="100%" stop-color="#161116" />
+    </linearGradient>
+    <linearGradient id="greenPane" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#111e1a" />
+      <stop offset="100%" stop-color="#101817" />
+    </linearGradient>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="arrowAmber"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#fbbf24" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowBlue"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#60a5fa" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="560" rx="16" fill="url(#bg)" />
+
+  <!-- Title bar -->
+  <text
+    x="40"
+    y="44"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    Main Checkout Dependencies &amp; Weekly Janitor Isolation
+  </text>
+  <text
+    x="40"
+    y="68"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    Move janitor worktree to host cache with isolated pnpm hardlinks so
+    main/node_modules stays intact
+  </text>
+
+  <!-- LEFT PANEL: BEFORE -->
+  <rect
+    x="32"
+    y="92"
+    width="512"
+    height="436"
+    rx="14"
+    fill="url(#redPane)"
+    stroke="#7f1d1d"
+    stroke-width="1.5"
+  />
+  <rect x="52" y="110" width="90" height="26" rx="13" fill="#7f1d1d" />
+  <text
+    x="97"
+    y="127"
+    text-anchor="middle"
+    fill="#fecaca"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="154"
+    y="128"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    Symlinked /tmp worktree corrupts main
+  </text>
+
+  <!-- Main checkout box -->
+  <g transform="translate(52, 156)">
+    <rect
+      width="206"
+      height="94"
+      rx="10"
+      fill="#18202c"
+      stroke="#475569"
+      stroke-width="1.2"
+    />
+    <path
+      d="M16 19 h13 l4 4 h16 v19 h-33 z"
+      fill="none"
+      stroke="#94a3b8"
+      stroke-width="1.8"
+      stroke-linejoin="round"
+    />
+    <text
+      x="58"
+      y="30"
+      fill="#e2e8f0"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      main checkout
+    </text>
+    <text
+      x="58"
+      y="46"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      node_modules/
+    </text>
+    <text
+      x="16"
+      y="74"
+      fill="#f87171"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      root + 20 pkg dirs broken
+    </text>
+  </g>
+
+  <!-- /tmp janitor worktree -->
+  <g transform="translate(314, 156)">
+    <rect
+      width="210"
+      height="94"
+      rx="10"
+      fill="#1f1820"
+      stroke="#f87171"
+      stroke-width="1.2"
+      stroke-dasharray="5 4"
+    />
+    <circle
+      cx="28"
+      cy="30"
+      r="10"
+      fill="none"
+      stroke="#f87171"
+      stroke-width="1.8"
+    />
+    <path
+      d="M28 24 v6 l4 3"
+      fill="none"
+      stroke="#f87171"
+      stroke-width="1.8"
+      stroke-linecap="round"
+    />
+    <text
+      x="48"
+      y="30"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      /tmp janitor wt
+    </text>
+    <text
+      x="48"
+      y="46"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      ln -s main node_modules
+    </text>
+    <text
+      x="16"
+      y="74"
+      fill="#fbbf24"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      tmpfs; removed in finally
+    </text>
+  </g>
+
+  <!-- Symlink arrow -->
+  <path
+    d="M314 192 L262 192"
+    fill="none"
+    stroke="#fbbf24"
+    stroke-width="2"
+    stroke-dasharray="4 3"
+    marker-end="url(#arrowAmber)"
+  />
+  <text
+    x="288"
+    y="182"
+    text-anchor="middle"
+    fill="#fbbf24"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    symlink
+  </text>
+
+  <!-- Step 3: pnpm mutates main -->
+  <g transform="translate(52, 284)">
+    <rect
+      width="472"
+      height="84"
+      rx="10"
+      fill="#23161b"
+      stroke="#dc2626"
+      stroke-width="1.2"
+    />
+    <path
+      d="M30 24 L43 48 L17 48 Z"
+      fill="none"
+      stroke="#f87171"
+      stroke-width="1.8"
+      stroke-linejoin="round"
+    />
+    <line
+      x1="30"
+      y1="33"
+      x2="30"
+      y2="40"
+      stroke="#f87171"
+      stroke-width="1.8"
+      stroke-linecap="round"
+    />
+    <circle cx="30" cy="44" r="1.2" fill="#f87171" />
+    <text
+      x="54"
+      y="32"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      pnpm rewrites main/node_modules/.modules.yaml
+    </text>
+    <text
+      x="54"
+      y="53"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      virtualStoreDir -&gt; /tmp/vertex-research-janitor-.../.pnpm
+    </text>
+    <text
+      x="54"
+      y="71"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      storeDir: /tmp/.pnpm-store/v11 (RAM store on tmpfs)
+    </text>
+  </g>
+  <path
+    d="M419 250 L419 280"
+    fill="none"
+    stroke="#f87171"
+    stroke-width="2"
+    marker-end="url(#arrowRed)"
+  />
+  <path
+    d="M155 284 L155 254"
+    fill="none"
+    stroke="#f87171"
+    stroke-width="2"
+    marker-end="url(#arrowRed)"
+  />
+
+  <!-- Broken outcome bar -->
+  <g transform="translate(52, 404)">
+    <rect
+      width="472"
+      height="98"
+      rx="10"
+      fill="#181216"
+      stroke="#7f1d1d"
+      stroke-width="1.2"
+    />
+    <circle
+      cx="32"
+      cy="49"
+      r="15"
+      fill="#450a0a"
+      stroke="#f87171"
+      stroke-width="1.6"
+    />
+    <path
+      d="M26 43 L38 55 M38 43 L26 55"
+      stroke="#f87171"
+      stroke-width="2.2"
+      stroke-linecap="round"
+    />
+    <text
+      x="60"
+      y="34"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      After /tmp cleanup: dangling links in main
+    </text>
+    <rect
+      x="60"
+      y="48"
+      width="128"
+      height="34"
+      rx="7"
+      fill="#2a1215"
+      stroke="#991b1b"
+    />
+    <text
+      x="124"
+      y="69"
+      text-anchor="middle"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      vitest: missing
+    </text>
+    <rect
+      x="198"
+      y="48"
+      width="144"
+      height="34"
+      rx="7"
+      fill="#2a1215"
+      stroke="#991b1b"
+    />
+    <text
+      x="270"
+      y="69"
+      text-anchor="middle"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      @playwright: dead
+    </text>
+    <rect
+      x="352"
+      y="48"
+      width="104"
+      height="34"
+      rx="7"
+      fill="#2a1215"
+      stroke="#991b1b"
+    />
+    <text
+      x="404"
+      y="69"
+      text-anchor="middle"
+      fill="#fca5a5"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      21/21 broken
+    </text>
+  </g>
+  <path
+    d="M288 368 L288 400"
+    fill="none"
+    stroke="#f87171"
+    stroke-width="2"
+    marker-end="url(#arrowRed)"
+  />
+
+  <!-- RIGHT PANEL: AFTER -->
+  <rect
+    x="576"
+    y="92"
+    width="512"
+    height="436"
+    rx="14"
+    fill="url(#greenPane)"
+    stroke="#065f46"
+    stroke-width="1.5"
+  />
+  <rect x="596" y="110" width="84" height="26" rx="13" fill="#065f46" />
+  <text
+    x="638"
+    y="127"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="692"
+    y="128"
+    fill="#6ee7b7"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    Same-FS cache worktree + isolated deps
+  </text>
+
+  <!-- Host pnpm store -->
+  <g transform="translate(696, 152)">
+    <rect
+      width="272"
+      height="62"
+      rx="10"
+      fill="#132232"
+      stroke="#3b82f6"
+      stroke-width="1.3"
+    />
+    <ellipse
+      cx="30"
+      cy="23"
+      rx="12"
+      ry="5"
+      fill="none"
+      stroke="#60a5fa"
+      stroke-width="1.6"
+    />
+    <path
+      d="M18 23 v16 c0 3 24 3 24 0 v-16"
+      fill="none"
+      stroke="#60a5fa"
+      stroke-width="1.6"
+    />
+    <text
+      x="52"
+      y="28"
+      fill="#dbeafe"
+      font-family="system-ui, sans-serif"
+      font-size="12.5"
+      font-weight="700"
+    >
+      Host pnpm store (btrfs)
+    </text>
+    <text
+      x="52"
+      y="45"
+      fill="#93c5fd"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      same filesystem as $HOME
+    </text>
+  </g>
+
+  <!-- Repaired Main box -->
+  <g transform="translate(596, 258)">
+    <rect
+      width="220"
+      height="108"
+      rx="10"
+      fill="#132420"
+      stroke="#10b981"
+      stroke-width="1.4"
+    />
+    <path
+      d="M16 19 h13 l4 4 h16 v19 h-33 z"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="1.8"
+      stroke-linejoin="round"
+    />
+    <text
+      x="58"
+      y="30"
+      fill="#ecfdf5"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      main checkout
+    </text>
+    <text
+      x="58"
+      y="46"
+      fill="#6ee7b7"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      node_modules/.pnpm
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#a7f3d0"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      local virtualStoreDir
+    </text>
+    <text
+      x="16"
+      y="92"
+      fill="#34d399"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+      font-weight="600"
+    >
+      Repaired &amp; never symlinked
+    </text>
+  </g>
+
+  <!-- Isolated cache janitor worktree box -->
+  <g transform="translate(848, 258)">
+    <rect
+      width="220"
+      height="108"
+      rx="10"
+      fill="#132420"
+      stroke="#10b981"
+      stroke-width="1.4"
+    />
+    <rect
+      x="16"
+      y="19"
+      width="22"
+      height="22"
+      rx="5"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="1.8"
+    />
+    <path
+      d="M21 30 l4 4 l7 -8"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <text
+      x="48"
+      y="30"
+      fill="#ecfdf5"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      cache janitor wt
+    </text>
+    <text
+      x="48"
+      y="46"
+      fill="#6ee7b7"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      ~/.cache/.../&lt;stamp&gt;
+    </text>
+    <text
+      x="16"
+      y="72"
+      fill="#a7f3d0"
+      font-family="ui-monospace, monospace"
+      font-size="10.5"
+    >
+      pnpm --frozen-lockfile
+    </text>
+    <text
+      x="16"
+      y="92"
+      fill="#34d399"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+      font-weight="600"
+    >
+      Own node_modules/.pnpm
+    </text>
+  </g>
+
+  <!-- Vertical isolation barrier -->
+  <line
+    x1="832"
+    y1="254"
+    x2="832"
+    y2="372"
+    stroke="#34d399"
+    stroke-width="2"
+    stroke-dasharray="4 4"
+  />
+
+  <!-- Hardlink arrows from host store to both -->
+  <path
+    d="M764 214 L708 254"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="2"
+    marker-end="url(#arrowBlue)"
+  />
+  <path
+    d="M900 214 L956 254"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="2"
+    marker-end="url(#arrowBlue)"
+  />
+  <text
+    x="712"
+    y="234"
+    fill="#93c5fd"
+    font-family="system-ui, sans-serif"
+    font-size="10.5"
+  >
+    hardlink
+  </text>
+  <text
+    x="936"
+    y="234"
+    fill="#93c5fd"
+    font-family="system-ui, sans-serif"
+    font-size="10.5"
+  >
+    hardlink
+  </text>
+
+  <!-- Clean outcome bar -->
+  <g transform="translate(596, 404)">
+    <rect
+      width="472"
+      height="98"
+      rx="10"
+      fill="#0f211c"
+      stroke="#059669"
+      stroke-width="1.2"
+    />
+    <circle
+      cx="32"
+      cy="49"
+      r="15"
+      fill="#064e3b"
+      stroke="#34d399"
+      stroke-width="1.6"
+    />
+    <path
+      d="M25 49 L30 54 L40 43"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <text
+      x="60"
+      y="34"
+      fill="#d1fae5"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+    >
+      After cleanup: main stays intact, 0 RAM bloat
+    </text>
+    <rect
+      x="60"
+      y="48"
+      width="128"
+      height="34"
+      rx="7"
+      fill="#064e3b"
+      stroke="#10b981"
+    />
+    <text
+      x="124"
+      y="69"
+      text-anchor="middle"
+      fill="#a7f3d0"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      vitest: resolves
+    </text>
+    <rect
+      x="198"
+      y="48"
+      width="144"
+      height="34"
+      rx="7"
+      fill="#064e3b"
+      stroke="#10b981"
+    />
+    <text
+      x="270"
+      y="69"
+      text-anchor="middle"
+      fill="#a7f3d0"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      0 broken links
+    </text>
+    <rect
+      x="352"
+      y="48"
+      width="104"
+      height="34"
+      rx="7"
+      fill="#064e3b"
+      stroke="#10b981"
+    />
+    <text
+      x="404"
+      y="69"
+      text-anchor="middle"
+      fill="#a7f3d0"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      no /tmp store
+    </text>
+  </g>
+  <path
+    d="M706 366 L706 400"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrowGreen)"
+  />
+  <path
+    d="M958 366 L958 400"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrowGreen)"
+  />
+</svg>

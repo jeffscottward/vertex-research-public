@@ -1,8 +1,8 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,6 +22,7 @@ import {
   parseWorktrees,
   type RunResult,
   resolveDefaultBranch,
+  resolveWorktreePath,
   runJanitorWeekly,
   stagePass,
 } from "./weekly.ts";
@@ -93,7 +94,8 @@ const env = { HOME: "/home/u" };
 const MAIN = "/home/u/Github/trading/vertex-research-public";
 const STAMP = "20261101-1100";
 const BRANCH = `ws/janitor-${STAMP}`;
-const WT = `/tmp/vertex-research-janitor-${STAMP}`;
+const SCRATCH = `/tmp/vertex-research-janitor-${STAMP}`;
+const WT = `/home/u/.cache/vertex-research-janitor/${STAMP}`;
 const MOVE = "R100\tapps/web/old-name.ts\tapps/web/new-name.ts\n";
 
 describe("default branch", () => {
@@ -356,7 +358,8 @@ describe("busy files", () => {
       writeFileSync(join(main, "kept.ts"), "export const k = 1;\n");
       git(main, "add", ".");
       git(main, "commit", "-qm", "init");
-      git(main, "push", "-q", "origin", "base");
+      git(origin, "fetch", "-q", main, "base:base");
+      git(main, "fetch", "-q", "origin");
       git(main, "worktree", "add", "-q", "-b", "ws/job", job, "origin/base");
       writeFileSync(join(job, "brand new.ts"), "export const n = 1;\n");
       writeFileSync(join(job, "café.ts"), "export const c = 1;\n");
@@ -377,6 +380,27 @@ describe("busy files", () => {
   });
 });
 
+describe("worktree path", () => {
+  it("uses absolute XDG_CACHE_HOME when set and strips trailing slashes", () => {
+    expect(
+      resolveWorktreePath(
+        { HOME: "/home/u", XDG_CACHE_HOME: "/var/cache/u///" },
+        STAMP
+      )
+    ).toBe(`/var/cache/u/vertex-research-janitor/${STAMP}`);
+  });
+
+  it("ignores relative XDG_CACHE_HOME and falls back to HOME/.cache", () => {
+    expect(
+      resolveWorktreePath({ HOME: "/home/u/", XDG_CACHE_HOME: ".cache" }, STAMP)
+    ).toBe(`/home/u/.cache/vertex-research-janitor/${STAMP}`);
+  });
+
+  it("falls back to /tmp only when neither XDG_CACHE_HOME nor HOME is absolute", () => {
+    expect(resolveWorktreePath({}, STAMP)).toBe(SCRATCH);
+    expect(resolveWorktreePath({ HOME: "relative" }, STAMP)).toBe(SCRATCH);
+  });
+});
 describe("weekly pass", () => {
   it("names the busy list and the base in the model prompt", () => {
     expect(janitorPrompt("/tmp/busy.txt", LIVE)).toContain(
@@ -391,14 +415,14 @@ describe("weekly pass", () => {
       `janitor: base ${LIVE}; 3 busy file(s) from 2 ws branch(es), 1 open PR(s) and 0 local worktree(s)\n` +
         `janitor: skipped 1 ws branch(es) or worktree commit(s) with no history shared with ${LIVE}: origin/ws/stale-main\n`
     );
-    expect(run.written[`${WT}-busy.txt`]).toBe(
+    expect(run.written[`${SCRATCH}-busy.txt`]).toBe(
       "apps/web/a.ts\nresearch/master-rules/rule-pack.json\nshared.ts\n"
     );
     expect(
       run.calls.some((call) => call.line.startsWith("git worktree add"))
     ).toBe(false);
     expect(run.calls.at(-1)?.line).toBe(
-      `rm -f ${WT}-busy.txt ${WT}-pr-body.md`
+      `rm -f ${SCRATCH}-busy.txt ${SCRATCH}-pr-body.md`
     );
   });
 
@@ -425,23 +449,44 @@ describe("weekly pass", () => {
     );
     const pr = run.calls.find((call) => call.line.startsWith("gh pr create"));
     expect(pr?.line).toContain(`--base ${LIVE} --head ${BRANCH}`);
-    expect(pr?.line).toContain(`--body-file ${WT}-pr-body.md`);
-    expect(run.written[`${WT}-pr-body.md`]).toBe(
+    expect(pr?.line).toContain(`--body-file ${SCRATCH}-pr-body.md`);
+    expect(run.written[`${SCRATCH}-pr-body.md`]).toBe(
       "- old-name.ts -> new-name.ts: kebab-case"
     );
     expect(
       lines.filter((line) => /origin\/main\b|--base main\b/u.test(line))
     ).toEqual([]);
+    expect(lines.some((line) => line.startsWith("ln "))).toBe(false);
+    expect(lines.some((line) => line === `rm -f ${WT}/node_modules`)).toBe(
+      false
+    );
+    const install = run.calls.find((call) =>
+      call.line.startsWith("pnpm install")
+    );
+    expect(install).toEqual({
+      cwd: WT,
+      inherit: true,
+      line: "pnpm install --frozen-lockfile --prefer-offline --config.virtual-store-dir=node_modules/.pnpm --config.confirm-modules-purge=false",
+    });
     const model = run.calls.find((call) => call.line.startsWith("omp"));
     expect(model).toMatchObject({ cwd: WT, inherit: true });
     expect(model?.line).toContain("--model=anthropic/claude-opus-5-5");
+    const addWt = lines.indexOf(
+      `git worktree add -q -b ${BRANCH} ${WT} origin/${LIVE}`
+    );
+    const installIdx = lines.findIndex((line) =>
+      line.startsWith("pnpm install")
+    );
+    const modelIdx = lines.findIndex((line) => line.startsWith("omp"));
     const commit = lines.findIndex((line) => line.startsWith("git commit"));
-    const unlink = lines.indexOf(`rm -f ${WT}/node_modules`);
-    expect(commit).toBeGreaterThan(-1);
-    // The pre-commit hook needs node_modules: unlink only after the commit.
-    expect(unlink).toBeGreaterThan(commit);
+    const removeWt = lines.indexOf(`git worktree remove --force --force ${WT}`);
+    expect(addWt).toBeGreaterThan(-1);
+    expect(installIdx).toBeGreaterThan(addWt);
+    expect(modelIdx).toBeGreaterThan(installIdx);
+    expect(commit).toBeGreaterThan(modelIdx);
+    expect(removeWt).toBeGreaterThan(commit);
     expect(lines.slice(-2)).toEqual([
-      `git worktree remove --force ${WT}`,
+      `git worktree remove --force --force ${WT}`,
       `git branch -D ${BRANCH}`,
     ]);
   });
@@ -553,6 +598,31 @@ describe("weekly pass", () => {
     );
   });
 
+  it("fails before the model pass and removes the worktree when pnpm install fails", () => {
+    const run = deps({ ...healthyRepo, "pnpm install": fail });
+    expect(runJanitorWeekly([], env, run.deps)).toBe(1);
+    expect(run.output.at(-1)).toBe("janitor: pnpm install failed\n");
+    expect(run.calls.some((call) => call.line.startsWith("omp"))).toBe(false);
+    expect(run.calls.slice(-2).map((call) => call.line)).toEqual([
+      `git worktree remove --force --force ${WT}`,
+      `git branch -D ${BRANCH}`,
+    ]);
+  });
+
+  it("falls back to rm -rf and git worktree prune when worktree removal fails", () => {
+    const run = deps({
+      ...healthyRepo,
+      "git worktree remove": fail,
+      omp: fail,
+    });
+    expect(runJanitorWeekly([], env, run.deps)).toBe(1);
+    expect(run.calls.slice(-4).map((call) => call.line)).toEqual([
+      `git worktree remove --force --force ${WT}`,
+      `rm -rf ${WT}`,
+      "git worktree prune",
+      `git branch -D ${BRANCH}`,
+    ]);
+  });
   it("returns 1 and removes the worktree when a step fails", () => {
     const run = deps({ ...healthyRepo, omp: fail });
     expect(runJanitorWeekly([], {}, run.deps)).toBe(1);
@@ -584,10 +654,8 @@ describe("stagePass against real git", () => {
     rmSync(root, { force: true, recursive: true });
   });
   const { run } = createJanitorDeps();
-  const target = join(root, "deps");
-  mkdirSync(target);
 
-  /** A repo like the janitor worktree: a node_modules symlink, one rename. */
+  /** A repo like the janitor worktree: real root and workspace node_modules directories, one rename. */
   const worktree = (name: string, excludeLine: boolean): string => {
     const wt = join(root, name);
     const git = (...args: string[]) =>
@@ -597,7 +665,6 @@ describe("stagePass against real git", () => {
       ).toBe(0);
     mkdirSync(wt);
     git("init", "-q");
-    // The repo's own .gitignore: `node_modules/` matches directories only.
     writeFileSync(join(wt, ".gitignore"), "node_modules/\n");
     // The rig's shared .git/info/exclude also lists bare `node_modules`.
     if (excludeLine)
@@ -605,7 +672,13 @@ describe("stagePass against real git", () => {
     writeFileSync(join(wt, "old-name.ts"), "export const a = 1;\n");
     git("add", ".");
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init");
-    symlinkSync(target, join(wt, "node_modules"));
+    mkdirSync(join(wt, "node_modules", ".pnpm"), { recursive: true });
+    writeFileSync(join(wt, "node_modules", ".pnpm", "pkg.js"), "export {};\n");
+    mkdirSync(join(wt, "apps", "web", "node_modules"), { recursive: true });
+    writeFileSync(
+      join(wt, "apps", "web", "node_modules", "dep.js"),
+      "export {};\n"
+    );
     return wt;
   };
 
@@ -625,4 +698,67 @@ describe("stagePass against real git", () => {
       expect(stagePass(run, wt)).toBe("R100\told-name.ts\tnew-name.ts\n");
     });
   }
+
+  it("removes a linked worktree containing nested node_modules directories via double --force", () => {
+    const main = join(root, "wt-remove-main");
+    const linked = join(root, "cache", "wt-remove-linked");
+    mkdirSync(main);
+    for (const args of [
+      ["init", "-q", "-b", "base"],
+      ["config", "user.name", "t"],
+      ["config", "user.email", "t@t"],
+    ]) {
+      expect(
+        run("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd: main })
+          .status
+      ).toBe(0);
+    }
+    writeFileSync(join(main, ".gitignore"), "node_modules/\n");
+    writeFileSync(join(main, "a.ts"), "export const a = 1;\n");
+    expect(
+      run("git", ["-c", "core.hooksPath=/dev/null", "add", "."], { cwd: main })
+        .status
+    ).toBe(0);
+    expect(
+      run("git", ["-c", "core.hooksPath=/dev/null", "commit", "-qm", "init"], {
+        cwd: main,
+      }).status
+    ).toBe(0);
+    expect(
+      run(
+        "git",
+        [
+          "-c",
+          "core.hooksPath=/dev/null",
+          "worktree",
+          "add",
+          "-q",
+          "-b",
+          "ws/janitor-rm",
+          linked,
+          "HEAD",
+        ],
+        { cwd: main }
+      ).status
+    ).toBe(0);
+    mkdirSync(join(linked, "node_modules", ".pnpm"), { recursive: true });
+    writeFileSync(
+      join(linked, "node_modules", ".pnpm", "pkg.js"),
+      "export {};\n"
+    );
+    mkdirSync(join(linked, "apps", "web", "node_modules"), { recursive: true });
+    writeFileSync(
+      join(linked, "apps", "web", "node_modules", "dep.js"),
+      "export {};\n"
+    );
+    expect(
+      run("git", ["worktree", "remove", "--force", "--force", linked], {
+        cwd: main,
+      }).status
+    ).toBe(0);
+    expect(existsSync(linked)).toBe(false);
+    expect(
+      run("git", ["branch", "-D", "ws/janitor-rm"], { cwd: main }).status
+    ).toBe(0);
+  });
 });
