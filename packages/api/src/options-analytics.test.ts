@@ -22,6 +22,7 @@ import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
   buildOptionsAnalytics,
+  buildOptionsGreekHeatmap,
   flowWindow,
   setOptionsAnalyticsForTesting,
   storedPrintsSymbol,
@@ -51,6 +52,7 @@ import {
   termStructure,
   withProfileFlow,
 } from "./server/options-analytics-engine.ts";
+import { createQuantDataOptionsSource } from "./server/options-chain-quantdata.ts";
 import {
   createQuantDataClient,
   parseRetryAfter,
@@ -807,6 +809,128 @@ describe("quantdata client", () => {
     await client.request("termStructure", { a: 2 }, 1);
     expect(spy).toHaveBeenCalledTimes(2);
     spy.mockRestore();
+  });
+
+  it("makes one request start for two identical reads that overlap", async () => {
+    let clock = 1000;
+    const sleep = vi.fn(async (ms: number) => {
+      clock += ms;
+    });
+    const doFetch = vi.fn<QuantDataFetch>(async (url) =>
+      json({ data: url.endsWith("term-structure") ? "chain" : "oi" })
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      now: () => clock,
+      sleep,
+    });
+    // The second termStructure read waits behind openInterest (1 s) and then finds the answer of
+    // the first one in the cache.
+    const [first, other, second] = await Promise.all([
+      client.request("termStructure", { a: 1 }, 5000),
+      client.request("openInterest", { a: 1 }, 5000),
+      client.request("termStructure", { a: 1 }, 5000),
+    ]);
+    expect(doFetch).toHaveBeenCalledTimes(2);
+    expect(first).toMatchObject({ data: "chain", fetchedAt: 1000, ok: true });
+    expect(other).toMatchObject({ data: "oi", fetchedAt: 2000, ok: true });
+    expect(second).toEqual(first);
+    expect(clock).toBe(2000);
+    // The cache hit at the head of the queue is not a request start.
+    expect(client.freeStarts()).toBe(52);
+    // The hit does not extend the entry: it still expires 5 s after the first answer.
+    clock = 6000;
+    await client.request("termStructure", { a: 1 }, 5000);
+    return expect(doFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("makes a request start for each of two different reads that overlap", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+    });
+    const results = await Promise.all([
+      client.request("orderFlow", { t: 1 }, 60_000, "SPY 24h"),
+      client.request("orderFlow", { t: 1 }, 60_000, "SPY 6h"),
+    ]);
+    expect(results.map((result) => result.ok)).toEqual([true, true]);
+    return expect(doFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not feed a failed read to an identical read that overlaps it", async () => {
+    // A regression guard: the client before the queue-head cache check passed this test, too.
+    const doFetch = vi
+      .fn<QuantDataFetch>()
+      .mockResolvedValueOnce(json({ error: "busy" }, { status: 500 }))
+      .mockResolvedValue(json({ data: 2 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+    });
+    const [first, second] = await Promise.all([
+      client.request("termStructure", { a: 1 }, 60_000),
+      client.request("termStructure", { a: 1 }, 60_000),
+    ]);
+    expect(first).toMatchObject({ httpStatus: 500, ok: false, reason: "http" });
+    expect(second).toMatchObject({ data: 2, ok: true });
+    return expect(doFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not de-duplicate overlapping reads with ttlMs 0", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => 0,
+    });
+    await Promise.all([
+      client.request("termStructure", { a: 1 }, 0),
+      client.request("termStructure", { a: 1 }, 0),
+    ]);
+    return expect(doFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("spends at most 5 starts on one uncached symbol when the snapshot, the options chain and the heatmap read at the same time", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async (url) =>
+      json(
+        url.endsWith("term-structure")
+          ? { data: chainData, stockPrice: 100 }
+          : url.endsWith("open-interest-by-strike")
+            ? { data: oiData }
+            : url.endsWith("heat-map")
+              ? { data: {}, type: "contract" }
+              : { data: flowRows }
+      )
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => NOW.getTime(),
+    });
+    const deps = { client, now: () => NOW };
+    const [snapshot, chain, heatmap] = await Promise.all([
+      buildOptionsAnalytics(
+        OptionsAnalyticsInputSchema.parse({ symbol: "SPY" }),
+        deps
+      ),
+      createQuantDataOptionsSource(client, () => NOW).read("SPY"),
+      buildOptionsGreekHeatmap({ symbol: "SPY" }, deps),
+    ]);
+    expect(snapshot.rateLimited).toBe(false);
+    expect(chain.spot).toBe(100);
+    expect(heatmap.rateLimited).toBe(false);
+    const paths = doFetch.mock.calls.map(([url]) =>
+      url.replace("https://quantdata.domain.test/v1/options/tool/", "")
+    );
+    expect(paths.sort()).toEqual([
+      "heat-map",
+      "heat-map",
+      "open-interest-by-strike",
+      "order-flow/consolidated",
+      "term-structure",
+    ]);
+    return expect(client.freeStarts()).toBe(54 - 5);
   });
 });
 
