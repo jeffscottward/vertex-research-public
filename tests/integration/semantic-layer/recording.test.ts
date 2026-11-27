@@ -258,10 +258,10 @@ describe("toolVerdicts", () => {
     expect(verdicts["Q1.3"]).toMatchObject({ differing: ["notes"] });
   });
 
-  it("makes a trial stale when the recording does not hold its tool list (a version 2 trial)", () => {
-    const { toolList: _toolList, ...versionTwo } = trial("Q1", 1);
+  it("makes a trial stale when the recording does not hold its tool list", () => {
+    const { toolList: _toolList, ...withoutToolList } = trial("Q1", 1);
     const verdicts = toolVerdicts(
-      { trials: [versionTwo as RecordedTrial] },
+      { trials: [withoutToolList as RecordedTrial] },
       OLD
     );
     expect(verdicts.get("Q1.1")).toMatchObject({ state: "stale" });
@@ -415,20 +415,19 @@ describe("parseSelection", () => {
     });
   });
 
-  it("reads the words stale and upgrade, each alone", () => {
+  it("reads the word stale alone", () => {
     expect(parseSelection(["stale"], ORDER)).toEqual({ kind: "stale" });
-    expect(parseSelection(["upgrade"], ORDER)).toEqual({ kind: "upgrade" });
     expect(() => parseSelection(["stale", "Q1"], ORDER)).toThrow(
-      "cannot be combined"
-    );
-    expect(() => parseSelection(["upgrade", "stale"], ORDER)).toThrow(
       "cannot be combined"
     );
   });
 
-  it("refuses an unknown question id", () => {
+  it("refuses an unknown question id, including the retired upgrade selector", () => {
     expect(() => parseSelection(["Q1", "Q99"], ORDER)).toThrow(
       "Unknown question id: Q99"
+    );
+    expect(() => parseSelection(["upgrade"], ORDER)).toThrow(
+      "Unknown question id: upgrade"
     );
   });
 });
@@ -463,9 +462,11 @@ describe("assertCurrentFormat", () => {
     expect(() => assertCurrentFormat(existing)).not.toThrow();
   });
 
-  it("refuses a version 2 recording and names the upgrade", () => {
+  it("refuses an older recording format", () => {
     expect(() =>
       assertCurrentFormat({ ...existing, schemaVersion: 2 })
-    ).toThrow("schemaVersion 2, not 3. Run the recorder with `upgrade` first");
+    ).toThrow(
+      "schemaVersion 2, not 3. Record every question to write the current format."
+    );
   });
 });

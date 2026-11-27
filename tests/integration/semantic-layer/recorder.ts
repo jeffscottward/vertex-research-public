@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-
+import { createInterface } from "node:readline";
 import { z } from "zod";
 
 import type {
@@ -10,7 +10,6 @@ import type {
 import {
   type EvalBackend,
   replayRecording,
-  replayTrial,
   runTrial,
   type TrialVerdict,
 } from "./harness.ts";
@@ -30,10 +29,10 @@ import {
   trialKey,
 } from "./recording.ts";
 
-// The recorder of the agent semantic-layer eval without its transport: which trials a run records,
-// how a model reply is checked, and when the files are written. record.ts adds the command line and
-// the stdio protocol of the model bridge (bridge.ts); recorder.test.ts runs this code with a scripted
-// model.
+// The recorder of the agent semantic-layer eval: which trials a run records, how a model reply is
+// checked, how the stdin/stdout bridge dispatches replies and faults, and when the files are written.
+// record.ts adds the command line and the `@@EVAL ` framing of the model bridge (bridge.ts);
+// recorder.test.ts runs this code with a scripted model and scripted stdin streams.
 
 /** One reply of the model bridge to a request (one JSON object on one stdin line of the recorder). */
 const BridgeReplySchema = z.object({
@@ -55,31 +54,65 @@ const BridgeFaultSchema = z.object({
   fault: z.string().min(1),
   key: z.string().min(1),
 });
+const BridgeKeySchema = z.object({
+  key: z.string().min(1),
+});
 const BridgeLineSchema = z.union([BridgeFaultSchema, BridgeReplySchema]);
+const BRIDGE_SHAPE_ERROR =
+  "bridge line is not {key, content, toolCalls: [{name, arguments}], model} and not {key, fault}";
 
 export type BridgeReply = z.infer<typeof BridgeReplySchema>;
 export type BridgeFault = z.infer<typeof BridgeFaultSchema>;
 
+type ClassifiedBridgeLine =
+  | Readonly<{ kind: "valid"; message: BridgeReply | BridgeFault }>
+  | Readonly<{ kind: "keyed-invalid"; key: string; error: Error }>
+  | Readonly<{ kind: "fatal"; error: Error }>;
+
 /**
- * Reads one stdin line of the bridge. Throws on a line that is not a reply and not a fault: the
- * recorder then ends the run, because it cannot tell which request the line answers.
+ * Classifies one stdin line of the bridge so `parseBridgeLine` and `createBridgeModel` share one
+ * parser and error contract: non-JSON and keyless lines are fatal, while a JSON object with a
+ * non-empty string `key` but wrong shape carries its `key` so a waiting request can fail alone.
  */
-export const parseBridgeLine = (line: string): BridgeReply | BridgeFault => {
+const classifyBridgeLine = (line: string): ClassifiedBridgeLine => {
   let value: unknown;
   try {
     value = JSON.parse(line);
   } catch {
-    throw new Error(
-      `bridge line is not JSON; first 120 characters: ${line.slice(0, 120)}`
-    );
+    return {
+      error: new Error(
+        `bridge line is not JSON; first 120 characters: ${line.slice(0, 120)}`
+      ),
+      kind: "fatal",
+    };
   }
   const parsed = BridgeLineSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new Error(
-      "bridge line is not {key, content, toolCalls: [{name, arguments}], model} and not {key, fault}"
-    );
+  if (parsed.success) {
+    return { kind: "valid", message: parsed.data };
   }
-  return parsed.data;
+  const keyed = BridgeKeySchema.safeParse(value);
+  if (keyed.success) {
+    return {
+      error: new Error(BRIDGE_SHAPE_ERROR),
+      key: keyed.data.key,
+      kind: "keyed-invalid",
+    };
+  }
+  return {
+    error: new Error(BRIDGE_SHAPE_ERROR),
+    kind: "fatal",
+  };
+};
+
+/**
+ * Reads one stdin line of the bridge. Throws on non-JSON or any line that is neither a valid reply
+ * nor a valid fault. `createBridgeModel` uses `classifyBridgeLine` directly so a wrong-shape JSON
+ * line with a waiting request's key fails only that request as a fault.
+ */
+export const parseBridgeLine = (line: string): BridgeReply | BridgeFault => {
+  const classified = classifyBridgeLine(line);
+  if (classified.kind !== "valid") throw classified.error;
+  return classified.message;
 };
 
 /** The model call of a request as the assistant turn takes it. `key` is `<trial key>#<call number>`. */
@@ -113,6 +146,99 @@ export type TrialModel = (
   request: AssistantCompletionRequest
 ) => Promise<Readonly<{ completion: AssistantCompletion; model: string }>>;
 
+/** One model request emitted to the bridge over stdout. */
+export type BridgeRequestMessage = Readonly<{
+  type: "request";
+  key: string;
+  messages: AssistantCompletionRequest["messages"];
+  tools: AssistantCompletionRequest["tools"];
+}>;
+
+export type BridgeModelHandle = Readonly<{
+  model: TrialModel;
+  close: () => void;
+}>;
+
+/**
+ * Wires the recorder's stdio bridge protocol to a `TrialModel`.
+ * - A JSON line with a waiting request's `key` but wrong shape (for example an empty model id)
+ *   rejects only that request as a fault; other trials continue and store normally.
+ * - Only non-JSON lines, lines with no non-empty string `key`, lines for a key that is not open,
+ *   or EOF on `input` close the bridge and reject all waiting and subsequent requests.
+ */
+export const createBridgeModel = (
+  options: Readonly<{
+    input: NodeJS.ReadableStream;
+    send: (message: BridgeRequestMessage) => void;
+  }>
+): BridgeModelHandle => {
+  type Waiter = Readonly<{
+    resolve: (reply: BridgeReply) => void;
+    reject: (error: Error) => void;
+  }>;
+  const pending = new Map<string, Waiter>();
+  let closed: Error | null = null;
+  const lines = createInterface({ input: options.input });
+  const failAll = (error: Error): void => {
+    closed ??= error;
+    lines.close();
+    for (const waiter of pending.values()) waiter.reject(closed);
+    pending.clear();
+  };
+  lines.on("line", (line) => {
+    if (closed !== null || line.trim() === "") return;
+    const classified = classifyBridgeLine(line);
+    if (classified.kind === "fatal") {
+      failAll(classified.error);
+      return;
+    }
+    const key =
+      classified.kind === "valid" ? classified.message.key : classified.key;
+    const waiter = pending.get(key);
+    if (waiter === undefined) {
+      failAll(new Error(`reply for a request that is not open: ${key}`));
+      return;
+    }
+    pending.delete(key);
+    if (classified.kind === "keyed-invalid") {
+      waiter.reject(new Error(`bridge fault: ${classified.error.message}`));
+      return;
+    }
+    if ("fault" in classified.message) {
+      waiter.reject(new Error(`bridge fault: ${classified.message.fault}`));
+    } else {
+      waiter.resolve(classified.message);
+    }
+  });
+  lines.on("close", () => {
+    failAll(new Error("the bridge closed stdin before it answered"));
+  });
+  const model: TrialModel = async (key, request) => {
+    if (closed !== null) throw closed;
+    // Executor form: the tests tsconfig targets a lib without Promise.withResolvers.
+    const reply = await new Promise<BridgeReply>((resolve, reject) => {
+      pending.set(key, { reject, resolve });
+      try {
+        options.send({
+          key,
+          messages: request.messages,
+          tools: request.tools,
+          type: "request",
+        });
+      } catch (error) {
+        pending.delete(key);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    return { completion: replyToCompletion(key, reply), model: reply.model };
+  };
+  return {
+    close: () => {
+      lines.close();
+    },
+    model,
+  };
+};
 /** What a run tells its caller while it works. record.ts prints each message as an `@@EVAL` line. */
 export type RunMessage =
   | Readonly<{
@@ -142,7 +268,7 @@ export type RunMessage =
 export type RecordRunOptions = Readonly<{
   backend: EvalBackend;
   questions: readonly EvalQuestion[];
-  selection: Exclude<RecordSelection, Readonly<{ kind: "upgrade" }>>;
+  selection: RecordSelection;
   /** Trials for each question (the recording has 3). */
   trials: number;
   concurrency: number;
@@ -169,7 +295,7 @@ const readRecording = (path: string): Recording | undefined =>
     : undefined;
 
 /** Writes the recording whole: temporary file, then rename. */
-export const writeRecording = (path: string, recording: Recording): void => {
+const writeRecording = (path: string, recording: Recording): void => {
   writeFileSync(`${path}.tmp`, `${JSON.stringify(recording, null, 2)}\n`);
   renameSync(`${path}.tmp`, path);
 };
@@ -453,93 +579,4 @@ export const recordRun = async (
   };
   emit(finished);
   return finished;
-};
-
-/**
- * Writes a version 2 recording in the current format with no model call. A version 2 trial has one
- * digest for each model call that covers the tool list and the messages. When every call of the trial
- * still matches that digest and the final answer is the recorded one, the model saw the current tool
- * list, so the trial gets the id of that list and the message digests of the replay. A trial that does
- * not match is kept as it is: it is stale and `stale` records it. Deterministic: no date and no other
- * field of a trial changes, and a second run changes nothing. The header gets the tool lists and the
- * note, and the trials are in question order (as after every write of the recorder).
- */
-export const upgradeRecording = async (
-  backend: EvalBackend,
-  questions: readonly EvalQuestion[],
-  recording: Recording,
-  note: string
-): Promise<
-  Readonly<{
-    recording: Recording;
-    upgraded: readonly string[];
-    kept: Readonly<Record<string, string>>;
-    /**
-     * True when the file must be written: a trial was upgraded, or a version 2 trial was kept (the
-     * file then gets schemaVersion 3, and `stale` records that trial). False for a file that is in
-     * the current format already.
-     */
-    changed: boolean;
-  }>
-> => {
-  const byId = new Map(questions.map((question) => [question.id, question]));
-  const upgraded: string[] = [];
-  const kept: Record<string, string> = {};
-  const lists = new Map<string, IdentifiedToolList>();
-  const trials: RecordedTrial[] = [];
-  for (const trial of recording.trials) {
-    const key = trialKey(trial);
-    if (typeof trial.toolList === "string") {
-      trials.push(trial);
-      continue;
-    }
-    const question = byId.get(trial.question);
-    const replayed =
-      question === undefined
-        ? null
-        : await replayTrial(backend, question, trial, { versionTwo: true });
-    if (
-      replayed === null ||
-      replayed.stale !== null ||
-      replayed.toolList === null
-    ) {
-      kept[key] = replayed?.stale ?? `unknown question ${trial.question}`;
-      trials.push(trial);
-      continue;
-    }
-    const { toolList, messageDigests } = replayed;
-    lists.set(toolList.id, toolList);
-    // The new fields go where the recorder writes them; `audit` stays last. The prompt format is
-    // the one of today: the bridge of the version 2 recordings built the same prompt
-    // (bridge.test.ts pins the hash of its output).
-    trials.push({
-      answer: trial.answer,
-      completions: trial.completions.map((completion, index) => ({
-        ...completion,
-        inputDigest: messageDigests[index] ?? completion.inputDigest,
-      })),
-      grade: trial.grade,
-      model: trial.model,
-      promptFormat: RECORDING_PROMPT_FORMAT,
-      question: trial.question,
-      recordedAt: trial.recordedAt,
-      toolList: toolList.id,
-      tools: trial.tools,
-      trial: trial.trial,
-      ...(trial.audit === undefined ? {} : { audit: trial.audit }),
-    });
-    upgraded.push(key);
-  }
-  return {
-    changed: upgraded.length > 0 || Object.keys(kept).length > 0,
-    kept,
-    recording: mergeRecording(
-      { ...recording, trials },
-      [],
-      [...lists.values()],
-      questions.map((question) => question.id),
-      note
-    ),
-    upgraded,
-  };
 };
