@@ -41,7 +41,24 @@ const reply = async (route: Route, json: unknown) =>
     status: 200,
   });
 
-const mockMarketData = async (page: Page, partialOi = false) => {
+// Which contracts of the fake chain keep their open interest (OI) value:
+// - complete: every contract.
+// - partial: 27 of 41 calls and 30 of 41 puts (above the 50% coverage floor of the tile).
+// - sparse: 9 of 41 calls (22%) and every put (below the floor).
+type OiFixture = "complete" | "partial" | "sparse";
+
+const reportsOi = (
+  fixture: OiFixture,
+  side: "call" | "put",
+  index: number
+): boolean => {
+  if (fixture === "complete") return true;
+  if (fixture === "partial")
+    return side === "call" ? index % 3 !== 0 : index % 4 !== 0;
+  return side === "put" || index % 5 === 0;
+};
+
+const mockMarketData = async (page: Page, oi: OiFixture = "complete") => {
   await page.route("**/api/orpc/marketData/bars**", async (route) => {
     const input = rpcInput(route);
     await reply(
@@ -59,19 +76,17 @@ const mockMarketData = async (page: Page, partialOi = false) => {
       symbol: String(input["symbol"] ?? "SPY"),
       ...(typeof expiry === "string" ? { expiry } : {}),
     });
-    const rows = partialOi
-      ? chain.rows.map((row, index) => ({
-          ...row,
-          call:
-            row.call === null || index % 3 !== 0
-              ? row.call
-              : { ...row.call, openInterest: null },
-          put:
-            row.put === null || index % 4 !== 0
-              ? row.put
-              : { ...row.put, openInterest: null },
-        }))
-      : chain.rows;
+    const rows = chain.rows.map((row, index) => ({
+      ...row,
+      call:
+        row.call === null || reportsOi(oi, "call", index)
+          ? row.call
+          : { ...row.call, openInterest: null },
+      put:
+        row.put === null || reportsOi(oi, "put", index)
+          ? row.put
+          : { ...row.put, openInterest: null },
+    }));
     await reply(route, { ...chain, rows });
   });
   // The analytics tab is not opened here; any snapshot/heatmap request stays pending.
@@ -80,6 +95,59 @@ const mockMarketData = async (page: Page, partialOi = false) => {
     "**/api/orpc/optionsAnalytics/greekHeatmap**",
     () => undefined
   );
+};
+
+// The Put/call OI tile: its card, the large value and the muted detail under it.
+const putCallOiTile = (page: Page) => {
+  const card = page.locator("[data-stock-kpis] dl").filter({
+    has: page.getByText("Put/call OI", { exact: true }),
+  });
+  return {
+    card,
+    detail: card.locator("dd").nth(1),
+    value: card.locator("dd").first(),
+  };
+};
+
+// At the four target widths the detail stays inside the tile and its text fits its box, and the
+// value stays on one line. At 375 px the detail wraps, to at most `maxLinesAt375` lines.
+const expectTileTextFits = async (page: Page, maxLinesAt375: number) => {
+  const { detail, value } = putCallOiTile(page);
+  for (const width of [375, 768, 1024, 1440]) {
+    await page.setViewportSize({ height: 1100, width });
+    const bounds = await detail.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const tile = element.closest("dl")?.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        clientWidth: element.clientWidth,
+        detailHeight: rect.height,
+        detailLeft: rect.left,
+        detailRight: rect.right,
+        lineHeight: Number.parseFloat(style.lineHeight),
+        scrollWidth: element.scrollWidth,
+        tileLeft: tile?.left ?? Number.NaN,
+        tileRight: tile?.right ?? Number.NaN,
+      };
+    });
+    expect(bounds.detailLeft).toBeGreaterThanOrEqual(bounds.tileLeft);
+    expect(bounds.detailRight).toBeLessThanOrEqual(bounds.tileRight);
+    // The text itself fits its box: a block keeps its box even when its text overflows.
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+    if (width === 375) {
+      expect(bounds.detailHeight).toBeGreaterThan(1.5 * bounds.lineHeight);
+      expect(bounds.detailHeight).toBeLessThanOrEqual(
+        (maxLinesAt375 + 0.5) * bounds.lineHeight
+      );
+    }
+    // The big value stays on one line: the sentence is in the detail, not in the value.
+    const valueLines = await value.evaluate(
+      (element) =>
+        element.getBoundingClientRect().height /
+        Number.parseFloat(getComputedStyle(element).lineHeight)
+    );
+    expect(valueLines).toBeLessThan(1.5);
+  }
 };
 
 test.beforeAll(() => resetDatabase());
@@ -149,16 +217,29 @@ test("stock detail keeps partial put/call OI details within the tile at target w
 }) => {
   await signInAs(page, E2E_IDENTITIES.alice);
   await page.setViewportSize({ height: 1100, width: 1440 });
-  await mockMarketData(page, true);
+  await mockMarketData(page, "partial");
   await page.goto("/stock/NVDA?tab=options");
 
-  const card = page.locator("[data-stock-kpis] dl").filter({
-    has: page.getByText("Put/call OI", { exact: true }),
-  });
+  const { card, detail, value } = putCallOiTile(page);
   await expect(card).toBeVisible();
-  const value = card.locator("dd").first();
-  await expect(value).toHaveText("No ratio");
-  const detail = card.locator("dd").nth(1);
+  // Both sides are above the coverage floor, so the tile shows puts / calls of the reported OI.
+  // The fixture removes other contracts from the calls than from the puts, so this ratio (0.99)
+  // differs from the ratio of the complete fake chain (1.00): the second check guards the fixture.
+  const chain = await optionsChain.chain({ symbol: "NVDA" });
+  const ratio = (fixture: OiFixture): string => {
+    const total = (side: "call" | "put"): number =>
+      chain.rows.reduce(
+        (sum, row, index) =>
+          sum +
+          (reportsOi(fixture, side, index)
+            ? (row[side]?.openInterest ?? 0)
+            : 0),
+        0
+      );
+    return (total("put") / total("call")).toFixed(2);
+  };
+  expect(ratio("partial")).not.toBe(ratio("complete"));
+  await expect(value).toHaveText(ratio("partial"));
   await expect(detail).toHaveText(
     "OI reported for 27 of 41 calls and 30 of 41 puts in the returned chain"
   );
@@ -171,37 +252,25 @@ test("stock detail keeps partial put/call OI details within the tile at target w
   await expect(noOi).toHaveCount(14 + 11);
   await expect(noOi.first()).toHaveText("no OI");
 
-  for (const width of [375, 768, 1024, 1440]) {
-    await page.setViewportSize({ height: 1100, width });
-    const bounds = await detail.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      const tile = element.closest("dl")?.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return {
-        clientWidth: element.clientWidth,
-        detailHeight: rect.height,
-        detailLeft: rect.left,
-        detailRight: rect.right,
-        lineHeight: Number.parseFloat(style.lineHeight),
-        scrollWidth: element.scrollWidth,
-        tileLeft: tile?.left ?? Number.NaN,
-        tileRight: tile?.right ?? Number.NaN,
-      };
-    });
-    expect(bounds.detailLeft).toBeGreaterThanOrEqual(bounds.tileLeft);
-    expect(bounds.detailRight).toBeLessThanOrEqual(bounds.tileRight);
-    // The text itself fits its box: a block keeps its box even when its text overflows.
-    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
-    if (width === 375)
-      expect(bounds.detailHeight).toBeGreaterThan(1.5 * bounds.lineHeight);
-    // The big value stays on one line: the sentence is in the detail, not in the value.
-    const valueLines = await value.evaluate(
-      (element) =>
-        element.getBoundingClientRect().height /
-        Number.parseFloat(getComputedStyle(element).lineHeight)
-    );
-    expect(valueLines).toBeLessThan(1.5);
-  }
+  await expectTileTextFits(page, 5);
+});
+
+test("stock detail shows no put/call ratio below the coverage floor", async ({
+  page,
+}) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  await page.setViewportSize({ height: 1100, width: 1440 });
+  await mockMarketData(page, "sparse");
+  await page.goto("/stock/NVDA?tab=options");
+
+  const { card, detail, value } = putCallOiTile(page);
+  await expect(card).toBeVisible();
+  await expect(value).toHaveText("No ratio");
+  await expect(detail).toHaveText(
+    "OI reported for 9 of 41 calls and 41 of 41 puts in the returned chain; a ratio needs at least 50% of each side"
+  );
+  // The longer sentence still fits the tile: at most 8 lines on a 375 px screen.
+  await expectTileTextFits(page, 8);
 });
 
 test("charts open on the SPY chart and change interval through the URL", async ({
