@@ -201,6 +201,7 @@ describe("createBridgeQuotesReader", () => {
       vi.unstubAllGlobals();
     }
   });
+
   it("bounds cross-request waits on an orphaned in-flight read and evicts it on timeout", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
@@ -258,38 +259,49 @@ describe("createBridgeQuotesReader", () => {
   });
 
   it("evicts an unsettled in-flight entry once its timeout window has elapsed", async () => {
-    let time = Date.parse(AS_OF);
-    let calls = 0;
-    const fetch = vi.fn((_url: string, _init?: RequestInit) => {
-      calls += 1;
-      if (calls === 1) return neverSettlingResponse();
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            asOf: AS_OF,
-            legs: [leg(600), leg(610)],
-            state: "complete",
-          }),
-          { status: 200 }
-        )
-      );
-    });
-    const read = createBridgeQuotesReader(URL_, TOKEN, {
-      fetch,
-      now: () => new Date(time),
-      timeoutMs: 200,
-    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let time = Date.parse(AS_OF);
+      let calls = 0;
+      const fetch = vi.fn((_url: string, _init?: RequestInit) => {
+        calls += 1;
+        if (calls === 1) return neverSettlingResponse();
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              asOf: AS_OF,
+              legs: [leg(600), leg(610)],
+              state: "complete",
+            }),
+            { status: 200 }
+          )
+        );
+      });
+      const read = createBridgeQuotesReader(URL_, TOKEN, {
+        fetch,
+        now: () => new Date(time),
+        timeoutMs: 200,
+      });
 
-    const orphaned = read([SPREAD]);
-    // Past timeoutMs (well inside GOLIVE_QUOTES_CACHE_MS): sweep evicts the hung entry immediately.
-    time += 200;
-    const recovered = await read([SPREAD]);
-    expect(recovered[0]?.source).toBe("ibkr_live");
-    expect(fetch).toHaveBeenCalledTimes(2);
-    // Original hung call settles via its own waitAtMost timer without evicting the recovered hit.
-    expect(await orphaned).toEqual([null]);
-    expect((await read([SPREAD]))[0]?.source).toBe("ibkr_live");
-    expect(fetch).toHaveBeenCalledTimes(2);
+      const orphaned = read([SPREAD, SPREAD]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      // Past timeoutMs (well inside GOLIVE_QUOTES_CACHE_MS): sweep evicts the hung entry immediately.
+      time += 200;
+      const recovered = await read([SPREAD, SPREAD]);
+      expect(recovered.map((quote) => quote?.source)).toEqual([
+        "ibkr_live",
+        "ibkr_live",
+      ]);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      // Original hung call settles via its own waitAtMost timers without evicting the recovered hit.
+      await vi.advanceTimersByTimeAsync(200);
+      expect(await orphaned).toEqual([null, null]);
+      expect(vi.getTimerCount()).toBe(0);
+      expect((await read([SPREAD]))[0]?.source).toBe("ibkr_live");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns fresh quotes alongside a timed-out shared read and clears timers on settlement", async () => {
