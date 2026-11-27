@@ -101,6 +101,7 @@ describe("MCP tool registry", () => {
       "drift_monitor_get",
     ]);
   });
+
   it("describes openbb_status sources without the removed retired field", () => {
     const description = String(
       listMcpTools().find((entry) => entry["name"] === "openbb_status")?.[
