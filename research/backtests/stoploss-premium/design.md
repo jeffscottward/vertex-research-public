@@ -124,7 +124,8 @@ decision.
   (`~/Documents/reports/web/vertex-calendar-spread-nautilus/data`, Yahoo and IBKR; not committed, the data terms
   forbid it). The universe is today's SP100 list (97 of 100 symbols have files). Index files (`date,close`): VIX,
   VXN, RVX, VXD, GVZ, OVX, VXSLV, IRX (VIX3M, VIX6M and TNX files are skipped as names and not used). `results.json` records the SHA-256 of every input file.
-- Loading: every `<SYMBOL>.csv` with more than 260 rows (a name also starts a test only after its first 260 sessions,
+- Loading (a name whose sessions are not a contiguous slice of the SPY calendar stops the run): every `<SYMBOL>.csv`
+  with more than 260 rows (a name also starts a test only after its first 260 sessions,
   so a short history starts later than the test's start date), except index files, `SHILLER`, names with `=` and
   `*.splits.csv`. A name is a stock unless it is in the study's ETF list. The calendar is SPY's dates (1993-01-29
   on). `SPY.csv` is required.
@@ -138,7 +139,8 @@ decision.
 
 - Shares and ETFs: total-return prices (open, high, low and close × adj_close / close); 0.06% cost per side (5 bps
   slippage and 1 bp commission, the market-watch-bot backtest constant).
-- Fills: test A and B rungs fill at the lower of the day's open and the level (a gap fills at the open). Test G stops,
+- Fills: test A and B rungs fill at the lower of the day's open and the level (a gap fills at the open); a B rung
+  prices the option with the volatility known at the previous close. Test G stops,
   the window stop, the 10-month rule, the C loss close, the D premium stop and the F exits act at the close.
 - Option model (repository `strategies.qc_ports.options` with the market-watch-bot income-sleeve conventions):
   Black-Scholes with the day's 13-week T-bill yield (IRX) as the rate and dividends 0, on the split-adjusted close
@@ -191,7 +193,8 @@ D do not use the stop column.
   3-level form) or the live 5-rung form (midpoints, 10/15/20/25/30%). The ladder is laid on the first session of each
   month. A sold rung is re-bought on a close at least 1% above it within 5 calendar days (the live reclaim);
   otherwise at the next monthly layout (our assumption; the live harness waits for its next placement or the
-  owner). A re-buy needs the cash from the sale and never happens on the day of the sale. A month whose levels
+  owner). A reclaim re-buys as many of the sold shares as the cash buys (the reclaim price is above the sale price) and
+  never happens on the day of the sale. A month whose levels
   collapse (or before ATR14 exists) gets no ladder, and the name is held. The live put open-interest levels are left
   out (no history); the 5-rung form follows `spaced_five`.
   Variants: 2 × ATR minimum, the 5-rung form, the paper's window stop (out when the 21-day return is below −10%,
@@ -202,8 +205,8 @@ D do not use the stop column.
   close on the expiry session. A strike whose model |delta| falls outside 0.15-0.30 on the grid is not traded. A
   session without model volatility holds the put and marks it at the last mid. Roll: buy back and sell the next
   monthly expiry at the lowest strike at or below the current one (down to half of it) whose bid covers the buy-back
-  ask; no credit roll = hold to expiry (assignment at intrinsic); every roll attempt counts as a rule event; after 3
-  rolls the loss close applies. In both variants the leg that ends first earns rf until the other ends. Monthly entries keep the entries the same in both legs (the income backtest instead re-enters on the next
+  ask; no credit roll = hold to expiry (assignment at intrinsic, no trade and no rule event); each roll with a credit
+  counts as a rule event; after 3 rolls the loss close applies. In both variants the leg that ends first earns rf until the other ends. Monthly entries keep the entries the same in both legs (the income backtest instead re-enters on the next
   session).
 - **G/H.** Port of the market-watch-bot `trend` backtest: at each month-end close the selector names the wanted
   ETFs; weight = 1% / (2 × ATR / close), at most 15%, all scaled to at most 100%; names no longer wanted are sold; the
@@ -212,7 +215,8 @@ D do not use the stop column.
   ATR20. Rotation (momentum part only; the regime tilt, Crown view, flow and news inputs have no history): not
   eligible below a falling 200-day average (lower than 10 sessions ago); score = mean percentile rank of the 3- and
   6-month return relative to SPY; top 8; ATR14. Brake: at a month-end drawdown of the book of at least 10% from its
-  peak the risk per trade halves (1% → 0.5%), at least 15% allows no new entries and no increases; held names are
+  peak the risk per trade halves (1% → 0.5%: weights recomputed at half risk, cap and scaling included; a held name
+  keeps its size up to the normal target), at least 15% allows no new entries and no increases; held names are
   never cut. Sizing always uses 2 × ATR (the threshold runs move only the exit stop). Held names are resized to
   their target at each decision; a change below 1% of equity is skipped; purchases are limited to the cash on hand;
   a name's close and ATR are carried over its missing sessions. Rotation: 3- and 6-month returns are 63 and 126

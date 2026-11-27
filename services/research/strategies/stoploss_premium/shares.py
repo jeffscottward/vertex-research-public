@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
 
 from .bars import Series, atr, rolling_mean
@@ -146,6 +147,20 @@ def ladder(s: Series, i: int, atr14: float, ma50: float | None, *, mult: float, 
     return list(zip(lv, SIZES5 if five else SIZES3))
 
 
+@dataclass
+class Rung:
+    level: float
+    qty: float           # units (shares per unit of starting capital)
+    sold: bool = False
+
+
+@dataclass(frozen=True)
+class SoldRung:
+    level: float
+    qty: float
+    day: str
+
+
 def _days(a: str, b: str) -> int:
     return (date.fromisoformat(b) - date.fromisoformat(a)).days
 
@@ -158,8 +173,8 @@ def ladder_path(s: Series, lo: int, hi: int, rf: Sequence[float], start: int, *,
     ma50 = rolling_mean(s.close, 50)
     path = PathReturns(start=start)
     units, cash = 1.0 / s.close[lo], 0.0
-    rungs: list[list] = []      # [level, qty, sold]
-    sold: list[tuple[float, float, str]] = []  # (level, qty, date sold)
+    rungs: list[Rung] = []
+    sold: list[SoldRung] = []
     month = None
 
     def layout(i: int) -> None:
@@ -174,30 +189,33 @@ def ladder_path(s: Series, lo: int, hi: int, rf: Sequence[float], start: int, *,
             return
         plan = ladder(s, i, a[i], ma50[i], mult=mult, five=five, scale=scale)
         if plan:
-            rungs = [[lv, units * w, False] for lv, w in plan]
+            rungs = [Rung(lv, units * w) for lv, w in plan]
 
     layout(lo)
     prev = units * s.close[lo] + cash
     for i in range(lo + 1, hi):
         cash *= 1 + rf[i]
         for r in rungs:
-            if not r[2] and s.low[i] <= r[0]:
-                px = min(s.open[i], r[0])
-                cash += r[1] * px * (1 - COST)
-                units -= r[1]
-                r[2] = True
-                sold.append((r[0], r[1], s.dates[i]))
+            if not r.sold and s.low[i] <= r.level:
+                px = min(s.open[i], r.level)
+                cash += r.qty * px * (1 - COST)
+                units -= r.qty
+                r.sold = True
+                sold.append(SoldRung(r.level, r.qty, s.dates[i]))
                 path.stop(i - lo)
         keep = []
-        for lv, q, d in sold:
-            if d != s.dates[i] and _days(d, s.dates[i]) <= RECLAIM_DAYS and s.close[i] >= lv * (1 + RECLAIM_PCT / 100):
-                spend = q * s.close[i] * (1 + COST)
-                if spend <= cash + 1e-12:
-                    cash -= spend
-                    units += q
+        for sr in sold:
+            age = _days(sr.day, s.dates[i])
+            if sr.day != s.dates[i] and age <= RECLAIM_DAYS and s.close[i] >= sr.level * (1 + RECLAIM_PCT / 100):
+                # re-buy the rung with the cash it raised (the reclaim price is above the sale price, so the
+                # proceeds buy slightly fewer shares; the rest of the position is unchanged)
+                qty = min(sr.qty, cash / (s.close[i] * (1 + COST)))
+                if qty > 0:
+                    cash -= qty * s.close[i] * (1 + COST)
+                    units += qty
                     continue
-            if _days(d, s.dates[i]) <= RECLAIM_DAYS:
-                keep.append((lv, q, d))
+            if age <= RECLAIM_DAYS:
+                keep.append(sr)
         sold = keep
         if s.dates[i][:7] != month:
             layout(i)

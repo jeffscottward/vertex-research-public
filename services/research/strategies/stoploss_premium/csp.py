@@ -19,7 +19,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
-from .options import Leg, Underlying, delta_at, expiration, strike_for_delta
+from strategies.qc_ports.options import strike_step
+
+from .options import Leg, Underlying, delta_at, expiration, monthly_expiries, strike_for_delta
 from .portfolio import PathReturns
 
 TARGET_DTE, DTE_MIN, DTE_MAX = 38, 30, 45
@@ -44,9 +46,7 @@ def entry_days(u: Underlying, lo: int, hi: int) -> list[tuple[int, date]]:
     best: dict[date, tuple[int, int]] = {}
     for i in range(lo, hi):
         d = u.dates[i]
-        for m in range(0, 3):
-            y, mo = d.year + (d.month - 1 + m) // 12, (d.month - 1 + m) % 12 + 1
-            e = expiration(y, mo)
+        for e in monthly_expiries(d, 2):
             dte = (e - d).days
             if DTE_MIN <= dte <= DTE_MAX:
                 score = abs(dte - TARGET_DTE)
@@ -86,7 +86,7 @@ def _roll(u: Underlying, pos: Position, i: int, buyback_ask: float) -> Position 
     if expiry > u.dates[-1]:
         return None
     expiry_i = u.session_on_or_before(expiry)
-    step = 0.5 if u.close[i] < 25 else 1.0
+    step = strike_step(u.close[i])
     k = pos.strike
     best = None
     while k > 0.5 * pos.strike:
@@ -139,11 +139,11 @@ def simulate(u: Underlying, start: Position, entry_i: int, rf: Sequence[float], 
             events.append(len(values))
         elif i >= pos.expiry_i - loss_sessions and mid > pos.credit:
             if roll and rolls < MAX_ROLLS:
-                events.append(len(values))
                 new = _roll(u, pos, i, ask)
                 if new is None:
-                    assigned = True
+                    assigned = True  # no credit roll: no trade, so no rule event
                 else:
+                    events.append(len(values))
                     cash += new.credit - ask
                     pos = new
                     rolls += 1

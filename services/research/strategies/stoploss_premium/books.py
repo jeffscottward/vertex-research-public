@@ -27,6 +27,7 @@ from .portfolio import PathReturns
 
 COST = 0.0006
 RISK, CAP, SIZE_ATR = 0.01, 0.15, 2.0
+BRAKE1_RISK_FACTOR = 0.5  # risk.LIMITS: brake1_trade_risk_pct 0.5 against trade_risk_pct 1.0
 ROTATION_HOLD = 8
 
 
@@ -121,6 +122,14 @@ def rotation_selector(benchmark: str = "SPY", hold: int = ROTATION_HOLD) -> Sele
     return select
 
 
+def weights(picks: dict[str, tuple[float, float]], risk: float) -> dict[str, float]:
+    """Book weight per wanted name: risk / (2 x ATR / close), at most CAP, all scaled to at most 100%."""
+    w = {s: min(risk / (SIZE_ATR * at / c), CAP) for s, (c, at) in picks.items()}
+    tot = sum(w.values())
+    scale = min(1.0, 1.0 / tot) if tot else 1.0
+    return {s: x * scale for s, x in w.items()}
+
+
 def brake_level(equity: float, peak: float, brake: tuple[float, float]) -> int:
     """0 = no brake, 1 = half risk per trade, 2 = no new entries. Port of risk.trade_risk_pct: the drawdown in
     percent rounded to 6 decimals, compared with <=."""
@@ -185,22 +194,24 @@ def atr_book(al: Aligned, rf: Sequence[float], select: Selector, *, start: int, 
                 if new_level and not level:
                     res.brake_events += 1
             level = new_level
-            want = {}
-            for sym, (c, at) in select(al, k).items():
-                w = min(RISK / (SIZE_ATR * at / c), CAP)
-                want[sym] = (w, c - (stop_atr if stop_atr is not None else SIZE_ATR) * at)
-            tot = sum(w for w, _ in want.values())
-            scale = min(1.0, 1.0 / tot) if tot else 1.0
+            picks = select(al, k)
+            normal_w = weights(picks, RISK)
+            braked_w = weights(picks, RISK * BRAKE1_RISK_FACTOR) if level == 1 else normal_w
             for sym in list(pos):
-                if sym not in want:
+                if sym not in picks:
                     sell(sym)
             eq = value(k)
             stopped = {}
-            factor = (0.5, 0.0)[level - 1] if level else 1.0
-            for sym, (w, stop) in want.items():
-                normal = w * scale * eq
+            for sym, (c, at) in picks.items():
+                stop = c - (stop_atr if stop_atr is not None else SIZE_ATR) * at
+                normal = normal_w[sym] * eq
                 cur = pos[sym]["val"] if sym in pos else 0.0
-                target = normal if not level else min(normal, max(cur, normal * factor))
+                if level == 2:    # no new entries and no increases
+                    target = min(cur, normal)
+                elif level == 1:  # new risk per trade halved: at most the half-risk size, held names not cut
+                    target = min(normal, max(cur, braked_w[sym] * eq))
+                else:
+                    target = normal
                 if sym in pos:
                     pos[sym]["stop"] = max(pos[sym]["stop"], stop)
                 diff = target - cur

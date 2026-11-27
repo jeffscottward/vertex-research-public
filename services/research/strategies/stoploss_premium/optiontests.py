@@ -2,8 +2,8 @@
 
 Each trade is simulated twice on the same entry: without the rule it is held to its planned exit and sold at
 the model bid; with the rule it sells all or part earlier at the model bid, and the proceeds earn the T-bill
-rate until the planned exit. A path holds the daily change of the trade value per unit of capital committed at
-entry (value 1 = the entry debit), so the portfolio return of a day is the mean change over the open trades.
+rate until the planned exit. A path holds the daily change of the trade value (value 1 = the entry debit); the
+book aggregates the paths value weighted (`portfolio.aggregate(..., value_weighted=True)`).
 
 Rules
   * B, 📅 LEAPS exit ladder (market-watch-bot `market_watch/reentry/leaps.py`): 5 rungs on the underlying, the

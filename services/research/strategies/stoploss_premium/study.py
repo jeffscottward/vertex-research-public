@@ -26,6 +26,7 @@ ROTATION_UNIVERSE = ("SPY", "XLK", "XLE", "XLF", "XLV", "XLI", "XLY", "XLP", "XL
                      "IWM", "TLT", "GLD", "SLV", "USO")
 CSP_NAMES = ("F", "BAC", "PFE", "T", "VZ", "CMCSA", "CSX", "KR", "MDLZ", "USB", "BMY", "NKE", "XLF", "XLE", "XLU")
 WARMUP = 260
+Progress = Callable[[str], None] | None
 TRADING_DAYS = 252
 # Option books (tests B, C, D): share of the account in premium; the rest earns the T-bill rate. 25% is the live
 # LEAPS bucket (MW_HIST_MAX_TOTAL, market-watch-bot reentry/config.py); the live per-name caps are 6% and 2% NLV.
@@ -94,7 +95,25 @@ def load(data_dir: Path) -> Data:
             names[sym] = s
     indexes = {i: load_index(data_dir / f"{i}.csv") for i in INDEX_FILES if (data_dir / f"{i}.csv").exists()}
     calendar = list(names["SPY"].dates)
-    return Data(calendar, daily_rf(indexes.get("IRX", {}), calendar), names, indexes)
+    return Data(calendar, daily_rf(indexes.get("IRX", {}), calendar), names={s: on_calendar(x, calendar)
+                                                                            for s, x in names.items()},
+                indexes=indexes)
+
+
+def on_calendar(s: Series, calendar: Sequence[str]) -> Series:
+    """The name cut to the calendar's span; its sessions from its first calendar date on must be exactly the
+    calendar's (paths map day j to calendar index start + j). Raises ValueError otherwise."""
+    pos = {d: i for i, d in enumerate(calendar)}
+    keep = [j for j, d in enumerate(s.dates) if calendar[0] <= d <= calendar[-1]]
+    if not keep:
+        raise ValueError(f"{s.symbol}: no session inside the calendar")
+    dates = [s.dates[j] for j in keep]
+    first = pos.get(dates[0])
+    if first is None or dates != list(calendar[first:first + len(dates)]):
+        raise ValueError(f"{s.symbol}: sessions are not a contiguous slice of the SPY calendar")
+    lo, hi = keep[0], keep[-1] + 1
+    return Series(s.symbol, s.dates[lo:hi], s.open[lo:hi], s.high[lo:hi], s.low[lo:hi], s.close[lo:hi],
+                  s.raw_close[lo:hi])
 
 
 # --- evaluation -------------------------------------------------------------------------------------
@@ -150,14 +169,14 @@ def evaluate(name: str, data: Data, main: Sequence[PathReturns], low: Sequence[P
     return out
 
 
-def _log(progress: Callable[[str], None] | None, text: str) -> None:
+def _log(progress: Progress, text: str) -> None:
     if progress:
         progress(text)
 
 
 # --- test A -----------------------------------------------------------------------------------------
 
-def test_a(data: Data, start: str = "2000-01-03", progress=None) -> dict:
+def test_a(data: Data, start: str = "2000-01-03", progress: Progress = None) -> dict:
     def run(fn: Callable[[Series, int, int, list[float], int], PathReturns]) -> list[PathReturns]:
         out = []
         for sym in data.stocks():
@@ -288,7 +307,7 @@ CALL45 = "45-day call (delta 0.50)"
 SPREAD45 = "45-day call debit spread (0.50 / 0.30 delta)"
 
 
-def option_sets(data: Data, progress=None) -> dict[str, list[EntryTrade]]:
+def option_sets(data: Data, progress: Progress = None) -> dict[str, list[EntryTrade]]:
     """Every trade list of tests B, C and D (stocks; ETFs with a Cboe IV index; random control entries;
     stocks at half the model spread)."""
     stocks = entry_list(data, "2005-01-03", 400)
@@ -306,7 +325,7 @@ def option_sets(data: Data, progress=None) -> dict[str, list[EntryTrade]]:
     return sets
 
 
-def test_b(data: Data, sets: dict[str, list[EntryTrade]], progress=None) -> dict:
+def test_b(data: Data, sets: dict[str, list[EntryTrade]], progress: Progress = None) -> dict:
     leaps = sets["leaps"]
     groups: dict[str, tuple[list[EntryTrade], str]] = {
         "all proxy entries": (leaps, "headline row"),
@@ -332,7 +351,7 @@ def test_b(data: Data, sets: dict[str, list[EntryTrade]], progress=None) -> dict
                         "delta-0.75 call, first monthly expiry >= 365 days; entries 2005 to 400 days before the data end"}
 
 
-def test_c(data: Data, sets: dict[str, list[EntryTrade]], progress=None) -> dict:
+def test_c(data: Data, sets: dict[str, list[EntryTrade]], progress: Progress = None) -> dict:
     variants = []
     for structure, key in ((CALL45, "call45"), (SPREAD45, "spread45")):
         trades = sets[key]
@@ -361,7 +380,7 @@ def test_c(data: Data, sets: dict[str, list[EntryTrade]], progress=None) -> dict
             "universe": "same entry kinds as B; 30-60 day options, expiry nearest 45 days"}
 
 
-def test_d(data: Data, sets: dict[str, list[EntryTrade]], progress=None) -> dict:
+def test_d(data: Data, sets: dict[str, list[EntryTrade]], progress: Progress = None) -> dict:
     variants = []
     for structure, key in ((LEAPS, "leaps"), (CALL45, "call45"), (SPREAD45, "spread45"),
                            (LEAPS + ", IV-index ETFs", "leaps etf"), (CALL45 + ", IV-index ETFs", "call45 etf"),
@@ -383,7 +402,7 @@ def test_d(data: Data, sets: dict[str, list[EntryTrade]], progress=None) -> dict
 
 # --- test F -----------------------------------------------------------------------------------------
 
-def test_f(data: Data, start: str = "2011-01-03", progress=None) -> dict:
+def test_f(data: Data, start: str = "2011-01-03", progress: Progress = None) -> dict:
     rows: list[tuple[Underlying, csp.Position, int, list[float], int]] = []
     for sym in CSP_NAMES:
         if sym not in data.names:
@@ -401,10 +420,11 @@ def test_f(data: Data, start: str = "2011-01-03", progress=None) -> dict:
     _log(progress, f"F {len(rows)} cash-secured puts")
     base = {id(r[1]): csp.simulate(r[0], r[1], r[2], r[3])[0] for r in rows}
 
-    def paths(**kw) -> list[PathReturns]:
+    def paths(stop_mult: float | None = None, roll: bool = False,
+              loss_sessions: int = csp.LOSS_CLOSE_SESSIONS) -> list[PathReturns]:
         out = []
         for u, pos, i, rf, k in rows:
-            v, ev = csp.simulate(u, pos, i, rf, **kw)
+            v, ev = csp.simulate(u, pos, i, rf, stop_mult=stop_mult, roll=roll, loss_sessions=loss_sessions)
             out.append(csp.pair(v, base[id(pos)], rf, i, k, ev))
         return out
     names = sorted({r[0].s.symbol for r in rows})
@@ -431,7 +451,7 @@ def _median(xs: list[int], default: int = 21) -> int:
     return sorted(xs)[len(xs) // 2] if xs else default
 
 
-def test_g(data: Data, start: str = "1999-12-31", progress=None) -> dict:
+def test_g(data: Data, start: str = "1999-12-31", progress: Progress = None) -> dict:
     k0 = next(i for i, d in enumerate(data.calendar) if d >= start)
     end = len(data.calendar)
     variants = []
@@ -467,7 +487,7 @@ def test_g(data: Data, start: str = "1999-12-31", progress=None) -> dict:
             "universe": "trend: 15 ETFs; rotation: 16 ETFs vs SPY (no SOXX in the data); decisions from " + start}
 
 
-def test_h(data: Data, start: str = "1999-12-31", progress=None) -> dict:
+def test_h(data: Data, start: str = "1999-12-31", progress: Progress = None) -> dict:
     k0 = next(i for i, d in enumerate(data.calendar) if d >= start)
     end = len(data.calendar)
     variants = []

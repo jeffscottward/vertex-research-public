@@ -14,7 +14,7 @@ income-sleeve conventions for names without an IV index (`market_watch/income/ba
   * rate = the day's 13-week T-bill yield (IRX) when the caller passes it, dividends 0; expiries are monthly (`qc_ports.calendar
     .monthly_expiration`: third Friday, the session before on an NYSE holiday). On the expiry session a
     position is valued at intrinsic value (the daily close stands in for the live 15:45 ET close).
-  * an IV index level is carried forward over at most MAX_FILL_DAYS sessions (`qc_ports.data`).
+  * an IV index level is carried forward over at most 5 sessions (`qc_ports.data.align`).
 
 Values are per share and normalized per trade: a long structure costs 1 at entry (mid + costs).
 """
@@ -26,8 +26,8 @@ from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
 
-from strategies.qc_ports.calendar import monthly_expiration
-from strategies.qc_ports.data import MAX_FILL_DAYS
+from strategies.qc_ports.calendar import expirations_after, monthly_expiration
+from strategies.qc_ports.data import align
 from strategies.qc_ports.options import (ATM_FACTOR, COMMISSION, HALF_SPREAD_PCT, MIN_HALF_SPREAD, MULTIPLIER, SKEW,
                                          bs_delta, bs_price, intrinsic, smile_iv, strike_step)
 
@@ -49,12 +49,10 @@ def expiration(year: int, month: int) -> date:
     return monthly_expiration(year, month)
 
 
-def monthly_expiries(start: date, months: int) -> list[date]:
-    out, y, m = [], start.year, start.month
-    for _ in range(months):
-        out.append(expiration(y, m))
-        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
-    return out
+@lru_cache(maxsize=None)
+def monthly_expiries(start: date, months: int) -> tuple[date, ...]:
+    """Monthly expiries on or after `start` (qc_ports.calendar.expirations_after)."""
+    return tuple(expirations_after(start, months))
 
 
 def leaps_expiry(today: date, min_days: int = 365) -> date:
@@ -103,15 +101,8 @@ class Underlying:
         self.slope = SKEW.get(sym, DEFAULT_SLOPE)
         self.half = HALF_SPREAD_PCT.get(sym, ETF_HALF_SPREAD if self.etf else STOCK_HALF_SPREAD) * self.spread_scale
         self.index_id = IV_INDEX.get(sym) if self.index_levels else None
-        self.index_by_session: list[float | None] = []
-        if self.index_id and self.index_levels:
-            last, age = None, 0
-            for d in self.s.dates:
-                if d in self.index_levels:
-                    last, age = self.index_levels[d], 0
-                else:
-                    age += 1
-                self.index_by_session.append(last if last is not None and age <= MAX_FILL_DAYS else None)
+        self.index_by_session: list[float | None] = (
+            align(self.index_levels, self.s.dates) if self.index_id and self.index_levels else [])
 
     def session_on_or_before(self, d: date) -> int:
         """Index of the last session on or before d."""
@@ -228,6 +219,10 @@ def open_trade(u: Underlying, legs: Sequence[Leg], i: int, expiry: date, *, last
 
 
 def bid(trade: Trade, i: int, spot: float | None = None) -> float:
-    """Sale price per share on day i (at `spot` if given, else the close): mid - cost, never below 0."""
-    q = trade.u.quote(trade.legs, i, trade.expiry, spot=spot, expiry_i=trade.expiry_i)
+    """Sale price per share on day i: mid - cost, never below 0. With `spot` (an intraday fill at that
+    underlying price) the volatility is the one known at the previous close, so the fill uses no later data."""
+    atm = None
+    if spot is not None and i > 0:
+        atm = trade.u.atm(i - 1, trade.u.years(i, trade.expiry))
+    q = trade.u.quote(trade.legs, i, trade.expiry, spot=spot, atm=atm, expiry_i=trade.expiry_i)
     return max(0.0, q[0] - q[1]) if q else 0.0

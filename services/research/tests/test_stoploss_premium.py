@@ -377,7 +377,8 @@ class TestCsp:
         stop, ev = csp.simulate(u, pos, i, rf, stop_mult=2.0)
         assert len(ev) == 1 and ev[0] == len(stop) - 1 and stop[-1] > base[-1]
         roll, rev = csp.simulate(u, pos, i, rf, roll=True)
-        assert len(rev) >= 1
+        # in a steady crash no strike pays a net credit: no roll trade, no rule event, held to assignment
+        assert rev == [] and roll[-1] < stop[-1]
         p = csp.pair(stop, base, rf, i, 0, ev)
         assert len(p) == max(len(stop), len(base)) and p.stop_events == 1 and p.days_to_stop == ev[0] + 1
 
@@ -500,3 +501,54 @@ def test_report_marks_headline_rows():
     v = {"name": "x", "headline": True, "summary": s, "thresholds": [], "verdict": premium.FAIL}
     html = report.page("T", "", [{"id": "A", "title": "a", "prices": "real", "live": True, "variants": [v]}], {}, "")
     assert "★ x" in html and "headline row" in html
+
+
+def test_a_single_sold_rung_is_reclaimed_with_its_own_proceeds():
+    # flat, a one-day dip through rung 1 only, then a close 2% above it: the rung is re-bought
+    closes = [100.0] * 70 + [100.0, 100.0, 100.0]
+    lows = [99.5] * 70 + [97.0, 99.5, 99.5]
+    s = make_series(closes[:70] + [98.5, 100.5, 100.5], lows=lows)
+    p = shares.ladder_path(s, 65, len(s.dates), [0.0] * len(s.dates), 0)
+    assert p.stop_events >= 1
+    assert p.out[-1] < 0.01  # back in the name after the reclaim
+
+
+def test_book_weights_halve_risk_per_trade_under_the_brake():
+    picks = {"A": (100.0, 20.0), "B": (100.0, 0.5)}  # A: 1% / 40% = 2.5%; B capped at 15%
+    full = books.weights(picks, 0.01)
+    half = books.weights(picks, 0.005)
+    assert full["A"] == pytest.approx(0.025) and half["A"] == pytest.approx(0.0125)
+    assert full["B"] == half["B"] == pytest.approx(0.15)  # the cap binds at both risk levels
+    big = books.weights({s: (100.0, 0.1) for s in "ABCDEFGH"}, 0.01)
+    assert sum(big.values()) == pytest.approx(1.0)
+
+
+def test_names_must_follow_the_calendar():
+    from strategies.stoploss_premium import study
+    s = make_series([100.0] * 5)
+    cal = list(s.dates)
+    assert study.on_calendar(s, cal[1:4]).dates == tuple(cal[1:4])
+    with pytest.raises(ValueError):
+        study.on_calendar(s, [cal[0], cal[2], cal[3]])
+
+
+def test_intraday_ladder_fill_uses_the_previous_close_volatility():
+    from strategies.stoploss_premium.options import bid
+    closes = [100.0 + 0.1 * math.sin(i) for i in range(80)] + [95.0, 90.0, 85.0]
+    u = Underlying(make_series(closes))
+    exp = u.dates[-1] + timedelta(days=300)
+    from strategies.stoploss_premium.options import Trade
+    i = len(closes) - 1
+    tr = Trade(u, (Leg("call", 100.0, 1),), exp, 10**6, 79, i, 1.0, [1.0] * (i - 78))
+    q_prev = u.quote(tr.legs, i, tr.expiry, spot=90.0, atm=u.atm(i - 1, u.years(i, tr.expiry)))
+    assert bid(tr, i, 90.0) == pytest.approx(max(0.0, q_prev[0] - q_prev[1]))
+
+
+def test_csp_roll_for_a_credit_counts_one_rule_event():
+    tail = [50.0 * (1 - 0.04 * min(1, j / 25)) for j in range(80)]
+    u = Underlying(make_series([50.0 + 0.3 * math.sin(i) for i in range(120)] + tail))
+    i, e = csp.entry_days(u, 100, 160)[0]
+    pos = csp.open_put(u, i, e)
+    base, _ = csp.simulate(u, pos, i, [0.0] * len(u.close))
+    roll, ev = csp.simulate(u, pos, i, [0.0] * len(u.close), roll=True)
+    assert len(ev) == 1 and len(roll) > len(base)  # rolled out to the next expiry

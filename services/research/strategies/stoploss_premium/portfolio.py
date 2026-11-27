@@ -1,10 +1,8 @@
-"""Equal-weight portfolio of position paths on one calendar.
+"""Books of position paths on one calendar (equal weight or value weighted, see `aggregate`).
 
-A path is one position (a name held for a period, or one trade) as daily returns from the day after its
-entry. Both legs of a path cover the same days: after the rule exits, the rule leg earns the safe asset until
-the day the leg without the rule exits. On each calendar day the portfolio return is the mean over the paths
-active that day (equal weight, rebalanced daily); a day without an active path earns the safe asset in both
-legs.
+A path is one position (a name held for a period, or one trade) from the day after its entry. Both legs of a
+path cover the same days: after the rule exits, the rule leg earns the safe asset until the day the leg without
+the rule exits. A day without an active path earns the safe asset in both legs.
 """
 from __future__ import annotations
 
