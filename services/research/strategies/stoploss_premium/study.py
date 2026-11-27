@@ -36,7 +36,7 @@ EXPOSURES = (0.06, PREMIUM_BUCKET, 1.0)  # drawdown-test stability check: per-na
 RANDOM_SEED = 11
 # Live rules ported from the market-watch-bot repository (no import across repositories). The ported files are
 # identical at a8df702b and at 57a1b3b (origin/main on 2026-11-27).
-PORTED_FROM = {"repository": "jeffscottward/market-watch-bot", "commit": "57a1b3b", "files": {
+PORTED_FROM = {"repository": "market-watch-bot (private, owner account)", "commit": "57a1b3b", "files": {
     "shares.compute_levels, shares.min_atr": "market_watch/reentry/harness.py, market_watch/stops.py",
     "optiontests.ladder_levels, LADDER_WEIGHTS, LAST_CHANCE_DAYS": "market_watch/reentry/leaps.py",
     "optiontests.loser_close_rule": "market_watch/exit_rule.py",

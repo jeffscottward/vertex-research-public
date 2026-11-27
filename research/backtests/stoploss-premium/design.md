@@ -58,7 +58,7 @@ Non-goals:
   session. **L**: the lowest low of the 20 sessions before the day (the support level).
 - **Live rule**: a rule that the engines apply to real orders when armed (tests A, B and C). Tests D to H test
   candidates, dry-run rules or switched-off rules.
-- **market-watch-bot**: the repository (`jeffscottward/market-watch-bot`) that holds the live rules; the study
+- **market-watch-bot**: the private repository of the owner that holds the live rules; the study
   ports them (see "Ported rules").
 - **Crown**: an external trade-letter service whose trades the copier engine copied; it is switched off.
 - **KB**: the trading knowledge bases on the rig (the owner's research machine). The parent report's KB answers are in
@@ -258,7 +258,7 @@ D do not use the stop column.
 
 ## Ported rules
 
-Source: `jeffscottward/market-watch-bot` at commit `57a1b3b` (the ported files are identical at `a8df702b`).
+Source: market-watch-bot at commit `57a1b3b` (the ported files are identical at `a8df702b`).
 
 | Study code | Source |
 | --- | --- |
