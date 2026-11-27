@@ -1,11 +1,11 @@
 // The one command of the semantic-layer eval recorder: `bun run eval:semantic:record -- [--expect=<n>]
-// [--log=<file>] [trials] [concurrency] [stale | upgrade | ids...]`.
+// [--log=<file>] [trials] [concurrency] [stale | ids...]`.
 // A run that needs the model starts one OMP session with the model RECORDING_MODEL and only the
 // eval tool, and has that session run `runBridge` (bridge.ts) once in its JavaScript eval kernel. In
 // that session `completion()` answers with that model. The bridge starts the recorder (record.ts)
 // and answers its model requests.
-// A run that needs no model starts the recorder directly: `upgrade`, and `--expect=0` (the recorder
-// prints what it would record and stops; use it with `stale` to see the cost of a recording).
+// A run that needs no model starts the recorder directly: `--expect=0` (the recorder prints what it
+// would record and stops; use it with `stale` to see the cost of a recording).
 //   --expect=<n>  passed to the recorder: the run stops before the first model request when it
 //                 selects another number of trials than n (state the planned number for a `stale` run).
 //   --log=<file>  the log of the bridge; default a new file in the temporary directory.
@@ -29,12 +29,12 @@ import { parseCount, parseSelection, RECORDING_MODEL } from "./recording.ts";
 const BRIDGE = fileURLToPath(new URL("./bridge.ts", import.meta.url));
 
 export type SessionOptions = Readonly<{
-  /** [trials] [concurrency] [stale | upgrade | ids...] */
+  /** [trials] [concurrency] [stale | ids...] */
   recorderArgs: readonly string[];
   log: string;
   expectSelected?: number;
   deadlineSeconds: number;
-  /** False for `upgrade` and for `--expect=0`: the recorder then makes no model request. */
+  /** False for `--expect=0`: the recorder then makes no model request. */
   needsModel: boolean;
 }>;
 
@@ -107,18 +107,18 @@ export const parseSessionArgs = (
       log = resolve(value);
     } else {
       throw new Error(
-        `Unknown option ${flag}. Usage: [--expect=<n>] [--log=<file>] [trials] [concurrency] [stale | upgrade | ids...]`
+        `Unknown option ${flag}. Usage: [--expect=<n>] [--log=<file>] [trials] [concurrency] [stale | ids...]`
       );
     }
   }
   const [trials, concurrency, ...selectors] = recorderArgs;
   parseCount("trials", trials, 3);
   parseCount("concurrency", concurrency, 6);
-  const selection = parseSelection(
+  parseSelection(
     selectors,
     EVAL_QUESTIONS.map((question) => question.id)
   );
-  const needsModel = selection.kind !== "upgrade" && expectSelected !== 0;
+  const needsModel = expectSelected !== 0;
   if (needsModel && exists(log)) {
     throw new Error(`The log file ${log} exists: one log file for each run.`);
   }

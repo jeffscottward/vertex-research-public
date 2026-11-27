@@ -264,7 +264,7 @@ export type BridgeOptions = Readonly<{
   completion: Completion;
   /** The model id that the session must answer with (RECORDING_MODEL; the recorder checks each reply). */
   model: string;
-  /** The arguments of the recorder: [trials] [concurrency] [stale | upgrade | ids...]. */
+  /** The arguments of the recorder: [trials] [concurrency] [stale | ids...]. */
   recorderArgs: readonly string[];
   /** The log file of this run. It must not exist: one log for each run. */
   log: string;
@@ -297,7 +297,7 @@ export type BridgeStats = Readonly<{
   errors: number;
   /** Requests answered with a fault after the last try. */
   faults: number;
-  /** The last message of the recorder (type "finished" or "upgraded"), when it printed one. */
+  /** The last message of the recorder (type "finished"), when it printed one. */
   last: unknown;
   seconds: number;
 }>;
@@ -444,7 +444,7 @@ export const runBridge = async (
       return;
     }
     log(`MESSAGE ${text}`);
-    if (message.type === "finished" || message.type === "upgraded") {
+    if (message.type === "finished") {
       last = parsed;
     }
     if (message.type === "selected") selected = message.keys?.length ?? null;

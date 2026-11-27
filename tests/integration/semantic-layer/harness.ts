@@ -33,8 +33,8 @@ import { setCongressTradesClockForTesting } from "../../../packages/api/src/serv
 import { setFlowClockForTesting } from "../../../packages/api/src/server/flow.ts";
 import type { CallProcedure } from "../../../packages/api/src/server/mcp.ts";
 import { setOpenbbClockForTesting } from "../../../packages/api/src/server/openbb.ts";
-import { setSmartMoneyClockForTesting } from "../../../packages/api/src/server/smart-money.ts";
 import { setSemanticTermsDependenciesForTesting } from "../../../packages/api/src/server/semantic-terms.ts";
+import { setSmartMoneyClockForTesting } from "../../../packages/api/src/server/smart-money.ts";
 import {
   EVAL_NOW,
   jsonResponse,
@@ -227,18 +227,6 @@ export type RecordedCompletion = Readonly<{
   inputDigest: string;
 }>;
 
-const hashMessages = (
-  hash: ReturnType<typeof createHash>,
-  messages: AssistantCompletionRequest["messages"]
-): string => {
-  for (const message of messages) {
-    if (message.role === "assistant") continue;
-    const id = message.role === "tool" ? message.tool_call_id : message.role;
-    hash.update(`${id}\n${message.content}\n`);
-  }
-  return hash.digest("hex");
-};
-
 /**
  * Digest of the messages the model was given except its own replies: the system prompt, the question
  * and every tool result, in order. The replay compares it with the recording, so a changed prompt,
@@ -248,19 +236,14 @@ const hashMessages = (
  */
 const messageDigest = (
   request: Pick<AssistantCompletionRequest, "messages">
-): string => hashMessages(createHash("sha256"), request.messages);
-
-/**
- * The digest of a version 2 recording: the JSON text of the whole tool list, then the messages. Used
- * only by `upgrade` (recorder.ts): a version 2 trial whose calls still match this digest saw the
- * current tool list, so its new fields can be written without a model call.
- */
-const versionTwoInputDigest = (
-  request: Pick<AssistantCompletionRequest, "messages" | "tools">
 ): string => {
   const hash = createHash("sha256");
-  hash.update(`${JSON.stringify(request.tools)}\n`);
-  return hashMessages(hash, request.messages);
+  for (const message of request.messages) {
+    if (message.role === "assistant") continue;
+    const id = message.role === "tool" ? message.tool_call_id : message.role;
+    hash.update(`${id}\n${message.content}\n`);
+  }
+  return hash.digest("hex");
 };
 
 const toCompletion = (recorded: RecordedCompletion): AssistantCompletion => ({
@@ -365,14 +348,11 @@ export type TrialReplay = Readonly<{
   unknownTerms: readonly string[];
   /** The tool list of the replayed turn (the current list); null when the turn made no model call. */
   toolList: IdentifiedToolList | null;
-  /** The message digest of each replayed model call, in order. */
-  messageDigests: readonly string[];
 }>;
 
 /**
  * Replays one recorded trial against the built layer, with the recorded model replies in order.
  * `stale` is null when the trial replays unchanged; else the first difference (record the trial again).
- * `versionTwo` compares the whole-input digest of a version 2 recording (for `upgrade` only).
  */
 export const replayTrial = async (
   backend: EvalBackend,
@@ -380,13 +360,11 @@ export const replayTrial = async (
   recorded: Readonly<{
     answer: string;
     completions: readonly RecordedCompletion[];
-  }>,
-  options: Readonly<{ versionTwo?: boolean }> = {}
+  }>
 ): Promise<TrialReplay> => {
   let call = 0;
   let reason: string | null = null;
   let toolList: IdentifiedToolList | null = null;
-  const messageDigests: string[] = [];
   // The trace marks a terms_query answer with status unknown as a call that worked; keep those answers.
   const unknownTerms: string[] = [];
   const watched: EvalBackend = {
@@ -406,17 +384,10 @@ export const replayTrial = async (
       reason ??= `the turn asked for more than the ${recorded.completions.length} recorded model calls`;
       throw new Error(reason);
     }
-    const digest = messageDigest(request);
-    const compared =
-      options.versionTwo === true ? versionTwoInputDigest(request) : digest;
-    if (compared !== next.inputDigest) {
-      reason ??=
-        options.versionTwo === true
-          ? `the input of model call ${call} changed (tool definitions, system prompt, question or a tool result)`
-          : `the input of model call ${call} changed (system prompt, question or a tool result)`;
+    if (messageDigest(request) !== next.inputDigest) {
+      reason ??= `the input of model call ${call} changed (system prompt, question or a tool result)`;
       throw new Error(reason);
     }
-    messageDigests.push(digest);
     call += 1;
     return toCompletion(next);
   };
@@ -432,7 +403,6 @@ export const replayTrial = async (
   } catch (error) {
     if (reason === null) throw error;
     return {
-      messageDigests,
       stale: reason,
       toolList,
       trace: error instanceof AssistantTurnError ? error.trace : [],
@@ -440,7 +410,7 @@ export const replayTrial = async (
     };
   }
   const { answer, trace } = result;
-  const rest = { messageDigests, toolList, trace, unknownTerms };
+  const rest = { toolList, trace, unknownTerms };
   if (call !== recorded.completions.length) {
     return {
       stale: `the turn made ${call} of the ${recorded.completions.length} recorded model calls`,

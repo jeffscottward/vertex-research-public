@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   copyFileSync,
   mkdtempSync,
@@ -8,8 +7,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
-
 import {
   afterAll,
   afterEach,
@@ -20,23 +19,21 @@ import {
   it,
 } from "vitest";
 
-import type { AssistantCompletionRequest } from "../../../packages/api/src/server/assistant-runtime.ts";
 import {
   type EvalBackend,
   replayRecording,
   replayTrial,
-  runTrial,
   startEvalBackend,
 } from "./harness.ts";
 import { EVAL_QUESTIONS } from "./questions.ts";
 import {
+  createBridgeModel,
   parseBridgeLine,
   type RecordRunOptions,
   type RunMessage,
   recordRun,
   replyToCompletion,
   type TrialModel,
-  upgradeRecording,
 } from "./recorder.ts";
 import {
   calledTools,
@@ -379,14 +376,14 @@ describe("recordRun", () => {
     expect(finished.failed["Q1.1"]).toMatch(/another program wrote the file/u);
   });
 
-  it("refuses a partial run on a version 2 file before any model call", async () => {
+  it("refuses a partial run on an older recording format before any model call", async () => {
     writeFileSync(
       files.recording,
       JSON.stringify({ ...COMMITTED, schemaVersion: 2 })
     );
 
     await expect(run({ selection: { kind: "stale" } })).rejects.toThrow(
-      "Run the recorder with `upgrade` first"
+      "schemaVersion 2, not 3. Record every question to write the current format."
     );
     expect(messages).toEqual([]);
   });
@@ -547,140 +544,268 @@ describe("recordRun with the stale selection", () => {
   }, 120_000);
 });
 
-describe("upgradeRecording", () => {
-  // The digest of a version 2 recording, written out here as the description of that format: the
-  // JSON text of the tool list, then role (or tool call id) and content of every message but the
-  // model's own.
-  const versionTwoDigest = (request: AssistantCompletionRequest): string => {
-    const hash = createHash("sha256");
-    hash.update(`${JSON.stringify(request.tools)}\n`);
-    for (const message of request.messages) {
-      if (message.role === "assistant") continue;
-      const id = message.role === "tool" ? message.tool_call_id : message.role;
-      hash.update(`${id}\n${message.content}\n`);
+describe("createBridgeModel (scripted stdin)", () => {
+  const replyLineFor = (key: string): string => {
+    const [trial = "", call = ""] = key.split("#");
+    const completion = COMMITTED.trials.find(
+      (entry) => trialKey(entry) === trial
+    )?.completions[Number(call)];
+    if (completion === undefined) {
+      throw new Error(`no scripted reply for ${key}`);
     }
-    return hash.digest("hex");
-  };
-  /** The committed trial as a version 2 trial: no tool list, whole-input digests. */
-  const asVersionTwo = async (key: string): Promise<RecordedTrial> => {
-    const committed = stored(COMMITTED, key);
-    const digests: string[] = [];
-    const model = scripted();
-    await runTrial(
-      backend,
-      question(committed.question),
-      async (request) => {
-        digests.push(versionTwoDigest(request));
-        return (await model(`${key}#${digests.length - 1}`, request))
-          .completion;
-      },
-      { log: () => undefined }
-    );
-    const {
-      promptFormat: _promptFormat,
-      toolList: _toolList,
-      ...rest
-    } = committed;
-    return {
-      ...rest,
-      completions: committed.completions.map((completion, index) => ({
-        ...completion,
-        inputDigest: digests[index] ?? "",
+    return JSON.stringify({
+      content: completion.content,
+      key,
+      model: RECORDING_MODEL,
+      toolCalls: completion.toolCalls.map((toolCall) => ({
+        arguments: JSON.parse(toolCall.arguments) as unknown,
+        name: toolCall.name,
       })),
-    } as unknown as RecordedTrial;
+    });
   };
 
-  it("gives a version 2 trial that still replays its tool list and message digests, and changes nothing else", async () => {
-    const currentTrialKeyOf = (id: string): string => {
-      const found = COMMITTED.trials.find(
-        (trial) =>
-          trial.question === id && trial.toolList === currentToolList.id
-      );
-      if (found === undefined) {
-        throw new Error(
-          `no committed trial of ${id} uses the current tool list`
-        );
-      }
-      return trialKey(found);
-    };
-    const firstKey = currentTrialKeyOf("Q1");
-    const secondKey = currentTrialKeyOf("Q13");
-    const versionTwo = {
-      audit: COMMITTED["audit"],
-      note: COMMITTED["note"],
-      schemaVersion: 2,
-      trials: [await asVersionTwo(firstKey), await asVersionTwo(secondKey)],
-    } as unknown as Recording;
-
-    const result = await upgradeRecording(
-      backend,
-      EVAL_QUESTIONS,
-      versionTwo,
-      String(COMMITTED["note"])
-    );
-
-    expect(result.upgraded).toEqual([firstKey, secondKey]);
-    expect(result.kept).toEqual({});
-    expect(result.changed).toBe(true);
-    // Byte-equal to the committed trials, field order included.
-    expect(JSON.stringify(result.recording.trials)).toBe(
-      JSON.stringify([
-        stored(COMMITTED, firstKey),
-        stored(COMMITTED, secondKey),
-      ])
-    );
-    expect(result.recording.toolLists).toEqual({
-      [currentToolList.id]: currentToolList.tools,
+  it("fails only the matching trial when a keyed reply line has a wrong shape (empty model id) and completes other trials", async () => {
+    const originalQ12 = stored(COMMITTED, "Q1.2");
+    const input = new PassThrough();
+    const bridge = createBridgeModel({
+      input,
+      send: (message) => {
+        if (message.key === "Q1.2#0") {
+          // Blank lines are ignored; malformed JSON with Q1.2#0's key fails only Q1.2.
+          input.write(
+            `\n   \n${JSON.stringify({ content: "bad", key: message.key, model: "", toolCalls: [] })}\n`
+          );
+          return;
+        }
+        input.write(`${replyLineFor(message.key)}\n`);
+      },
     });
-    expect(result.recording.schemaVersion).toBe(3);
-    // A second run changes nothing.
-    const again = await upgradeRecording(
-      backend,
-      EVAL_QUESTIONS,
-      result.recording,
-      String(COMMITTED["note"])
-    );
-    expect(again.upgraded).toEqual([]);
-    // A file in the current format is not written again.
-    expect(again.changed).toBe(false);
-    expect(JSON.stringify(again.recording)).toBe(
-      JSON.stringify(result.recording)
-    );
+
+    try {
+      const finished = await run({
+        concurrency: 2,
+        model: bridge.model,
+        selection: { ids: ["Q1"], kind: "questions" },
+      });
+
+      expect([...finished.recorded].sort()).toEqual(["Q1.1", "Q1.3"]);
+      expect(Object.keys(finished.failed)).toEqual(["Q1.2"]);
+      expect(finished.failed["Q1.2"]).toContain(
+        "bridge fault: bridge line is not {key, content"
+      );
+      expect(finished.notStarted).toEqual([]);
+      const after = read();
+      expect(stored(after, "Q1.1").recordedAt).toBe(NOW.toISOString());
+      expect(stored(after, "Q1.3").recordedAt).toBe(NOW.toISOString());
+      expect(stored(after, "Q1.2")).toEqual(originalQ12);
+    } finally {
+      bridge.close();
+    }
   });
 
-  it("keeps a version 2 trial that no longer replays as it is and names the reason", async () => {
-    const good = await asVersionTwo("Q1.1");
-    const first = good.completions[0];
-    if (first === undefined) throw new Error("Q1.1 has no model call");
-    const staleTrial = {
-      ...good,
-      completions: [
-        { ...first, inputDigest: "0".repeat(64) },
-        ...good.completions.slice(1),
-      ],
-    };
-
-    const result = await upgradeRecording(
-      backend,
-      EVAL_QUESTIONS,
-      {
-        note: "n",
-        schemaVersion: 2,
-        trials: [staleTrial],
-      } as unknown as Recording,
-      "n"
-    );
-
-    expect(result.upgraded).toEqual([]);
-    // The file is written although no trial was upgraded: it gets schemaVersion 3, so that a
-    // stale run can record the kept trial.
-    expect(result.changed).toBe(true);
-    expect(result.recording.schemaVersion).toBe(3);
-    expect(result.kept).toEqual({
-      "Q1.1":
-        "the input of model call 0 changed (tool definitions, system prompt, question or a tool result)",
+  it("isolates keyed wrong-shape faults (empty fault, missing content) and valid fault lines to their own trials", async () => {
+    const input = new PassThrough();
+    const bridge = createBridgeModel({
+      input,
+      send: (message) => {
+        if (message.key === "Q1.1#0") {
+          input.write(`${JSON.stringify({ fault: "", key: message.key })}\n`);
+          return;
+        }
+        if (message.key === "Q1.2#0") {
+          input.write(
+            `${JSON.stringify({ key: message.key, model: RECORDING_MODEL, toolCalls: [] })}\n`
+          );
+          return;
+        }
+        if (message.key === "Q2.1#0") {
+          input.write(
+            `${JSON.stringify({ fault: "no model reply after 4 tries", key: message.key })}\n`
+          );
+          return;
+        }
+        input.write(`${replyLineFor(message.key)}\n`);
+      },
     });
-    expect(result.recording.trials).toEqual([staleTrial]);
+
+    try {
+      const finished = await run({
+        concurrency: 2,
+        model: bridge.model,
+        selection: { ids: ["Q1", "Q2"], kind: "questions" },
+        trials: 2,
+      });
+
+      expect(finished.recorded).toEqual(["Q2.2"]);
+      expect(Object.keys(finished.failed).sort()).toEqual([
+        "Q1.1",
+        "Q1.2",
+        "Q2.1",
+      ]);
+      expect(finished.failed["Q1.1"]).toContain(
+        "bridge fault: bridge line is not {key, content"
+      );
+      expect(finished.failed["Q1.2"]).toContain(
+        "bridge fault: bridge line is not {key, content"
+      );
+      expect(finished.failed["Q2.1"]).toBe(
+        "bridge fault: no model reply after 4 tries"
+      );
+    } finally {
+      bridge.close();
+    }
+  });
+
+  it("ends the run on a non-JSON line, sends no further requests, and ignores trailing lines", async () => {
+    const input = new PassThrough();
+    const sentKeys: string[] = [];
+    const bridge = createBridgeModel({
+      input,
+      send: (message) => {
+        sentKeys.push(message.key);
+        input.write(`{not json\n${replyLineFor(message.key)}\n`);
+      },
+    });
+
+    try {
+      const finished = await run({
+        concurrency: 1,
+        model: bridge.model,
+        selection: { ids: ["Q1"], kind: "questions" },
+      });
+
+      expect(sentKeys).toEqual(["Q1.1#0"]);
+      expect(finished.recorded).toEqual([]);
+      expect(Object.keys(finished.failed)).toEqual(["Q1.1", "Q1.2", "Q1.3"]);
+      for (const reason of Object.values(finished.failed)) {
+        expect(reason).toContain("bridge line is not JSON");
+      }
+    } finally {
+      bridge.close();
+    }
+  });
+
+  it.each([
+    {
+      expected: "bridge line is not {key, content",
+      line: JSON.stringify({
+        content: "a",
+        model: RECORDING_MODEL,
+        toolCalls: [],
+      }),
+      name: "keyless JSON object",
+    },
+    {
+      expected: "reply for a request that is not open: Q99.1#0",
+      line: JSON.stringify({
+        content: "a",
+        key: "Q99.1#0",
+        model: "",
+        toolCalls: [],
+      }),
+      name: "unknown-key wrong-shape JSON object",
+    },
+    {
+      expected: "reply for a request that is not open: Q99.1#0",
+      line: JSON.stringify({
+        content: "a",
+        key: "Q99.1#0",
+        model: RECORDING_MODEL,
+        toolCalls: [],
+      }),
+      name: "unknown-key valid-shape JSON object",
+    },
+  ])("ends the run on a $name", async ({ line, expected }) => {
+    const input = new PassThrough();
+    const sentKeys: string[] = [];
+    const bridge = createBridgeModel({
+      input,
+      send: (message) => {
+        sentKeys.push(message.key);
+        input.write(`${line}\n`);
+      },
+    });
+
+    try {
+      const finished = await run({
+        concurrency: 1,
+        model: bridge.model,
+        selection: { ids: ["Q1"], kind: "questions" },
+        trials: 2,
+      });
+
+      expect(sentKeys).toEqual(["Q1.1#0"]);
+      expect(finished.recorded).toEqual([]);
+      expect(Object.keys(finished.failed)).toEqual(["Q1.1", "Q1.2"]);
+      for (const reason of Object.values(finished.failed)) {
+        expect(reason).toContain(expected);
+      }
+    } finally {
+      bridge.close();
+    }
+  });
+
+  it("ends the run when stdin closes before answering", async () => {
+    const input = new PassThrough();
+    const sentKeys: string[] = [];
+    const bridge = createBridgeModel({
+      input,
+      send: (message) => {
+        sentKeys.push(message.key);
+        input.end();
+      },
+    });
+
+    try {
+      const finished = await run({
+        concurrency: 1,
+        model: bridge.model,
+        selection: { ids: ["Q1"], kind: "questions" },
+        trials: 2,
+      });
+
+      expect(sentKeys).toEqual(["Q1.1#0"]);
+      expect(finished.recorded).toEqual([]);
+      expect(Object.keys(finished.failed)).toEqual(["Q1.1", "Q1.2"]);
+      for (const reason of Object.values(finished.failed)) {
+        expect(reason).toBe("the bridge closed stdin before it answered");
+      }
+    } finally {
+      bridge.close();
+    }
+  });
+
+  it("cleans up the pending waiter if send throws synchronously", async () => {
+    const input = new PassThrough();
+    let calls = 0;
+    const bridge = createBridgeModel({
+      input,
+      send: (message) => {
+        calls += 1;
+        if (calls === 1) throw new Error("broken pipe");
+        // Send a late reply for the first key to prove its waiter was removed.
+        input.write(
+          `${replyLineFor("Q1.1#0")}\n${replyLineFor(message.key)}\n`
+        );
+      },
+    });
+
+    try {
+      const emptyRequest = {
+        maxTokens: 100,
+        messages: [],
+        toolChoice: "auto" as const,
+        tools: [],
+      };
+      await expect(bridge.model("Q1.1#0", emptyRequest)).rejects.toThrow(
+        "broken pipe"
+      );
+      await expect(bridge.model("Q1.2#0", emptyRequest)).rejects.toThrow(
+        "reply for a request that is not open: Q1.1#0"
+      );
+    } finally {
+      bridge.close();
+    }
   });
 });
 

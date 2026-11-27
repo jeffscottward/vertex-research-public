@@ -1,0 +1,23 @@
+# Goldfish Review Report — `eval-upgrade-selector-remove`
+
+Consolidated fresh-context EGM review (Zoom Out, Comprehension, Design Critique, Implementation Readiness) of `plan.md` and `before-after.svg` against `tests/integration/semantic-layer/`, `docs/vertex-rebuild/agent-semantic-layer.md`, and `knip.jsonc`.
+
+## Summary
+
+- **Findings:** 9 total (2 Blocker, 4 Major, 2 Minor, 1 Nit)
+- **Resolution mode:** Auto accept (`egm-resolve`)
+- **Counts:** 9 PROPOSE FIX applied · 0 CONTEST · 0 DECLINE · 0 ESCALATE
+
+## Findings and resolutions
+
+|ID|Rubric|Severity|Location|Finding|Resolution|Applied change|
+|---|---|---|---|---|---|---|
+|F1|Zoom Out|Blocker|`plan.md`, `recorder.ts:172`, `record.ts`, `knip.jsonc:4`|Removing the `upgrade` branch leaves `export const writeRecording` unused externally (fails `lint:knip`); `plan.md` omitted `writeRecording`, `createInterface`, `BridgeReply`, `parseBridgeLine`, `replyToCompletion`, and `TrialModel` from `record.ts`'s dropped imports.|PROPOSE FIX (accepted)|Unexport `writeRecording` in `recorder.ts`; list all dropped `record.ts` imports in `plan.md`.|
+|F2|Zoom Out|Blocker|`plan.md`, `recorder.test.ts:28,382-392,569`|`recorder.test.ts:382-392` asserts the old `assertCurrentFormat` error message naming `upgrade`; `runTrial` becomes an unused import after removing `describe("upgradeRecording")`.|PROPOSE FIX (accepted)|Update `recorder.test.ts:382-392` title/assertion and remove unused `runTrial` import alongside `createHash` and `AssistantCompletionRequest`.|
+|F3|Zoom Out|Major|`plan.md`, `recording.ts:177`, `recording.test.ts:261,466`|`toolVerdicts` (`recording.ts:177`) still names `upgrade` in its stale reason; `recording.test.ts:261,466` retain stale test titles.|PROPOSE FIX (accepted)|Update `recording.ts:177` to `"the recording does not hold the tool list of this trial"` and update both test titles in `recording.test.ts`.|
+|F4|Design Critique / Comprehension|Major|`plan.md`, `record.ts:146-149`, `before-after.svg`|Treating valid-shape unknown/duplicate keys as fatal `failAll` intentionally tightens today's stderr-ignore behavior; `before-after.svg` inaccurately said "Still closes" and omitted missing/empty key.|PROPOSE FIX (accepted)|Document the intentional tightening in `plan.md` and update `before-after.svg` caption to `"Non-JSON, missing key, or unknown key / Closes stdin bridge & ends run"`.|
+|F5|Design Critique|Major|`plan.md`, `recorder.ts:352-416`, `record.ts:135-175`|Pin three `createBridgeModel` invariants: (1) call `lines.close()` in `failAll` while keeping `if (closed !== null \|\| line.trim() === "") return;` for buffered lines; (2) note `failAll` fails queued trials into `finished.failed` (`notStarted: []`) with zero further `send` calls; (3) wrap `send` in `try/catch` to delete the `pending` entry if `send` throws synchronously.|PROPOSE FIX (accepted)|Specified all three invariants in `plan.md` Part 2 and implemented them in `createBridgeModel`.|
+|F6|Design Critique|Major|`plan.md`, `recorder.ts:33-36,63-83`|Keeping `parseBridgeLine` separate duplicates `JSON.parse` / error formatting and leaves a JSDoc contradicting Part 2.|PROPOSE FIX (accepted)|Share one internal JSON/line-validation helper (`classifyBridgeLine` / `BRIDGE_SHAPE_ERROR`) between `parseBridgeLine` and `createBridgeModel`; update `recorder.ts` comments.|
+|F7|Design Critique / Readiness|Minor|`plan.md`, `record.ts:64-69`|Specify exact parameter types for `createBridgeModel` (`input: NodeJS.ReadableStream`, `send: (message: BridgeRequestMessage) => void`), expand the scripted-stdin test matrix (blank lines, valid `BridgeFault`, EOF while in flight, post-close lines ignored, malformed `fault: ""` / missing `content`), and keep fatal-line tests deterministic under concurrency.|PROPOSE FIX (accepted)|Added exact types, full stdin test matrix, and concurrency determinism note to `plan.md`.|
+|F8|Implementation Readiness|Minor|`plan.md`, `record-session.ts:117-121`, `bridge.test.ts:529`|Drop unused `const selection` binding in `record-session.ts`; update `bridge.test.ts:529` to `--expect=0`; include `messageDigests`, `"upgraded"`, and `version 2` in grep check; cite `scripts/init/init.acceptance.test.ts`.|PROPOSE FIX (accepted)|Tightened all four items in `plan.md`.|
+|F9|Zoom Out / Comprehension|Nit|`harness.ts:230-251`, `docs/vertex-rebuild/agent-semantic-layer.md:217`|Inline single-caller `hashMessages` into `messageDigest` in `harness.ts`; note malformed keyed reply lines under "What the recorder refuses" in `agent-semantic-layer.md`.|PROPOSE FIX (accepted)|Included both cleanups in `plan.md` and implementation.|

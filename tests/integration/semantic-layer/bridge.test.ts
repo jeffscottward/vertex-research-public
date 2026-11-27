@@ -514,8 +514,7 @@ describe("the recording session", () => {
     expect(parse(["--log=run.log"]).log).toBe(join(process.cwd(), "run.log"));
   });
 
-  it("needs no model for upgrade and for --expect=0", () => {
-    expect(parse(["3", "6", "upgrade"]).needsModel).toBe(false);
+  it("needs no model for --expect=0", () => {
     expect(parse(["--expect=0", "3", "4", "stale"]).needsModel).toBe(false);
     expect(parse(["3", "4", "stale"]).needsModel).toBe(true);
   });
@@ -526,13 +525,19 @@ describe("the recording session", () => {
       parseSessionArgs(["--log=/tmp/run.log", "3", "4", "stale"], NOW, exists)
     ).toThrow("The log file /tmp/run.log exists");
     expect(
-      parseSessionArgs(["--log=/tmp/run.log", "3", "6", "upgrade"], NOW, exists)
-        .needsModel
+      parseSessionArgs(
+        ["--log=/tmp/run.log", "--expect=0", "3", "4", "stale"],
+        NOW,
+        exists
+      ).needsModel
     ).toBe(false);
   });
 
   it("refuses a wrong argument before any session starts", () => {
     expect(() => parse(["3", "4", "Q99"])).toThrow("Unknown question id: Q99");
+    expect(() => parse(["3", "6", "upgrade"])).toThrow(
+      "Unknown question id: upgrade"
+    );
     expect(() => parse(["0"])).toThrow("positive whole number");
     expect(() => parse(["--fast"])).toThrow("Unknown option");
     expect(() => parse(["--expect=many"])).toThrow("Unknown option");

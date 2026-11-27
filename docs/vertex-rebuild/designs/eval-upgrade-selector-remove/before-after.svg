@@ -1,0 +1,639 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 980 560"
+  role="img"
+  aria-label="Before and after: reply-line fault isolation and upgrade selector removal"
+>
+  <defs>
+    <marker
+      id="arrow-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M1 1 L9 5 L1 9 z" fill="#d4a72c" />
+    </marker>
+    <marker
+      id="arrow-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M1 1 L9 5 L1 9 z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="arrow-red"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M1 1 L9 5 L1 9 z" fill="#e5534b" />
+    </marker>
+    <marker
+      id="arrow-muted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M1 1 L9 5 L1 9 z" fill="#6b7280" />
+    </marker>
+  </defs>
+
+  <rect width="980" height="560" fill="#0f1115" />
+
+  <g font-family="Manrope, Public Sans, Helvetica, sans-serif" fill="#e8e6df">
+    <!-- Title -->
+    <text x="40" y="42" font-size="21" font-weight="700">
+      Eval recorder: isolate malformed keyed replies &amp; retire v2 upgrade
+      path
+    </text>
+
+    <!-- Divider between top and bottom halves -->
+    <line
+      x1="40"
+      y1="350"
+      x2="940"
+      y2="350"
+      stroke="#262b35"
+      stroke-width="1.5"
+    />
+    <!-- Vertical divider between BEFORE and AFTER -->
+    <line
+      x1="490"
+      y1="68"
+      x2="490"
+      y2="332"
+      stroke="#262b35"
+      stroke-width="1.5"
+    />
+    <line
+      x1="490"
+      y1="370"
+      x2="490"
+      y2="532"
+      stroke="#262b35"
+      stroke-width="1.5"
+    />
+
+    <!-- ==================== PART 2 (TOP): REPLY FAULT ISOLATION ==================== -->
+    <text
+      x="40"
+      y="84"
+      font-size="13"
+      font-weight="700"
+      fill="#8b8f98"
+      letter-spacing="1.2"
+    >
+      BEFORE · MALFORMED KEYED LINE
+    </text>
+    <text
+      x="520"
+      y="84"
+      font-size="13"
+      font-weight="700"
+      fill="#d4a72c"
+      letter-spacing="1.2"
+    >
+      AFTER · FAULT ISOLATED TO ITS TRIAL
+    </text>
+
+    <!-- BEFORE: 3 trial lanes all killed -->
+    <!-- Stdin pipe icon -->
+    <g transform="translate(44,158)">
+      <rect
+        x="0"
+        y="0"
+        width="76"
+        height="44"
+        rx="8"
+        fill="#181c24"
+        stroke="#e5534b"
+        stroke-width="2"
+      />
+      <text
+        x="38"
+        y="19"
+        text-anchor="middle"
+        font-size="11"
+        fill="#e5534b"
+        font-weight="700"
+      >
+        Q1.2#0
+      </text>
+      <text x="38" y="34" text-anchor="middle" font-size="10" fill="#8b8f98">
+        model: ""
+      </text>
+    </g>
+
+    <!-- Blast arrows to all 3 trials -->
+    <path
+      d="M124 180 C160 180, 168 128, 206 128"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="2.5"
+      marker-end="url(#arrow-red)"
+    />
+    <path
+      d="M124 180 L206 180"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="2.5"
+      marker-end="url(#arrow-red)"
+    />
+    <path
+      d="M124 180 C160 180, 168 232, 206 232"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="2.5"
+      marker-end="url(#arrow-red)"
+    />
+
+    <!-- Trial circles BEFORE -->
+    <g transform="translate(216,112)">
+      <circle
+        cx="16"
+        cy="16"
+        r="16"
+        fill="#2a1618"
+        stroke="#e5534b"
+        stroke-width="2"
+      />
+      <path
+        d="M10 10 L22 22 M22 10 L10 22"
+        stroke="#e5534b"
+        stroke-width="2.5"
+        stroke-linecap="round"
+      />
+      <text x="44" y="21" font-size="13" fill="#e8e6df">Q1.1</text>
+      <text x="90" y="21" font-size="12" fill="#e5534b">aborted</text>
+    </g>
+    <g transform="translate(216,164)">
+      <circle
+        cx="16"
+        cy="16"
+        r="16"
+        fill="#2a1618"
+        stroke="#e5534b"
+        stroke-width="2"
+      />
+      <path
+        d="M10 10 L22 22 M22 10 L10 22"
+        stroke="#e5534b"
+        stroke-width="2.5"
+        stroke-linecap="round"
+      />
+      <text x="44" y="21" font-size="13" fill="#e8e6df">Q1.2</text>
+      <text x="90" y="21" font-size="12" fill="#e5534b">failed</text>
+    </g>
+    <g transform="translate(216,216)">
+      <circle
+        cx="16"
+        cy="16"
+        r="16"
+        fill="#2a1618"
+        stroke="#e5534b"
+        stroke-width="2"
+      />
+      <path
+        d="M10 10 L22 22 M22 10 L10 22"
+        stroke="#e5534b"
+        stroke-width="2.5"
+        stroke-linecap="round"
+      />
+      <text x="44" y="21" font-size="13" fill="#e8e6df">Q1.3</text>
+      <text x="90" y="21" font-size="12" fill="#e5534b">aborted</text>
+    </g>
+
+    <!-- Run stopped badge BEFORE -->
+    <g transform="translate(362,158)">
+      <polygon
+        points="18,0 44,0 62,18 62,44 44,62 18,62 0,44 0,18"
+        fill="#2a1618"
+        stroke="#e5534b"
+        stroke-width="2.5"
+      />
+      <text
+        x="31"
+        y="36"
+        text-anchor="middle"
+        font-size="12"
+        font-weight="700"
+        fill="#e5534b"
+      >
+        STOP
+      </text>
+      <text x="31" y="80" text-anchor="middle" font-size="11" fill="#8b8f98">
+        0 stored
+      </text>
+    </g>
+
+    <text x="44" y="314" font-size="12" fill="#8b8f98">
+      parseBridgeLine() threw → close() rejected every pending trial
+    </text>
+
+    <!-- AFTER: 3 trial lanes, only Q1.2 fails -->
+    <g transform="translate(520,108)">
+      <rect
+        x="0"
+        y="0"
+        width="84"
+        height="34"
+        rx="8"
+        fill="#181c24"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <text
+        x="42"
+        y="21"
+        text-anchor="middle"
+        font-size="11"
+        fill="#3fb950"
+        font-weight="700"
+      >
+        Q1.1#0 ok
+      </text>
+    </g>
+    <g transform="translate(520,160)">
+      <rect
+        x="0"
+        y="0"
+        width="84"
+        height="38"
+        rx="8"
+        fill="#181c24"
+        stroke="#e5534b"
+        stroke-width="2"
+      />
+      <text
+        x="42"
+        y="16"
+        text-anchor="middle"
+        font-size="11"
+        fill="#e5534b"
+        font-weight="700"
+      >
+        Q1.2#0
+      </text>
+      <text x="42" y="30" text-anchor="middle" font-size="10" fill="#8b8f98">
+        model: ""
+      </text>
+    </g>
+    <g transform="translate(520,214)">
+      <rect
+        x="0"
+        y="0"
+        width="84"
+        height="34"
+        rx="8"
+        fill="#181c24"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <text
+        x="42"
+        y="21"
+        text-anchor="middle"
+        font-size="11"
+        fill="#3fb950"
+        font-weight="700"
+      >
+        Q1.3#0 ok
+      </text>
+    </g>
+
+    <!-- Isolated arrows AFTER -->
+    <path
+      d="M608 125 L678 125"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="2.5"
+      marker-end="url(#arrow-green)"
+    />
+    <path
+      d="M608 179 L678 179"
+      fill="none"
+      stroke="#e5534b"
+      stroke-width="2.5"
+      marker-end="url(#arrow-red)"
+    />
+    <path
+      d="M608 231 L678 231"
+      fill="none"
+      stroke="#3fb950"
+      stroke-width="2.5"
+      marker-end="url(#arrow-green)"
+    />
+
+    <!-- Trial outcomes AFTER -->
+    <g transform="translate(690,109)">
+      <circle
+        cx="16"
+        cy="16"
+        r="16"
+        fill="#13261b"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <path
+        d="M9 16 L14 21 L23 11"
+        fill="none"
+        stroke="#3fb950"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <text x="44" y="21" font-size="13" fill="#e8e6df">Q1.1</text>
+      <text x="90" y="21" font-size="12" fill="#3fb950">stored</text>
+    </g>
+    <g transform="translate(690,163)">
+      <circle
+        cx="16"
+        cy="16"
+        r="16"
+        fill="#2a1618"
+        stroke="#e5534b"
+        stroke-width="2"
+      />
+      <path
+        d="M10 10 L22 22 M22 10 L10 22"
+        stroke="#e5534b"
+        stroke-width="2.5"
+        stroke-linecap="round"
+      />
+      <text x="44" y="21" font-size="13" fill="#e8e6df">Q1.2</text>
+      <text x="90" y="21" font-size="12" fill="#e5534b">fault only</text>
+    </g>
+    <g transform="translate(690,215)">
+      <circle
+        cx="16"
+        cy="16"
+        r="16"
+        fill="#13261b"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <path
+        d="M9 16 L14 21 L23 11"
+        fill="none"
+        stroke="#3fb950"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <text x="44" y="21" font-size="13" fill="#e8e6df">Q1.3</text>
+      <text x="90" y="21" font-size="12" fill="#3fb950">stored</text>
+    </g>
+
+    <!-- Guard rail note: non-JSON or unknown key still stops -->
+    <g transform="translate(520,276)">
+      <rect
+        x="0"
+        y="0"
+        width="416"
+        height="44"
+        rx="8"
+        fill="#151820"
+        stroke="#374151"
+        stroke-width="1.5"
+      />
+      <polygon
+        points="18,10 30,10 38,18 38,30 30,38 18,38 10,30 10,18"
+        fill="#2a1618"
+        stroke="#e5534b"
+        stroke-width="1.8"
+      />
+      <text
+        x="24"
+        y="28"
+        text-anchor="middle"
+        font-size="12"
+        font-weight="700"
+        fill="#e5534b"
+      >
+        !
+      </text>
+      <text x="52" y="20" font-size="12" font-weight="700" fill="#e8e6df">
+        Non-JSON, missing key, or unknown key
+      </text>
+      <text x="52" y="36" font-size="11" fill="#8b8f98">
+        Closes stdin bridge &amp; ends run
+      </text>
+    </g>
+
+    <!-- ==================== PART 1 (BOTTOM): UPGRADE PATH RETIRED ==================== -->
+    <text
+      x="40"
+      y="388"
+      font-size="13"
+      font-weight="700"
+      fill="#8b8f98"
+      letter-spacing="1.2"
+    >
+      BEFORE · TRANSITION CODE (V2 → V3)
+    </text>
+    <text
+      x="520"
+      y="388"
+      font-size="13"
+      font-weight="700"
+      fill="#d4a72c"
+      letter-spacing="1.2"
+    >
+      AFTER · SCHEMA V3 ONLY (0 OPEN V2 BRANCHES)
+    </text>
+
+    <!-- BEFORE bottom diagram -->
+    <g transform="translate(44,412)">
+      <rect
+        x="0"
+        y="0"
+        width="96"
+        height="36"
+        rx="8"
+        fill="#181c24"
+        stroke="#d4a72c"
+        stroke-width="1.8"
+      />
+      <text x="48" y="23" text-anchor="middle" font-size="12" fill="#e8e6df">
+        stale | ids
+      </text>
+      <rect
+        x="0"
+        y="54"
+        width="96"
+        height="36"
+        rx="8"
+        fill="#23191b"
+        stroke="#e5534b"
+        stroke-width="1.8"
+        stroke-dasharray="4 3"
+      />
+      <text x="48" y="77" text-anchor="middle" font-size="12" fill="#e5534b">
+        upgrade
+      </text>
+
+      <path
+        d="M100 18 L164 18"
+        fill="none"
+        stroke="#d4a72c"
+        stroke-width="2"
+        marker-end="url(#arrow-gold)"
+      />
+      <path
+        d="M100 72 L164 72"
+        fill="none"
+        stroke="#e5534b"
+        stroke-width="2"
+        stroke-dasharray="4 3"
+        marker-end="url(#arrow-red)"
+      />
+
+      <rect
+        x="172"
+        y="0"
+        width="118"
+        height="36"
+        rx="8"
+        fill="#181c24"
+        stroke="#d4a72c"
+        stroke-width="1.8"
+      />
+      <text x="231" y="23" text-anchor="middle" font-size="12" fill="#e8e6df">
+        recordRun
+      </text>
+      <rect
+        x="172"
+        y="54"
+        width="118"
+        height="36"
+        rx="8"
+        fill="#23191b"
+        stroke="#e5534b"
+        stroke-width="1.8"
+        stroke-dasharray="4 3"
+      />
+      <text x="231" y="77" text-anchor="middle" font-size="11" fill="#e5534b">
+        upgradeRecording
+      </text>
+
+      <path
+        d="M294 72 L332 72"
+        fill="none"
+        stroke="#e5534b"
+        stroke-width="2"
+        stroke-dasharray="4 3"
+        marker-end="url(#arrow-red)"
+      />
+      <rect
+        x="340"
+        y="54"
+        width="84"
+        height="36"
+        rx="8"
+        fill="#23191b"
+        stroke="#e5534b"
+        stroke-width="1.8"
+        stroke-dasharray="4 3"
+      />
+      <text x="382" y="77" text-anchor="middle" font-size="11" fill="#e5534b">
+        v2 digest
+      </text>
+    </g>
+
+    <!-- AFTER bottom diagram -->
+    <g transform="translate(520,412)">
+      <rect
+        x="0"
+        y="0"
+        width="108"
+        height="36"
+        rx="8"
+        fill="#181c24"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <text x="54" y="23" text-anchor="middle" font-size="12" fill="#e8e6df">
+        stale | ids
+      </text>
+
+      <path
+        d="M112 18 L178 18"
+        fill="none"
+        stroke="#3fb950"
+        stroke-width="2.2"
+        marker-end="url(#arrow-green)"
+      />
+
+      <rect
+        x="186"
+        y="0"
+        width="112"
+        height="36"
+        rx="8"
+        fill="#181c24"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <text x="242" y="23" text-anchor="middle" font-size="12" fill="#e8e6df">
+        recordRun
+      </text>
+
+      <path
+        d="M302 18 L342 18"
+        fill="none"
+        stroke="#3fb950"
+        stroke-width="2.2"
+        marker-end="url(#arrow-green)"
+      />
+
+      <rect
+        x="350"
+        y="0"
+        width="66"
+        height="36"
+        rx="8"
+        fill="#13261b"
+        stroke="#3fb950"
+        stroke-width="2"
+      />
+      <text
+        x="383"
+        y="23"
+        text-anchor="middle"
+        font-size="12"
+        font-weight="700"
+        fill="#3fb950"
+      >
+        v3
+      </text>
+
+      <!-- Retired muted row -->
+      <line
+        x1="0"
+        y1="72"
+        x2="298"
+        y2="72"
+        stroke="#4b5563"
+        stroke-width="1.5"
+        stroke-dasharray="4 4"
+      />
+      <text x="0" y="96" font-size="12" fill="#8b8f98">
+        Removed: upgrade selector · upgradeRecording · versionTwoInputDigest ·
+        messageDigests
+      </text>
+    </g>
+  </g>
+</svg>

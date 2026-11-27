@@ -173,8 +173,7 @@ export const toolVerdicts = (
         : undefined;
     if (recorded === undefined) {
       verdicts.set(key, {
-        reason:
-          "the recording does not hold the tool list of this trial (a version 2 trial: run the recorder with `upgrade`)",
+        reason: "the recording does not hold the tool list of this trial",
         state: "stale",
       });
       continue;
@@ -255,37 +254,34 @@ export const selectWitnesses = (
 
 /**
  * What the recorder was asked to do: record every trial, the stale trials only or the named
- * questions, or (`upgrade`, no model call) write a version 2 recording in the current format.
+ * questions.
  */
 export type RecordSelection =
   | Readonly<{ kind: "all" }>
   | Readonly<{ kind: "stale" }>
-  | Readonly<{ kind: "upgrade" }>
   | Readonly<{ kind: "questions"; ids: readonly string[] }>;
 
 /**
  * Reads the recorder arguments after [trials] [concurrency]: nothing (every question), the word `stale`
- * (only the trials that no longer replay, the missing ones and the witness trials), the word `upgrade`,
- * or question ids.
+ * (only the trials that no longer replay, the missing ones and the witness trials), or question ids.
  */
 export const parseSelection = (
   selectors: readonly string[],
   questionIds: readonly string[]
 ): RecordSelection => {
   if (selectors.length === 0) return { kind: "all" };
-  for (const word of ["stale", "upgrade"] as const) {
-    if (!selectors.includes(word)) continue;
+  if (selectors.includes("stale")) {
     if (selectors.length > 1) {
       throw new Error(
-        `\`${word}\` cannot be combined with question ids or another word.`
+        "`stale` cannot be combined with question ids or another word."
       );
     }
-    return { kind: word };
+    return { kind: "stale" };
   }
   const unknown = selectors.filter((id) => !questionIds.includes(id));
   if (unknown.length > 0) {
     throw new Error(
-      `Unknown question id: ${unknown.join(", ")}. Known ids: ${questionIds.join(", ")}, or the word stale or upgrade.`
+      `Unknown question id: ${unknown.join(", ")}. Known ids: ${questionIds.join(", ")}, or the word stale.`
     );
   }
   return { ids: selectors, kind: "questions" };
@@ -300,20 +296,20 @@ export const parseCount = (
   if (value === undefined) return fallback;
   if (!/^[1-9]\d*$/.test(value)) {
     throw new Error(
-      `The ${name} argument must be a positive whole number, not "${value}". Usage: [trials] [concurrency] [stale | upgrade | ids...]`
+      `The ${name} argument must be a positive whole number, not "${value}". Usage: [trials] [concurrency] [stale | ids...]`
     );
   }
   return Number(value);
 };
 
 /**
- * Stops a run that would keep trials of an older format next to new ones. A version 2 file has no
- * tool lists: `upgrade` writes them without a model call. Checked before the first model request.
+ * Stops a run that would keep trials of an older format next to new ones. Checked before the first
+ * model request.
  */
 export const assertCurrentFormat = (recording: Recording): void => {
   if (recording.schemaVersion === RECORDING_SCHEMA_VERSION) return;
   throw new Error(
-    `The recording has schemaVersion ${recording.schemaVersion}, not ${RECORDING_SCHEMA_VERSION}. Run the recorder with \`upgrade\` first (no model call; docs/vertex-rebuild/agent-semantic-layer.md, format note of 2026-11-26), or record every question.`
+    `The recording has schemaVersion ${recording.schemaVersion}, not ${RECORDING_SCHEMA_VERSION}. Record every question to write the current format.`
   );
 };
 
