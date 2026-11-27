@@ -102,14 +102,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 9007199254740992,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -124,14 +124,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": -1,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -146,14 +146,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 1.5,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -168,14 +168,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": true,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -190,14 +190,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "spy",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -209,7 +209,7 @@
     "row": {
       "asOf": "2026-11-06",
       "atmIv": 0.1748,
-      "atmStrike": 373,
+      "atmStrike": 373.0,
       "callOi": 12691,
       "callVolume": 13457,
       "dte": 3,
@@ -444,7 +444,7 @@
       "periodEnding": "2026-03-31",
       "shares": 29000000,
       "symbol": null,
-      "value": 1137670000,
+      "value": 1137670000.0,
       "weight": 0.004324
     },
     "why": "optionType upper case"
@@ -463,7 +463,7 @@
       "periodEnding": "2026-03-31",
       "shares": 29000000,
       "symbol": "BRK B",
-      "value": 1137670000,
+      "value": 1137670000.0,
       "weight": 0.004324
     },
     "why": "symbol with a space"
@@ -496,14 +496,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -518,14 +518,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": -0.01,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 372.52,
       "source": "cboe"
@@ -540,14 +540,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "underlying": "GLD",
       "underlyingPrice": 0,
       "source": "cboe"
@@ -559,7 +559,7 @@
     "row": {
       "asOf": "2026-11-06",
       "atmIv": 12.5,
-      "atmStrike": 373,
+      "atmStrike": 373.0,
       "callOi": 12691,
       "callVolume": 13457,
       "dte": 3,
@@ -644,7 +644,7 @@
     "table": "daily_series",
     "row": {
       "adjClose": "1",
-      "close": 1,
+      "close": 1.0,
       "date": "2026-11-20",
       "high": null,
       "low": null,
@@ -656,62 +656,62 @@
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
-      "low": 99,
+      "high": 101.0,
+      "low": 99.0,
       "open": 100.5,
       "symbol": "TNX",
-      "volume": 1000
+      "volume": 1000.0
     },
     "why": "symbol without a stored bar series"
   },
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
+      "high": 101.0,
       "low": 100.2,
       "open": 100.5,
       "symbol": "SPY",
-      "volume": 1000
+      "volume": 1000.0
     },
     "why": "low above the close"
   },
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
       "high": 100.2,
-      "low": 99,
+      "low": 99.0,
       "open": 100.5,
       "symbol": "SPY",
-      "volume": 1000
+      "volume": 1000.0
     },
     "why": "high below the open"
   },
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
-      "low": 99,
+      "high": 101.0,
+      "low": 99.0,
       "open": 0,
       "symbol": "SPY",
-      "volume": 1000
+      "volume": 1000.0
     },
     "why": "price must be positive"
   },
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
-      "low": 99,
+      "high": 101.0,
+      "low": 99.0,
       "open": 100.5,
       "symbol": "SPY",
       "volume": -1
@@ -721,10 +721,10 @@
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
-      "low": 99,
+      "high": 101.0,
+      "low": 99.0,
       "open": 100.5,
       "symbol": "SPY"
     },
@@ -733,13 +733,13 @@
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
-      "low": 99,
+      "high": 101.0,
+      "low": 99.0,
       "open": 100.5,
       "symbol": "SPY",
-      "volume": 1000,
+      "volume": 1000.0,
       "adjClose": null
     },
     "why": "unknown key (strict object)"
@@ -1183,8 +1183,8 @@
       "directIndirect": "D",
       "price": 12.5,
       "securityTitle": "Common Stock",
-      "shares": 1000,
-      "sharesAfter": 11000,
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
       "transactionCode": "P",
       "transactionDate": "2026-11-03",
       "accessionNumber": "0000900001-26-000001",
@@ -1200,8 +1200,8 @@
       "directIndirect": "D",
       "price": 12.5,
       "securityTitle": "Common Stock",
-      "shares": 1000,
-      "sharesAfter": 11000,
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
       "transactionCode": "Q",
       "transactionDate": "2026-11-03",
       "accessionNumber": "0000900001-26-000001",
@@ -1310,7 +1310,7 @@
       "periodEnding": "2026-06-30",
       "shares": null,
       "symbol": null,
-      "value": 1,
+      "value": 1.0,
       "weight": null
     },
     "why": "bad accession on a 13F row"

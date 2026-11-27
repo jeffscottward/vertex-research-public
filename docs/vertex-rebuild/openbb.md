@@ -424,7 +424,7 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
 Reads (operator, read-only):
 
 - `openbb.status`: per job last run and status, per-source overdue evaluation (`checkedAt`,
-  `overdueCount`, `sources[]` covering all 23 `OPENBB_JOBS` via `OPENBB_JOB_METADATA` plus QuantVPS
+  `overdueCount`, `sources[]` covering all 22 `OPENBB_JOBS` via `OPENBB_JOB_METADATA` plus QuantVPS
   flow sources via `FLOW_SOURCE_METADATA`, with `market_premium` read from
   `flow_market_premium_sessions` and the remaining 5 flow sources read from SPY `flow_samples`),
   per table newest date and row count, and nullable `lastFallbackAt`. The newest run of a job in a blocked streak has

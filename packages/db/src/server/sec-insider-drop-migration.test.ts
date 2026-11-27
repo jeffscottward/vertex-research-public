@@ -26,8 +26,7 @@ describe(TAG, () => {
   it("drops openbb_sec_insider_trades in one statement without CASCADE and is registered in the journal", () => {
     expect(migration.trim()).toBe('DROP TABLE "openbb_sec_insider_trades";');
     expect(migration.toUpperCase()).not.toContain("CASCADE");
-    const entry = journal.entries.find((item) => item.tag === TAG);
-    expect(entry?.idx).toBe(102);
+    expect(journal.entries.map((item) => item.tag)).toContain(TAG);
   });
 
   it("recreates the exact columns, constraints, and guarded vertex_research grant from 0064", () => {

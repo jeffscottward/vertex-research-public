@@ -7,14 +7,14 @@
       "callIv25d30d": null,
       "callOi": 40283,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0,
       "putOi": 17404,
       "putVolume": 9055,
-      "putWall": 375,
+      "putWall": 375.0,
       "source": "cboe",
       "underlying": "GLD",
       "underlyingPrice": 1e-9
@@ -26,7 +26,7 @@
     "row": {
       "asOf": "2026-11-06",
       "atmIv": 10,
-      "atmStrike": 373,
+      "atmStrike": 373.0,
       "callOi": 12691,
       "callVolume": 13457,
       "dte": 0,
@@ -54,14 +54,14 @@
       "callIv25d30d": 0.220094,
       "callOi": 9007199254740991,
       "callVolume": 20874,
-      "callWall": 385,
+      "callWall": 385.0,
       "contracts": 296,
-      "gammaFlip": 370,
+      "gammaFlip": 370.0,
       "netGex": 85189846.84,
       "putIv25d30d": 0.243056,
       "putOi": 17404,
       "putVolume": 0,
-      "putWall": 375,
+      "putWall": 375.0,
       "source": "cboe",
       "underlying": "GLD",
       "underlyingPrice": 372.52
@@ -159,7 +159,7 @@
       "periodEnding": "2026-03-31",
       "shares": null,
       "symbol": null,
-      "value": 1137670000,
+      "value": 1137670000.0,
       "weight": null
     },
     "why": "top-50-only row: symbol null, shares null, optionType empty"
@@ -315,8 +315,8 @@
       "directIndirect": "D",
       "price": null,
       "securityTitle": "Common Stock",
-      "shares": 1000,
-      "sharesAfter": 11000,
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
       "transactionCode": "K",
       "transactionDate": null,
       "accessionNumber": "0000900001-26-000001",
@@ -391,7 +391,7 @@
       "periodEnding": "2022-09-30",
       "shares": null,
       "symbol": null,
-      "value": 1,
+      "value": 1.0,
       "weight": null
     },
     "why": "13F row without accession and filing date (stored before PR 5)"
@@ -400,11 +400,11 @@
     "table": "daily_series",
     "row": {
       "adjClose": 81.6,
-      "close": 102,
+      "close": 102.0,
       "date": "2026-11-20",
-      "high": 104,
-      "low": 100,
-      "open": 101,
+      "high": 104.0,
+      "low": 100.0,
+      "open": 101.0,
       "seriesId": "SPY"
     },
     "why": "daily-prices ETF row with an adjusted close"
@@ -425,10 +425,10 @@
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
       "high": 100.5,
-      "low": 100,
+      "low": 100.0,
       "open": 100.5,
       "symbol": "ES=F",
       "volume": null
@@ -438,10 +438,10 @@
   {
     "table": "daily_bars",
     "row": {
-      "close": 100,
+      "close": 100.0,
       "date": "2026-11-20",
-      "high": 101,
-      "low": 99,
+      "high": 101.0,
+      "low": 99.0,
       "open": 100.5,
       "symbol": "SPY",
       "volume": 0
