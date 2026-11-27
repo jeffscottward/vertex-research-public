@@ -36,6 +36,7 @@ import {
   OPENBB_JOB_TABLES,
   OPENBB_JOBS,
   OPENBB_MAX_INGEST_ROWS,
+  OPENBB_MAX_WARNINGS,
   OPENBB_TABLE_REQUIRES,
   type OpenbbBatchDocument,
   OpenbbBatchDocumentSchema,
@@ -44,7 +45,6 @@ import {
   type OpenbbJob,
   openbbBlockedError,
   SEC_FORM4_DEFAULT_DAYS,
-  TICKER_SYMBOL_PATTERN,
 } from "../../packages/api/src/contracts/openbb.ts";
 
 const EnvelopeSchema = z.object({ json: z.unknown() });
@@ -590,27 +590,24 @@ const postTables = async (
   return { chunks, errors, failedChunks, received, written };
 };
 
-// Expected skip line from services/openbb/vertex_openbb/jobs/cboe.py (chain_rows, line 186)
-// when Cboe chains include adjusted contracts (for example B1SPY...). Kept in openbb_ingest_runs.warnings
-// so the run record preserves the skip count, but excluded from partial for cboe-option-iv only.
-// Yahoo fallback lines (used the Yahoo option chain; skipped N Yahoo rows without a standard OCC
-// symbol or strike) never match. Single-job exception: a second job needing informational notes
-// triggers a structured notes/info field in openbb-batch.v1 instead of extending this filter.
-const CBOE_OCC_SKIP_INFO =
-  /^cboe chain ([^:\s]+): skipped [1-9]\d* rows without a standard OCC symbol$/u;
-
-const isCboeOccSkipInfo = (warning: string): boolean => {
-  const [, symbol] = CBOE_OCC_SKIP_INFO.exec(warning) ?? [];
-  return symbol !== undefined && TICKER_SYMBOL_PATTERN.test(symbol);
+/**
+ * Combines document warnings (first) with producer-side informational notes (`document.info`,
+ * deduped and capped at OPENBB_MAX_WARNINGS) so openbb_ingest_runs.warnings preserves info counts
+ * (for example Cboe non-standard OCC skips) without turning an ok run partial.
+ */
+const recordedWarnings = (document: OpenbbBatchDocument | null): string[] => {
+  if (document === null) return [];
+  const combined = [...document.warnings];
+  const seen = new Set<string>(combined);
+  for (const note of document.info ?? []) {
+    if (seen.has(note)) continue;
+    seen.add(note);
+    combined.push(note);
+  }
+  if (combined.length <= OPENBB_MAX_WARNINGS) return combined;
+  const kept = combined.slice(0, OPENBB_MAX_WARNINGS - 1);
+  return [...kept, `${combined.length - kept.length} more notes not shown`];
 };
-
-const partialWarningCount = (
-  job: OpenbbJob,
-  warnings: readonly string[]
-): number =>
-  job === "cboe-option-iv"
-    ? warnings.filter((warning) => !isCboeOccSkipInfo(warning)).length
-    : warnings.length;
 
 const statusOf = (
   outcome: Outcome,
@@ -740,6 +737,8 @@ const printDryRun = (io: OpenbbTickIo, fetched: Fetched): number => {
   for (const { table, rows } of fetched.document.tables)
     io.stdout.write(`${table}: ${rows.length} rows\n`);
   io.stdout.write(`warnings: ${fetched.document.warnings.length}\n`);
+  if (fetched.document.info !== undefined && fetched.document.info.length > 0)
+    io.stdout.write(`info: ${fetched.document.info.length}\n`);
   const blocked = blockedOf(fetched.document);
   if (blocked !== null)
     io.stdout.write(`blocked: ${openbbBlockedError(blocked)}\n`);
@@ -768,7 +767,7 @@ const recordBlocked = async (
     rowsWritten: 0,
     startedAt: run.startedAt.toISOString(),
     status: "blocked_upstream",
-    warnings: document.warnings,
+    warnings: recordedWarnings(document),
   });
   io.stdout.write(`${document.job}: blocked_upstream, ${reason}\n`);
   if (streak !== null && passesEscalation(streak, run.startedAt))
@@ -792,9 +791,7 @@ const recordOutcome = async (
       ? { chunks: 0, errors: [], failedChunks: 0, received: 0, written: 0 }
       : await postTables(io, api, document);
   const status =
-    document === null
-      ? "failed"
-      : statusOf(outcome, partialWarningCount(document.job, document.warnings));
+    document === null ? "failed" : statusOf(outcome, document.warnings.length);
   const error = [fetched.ok ? [] : [fetched.error], outcome.errors]
     .flat()
     .join("; ");
@@ -807,7 +804,7 @@ const recordOutcome = async (
     rowsWritten: outcome.written,
     startedAt: startedAt.toISOString(),
     status,
-    warnings: document?.warnings ?? [],
+    warnings: recordedWarnings(document),
   });
   io.stdout.write(
     `${args.job}: ${status}, ${outcome.written} of ${outcome.received} rows written\n`

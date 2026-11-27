@@ -76,12 +76,12 @@ const SmartMoneyCoverageSchema = z.object({
    * plus 30 minutes) without a capture; null unless stale.
    */
   overdueSince: z.date().nullable(),
-  /** Today's New York date; the live capture runs on weekdays. */
+  /** Today's New York date; the live capture runs on NYSE trading days. */
   sessionDate: date,
   /**
    * fresh: today's capture is at most 30 minutes old while options trade (09:30-16:15 New York);
    * stale: older, or missing after the first 30 minutes; never: no capture yet in the first 30
-   * minutes; closed: outside that window or on a weekend.
+   * minutes; closed: outside that window, on a weekend or on an NYSE holiday.
    */
   state: z.enum(SMART_MONEY_COVERAGE_STATES),
   status: z.enum(SMART_MONEY_SESSION_STATUSES).nullable(),

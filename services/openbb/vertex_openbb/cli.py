@@ -273,6 +273,8 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         "tables": out_tables,
         "warnings": ctx.capped_warnings(),
     }
+    if ctx.info_notes:
+        doc["info"] = ctx.capped_info()
     if all_blocked(ctx):
         # Every source was refused by its host: the tables are empty and the first host is reported.
         host, status = ctx.blocked[0]
@@ -389,7 +391,10 @@ def run(
     counts = ", ".join(f"{t['table']}={len(t['rows'])}" for t in doc["tables"])
     if "blocked" in doc:
         counts += f"; blocked upstream: HTTP {doc['blocked']['httpStatus']} from {doc['blocked']['host']}"
-    stderr.write(f"vertex_openbb: {args.job}: {counts}; {len(doc['warnings'])} warnings\n")
+    summary = f"{counts}; {len(doc['warnings'])} warnings"
+    if "info" in doc:
+        summary += f"; {len(doc['info'])} info"
+    stderr.write(f"vertex_openbb: {args.job}: {summary}\n")
     return EXIT_OK
 
 
