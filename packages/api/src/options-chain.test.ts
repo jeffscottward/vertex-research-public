@@ -761,7 +761,7 @@ describe("optionsChain source fallback", () => {
     expect(chain.spotSource).toBe("yahoo");
   });
 
-  it("Quant Data present: IV, delta and open interest are tagged quantdata and flow is set", async () => {
+  it("Quant Data present: IV and delta are tagged quantdata, flow is set and the open interest stays Yahoo's", async () => {
     const quantData = quantDataFake(async () => quantDataSnapshot);
     setOptionsChainForTesting({ now: () => NOW, quantData, yahoo: yahoo() });
     const chain = await operator().optionsChain.chain({ symbol: "DEMO" });
@@ -769,11 +769,12 @@ describe("optionsChain source fallback", () => {
     expect(call).toMatchObject({
       flow: { premium: 125_000, trades: 3, volume: 410 },
       iv: 0.31,
-      openInterest: 2500,
+      // Yahoo has the open interest: the Quant Data print value (2500) is not used.
+      openInterest: 2210,
       sources: {
         delta: "quantdata",
         iv: "quantdata",
-        openInterest: "quantdata",
+        openInterest: "yahoo",
         quote: "yahoo",
       },
     });
@@ -1757,6 +1758,72 @@ describe("optionsChain source fallback", () => {
       "IBKR request failed",
       null,
     ]);
+  });
+
+  it("open interest: Yahoo first; a Quant Data print value fills a contract Yahoo does not list, and a print value of 0 is not used", async () => {
+    const flowPrint = (
+      right: "CALL" | "PUT",
+      strike: number,
+      openInterest: number
+    ) => ({
+      contractType: right,
+      expirationDate: "2026-11-06",
+      openInterest,
+      premium: 67_600,
+      size: 200,
+      strikePrice: strike,
+      tradeTime: Date.parse("2026-11-04T19:59:00Z"),
+    });
+    const doFetch = vi.fn<QuantDataFetch>(
+      async (url) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith("term-structure")
+              ? { data: {}, stockPrice: 100.5 }
+              : {
+                  data: [
+                    flowPrint("CALL", 100, 0),
+                    flowPrint("PUT", 100, 1554),
+                    // Yahoo lists the strikes 90, 100 and 110 only.
+                    flowPrint("PUT", 60, 4786),
+                    flowPrint("PUT", 61, 0),
+                  ],
+                }
+          ),
+          { headers: { "content-type": "application/json" }, status: 200 }
+        )
+    );
+    setOptionsAnalyticsForTesting({ fetch: doFetch, minIntervalMs: 0 });
+    setOptionsChainForTesting({ now: () => NOW, yahoo: yahoo() });
+    const api = apiFor(session("operator"), { quantData: QUANTDATA });
+    const chain = await api.optionsChain.chain({ symbol: "DEMO" });
+    const put = (strike: number) =>
+      chain.rows.find((row) => row.strike === strike)?.put;
+    const flow = { premium: 67_600, trades: 1, volume: 200 };
+    // Quant Data sent 0 and Yahoo has 2210: the Yahoo value shows, with the flow.
+    expect(atmCall(chain)).toMatchObject({
+      flow,
+      openInterest: 2210,
+      sources: { openInterest: "yahoo" },
+    });
+    // Both have a value: Yahoo's 1500 shows, not the print's 1554.
+    expect(put(100)).toMatchObject({
+      flow,
+      openInterest: 1500,
+      sources: { openInterest: "yahoo" },
+    });
+    // Yahoo does not list the contract: the print value fills it.
+    expect(put(60)).toMatchObject({
+      flow,
+      openInterest: 4786,
+      sources: { openInterest: "quantdata" },
+    });
+    // Yahoo does not list the contract and the print carries 0: no open interest is shown.
+    expect(put(61)).toMatchObject({
+      flow,
+      openInterest: null,
+      sources: { openInterest: null },
+    });
   });
 });
 
