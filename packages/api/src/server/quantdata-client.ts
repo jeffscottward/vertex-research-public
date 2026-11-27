@@ -1,12 +1,13 @@
 // Read-only QuantData HTTP client (port of Gamma Forge QuantDataProvider).
 // - POST JSON with a bearer key; the key and URL never appear in messages.
-// - One request start per `minIntervalMs` (default 1 s) per client, one step at a time. The turn is
-//   a lease, not a promise chain (as `vertex-orders.ts#onePlacementAtATime`): in workerd a step
-//   belongs to the request that runs it, and when that request's context ends the step can stay
-//   pending for good and its own timeout timer never fires. A waiter therefore bounds its wait with
-//   its own timer and takes the turn when the running step is older than `stepDeadlineMs`
+// - One request start per `minIntervalMs` (default 1 s) per client, one step at a time, first come
+//   first served: a finished step hands the turn to the first waiter. The turn is a time lease, not
+//   a promise chain (as `vertex-orders.ts#onePlacementAtATime`): in workerd a step belongs to the
+//   request that runs it, and when that request's context ends the step can stay pending for good
+//   and its own timeout timer never fires. A waiter therefore bounds its wait with its own timer
+//   and takes the turn when the running step is older than `stepDeadlineMs`
 //   (`minIntervalMs + timeoutMs + 2 s`). A slow live step past that can overlap the next one; the
-//   per-minute budget still counts every start.
+//   spacing and the per-minute budget are checked before every start.
 // - At most `maxRequestsPerMinute` (default 54) request starts in any 60 s window. Measured over
 //   10 trading days (2026-11-10 to 2026-11-23): market-watch-gex peaks at 122 req / 60 s at the
 //   open, leaving 240 - 122 - 60 (25% margin) = 58 req / 60 s; cap 54 keeps 64 req / 60 s (26.7%)
@@ -64,6 +65,16 @@ const DEFAULT_QUOTA_RESERVE = 60;
 const WHOLE_NUMBER = /^\d+$/u;
 // Added to `minIntervalMs + timeoutMs` (the longest a live step takes) before a waiter takes the turn.
 const STEP_DEADLINE_MARGIN_MS = 2000;
+
+// One step's turn. NO_TURN: no step runs (it is older than any deadline).
+type Turn = Readonly<{ startedAt: number }>;
+const NO_TURN: Turn = Object.freeze({ startedAt: Number.NEGATIVE_INFINITY });
+
+// A caller waiting for the turn; a finished step sets `granted` and wakes it.
+interface TurnWaiter {
+  granted: Turn | null;
+  readonly wake: () => void;
+}
 
 export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;
 
@@ -216,34 +227,53 @@ export const createQuantDataClient = (
   const starts: number[] = [];
   let lastStart: number | null = null;
   let lastRemaining: number | null = null;
-  // The running step: when it started and a promise that settles when it ends (see the header).
-  let running: Readonly<{ startedAt: number; done: Promise<void> }> | null =
-    null;
+  // The running step (when it started) and the callers waiting for a turn, first come first
+  // served (see the header).
+  let running: Turn = NO_TURN;
+  const waiting: TurnWaiter[] = [];
   const stepDeadlineMs = minInterval + timeoutMs + STEP_DEADLINE_MARGIN_MS;
 
-  // Waits until no step runs, or the running one is older than `stepDeadlineMs`, then takes the
-  // turn. Wall time (`Date.now`) and the global timer, not the injected `now`/`sleep`: an
-  // injected clock that jumps must not hand the turn to a second step early. Returns the release.
-  const takeTurn = async (): Promise<() => void> => {
-    for (;;) {
-      const current = running;
-      if (current === null) break;
-      const left = current.startedAt + stepDeadlineMs - Date.now();
-      if (left <= 0) break;
-      await waitAtMost(current.done, left);
-    }
-    // Executor form: the ES2023 lib has no Promise.withResolvers.
-    let finish!: () => void;
-    const done = new Promise<void>((resolve) => {
-      finish = resolve;
-    });
-    const turn = Object.freeze({ done, startedAt: Date.now() });
+  const startTurn = (): Turn => {
+    const turn = Object.freeze({ startedAt: Date.now() });
     running = turn;
-    return () => {
-      // A step that ends after a waiter took over must not end the newer turn.
-      if (running === turn) running = null;
-      finish();
-    };
+    return turn;
+  };
+
+  // Ends a turn. The next waiter gets the turn at once, before anyone can call again, so the
+  // order of the waits holds. A step that ends after a waiter took over changes nothing.
+  const endTurn = (turn: Turn): void => {
+    if (running !== turn) return;
+    const next = waiting.shift();
+    if (next === undefined) {
+      running = NO_TURN;
+      return;
+    }
+    next.granted = startTurn();
+    next.wake();
+  };
+
+  // Takes the turn now, or waits in line. A waiter also takes the turn when the running step
+  // is older than `stepDeadlineMs`. Wall time (`Date.now`) and the global timer, not the
+  // injected `now`/`sleep`: an injected clock that jumps must not hand the turn over early.
+  const takeTurn = async (): Promise<Turn> => {
+    if (running === NO_TURN) return startTurn();
+    // Executor form: the ES2023 lib has no Promise.withResolvers.
+    let wake!: () => void;
+    const woken = new Promise<void>((resolve) => {
+      wake = resolve;
+    });
+    const me: TurnWaiter = { granted: null, wake };
+    waiting.push(me);
+    for (;;) {
+      if (me.granted !== null) return me.granted;
+      const left = running.startedAt + stepDeadlineMs - Date.now();
+      if (left <= 0) {
+        // Not granted, so still in line: leave it and take over.
+        waiting.splice(waiting.indexOf(me), 1);
+        return startTurn();
+      }
+      await waitAtMost(woken, left);
+    }
   };
 
   const cooldownSeconds = (): number =>
@@ -488,7 +518,7 @@ export const createQuantDataClient = (
     const held = blocked(endpoint);
     if (held !== null) return held;
     const kept = Math.min(Math.max(0, keepFree), maxPerMinute - 1);
-    const release = await takeTurn();
+    const turn = await takeTurn();
     try {
       // With the turn, check the cache again: an identical read ahead of this one may have
       // filled it while this one waited. Its entry keeps its expiry time. Each step fills the
@@ -500,7 +530,7 @@ export const createQuantDataClient = (
       return result;
     } finally {
       // Also when the step throws unexpectedly (for example an injected clock).
-      release();
+      endTurn(turn);
     }
   };
 

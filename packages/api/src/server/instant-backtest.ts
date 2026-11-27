@@ -100,10 +100,12 @@ export const columnsFor = async (
     columnCache.set(series.id, cached);
     // The load may run on another request's connection. In workerd it can stay pending for good
     // when that request's context ends (bounded-wait.ts): wait at most SHARED_LOAD_WAIT_MS, then
-    // drop the entry and load with this request's repository.
+    // drop the entry and start again: a newer load that another waiter started is waited for,
+    // else this request loads with its own repository.
     const waited = await waitAtMost(cached.columns, SHARED_LOAD_WAIT_MS);
     if (!waited.timedOut) return { columns: waited.value, hit: true };
     if (columnCache.get(series.id) === cached) columnCache.delete(series.id);
+    return await columnsFor(repository, series);
   }
   const entry: CachedColumns = {
     bytes: series.barCount * BYTES_PER_BAR,

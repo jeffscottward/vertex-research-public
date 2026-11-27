@@ -359,7 +359,7 @@ describe("instantBacktest procedures", () => {
         settled = true;
       });
       await vi.advanceTimersByTimeAsync(1);
-      // A second waiter on the same load finds the entry already replaced when its wait ends.
+      // A second waiter on the same load finds a newer load when its wait ends.
       const second = client.instantBacktest.run(runInput);
       await vi.advanceTimersByTimeAsync(29_998);
       expect(settled).toBe(false);
@@ -367,10 +367,11 @@ describe("instantBacktest procedures", () => {
       const answer = await waiting;
       expect(answer.timing.cache).toBe("miss");
       await vi.advanceTimersByTimeAsync(1);
+      // It waits for that newer load instead of starting a third.
       await expect(second).resolves.toMatchObject({
-        timing: { cache: "miss" },
+        timing: { cache: "hit" },
       });
-      return expect(loadColumns).toHaveBeenCalledTimes(3);
+      return expect(loadColumns).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
