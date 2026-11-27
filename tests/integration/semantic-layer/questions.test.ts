@@ -5,8 +5,9 @@ import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
 // The Q20 rubric ("Which drift monitors are in alert?", reference: only ORB paper forward). The forbidden
 // pattern counts every "alert" after "Sector momentum" up to the next full stop as wrong. One fixed text is
 // removed before that check (`allowed`): the tail ", not alert" or " (not alert)" directly after the exact
-// clause "Sector momentum paper forward [is] at warn", under the four rules of Q20_WARN_NOT_ALERT in
-// questions.ts. Everything else stays under the check.
+// clause "Sector momentum paper forward [(m_mom)] [is] at warn", under the rules of Q20_WARN_NOT_ALERT in
+// questions.ts (the line may quote the warn and alert thresholds together, directly after the ratio 1.08). Everything else
+// stays under the check.
 const ORB = "Only the ORB paper forward monitor is in alert.";
 const CLAUSE = "Sector momentum paper forward is at warn";
 
@@ -17,7 +18,10 @@ describe("Q20 rubric", () => {
   // Rows 1 to 5: the rows of the two exact allowed lines of the earlier rubric (the recorded lines). Row 6: a
   // changed figure on the clause line; the rubric does not check figures, so the answer is correct. Rows 7 to
   // 14: one line for each form of the Sector momentum line in the answers measured on 2026-11-15. Row 15: two
-  // tails on two lines; the pattern is global and removes both.
+  // tails on two lines; the pattern is global and removes both. Rows 16 to 18: the Sector momentum lines of
+  // the recording of 2026-11-26, which quote the warn and alert thresholds of the monitor together after the
+  // tail (row 16 also names the monitor id of the fixture). Rows 19 and 20: the two answers measured on
+  // 2026-11-15 that quote the same threshold pair.
   it.each([
     "Sector momentum paper forward is at warn, not alert.",
     "- Sector momentum paper forward is at warn, not alert.",
@@ -34,6 +38,11 @@ describe("Q20 rubric", () => {
     "The forward sample is small at 13 trades. Sector momentum paper forward is at warn, not alert. This is paper data only.",
     "Sector momentum paper forward is at warn, not alert: max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08). RSI MR paper forward is ok.",
     "Sector momentum paper forward is at warn, not alert.\nFor context, drift_status also shows Sector momentum paper forward at warn (not alert) and RSI MR paper forward at ok.",
+    "- Sector momentum paper forward (m_mom) is at warn, not alert. Its forward max drawdown is 24.37% against a 22.50% baseline, a ratio of 1.08. It warns at 1 and alerts at 1.5, and it has only 3 trades.",
+    "- Sector momentum paper forward is at warn, not alert. Its forward max drawdown is 24.37% vs 22.50% baseline, a ratio of 1.08; warn starts at 1 and alert at 1.5. It has only 3 trades.",
+    "- Sector momentum paper forward is at warn, not alert. Its forward max drawdown is 24.37% vs 22.50% baseline (ratio 1.08; warn at 1, alert at 1.5).",
+    "drift_status also shows Sector momentum paper forward at warn, not alert, on max drawdown: forward 24.37% vs baseline 22.50% (ratio 1.08; warn at 1, alert at 1.5).",
+    "Sector momentum paper forward is at warn, not alert: max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08, warn at 1, alert at 1.5). RSI MR paper forward is ok.",
   ])(
     "removes the tail after the clause and grades the answer as correct: %s",
     (line) => {
@@ -64,6 +73,16 @@ describe("Q20 rubric", () => {
     "Sector momentum paper forward is at warn, not alert, but it is in alert now.",
     "Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only. It is in alert now.",
     "In alert: Sector momentum paper forward is at warn, not alert (max drawdown 24.37% forward vs 22.50% baseline, ratio 1.08). This is paper data only.",
+    "Sector momentum paper forward is at warn, not alert (ratio 1.08; warn at 1, alert at 1.5). It is in alert now.",
+    "Sector momentum paper forward is at warn, not alert. Correction: it is in alert at 1.5.",
+    "Sector momentum paper forward is at warn, not alert; it reached the alert at 1.5 today.",
+    "Sector momentum paper forward is at warn, not alert (warn at 1, alert at 1.5), and it alerts now.",
+    "Sector momentum paper forward is at warn, not alert (warn at 1, alert at 1.55, in alert).",
+    "Sector momentum paper forward (m_orb) is at warn, not alert, but it is in alert now.",
+    "Sector momentum paper forward is at warn, not alert. Correction: its ratio is now 1.6, above both lines (warn at 1, alert at 1.5).",
+    "Sector momentum paper forward is at warn, not alert by the stored level, but its ratio of 1.62 has passed both thresholds: warn at 1, alert at 1.5.",
+    "Sector momentum paper forward is at warn, not alert. Update: it has now breached. Warn at 1, alert at 1.5; the ratio is 1.80.",
+    "Sector momentum paper forward is at warn, not alert. Ratio 1.08 was yesterday. It has triggered both: warn at 1, alert at 1.5.",
   ])("grades Sector Momentum in alert as wrong: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("wrong");
   });
@@ -116,7 +135,8 @@ describe("Q20 rubric", () => {
     expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("wrong");
   });
 
-  // Rule 4: the line holds no other "alert", in any letter case and also inside a word.
+  // Rule 4: the line holds no other "alert", in any letter case and also inside a word (except the threshold
+  // pair quoted directly after the ratio 1.08, after the tail).
   it.each([
     `In alert: ${CLAUSE}, not alert.`,
     `Both ALERTS are open. ${CLAUSE}, not alert.`,
@@ -134,9 +154,10 @@ describe("Q20 rubric", () => {
   );
 
   // Known limit (strict side): correct wordings that stay wrong. Rows 1 to 4 do not hold the exact clause with
-  // its tail. Rows 5 to 8 hold a second "alert" on the line; rows 7 and 8 are the two measured answers that
-  // quote the alert threshold. Row 9 has no full stop, so the forbidden pattern reaches the "alert" of the
-  // next line.
+  // its tail. Rows 5 and 6 hold a second "alert" on the line. Row 7 has no full stop, so the forbidden pattern
+  // reaches the "alert" of the next line. (The two answers measured on 2026-11-15 that quote the thresholds
+  // "warn at 1, alert at 1.5" were rows here until 2026-11-26; they are now rows 19 and 20 of the correct list.)
+  // Rows 8 to 10 quote the threshold pair without the ratio 1.08 directly before it.
   it.each([
     "Sector momentum is at warn, not alert.",
     "Sector momentum paper forward is at warn and not in alert.",
@@ -144,9 +165,10 @@ describe("Q20 rubric", () => {
     "Sector momentum isn't in alert.",
     "ORB paper forward is in alert; Sector momentum paper forward is at warn, not alert.",
     "Only ORB paper forward is in alert. Sector momentum paper forward is at warn, not alert.",
-    "drift_status also shows Sector momentum paper forward at warn, not alert, on max drawdown: forward 24.37% vs baseline 22.50% (ratio 1.08; warn at 1, alert at 1.5).",
-    "Sector momentum paper forward is at warn, not alert: max drawdown is 24.37% forward vs 22.50% baseline (ratio 1.08, warn at 1, alert at 1.5). RSI MR paper forward is ok.",
     "- Sector momentum paper forward is at warn, not alert\n- RSI MR paper forward is ok, no alert",
+    "- Sector momentum paper forward is at warn, not alert (warn at 1, alert at 1.5).",
+    "Sector momentum paper forward is at warn, not alert: warn at 1, alert at 1.5.",
+    "Sector momentum paper forward is at warn, not alert; warn starts at 1 and alert at 1.5.",
   ])("still grades another correct wording as wrong: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("wrong");
   });
@@ -157,7 +179,8 @@ describe("Q20 rubric", () => {
   // W018 and W121 of the red-team run of 2026-11-15), or with "alert" on another line after a decimal point
   // (W119). The earlier rubric graded them wrong only because their line was not an exact allowed line; it
   // grades the same claims correct when the words ", not alert" are left out. The independent grade is the
-  // check for all of these answers.
+  // check for all of these answers. Rows 9 and 10 make the claim after the threshold pair that the pattern
+  // allows next to the ratio 1.08 (rule of 2026-11-26), again without the text "alert".
   it.each([
     "- Sector momentum paper forward is at warn, not alert.\nCorrection: it is now in alert as well.",
     "- Sector momentum paper forward is at warn, not alert.\nIn alert now: ORB paper forward and Sector momentum paper forward.",
@@ -167,6 +190,8 @@ describe("Q20 rubric", () => {
     "Sector momentum paper forward is at warn, not alert. Correction: it is firing as well.",
     "Sector momentum paper forward is at warn, not alert (ratio 1.08 at 09:30)\nbut since 10:15 it is in alert too.",
     "<!-- Sector momentum paper forward is at warn, not alert -->\nThe text in the comment is the old one; the monitor fired at 10:15 and has the level of ORB paper forward now.",
+    "Sector momentum paper forward is at warn, not alert (ratio 1.08; warn at 1, alert at 1.5). So it should be treated like ORB paper forward.",
+    "Sector momentum paper forward is at warn, not alert. Its max drawdown ratio 1.08, warn at 1, alert at 1.5, was crossed today and it joined ORB paper forward.",
   ])("does not catch a claim outside the pattern: %s", (sentence) => {
     expect(gradeAnswer(q20, `${ORB}\n${sentence}`)).toBe("correct");
   });
