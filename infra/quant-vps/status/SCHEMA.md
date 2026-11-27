@@ -90,7 +90,7 @@ Items: `{symbol, sec_type, qty, avg_px, avg_cost, multiplier|null, market_price,
 
 ### `orders`
 
-Items: `{order_id_masked, client_id, symbol, sec_type, side (buy|sell), type, qty, filled, remaining, price (limit), stop, aux_price, tif, status, currency, warning?}`. `stop` holds the IB aux price for `STP`, `STP LMT`, `TRAIL`, `TRAIL LIMIT` and `STP PRT`; for every other type the value goes in `aux_price`. Source: `data/nautilus/reports/ibkr-open-orders.json`, read from disk without a portfolio-ui call or refresh.
+Items: `{order_id_masked, client_id, symbol, sec_type, side (buy|sell), type, qty, filled, remaining, price (limit), stop, aux_price, tif, status, currency, warning?}`. `stop` holds the IB aux price for `STP`, `STP LMT`, `TRAIL`, `TRAIL LIMIT` and `STP PRT`; for every other type the value goes in `aux_price`. Source: `data/nautilus/reports/ibkr-open-orders.json`, rewritten every 60 seconds by `vertex-ibkr-open-orders-refresh.timer` (transitional bridge using the frozen writer inside `portfolio-ui` with IBKR client id 149; `portfolio-ui` on-demand triggers stay active). The collector reads the file from disk without a portfolio-ui call or refresh.
 
 ### `fills`
 
