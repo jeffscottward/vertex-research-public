@@ -117,8 +117,11 @@ const SMART_MONEY_OPENBB_SUFFIXES = ASSISTANT_SMART_MONEY_TOOLS.map((name) =>
 /**
  * MCP tools the in-app assistant does not get yet. Non-smart-money OpenBB read tools (vol, IV
  * history, COT, macro, events, factors), any future openbb_* tool, flow_option_prints, and
- * market_notes_list reach research agents over /api/mcp; the assistant reads active market notes
- * from its system prompt instead (marketNotes on the turn input).
+ * market_notes_list reach research agents over /api/mcp. The assistant catalogue gains them when
+ * the semantic-layer eval (tests/integration/semantic-layer) is recorded with them: every recorded
+ * trial names the tool list it saw, and a new tool that no trial calls needs one new trial for each
+ * question (the tool rule in tests/integration/semantic-layer/recording.ts). The assistant reads
+ * active market notes from its system prompt instead (marketNotes on the turn input).
  */
 export const ASSISTANT_DEFERRED_TOOL_PATTERN = new RegExp(
   `^(?:openbb_(?!(?:${SMART_MONEY_OPENBB_SUFFIXES})$)|market_notes_|flow_option_prints$)`,

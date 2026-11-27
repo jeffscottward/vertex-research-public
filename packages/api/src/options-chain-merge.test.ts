@@ -117,12 +117,13 @@ describe("OPTIONS_CHAIN_PRIORITY", () => {
       delta: ["quantdata", "model"],
       expiries: ["quantdata", "ibkr", "yahoo"],
       iv: ["quantdata", "yahoo"],
-      openInterest: ["quantdata", "yahoo"],
+      // Yahoo first: a Quant Data print value only fills a contract that Yahoo does not have.
+      openInterest: ["yahoo", "quantdata"],
       // Quant Data has no live bid and ask.
       quote: ["ibkr", "yahoo"],
       spot: ["quantdata", "ibkr", "yahoo"],
     });
-    // Quant Data first wherever it has the value.
+    // Quant Data first wherever it has the value, except open interest.
     expect(OPTIONS_CHAIN_PRIORITY.spot).toEqual(OPTIONS_CHAIN_SOURCES);
     expect(OPTIONS_CHAIN_PRIORITY.expiries).toEqual(OPTIONS_CHAIN_SOURCES);
     for (const field of ["quote", "iv", "openInterest", "delta"] as const)
@@ -209,7 +210,8 @@ describe("mergeOptionsChain", () => {
       "Spot price: Yahoo Finance. Expiry list: Yahoo Finance. Bid and ask: Yahoo Finance for 6 (of 6 contracts)."
     );
     expect(notes).toContain("can be delayed by 15 minutes or more");
-    expect(notes).toContain(
+    // The whole note: without Quant Data rows no sentence on print values follows.
+    expect(output.notes).toContain(
       "IV: Yahoo Finance for 5. Open interest: Yahoo Finance for 6."
     );
     expect(notes).toContain("from the chosen IV: risk-free rate 4.00 %");
@@ -248,7 +250,8 @@ describe("mergeOptionsChain", () => {
       spotSource: "quantdata",
     });
     const atm = output.rows[3];
-    // IBKR quote, Quant Data IV, delta, open interest and flow; the rest stays Yahoo.
+    // IBKR quote, Quant Data IV, delta and flow; the rest stays Yahoo. Yahoo has the open
+    // interest (2210), so the Quant Data print value (2500) is not used.
     expect(atm?.call).toMatchObject({
       ask: 1.42,
       bid: 1.38,
@@ -260,11 +263,11 @@ describe("mergeOptionsChain", () => {
       iv: 0.31,
       last: yahooSnapshot.calls[1]?.last,
       lastTradeAt: yahooSnapshot.calls[1]?.lastTradeAt,
-      openInterest: 2500,
+      openInterest: 2210,
       sources: {
         delta: "quantdata",
         iv: "quantdata",
-        openInterest: "quantdata",
+        openInterest: "yahoo",
         quote: "ibkr",
       },
       volume: 812,
@@ -290,13 +293,34 @@ describe("mergeOptionsChain", () => {
       "Spot price: Quant Data. Expiry list: Quant Data, IBKR, Yahoo Finance. Bid and ask: IBKR live quotes for 2, Yahoo Finance for 5 (of 8 contracts)."
     );
     expect(notes).toContain(
-      "IV: Quant Data for 2, Yahoo Finance for 3. Open interest: Quant Data for 2, Yahoo Finance for 5."
+      "IV: Quant Data for 2, Yahoo Finance for 3. Open interest: Yahoo Finance for 6, Quant Data for 1. A Quant Data print value is used only when no other source has the open interest. A print value of 0 is read as not reported."
     );
     expect(notes).toContain(
-      "Quant Data open interest and flow come from the order-flow prints of the last 24 hours"
+      "Quant Data flow and print open interest come from the order-flow prints of the last 24 hours, so a contract without a print has neither."
     );
     expect(notes).toContain("Delta comes from Quant Data for 1 contracts.");
     expect(notes).toContain("3 contracts have no usable IV");
+  });
+
+  it("shows an open interest of 0 from Yahoo, also when a Quant Data print carries a value", () => {
+    // Yahoo's 0 is a reported value: only a missing Yahoo value lets the print value in.
+    const output = mergeOptionsChain(
+      reads({
+        yahoo: ok({
+          ...yahooSnapshot,
+          calls: yahooSnapshot.calls.map((quote) =>
+            quote.strike === 100 ? { ...quote, openInterest: 0 } : quote
+          ),
+        }),
+      }),
+      EXPIRY,
+      NOW
+    );
+    expect(output.rows[3]?.call).toMatchObject({
+      flow,
+      openInterest: 0,
+      sources: { openInterest: "yahoo" },
+    });
   });
 
   it("gives a contract only IBKR or Quant Data knows its own row", () => {
@@ -958,7 +982,7 @@ describe("mergeOptionsChain value rules", () => {
       status: "used",
     });
     expect(output.notes.join(" ")).toContain(
-      "order-flow prints of the last 24 hours, so a contract without a print shows neither. Only the first provider page of prints was read: flow totals can be too low and contracts can be missing."
+      "order-flow prints of the last 24 hours, so a contract without a print has neither. Only the first provider page of prints was read: flow totals can be too low and contracts can be missing."
     );
     const complete = mergeOptionsChain(reads(), EXPIRY, NOW);
     expect(complete.flowFirstPageOnly).toBe(false);
