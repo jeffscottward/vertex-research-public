@@ -55,10 +55,15 @@ done
 echo "backup=$BAK_DIR"
 
 # Install the updated collector and trigger one live run before retiring the transitional timer.
+# If either the live run or verification fails, roll back collect.py before exiting.
 install -m 700 "$SRC_DIR/collect.py" /opt/vertex-status/collect.py
-systemctl start vertex-status-collect.service
-if ! python3 /opt/vertex-status/collect.py --check-v2-dir /opt/vertex-status/private-v2 --check-public-dir /opt/vertex-status/public; then
-  echo "live collector verification failed; transitional timer left untouched"
+if ! systemctl start vertex-status-collect.service \
+  || ! python3 /opt/vertex-status/collect.py --check-v2-dir /opt/vertex-status/private-v2 --check-public-dir /opt/vertex-status/public; then
+  echo "live collector verification failed; restoring previous collect.py and leaving transitional timer untouched"
+  if [ -f "$BAK_DIR/collect.py.before" ]; then
+    install -m 700 "$BAK_DIR/collect.py.before" /opt/vertex-status/collect.py
+    systemctl start vertex-status-collect.service || true
+  fi
   exit 5
 fi
 

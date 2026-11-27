@@ -156,6 +156,11 @@ class DeployStatusV2IbkrMonitorTests(unittest.TestCase):
         self.assertLess(verify_idx, retire_idx)
         self.assertLess(retire_idx, rm_units_idx)
 
+        # Both systemctl start and --check-v2-dir must be guarded together with automatic rollback.
+        self.assertIn("if ! systemctl start vertex-status-collect.service", code_only)
+        self.assertIn("|| ! python3 /opt/vertex-status/collect.py --check-v2-dir", code_only)
+        self.assertIn('install -m 700 "$BAK_DIR/collect.py.before" /opt/vertex-status/collect.py', code_only)
+        self.assertIn("systemctl start vertex-status-collect.service || true", code_only)
         self.assertIn("retired_timer=ok", code_only)
         self.assertIn("protected_containers=unchanged", code_only)
         self.assertIn("rollback-", code_only)
