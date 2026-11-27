@@ -1,0 +1,780 @@
+<svg
+  aria-labelledby="title desc"
+  height="600"
+  role="img"
+  viewBox="0 0 1120 600"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title id="title">status-v2 Stale-Block Alerting: Before vs After</title>
+  <desc id="desc">
+    Visual flow comparing QuantVPS vertex-status-v2-alert.service before (checks
+    HTTP 200, schema, and auth guards only while stale or unavailable broker
+    blocks go silent) versus after (adds a third independent stale-block state
+    machine checking generatedAt and orders, fills, positions, and equity with a
+    3-tick threshold, deduplicated alert, and recovery notice to #omp-alerts).
+  </desc>
+  <defs>
+    <marker
+      id="arr-muted"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="7"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#8b949e" />
+    </marker>
+    <marker
+      id="arr-red"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="7"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#f85149" />
+    </marker>
+    <marker
+      id="arr-green"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="7"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="arr-gold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="7"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0 1 L8 5 L0 9 Z" fill="#d29922" />
+    </marker>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#11161f" />
+    </linearGradient>
+    <linearGradient id="gold-glow" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#d29922" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#d29922" stop-opacity="0.05" />
+    </linearGradient>
+  </defs>
+
+  <style>
+  .t-title {
+    font:
+      700 22px system-ui,
+      -apple-system,
+      sans-serif;
+    fill: #f0f6fc;
+  }
+  .t-sub {
+    font:
+      400 13px system-ui,
+      -apple-system,
+      sans-serif;
+    fill: #8b949e;
+  }
+  .t-badge-red {
+    font:
+      700 11px system-ui,
+      -apple-system,
+      sans-serif;
+    fill: #f85149;
+    letter-spacing: 0.08em;
+  }
+  .t-badge-gold {
+    font:
+      700 11px system-ui,
+      -apple-system,
+      sans-serif;
+    fill: #e3b341;
+    letter-spacing: 0.08em;
+  }
+  .t-label {
+    font:
+      600 13px system-ui,
+      -apple-system,
+      sans-serif;
+    fill: #e6edf3;
+  }
+  .t-small {
+    font:
+      500 11px system-ui,
+      -apple-system,
+      sans-serif;
+    fill: #8b949e;
+  }
+  .t-mono {
+    font:
+      600 11px ui-monospace,
+      SFMono-Regular,
+      monospace;
+    fill: #c9d1d9;
+  }
+  .t-mono-red {
+    font:
+      700 11px ui-monospace,
+      SFMono-Regular,
+      monospace;
+    fill: #ff7b72;
+  }
+  .t-mono-green {
+    font:
+      700 11px ui-monospace,
+      SFMono-Regular,
+      monospace;
+    fill: #56d364;
+  }
+  .t-mono-gold {
+    font:
+      700 11px ui-monospace,
+      SFMono-Regular,
+      monospace;
+    fill: #e3b341;
+  }
+  </style>
+
+  <!-- Canvas -->
+  <rect fill="url(#bg)" height="600" rx="16" width="1120" x="0" y="0" />
+  <rect
+    fill="none"
+    height="598"
+    rx="15"
+    stroke="#262c36"
+    stroke-width="1.5"
+    width="1118"
+    x="1"
+    y="1"
+  />
+
+  <!-- Header -->
+  <text class="t-title" x="32" y="42">
+    vertex-status-v2-alert.service — Stale Broker-Block Alerting
+  </text>
+  <text class="t-sub" x="32" y="64">
+    Read-only 2-min QuantVPS probe · 4 live ibkr-monitor blocks (orders · fills
+    · positions · equity) + snapshot generatedAt
+  </text>
+
+  <!-- ==================== BEFORE BAND ==================== -->
+  <rect
+    fill="#161b22"
+    height="176"
+    rx="12"
+    stroke="#30363d"
+    stroke-width="1.2"
+    width="1056"
+    x="32"
+    y="84"
+  />
+  <rect
+    fill="#2d1418"
+    height="24"
+    rx="6"
+    stroke="#f85149"
+    stroke-opacity="0.6"
+    width="84"
+    x="48"
+    y="98"
+  />
+  <text class="t-badge-red" text-anchor="middle" x="90" y="114">BEFORE</text>
+  <text class="t-label" x="144" y="114">
+    HTTP 200 + schema ok hides stale or unavailable broker blocks
+  </text>
+
+  <!-- Clock / Timer pictogram -->
+  <g transform="translate(64, 146)">
+    <circle
+      cx="24"
+      cy="24"
+      fill="#0d1117"
+      r="22"
+      stroke="#8b949e"
+      stroke-width="1.8"
+    />
+    <path
+      d="M24 12 V24 L32 29"
+      fill="none"
+      stroke="#c9d1d9"
+      stroke-linecap="round"
+      stroke-width="2.2"
+    />
+    <text class="t-mono" text-anchor="middle" x="24" y="62">2m timer</text>
+  </g>
+
+  <line
+    marker-end="url(#arr-muted)"
+    stroke="#8b949e"
+    stroke-width="1.8"
+    x1="114"
+    x2="178"
+    y1="170"
+    y2="170"
+  />
+
+  <!-- Snapshot document pictogram (HTTP 200 ok, blocks stale inside) -->
+  <g transform="translate(186, 130)">
+    <rect
+      fill="#0d1117"
+      height="96"
+      rx="10"
+      stroke="#3fb950"
+      stroke-width="1.6"
+      width="330"
+      x="0"
+      y="0"
+    />
+    <!-- HTTP 200 green pill -->
+    <rect
+      fill="#122b1a"
+      height="22"
+      rx="11"
+      stroke="#3fb950"
+      width="150"
+      x="12"
+      y="10"
+    />
+    <circle cx="24" cy="21" fill="#3fb950" r="4" />
+    <text class="t-mono-green" x="34" y="25">200 · schema v2</text>
+    <text class="t-small" x="172" y="25">guards: 403/403</text>
+
+    <!-- 4 stale/unavailable pills inside -->
+    <g transform="translate(12, 42)">
+      <rect
+        fill="#2d1418"
+        height="20"
+        rx="5"
+        stroke="#f85149"
+        width="72"
+        x="0"
+        y="0"
+      />
+      <text class="t-mono-red" text-anchor="middle" x="36" y="14">orders</text>
+
+      <rect
+        fill="#2d1418"
+        height="20"
+        rx="5"
+        stroke="#f85149"
+        width="66"
+        x="78"
+        y="0"
+      />
+      <text class="t-mono-red" text-anchor="middle" x="111" y="14">fills</text>
+
+      <rect
+        fill="#2d1418"
+        height="20"
+        rx="5"
+        stroke="#f85149"
+        width="82"
+        x="150"
+        y="0"
+      />
+      <text class="t-mono-red" text-anchor="middle" x="191" y="14">
+        positions
+      </text>
+
+      <rect
+        fill="#2d1418"
+        height="20"
+        rx="5"
+        stroke="#f85149"
+        width="68"
+        x="238"
+        y="0"
+      />
+      <text class="t-mono-red" text-anchor="middle" x="272" y="14">equity</text>
+    </g>
+    <text class="t-mono-red" x="14" y="82">
+      stale: true | available: false | frozen file
+    </text>
+  </g>
+
+  <!-- Blind-spot probe arrow -->
+  <line
+    marker-end="url(#arr-green)"
+    stroke="#3fb950"
+    stroke-width="1.8"
+    x1="522"
+    x2="626"
+    y1="154"
+    y2="154"
+  />
+  <text class="t-mono-green" text-anchor="middle" x="574" y="146">
+    avail_ok=true
+  </text>
+
+  <line
+    marker-end="url(#arr-red)"
+    stroke="#f85149"
+    stroke-dasharray="6 5"
+    stroke-width="1.8"
+    x1="522"
+    x2="626"
+    y1="204"
+    y2="204"
+  />
+  <text class="t-mono-red" text-anchor="middle" x="574" y="196">
+    not inspected
+  </text>
+
+  <!-- Probe icon -->
+  <g transform="translate(634, 134)">
+    <rect
+      fill="#0d1117"
+      height="88"
+      rx="10"
+      stroke="#30363d"
+      stroke-width="1.5"
+      width="166"
+      x="0"
+      y="0"
+    />
+    <text class="t-label" text-anchor="middle" x="83" y="28">
+      status_v2_alert.py
+    </text>
+    <text class="t-mono-green" text-anchor="middle" x="83" y="50">
+      avail ✓ bypass ✓
+    </text>
+    <text class="t-mono-red" text-anchor="middle" x="83" y="72">
+      blocks: blind
+    </text>
+  </g>
+
+  <!-- Broken line to silent bell -->
+  <line
+    stroke="#f85149"
+    stroke-dasharray="5 5"
+    stroke-width="1.8"
+    x1="806"
+    x2="914"
+    y1="178"
+    y2="178"
+  />
+  <line
+    stroke="#f85149"
+    stroke-width="2.4"
+    x1="852"
+    x2="868"
+    y1="170"
+    y2="186"
+  />
+  <line
+    stroke="#f85149"
+    stroke-width="2.4"
+    x1="868"
+    x2="852"
+    y1="170"
+    y2="186"
+  />
+
+  <!-- Crossed-out bell -->
+  <g transform="translate(924, 140)">
+    <rect
+      fill="#0d1117"
+      height="76"
+      rx="10"
+      stroke="#30363d"
+      stroke-width="1.4"
+      width="142"
+      x="0"
+      y="0"
+    />
+    <!-- Bell icon -->
+    <g transform="translate(55, 10)">
+      <path
+        d="M16 4 C10 4 7 9 7 15 V22 L4 26 H28 L25 22 V15 C25 9 22 4 16 4 Z"
+        fill="none"
+        stroke="#8b949e"
+        stroke-width="1.8"
+      />
+      <path
+        d="M13 28 A3 3 0 0 0 19 28"
+        fill="none"
+        stroke="#8b949e"
+        stroke-width="1.8"
+      />
+      <line
+        stroke="#f85149"
+        stroke-linecap="round"
+        stroke-width="2.4"
+        x1="3"
+        x2="29"
+        y1="5"
+        y2="29"
+      />
+    </g>
+    <text class="t-small" text-anchor="middle" x="71" y="54">#omp-alerts</text>
+    <text class="t-mono-red" text-anchor="middle" x="71" y="68">
+      SILENT (days)
+    </text>
+  </g>
+
+  <!-- ==================== AFTER BAND ==================== -->
+  <rect
+    fill="#161b22"
+    height="304"
+    rx="12"
+    stroke="#d29922"
+    stroke-opacity="0.7"
+    stroke-width="1.5"
+    width="1056"
+    x="32"
+    y="274"
+  />
+  <rect
+    fill="#2b210d"
+    height="24"
+    rx="6"
+    stroke="#d29922"
+    width="76"
+    x="48"
+    y="288"
+  />
+  <text class="t-badge-gold" text-anchor="middle" x="86" y="304">AFTER</text>
+  <text class="t-label" x="136" y="304">
+    3 independent incident state machines — fail-closed broker-block freshness
+  </text>
+
+  <!-- Left: /vertex-status/v2 single authorized GET -->
+  <g transform="translate(54, 344)">
+    <rect
+      fill="#0d1117"
+      height="122"
+      rx="10"
+      stroke="#58a6ff"
+      stroke-width="1.5"
+      width="194"
+      x="0"
+      y="0"
+    />
+    <text class="t-label" text-anchor="middle" x="97" y="24">
+      /vertex-status/v2
+    </text>
+    <text class="t-small" text-anchor="middle" x="97" y="42">
+      1 auth GET + 2 guards
+    </text>
+    <line stroke="#262c36" x1="16" x2="178" y1="52" y2="52" />
+    <text class="t-mono" x="18" y="70">generatedAt</text>
+    <text class="t-mono-gold" x="18" y="88">orders · fills</text>
+    <text class="t-mono-gold" x="18" y="106">positions · equity</text>
+  </g>
+
+  <!-- Fan-out connectors to 3 lanes -->
+  <path
+    d="M252 380 C282 380 282 344 312 344"
+    fill="none"
+    marker-end="url(#arr-muted)"
+    stroke="#8b949e"
+    stroke-width="1.6"
+  />
+  <path
+    d="M252 404 C282 404 282 396 312 396"
+    fill="none"
+    marker-end="url(#arr-muted)"
+    stroke="#8b949e"
+    stroke-width="1.6"
+  />
+  <path
+    d="M252 430 C282 430 282 454 312 454"
+    fill="none"
+    marker-end="url(#arr-gold)"
+    stroke="#d29922"
+    stroke-width="2.2"
+  />
+
+  <!-- Lane 1: Availability -->
+  <g transform="translate(320, 324)">
+    <rect
+      fill="#0d1117"
+      height="38"
+      rx="8"
+      stroke="#30363d"
+      width="538"
+      x="0"
+      y="0"
+    />
+    <circle cx="20" cy="19" fill="#3fb950" r="5" />
+    <text class="t-label" x="34" y="23">1. avail_*</text>
+    <text class="t-mono" x="122" y="23">HTTP 200 + JSON + schema</text>
+    <text class="t-small" x="346" y="23">3 ticks → alert / recovery</text>
+  </g>
+
+  <!-- Lane 2: Auth bypass -->
+  <g transform="translate(320, 376)">
+    <rect
+      fill="#0d1117"
+      height="38"
+      rx="8"
+      stroke="#30363d"
+      width="538"
+      x="0"
+      y="0"
+    />
+    <circle cx="20" cy="19" fill="#f85149" r="5" />
+    <text class="t-label" x="34" y="23">2. bypass_*</text>
+    <text class="t-mono" x="122" y="23">no-token / bad-token != 2xx</text>
+    <text class="t-small" x="346" y="23">tick 1 → immediate alert</text>
+  </g>
+
+  <!-- Lane 3: NEW Stale blocks (highlighted) -->
+  <g transform="translate(320, 428)">
+    <rect
+      fill="url(#gold-glow)"
+      height="74"
+      rx="10"
+      stroke="#d29922"
+      stroke-width="1.8"
+      width="538"
+      x="0"
+      y="0"
+    />
+    <circle cx="20" cy="24" fill="#d29922" r="5.5" />
+    <text class="t-badge-gold" x="34" y="28">3. stale_* (NEW)</text>
+    <text class="t-mono-gold" x="172" y="28">
+      available===true · stale===false · age ≤ 360s
+    </text>
+
+    <!-- Fail-closed rule chips -->
+    <g transform="translate(18, 42)">
+      <rect
+        fill="#0d1117"
+        height="22"
+        rx="5"
+        stroke="#d29922"
+        stroke-opacity="0.6"
+        width="150"
+        x="0"
+        y="0"
+      />
+      <text class="t-mono" text-anchor="middle" x="75" y="15">
+        generatedAt ≤ 360s
+      </text>
+
+      <rect
+        fill="#0d1117"
+        height="22"
+        rx="5"
+        stroke="#d29922"
+        stroke-opacity="0.6"
+        width="166"
+        x="158"
+        y="0"
+      />
+      <text class="t-mono" text-anchor="middle" x="241" y="15">
+        3 ticks → 1 alert
+      </text>
+
+      <rect
+        fill="#0d1117"
+        height="22"
+        rx="5"
+        stroke="#d29922"
+        stroke-opacity="0.6"
+        width="170"
+        x="332"
+        y="0"
+      />
+      <text class="t-mono" text-anchor="middle" x="417" y="15">
+        pauses on HTTP fail
+      </text>
+    </g>
+  </g>
+
+  <!-- Converge to #omp-alerts -->
+  <path
+    d="M862 343 C886 343 886 392 914 392"
+    fill="none"
+    marker-end="url(#arr-muted)"
+    stroke="#8b949e"
+    stroke-width="1.5"
+  />
+  <path
+    d="M862 395 L914 395"
+    fill="none"
+    marker-end="url(#arr-muted)"
+    stroke="#8b949e"
+    stroke-width="1.5"
+  />
+  <path
+    d="M862 465 C886 465 886 420 914 420"
+    fill="none"
+    marker-end="url(#arr-gold)"
+    stroke="#d29922"
+    stroke-width="2.2"
+  />
+
+  <!-- Active Bell / #omp-alerts -->
+  <g transform="translate(924, 354)">
+    <rect
+      fill="#0d1117"
+      height="106"
+      rx="10"
+      stroke="#d29922"
+      stroke-width="1.6"
+      width="142"
+      x="0"
+      y="0"
+    />
+    <g transform="translate(55, 12)">
+      <path
+        d="M16 4 C10 4 7 9 7 15 V22 L4 26 H28 L25 22 V15 C25 9 22 4 16 4 Z"
+        fill="#2b210d"
+        stroke="#e3b341"
+        stroke-width="1.8"
+      />
+      <path
+        d="M13 28 A3 3 0 0 0 19 28"
+        fill="none"
+        stroke="#e3b341"
+        stroke-width="1.8"
+      />
+      <path
+        d="M3 12 C1 15 1 19 3 22"
+        fill="none"
+        stroke="#e3b341"
+        stroke-linecap="round"
+        stroke-width="1.6"
+      />
+      <path
+        d="M29 12 C31 15 31 19 29 22"
+        fill="none"
+        stroke="#e3b341"
+        stroke-linecap="round"
+        stroke-width="1.6"
+      />
+    </g>
+    <text class="t-label" text-anchor="middle" x="71" y="60">#omp-alerts</text>
+    <text class="t-mono-gold" text-anchor="middle" x="71" y="78">
+      ⚠️ stale blocks
+    </text>
+    <text class="t-mono-green" text-anchor="middle" x="71" y="95">
+      ✅ recovered
+    </text>
+  </g>
+
+  <!-- Bottom Timeline Strip: 3-tick deduplication & recovery -->
+  <g transform="translate(54, 520)">
+    <rect
+      fill="#0d1117"
+      height="44"
+      rx="8"
+      stroke="#262c36"
+      width="1012"
+      x="0"
+      y="0"
+    />
+    <text class="t-small" x="16" y="26">2m ticks:</text>
+
+    <!-- Tick 1 -->
+    <circle
+      cx="108"
+      cy="22"
+      fill="#2b210d"
+      r="9"
+      stroke="#d29922"
+      stroke-width="1.6"
+    />
+    <text class="t-mono-gold" text-anchor="middle" x="108" y="26">1</text>
+    <text class="t-small" x="124" y="26">stale (wait)</text>
+    <line
+      marker-end="url(#arr-muted)"
+      stroke="#30363d"
+      stroke-width="1.5"
+      x1="204"
+      x2="236"
+      y1="22"
+      y2="22"
+    />
+
+    <!-- Tick 2 -->
+    <circle
+      cx="252"
+      cy="22"
+      fill="#2b210d"
+      r="9"
+      stroke="#d29922"
+      stroke-width="1.6"
+    />
+    <text class="t-mono-gold" text-anchor="middle" x="252" y="26">2</text>
+    <text class="t-small" x="268" y="26">stale (wait)</text>
+    <line
+      marker-end="url(#arr-gold)"
+      stroke="#d29922"
+      stroke-width="1.5"
+      x1="348"
+      x2="380"
+      y1="22"
+      y2="22"
+    />
+
+    <!-- Tick 3 -->
+    <circle cx="396" cy="22" fill="#d29922" r="9" />
+    <text
+      class="t-mono"
+      style="fill:#0d1117"
+      text-anchor="middle"
+      x="396"
+      y="26"
+    >
+      3
+    </text>
+    <text class="t-mono-gold" x="412" y="26">⚠️ 1 alert sent</text>
+    <line
+      marker-end="url(#arr-muted)"
+      stroke="#30363d"
+      stroke-width="1.5"
+      x1="538"
+      x2="570"
+      y1="22"
+      y2="22"
+    />
+
+    <!-- Tick 4+ -->
+    <circle
+      cx="586"
+      cy="22"
+      fill="#262c36"
+      r="9"
+      stroke="#8b949e"
+      stroke-width="1.4"
+    />
+    <text class="t-mono" text-anchor="middle" x="586" y="26">4+</text>
+    <text class="t-small" x="602" y="26">deduped (quiet)</text>
+    <line
+      marker-end="url(#arr-green)"
+      stroke="#3fb950"
+      stroke-width="1.5"
+      x1="712"
+      x2="744"
+      y1="22"
+      y2="22"
+    />
+
+    <!-- Fresh tick -->
+    <circle cx="760" cy="22" fill="#3fb950" r="9" />
+    <text
+      class="t-mono"
+      style="fill:#0d1117"
+      text-anchor="middle"
+      x="760"
+      y="26"
+    >
+      ✓
+    </text>
+    <text class="t-mono-green" x="776" y="26">
+      ✅ 1 recovery · state cleared
+    </text>
+  </g>
+</svg>

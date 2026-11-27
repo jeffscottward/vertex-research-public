@@ -1,8 +1,10 @@
 # Probe QuantVPS /vertex-status/v2 tailnet snapshot and alert #omp-alerts (127.0.0.1:47821)
-# after 3 consecutive availability failures (e.g. HTTP 403 Caddy allow-list regression) or
-# immediately on an unauthenticated/wrong-token 2xx auth bypass. Read-only; never touches trading.
+# after 3 consecutive availability failures (e.g. HTTP 403 Caddy allow-list regression),
+# 3 consecutive stale/unavailable broker-block ticks (orders, fills, positions, equity, or
+# frozen generatedAt), or immediately on an unauthenticated/wrong-token 2xx auth bypass.
+# Read-only; never touches trading.
 [Unit]
-Description=Vertex tailnet /vertex-status/v2 snapshot 403 & auth-guard alert probe
+Description=Vertex tailnet /vertex-status/v2 snapshot availability, auth-guard & stale-block alert probe
 After=network-online.target docker.service
 Wants=network-online.target
 
