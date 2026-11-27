@@ -37,12 +37,22 @@ const NOT_AVAILABLE =
   /not available|isn't available|unavailable|no data|doesn't have|does not have|no (certified )?(term|source)|none of the certified terms|can(no|')t (see|tell|answer|give)/i;
 
 // Q20: the tail ", not alert" or " (not alert)" directly after the exact clause "Sector momentum paper
-// forward [is] at warn". The clause starts its line or follows a space or a tab. The tail ends its line or
-// stands before a space, a tab or one of . , ; : and the line holds no other "alert" (any letter case, also
-// inside a word such as "alerts").
-const NO_ALERT = String.raw`(?:(?![Aa][Ll][Ee][Rr][Tt])[^\n\r\u2028\u2029])*`;
+// forward [(m_mom)] [is] at warn" (m_mom is the id of that monitor in the fixture). The clause starts its
+// line or follows a space or a tab. The tail ends its line or stands before a space, a tab or one of
+// . , ; : and the line holds no other "alert" (any letter case, also inside a word such as "alerts"),
+// with one exception after the tail: the two thresholds of the monitor as the tool gives them, quoted
+// together directly after the ratio of the fixture: "ratio [of] 1.08" + one of ; , . or ). + a space +
+// "[It] warn[s] [starts] at 1, alert[s] at 1.5" or "... at 1 and alert[s] at 1.5". A quoted threshold
+// pair next to the true ratio names no monitor in alert; the three recorded Q20 answers of 2026-11-26
+// quote it on this line. Every other "alert at 1.5" stays under the check. The forbidden pattern of Q20
+// still reads the pair when no full stop stands between "Sector momentum" and it; the decimal point of
+// 1.08 is such a full stop.
+const NO_ALERT_CHAR = String.raw`(?![Aa][Ll][Ee][Rr][Tt])[^\n\r\u2028\u2029]`;
+const NO_ALERT = `(?:${NO_ALERT_CHAR})*`;
+const WARN_AND_ALERT_THRESHOLD = String.raw`(?<![A-Za-z0-9])ratio (?:of )?1\.08(?:[;,.]|\)\.) (?:It )?[Ww]arns? (?:starts )?at 1(?:,| and) alerts? at 1\.5(?![0-9])`;
+const NO_ALERT_BUT_THRESHOLD = `(?:${WARN_AND_ALERT_THRESHOLD}|${NO_ALERT_CHAR})*`;
 const Q20_WARN_NOT_ALERT = new RegExp(
-  String.raw`(?<=^(?:${NO_ALERT}[ \t])?Sector momentum paper forward (?:is )?at warn)(?:, not alert| \(not alert\))(?=$|[ \t.,;:]${NO_ALERT}$)`,
+  String.raw`(?<=^(?:${NO_ALERT}[ \t])?Sector momentum paper forward (?:\(m_mom\) )?(?:is )?at warn)(?:, not alert| \(not alert\))(?=$|[ \t.,;:]${NO_ALERT_BUT_THRESHOLD}$)`,
   "gm"
 );
 

@@ -26,7 +26,7 @@ Represent the third state ("not reported") from storage through the API contract
 
 - **Storage:** `flow_option_prints.opening` and `flow_option_prints.volume_over_oi` allow `NULL` ("not reported") when `open_interest = 0`. A PostgreSQL `CHECK` constraint enforces paired nullability and the `open_interest = 0` cause.
 - **Contracts:** `opening` and `volumeOverOi` widen to `boolean | null` on `FlowOptionPrintViewSchema` (`flow.snapshot` top prints and `flow.optionPrints`) and `FlowOptionBubblesItemSchema` (`flow.optionBubbles`), and `FlowOptionsSummarySchema` adds required `oiFlagsNotReported: count`.
-- **MCP descriptions:** deferred (2026-11-26). The `flow_snapshot` and `flow_option_prints` tool descriptions stay unchanged, because every Plan-mode tool description is part of the recorded semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`); a changed description makes all 90 recorded trials stale and needs a full re-recording. The nullable output schemas and `packages/api/openapi.json` state that `opening` and `volumeOverOi` can be `null`.
+- **MCP descriptions:** deferred on 2026-11-26 in the first PR, then done the same day (card `vertex-flow-mcp-oi-null-descriptions`). Every Plan-mode tool description is part of the recorded semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`), so a changed description makes all 90 recorded trials stale and needs a full re-recording. The follow-up change adds the wording to `flow_snapshot` (`oiFlagsNotReported` count; on a print, `opening` and `volumeOverOi` are null when it reports open interest 0) and to `flow_option_prints` (the same null note on the newest prints) and records the eval again ([agent-semantic-layer.md](../../agent-semantic-layer.md)). The nullable output schemas and `packages/api/openapi.json` also state that `opening` and `volumeOverOi` can be `null`.
 - **Display (`/flow`):**
   - `OptionsFlowPanel` `Vol > OI` tile: `N` when `M === 0`, `N · M not reported` when `M > 0`, where `N = summary.volumeOverOi` and `M = summary.oiFlagsNotReported`.
   - `OptionsFlowPanel` `Opening share` tile: keeps the existing all-OI-0 text when `openingPremiumShare === null`; when `openingPremiumShare !== null` and `M > 0`, appends `" · M not reported"` so mixed-window denominator exclusions are visible.
@@ -77,7 +77,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
 | Risk | Mitigation |
 | --- | --- |
 | New collector inserts `NULL` before DB migration runs (Postgres `23502` rejects the whole print batch) | Follow the QuantVPS migration order (`docs/vertex-rebuild/flow-pipeline.md`): deploy outside 08:30–16:00 ET, pause `vertex-flow.timer`, apply `0099_flow_option_prints_oi_flags.sql` via `psql -v ON_ERROR_STOP=1 --single-transaction`, run a rolled-back write probe as `vertex_research`, deploy `vertex-web.service` + collector, then resume `vertex-flow.timer`. |
-| `.strict()` v1 wire change breaks skewed browser tabs or external `flow.optionPrints` / MCP clients | Web and API deploy together on one origin; open browser tabs reload on restart. The nullable output schemas and `packages/api/openapi.json` document `null` flags and `oiFlagsNotReported` for oRPC and OpenAPI clients. MCP clients get no output schema, and the MCP tool descriptions are unchanged (deferred, see **MCP descriptions** under Goal). |
+| `.strict()` v1 wire change breaks skewed browser tabs or external `flow.optionPrints` / MCP clients | Web and API deploy together on one origin; open browser tabs reload on restart. The nullable output schemas and `packages/api/openapi.json` document `null` flags and `oiFlagsNotReported` for oRPC and OpenAPI clients. MCP clients get no output schema; the MCP tool descriptions state the `null` flags and the `oiFlagsNotReported` count (see **MCP descriptions** under Goal). |
 | Rollback to PR #451 code reads rows with `NULL` flags | Safe by DB proof: `flow_option_prints_check` guarantees `NULL` occurs only when `open_interest = 0`, and PR #451's `oiFlags` returns `false` on `openInterest === 0` before reading stored columns. |
 | Restoring `NOT NULL` later fails if `NULL` rows exist | Provide guarded `packages/db/rollback/0099_flow_option_prints_oi_flags.down.sql` that checks for `opening IS NULL OR volume_over_oi IS NULL`, raises an exception if any exist (no silent row mutation), and otherwise restores pre-0099 `flow_option_prints_check` and `SET NOT NULL`. |
 
@@ -99,7 +99,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
   - `packages/api/src/server/flow-snapshot.ts` and `packages/api/src/server/flow-snapshot.test.ts`
   - `packages/api/src/server/flow-option-prints.test.ts`
   - `packages/api/src/flow-option-bubbles-rules.ts` and `packages/api/src/flow-option-bubbles-rules.test.ts`
-  - `packages/api/src/server/mcp.ts` (unchanged; see **MCP descriptions** under Goal)
+  - `packages/api/src/server/mcp.ts` (descriptions only, in the follow-up change; see **MCP descriptions** under Goal)
   - `packages/db/src/schema/flow.ts`
   - `packages/db/migrations/meta/_journal.json` (generated)
   - `packages/db/src/server/flow-migration.test.ts`
@@ -122,7 +122,7 @@ Data flow: QuantData `order-flow/consolidated` → `parseOptionPrints` (`package
    - `optionEvents`: append `", vol > OI"` only when `oiFlags(print).volumeOverOi === true`.
 3. Update `packages/api/src/server/flow-snapshot.ts` (`buildOptionsSummary`: add `oiFlagsNotReported: countWhere((print) => !oiFlagsKnown(print))`, check `=== true` for `openingPremiumShare` and `volumeOverOi`; `printView` needs no body change).
 4. Update `packages/api/src/flow-option-bubbles-rules.ts` (`OptionBubblesPrintRow`: `opening: boolean | null`, `volumeOverOi: boolean | null`; `foldOptionBubbles` needs no body change).
-5. Keep `packages/api/src/server/mcp.ts` unchanged (see **MCP descriptions** under Goal: a description change makes the semantic-layer eval recording stale).
+5. Keep `packages/api/src/server/mcp.ts` unchanged in this PR (see **MCP descriptions** under Goal: a description change makes the semantic-layer eval recording stale; the follow-up change adds the wording with a new recording).
 6. Add/update API unit and contract tests:
    - `packages/api/src/flow-options.test.ts`: `parseOptionPrints` (`openInterest: 0` → `null`, `openInterest > 0` and `null` keep booleans), `oiFlags` & `oiFlagsKnown` (legacy OI-0 with `true`, stored `null`, split `null`, OI > 0, OI `null`), `optionEvents` (omits `", vol > OI"` for legacy OI-0 and stored `null`).
    - `packages/api/src/server/flow-snapshot.test.ts`: `printView` (`null` flags), `buildOptionsSummary` (legacy + new OI-0 rows together, all-OI-0 case, `oiFlagsNotReported`, `volumeOverOi`, `openingPremiumShare`, `FlowSnapshotSchema.parse`).

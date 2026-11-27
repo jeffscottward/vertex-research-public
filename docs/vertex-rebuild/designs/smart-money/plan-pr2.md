@@ -8,7 +8,7 @@ Design: [design.md, section "PR 2"](design.md#pr-2-market-wide-options-premium-d
 
 * The flow collector on QuantVPS stores QuantData's market-wide totals of large option trades. A large trade has a premium of at least $100,000.
 * It stores one row for each session date and ticker. Each row holds bullish premium, bearish premium, total premium, trade count and volume.
-* It captures today's session about every 15 minutes while options trade (09:30-16:15 New York time). When no live capture is due, it fills one missing or partial past session per run. This fill is the one-year backfill.
+* It captures today's session about every 15 minutes while options trade (09:30-16:15 New York time on NYSE trading days). When no live capture is due, it fills one missing or partial past session per run. This fill is the one-year backfill.
 * The new page `/smart-money` and the MCP tool `openbb_smart_money_ranking` rank tickers by net premium or total premium over the newest 1, 5 or 20 stored sessions. Each answer shows the capture time, the status of each session, the source text and the delay text ("QuantData, intraday").
 
 ## Scope
@@ -22,7 +22,7 @@ Design: [design.md, section "PR 2"](design.md#pr-2-market-wide-options-premium-d
 
 * **Net premium:** bullish large-trade premium minus bearish large-trade premium.
 * **Bullish, bearish:** the trade sides that QuantData assigns. QuantData does not assign every trade to a side, so total premium can be greater than bullish premium plus bearish premium. A bullish trade can be a sold put; a large trade can be a hedge, one leg of a spread or a closing trade.
-* **Session date:** the New York weekday date of a session. Holidays are not modelled; QuantData answers a holiday with almost no data.
+* **Session date:** the New York weekday date of a session. The live capture skips NYSE holidays ([plan-holiday-session.md](./plan-holiday-session.md)); the gap fill stores a holiday with almost no data.
 * **Live capture:** a request for today's session while options trade. It gives running totals.
 * **Gap fill:** a request for a past session when no live capture is due.
 * **Session ledger:** the table `flow_market_premium_sessions`, one row per session date that the collector tried.
@@ -68,7 +68,7 @@ From QuantVPS with the existing QuantData key, without printing it. Values stay 
 | A short or bad answer overwrites good totals | `unavailable` sample "answer shrank" | Shrink guard (half of the stored tickers). A real downward correction of more than half is also held back: accepted. |
 | The 2 MiB response cap | Client failure "response too large" | Measured about 101 KB; the parser refuses more than 10,000 tickers. |
 | Budget contention with `/charts` and market-watch-bot | `budget:` not-due messages | One request per run at most; budget gate `FLOW_QUANTDATA_SOURCE_MAX.market_premium = 1`; the client's shared-quota wait. |
-| A weekday holiday is stored as a complete one-ticker session | Ledger `tickers` below 50 | The ranking leaves complete sessions with fewer than 50 tickers out of its window (trading days had 608-750). On the holiday itself the live view shows the few holiday tickers. |
+| A weekday holiday is stored as a complete one-ticker session | Ledger `tickers` below 50 | The ranking leaves complete sessions with fewer than 50 tickers out of its window (trading days had 608-750). On the holiday itself no live capture runs ([plan-holiday-session.md](./plan-holiday-session.md)). |
 | Absolute dollars favour the largest names | Index ETFs at the top | The `total` sort and the ticker filter; normalisation is out of scope. |
 
 ---
@@ -146,7 +146,7 @@ Files: C `packages/api/src/server/flow-market-premium-collect.ts`, M `packages/a
   1. No QuantData client: not due ("QuantData not configured").
   2. It reads the ledger from today minus 400 days to today (New York dates).
   3. **Seed run:** captures the newest session (`flowSessionDate`), at any time.
-  4. **Live capture:** while `flowSessionOpen("options", "SPY", now)` (09:30-16:15 New York), when today's ledger row is missing or its last attempt is at least `MARKET_PREMIUM_LIVE_SECONDS` (840 s) old.
+  4. **Live capture:** while `isMarketPremiumSessionOpen(now)` (09:30-16:15 New York on an NYSE trading day), when today's ledger row is missing or its last attempt is at least `MARKET_PREMIUM_LIVE_SECONDS` (840 s) old.
   5. **Gap fill:** otherwise the oldest weekday from today minus `MARKET_PREMIUM_HISTORY_DAYS` (400) to yesterday whose ledger row is missing, or is `partial` or `unavailable` with a last attempt at least `MARKET_PREMIUM_RETRY_SECONDS` (6 hours) old. There is no attempt limit: a stuck date costs at most 4 requests a day. No such weekday: not due ("the ledger holds every weekday of the last 400 days").
 * One request: `gainersLosers` with `marketPremiumRequest(date)`, cache 60 s.
   * Reason `reserved`: not due ("budget: QuantData starts kept free for other callers"); no ledger write.
@@ -201,7 +201,7 @@ The procedure reads "now" from a module clock with the test hook `setSmartMoneyC
   * `totals`: tickers, bullish, bearish, net and total premium of the window.
   * `sessions[]`: the summed sessions, newest first, each with `sessionDate`, `status` (`complete` or `partial`) and `capturedAt`. A 5- or 20-session window can include today's partial session.
   * `capturedAt`: the capture time of the newest summed session, or null.
-  * `coverage`: today's ledger row (`sessionDate`, `status`, `capturedAt`, `lastAttemptAt`, `lastMessage`), `state` and `overdueSince`. While options trade (`flowSessionOpen("options", "SPY", now)`), the stale time is today's capture time plus `FLOW_STALE_SECONDS.market_premium` (1800 s), or 09:30 plus 1800 s (10:00) without a capture. `stale` from that time on (`overdueSince` = that time); before it `fresh` with a capture and `never` without. Otherwise `closed` (`overdueSince` null). The server computes `overdueSince`, so the page holds no copy of the 1800 s. PR 6 replaces this with its per-source registry.
+  * `coverage`: today's ledger row (`sessionDate`, `status`, `capturedAt`, `lastAttemptAt`, `lastMessage`), `state` and `overdueSince`. While options trade (`isMarketPremiumSessionOpen(now)`), the stale time is today's capture time plus `FLOW_STALE_SECONDS.market_premium` (1800 s), or 09:30 plus 1800 s (10:00) without a capture. `stale` from that time on (`overdueSince` = that time); before it `fresh` with a capture and `never` without. Otherwise `closed` (`overdueSince` null). The server computes `overdueSince`, so the page holds no copy of the 1800 s. PR 6 replaces this with its per-source registry.
   * `history`: weekdays from today minus 400 days to yesterday, and how many are stored (`complete` or `partial`), `no_data` or pending (the rest).
   * `source`: "QuantData gainers-losers: per-ticker totals of option trades with premium >= $100,000 each; bullish and bearish are QuantData's trade-side classes".
   * `delay`: "QuantData, intraday: captured about every 15 minutes while options trade; final totals from a fetch after the session day".
