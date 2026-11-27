@@ -94,6 +94,9 @@ describe("AcademyGallery", () => {
     const card = container.querySelector(`[data-lesson-card="${first.slug}"]`);
     expect(card?.querySelector("img")?.getAttribute("src")).toBe("/thumb.jpg");
     expect(card?.textContent).toContain("62 s");
+    // The tags print as one line of plain text with separators.
+    expect(card?.textContent).toContain(" · ");
+    expect(card?.querySelector('[data-slot="badge"]')).toBeNull();
     const other = cards(container)[1];
     expect(other?.querySelector("img")).toBeNull();
     expect(other?.textContent).toContain("chart");

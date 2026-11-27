@@ -213,6 +213,12 @@ describe("AcademyLesson", () => {
         />
       )
     );
+    // The tags print as one line of plain text with separators.
+    expect(
+      [...container.querySelectorAll("p")].some((line) =>
+        /\S · \S/.test(line.textContent ?? "")
+      )
+    ).toBe(true);
     expect(container.querySelector("[data-concept-note]")).not.toBeNull();
     expect(container.querySelector("[data-lesson-backtest]")).toBeNull();
     expect(container.querySelector("[data-lesson-deploy]")).toBeNull();

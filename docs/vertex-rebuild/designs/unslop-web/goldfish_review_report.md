@@ -110,7 +110,7 @@ The stage 8 reviewer read the plan after the resolutions above. Each of its 12 f
 
 ## Code review and drift report (flow steps 5 and 6)
 
-Three fresh-context reviewers read the full diff at `3f39f927a`, and a fourth agent ran the drift report of the plan against the same head. Result: 0 Blocker, 2 Major, 15 Nit, and 18 differences between the plan and the code. All are resolved in the last commit of the branch.
+Three fresh-context reviewers read the full diff at `3f39f927a`, and a fourth agent ran the drift report of the plan against the same head. Result: 0 Blocker, 2 Major, 15 Nit, and 18 differences between the plan and the code. All are resolved in the commit "fix(web): code review fixes for the unslop-web change".
 
 - **Major, notice test:** a new file that calls an order or approval procedure could get the notice without a failing test. Fixed: the test now scans every source file for these calls and for the approval export of the shared client file, walks layouts and other route files, and fails on an import that does not resolve.
 - **Major, not-found:** the app-root page put a second main landmark inside the portal shell for portal routes that call `notFound()`. Fixed: a portal not-found page without a main landmark.
@@ -118,3 +118,5 @@ Three fresh-context reviewers read the full diff at `3f39f927a`, and a fourth ag
 - **Other fixes:** no Retry for the not-configured kind in the module failure panel; the file label on Pick lists keeps its size; Academy tags have separators; metric values that are names print as stored; metric pairs keep two keys with the same label; Mission control prints the task kind as words; the Flow freshness rows are plain text; tighter title assertions in the sign-in page tests.
 - **Answered with a reason:** 4 Flow badges keep their shape (goal 7 of the plan names them and says why). The Baskets subtitle "Tracking only: no orders." stays (Non-Goal 2).
 - **Plan text:** the 14 wording differences of the drift report are corrected in `plan.md`.
+
+A second review round read only the fix commits. Result: every item of round 1 is resolved; 5 new Nits (a list key for two metric keys with one label, a wider namespace pattern in the notice test, two plan sentences, missing assertions for 5 fixes). All 5 are fixed in the commit "fix(web): second review round".

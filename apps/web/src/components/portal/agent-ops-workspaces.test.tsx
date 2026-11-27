@@ -19,6 +19,8 @@ import {
 
 import {
   type AgentOpsGateway,
+  formatMetrics,
+  labelledMetrics,
   type PapersGateway,
   parseMetricsText,
 } from "./agent-ops-client.tsx";
@@ -249,6 +251,14 @@ describe("mission control", () => {
     expect(section("mc-running")).toEqual(["b"]);
     expect(section("mc-recent")).toEqual(["c"]);
     expect(container.textContent).toContain("Sharpe=0.7");
+    // The task kind prints as words, not as its code.
+    expect(
+      [
+        ...(container
+          .querySelector('tr[data-task-id="a"]')
+          ?.querySelectorAll("td") ?? []),
+      ].map((cell) => cell.textContent)
+    ).toContain("Backtest");
     return expect(container.textContent).toContain("No events recorded.");
   });
 
@@ -469,6 +479,40 @@ describe("agent runs workspace", () => {
       message: "Operator set status queued -> needs_review",
       taskId: "a",
     });
+  });
+
+  it("labels metric keys, keeps names as stored and keeps two keys that share a label", async () => {
+    const metrics = {
+      framework: "vibe_trading",
+      mode: "research_only",
+      sharpe: 1,
+      Sharpe: 2,
+    };
+    expect(labelledMetrics(metrics)).toEqual([
+      ["Framework", "vibe_trading"],
+      ["Mode", "Research only"],
+      ["Sharpe", 1],
+      ["Sharpe", 2],
+    ]);
+    expect(formatMetrics(metrics)).toBe(
+      "Framework=vibe_trading · Mode=Research only · Sharpe=1 · Sharpe=2"
+    );
+    const container = await mount(
+      <AgentRunsWorkspace
+        gateway={agentGateway([task("a", { metrics })])}
+        initialTaskId={null}
+      />
+    );
+    await clickButton("Expand Task a");
+    const list = container.querySelector('[aria-label="Task metrics"] dl');
+    expect(
+      [...(list?.querySelectorAll("dt") ?? [])].map((term) => term.textContent)
+    ).toEqual(["Framework", "Mode", "Sharpe", "Sharpe"]);
+    expect(
+      [...(list?.querySelectorAll("dd") ?? [])].map(
+        (value) => value.textContent
+      )
+    ).toEqual(["vibe_trading", "Research only", "1", "2"]);
   });
 
   it("keeps the tasks table inside a positioned scroll box", async () => {

@@ -81,10 +81,11 @@ const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
           <p className="text-muted-foreground text-xs">No metrics reported.</p>
         ) : (
           <dl className="grid grid-cols-2 gap-x-3 font-mono text-xs">
-            {metrics.map(([key, value]) => {
+            {metrics.map(([label, value], index) => {
               return (
-                <Fragment key={key}>
-                  <dt className="text-muted-foreground">{key}</dt>
+                // Two stored keys can print as the same label, so the key holds the position.
+                <Fragment key={`${index}:${label}`}>
+                  <dt className="text-muted-foreground">{label}</dt>
                   <dd className="tabular-nums">{String(value)}</dd>
                 </Fragment>
               );

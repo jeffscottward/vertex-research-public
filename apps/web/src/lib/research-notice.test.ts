@@ -106,9 +106,10 @@ const routeFiles = walk(portalRoot)
     route: routeOf(file),
   }));
 
-// A call of an order, arming, broker-recovery or approval procedure of the API client.
-const PROCEDURE_CALL =
-  /\.(?:vertexOrders|goLiveDrafts|nautilusArm|ibkrRecovery)\b|\bdeploymentRequests\s*\.\s*approve\b/;
+// Any use of an order, arming, broker-recovery or deployment-request namespace of the API client:
+// a call, a destructured name, a bracket access or a type.
+const PROCEDURE_USE =
+  /\b(?:vertexOrders|goLiveDrafts|nautilusArm|ibkrRecovery|deploymentRequests)\b/;
 
 const sources = walk(sourceRoot)
   .filter(isSource)
@@ -177,7 +178,7 @@ describe("portal research notice", () => {
     expect(stale).toEqual([]);
   });
 
-  it("lists every file that calls an order, arming, recovery or approval procedure", () => {
+  it("lists every file that uses an order, arming, recovery or deployment-request namespace", () => {
     const known = new Set(
       [
         ...EXECUTION_CONTROL_MODULES,
@@ -185,7 +186,7 @@ describe("portal research notice", () => {
       ].map(fromSource)
     );
     const callers = sources
-      .filter((source) => PROCEDURE_CALL.test(source.text))
+      .filter((source) => PROCEDURE_USE.test(source.text))
       .map((source) => source.file);
     // The scan sees the calls: each client module that holds one is found.
     expect(callers.length).toBeGreaterThanOrEqual(4);

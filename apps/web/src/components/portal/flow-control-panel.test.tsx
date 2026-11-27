@@ -82,6 +82,19 @@ describe("FlowControlPanel", () => {
     expect(options?.textContent).toContain("since ");
     expect(options?.textContent).toContain("Ratio 0.42 (enter ratio 0.30)");
     expect(options?.textContent).toContain("as of ");
+    // Each freshness row is plain status text; a warning row keeps the warning colour.
+    const freshness = [
+      ...container.querySelectorAll<HTMLElement>('li > [data-slot="badge"]'),
+    ];
+    expect(freshness.length).toBeGreaterThan(0);
+    for (const row of freshness) {
+      expect(row.getAttribute("data-plain")).toBe("true");
+      expect(row.className).toContain(
+        row.getAttribute("data-status") === "warning"
+          ? "text-warning-foreground"
+          : "text-"
+      );
+    }
   });
 
   it("shows the options, futures and agreement rows with their names, states and texts", async () => {
