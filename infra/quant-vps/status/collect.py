@@ -16,6 +16,7 @@ Stdlib only; runs on Python 3.8+.
 Test mode: collect.py --fixtures DIR --out DIR [--now ISO]  (reads captured inputs, runs nothing).
 """
 import datetime
+import http.client
 import ipaddress
 import json
 import os
@@ -165,7 +166,7 @@ def parse_time(value):
     s = str(value).strip()
     if s.startswith("0001-01-01"):
         return None
-    ib = re.match(r"^(\d{4})(\d\d)(\d\d)[ -](\d\d):(\d\d):(\d\d)(?:\s+(\S+))?$", s)   # IB "20260911 15:30:01 US/Eastern"
+    ib = re.match(r"^(\d{4})(\d\d)(\d\d)(?:\s+|-)(\d\d):(\d\d):(\d\d)(?:\s+(\S+))?$", s)   # IB "20260911  15:30:01 US/Eastern"
     if ib:
         tz = datetime.timezone.utc
         if ib.group(7):
@@ -354,7 +355,7 @@ def _fetch_ibkr_monitor_json(url, timeout=IBKR_MONITOR_TIMEOUT_SECONDS, max_byte
         except Exception:
             pass
         return None, "ibkr-monitor returned HTTP %d" % code, False
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError):
         return None, "ibkr-monitor request failed", True
     try:
         doc = json.loads(body.decode("utf-8"))
@@ -1194,7 +1195,10 @@ def build(inp, v2_enabled=True, previous=None):
     snapshot_path = inp.latest_report(SNAPSHOT_PREFIX)
     snapshot = load_json_text(inp.read_text(snapshot_path)) if snapshot_path else None
     account = mask_account((snapshot or {}).get("account_masked"))
-    ibkr_payload, ibkr_error = inp.ibkr_monitor_snapshot()
+    try:
+        ibkr_payload, ibkr_error = inp.ibkr_monitor_snapshot()
+    except Exception as exc:
+        ibkr_payload, ibkr_error = None, "ibkr-monitor fetch error: %s" % type(exc).__name__
     orders = safe_block("orders", build_orders, now, ibkr_payload, ibkr_error)
     fills = safe_block("fills", build_fills, now, ibkr_payload, ibkr_error)
     risk = safe_block("risk", build_risk, inp, now, raws["nautilus-trader"], health, wd)
