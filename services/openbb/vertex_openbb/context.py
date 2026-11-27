@@ -40,6 +40,7 @@ class Context:
     # Wall-clock time in America/New_York (None: read the clock when needed; tests fix it).
     now: datetime | None = None
     warnings: list[str] = field(default_factory=list)
+    info_notes: list[str] = field(default_factory=list)
     sources_ok: int = 0
     sources_failed: int = 0
     # (host, HTTP status) of each failed source whose upstream host refused the request.
@@ -71,9 +72,10 @@ class Context:
         return self.tables.setdefault(name, [])
 
     def warn(self, message: str) -> None:
-        text = cut(" ".join(str(message).split()), MAX_WARNING_CHARS, "…")
-        if text not in self.warnings:
-            self.warnings.append(text)
+        _append_note(self.warnings, message)
+
+    def info(self, message: str) -> None:
+        _append_note(self.info_notes, message)
 
     def ok(self) -> None:
         self.sources_ok += 1
@@ -121,10 +123,23 @@ class Context:
         return CORE7 + tuple(s for s in self.stocks if s not in CORE7)
 
     def capped_warnings(self) -> list[str]:
-        if len(self.warnings) <= MAX_WARNINGS:
-            return list(self.warnings)
-        kept = self.warnings[: MAX_WARNINGS - 1]
-        return kept + [f"{len(self.warnings) - len(kept)} more warnings not shown"]
+        return _cap_notes(self.warnings, "warnings")
+
+    def capped_info(self) -> list[str]:
+        return _cap_notes(self.info_notes, "info notes")
+
+
+def _append_note(bucket: list[str], message: str) -> None:
+    text = cut(" ".join(str(message).split()), MAX_WARNING_CHARS, "…")
+    if text not in bucket:
+        bucket.append(text)
+
+
+def _cap_notes(bucket: list[str], kind: str) -> list[str]:
+    if len(bucket) <= MAX_WARNINGS:
+        return list(bucket)
+    kept = bucket[: MAX_WARNINGS - 1]
+    return kept + [f"{len(bucket) - len(kept)} more {kind} not shown"]
 
 
 def all_failed(ctx: Context) -> bool:

@@ -1,5 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import {
+  OpenbbBatchDocumentSchema,
+  OpenbbIngestInputSchema,
+  OpenbbRecordRunInputSchema,
+} from "../../packages/api/src/contracts/openbb.ts";
 
 import {
   fetcherTimeLimitMs,
@@ -28,9 +33,11 @@ const fixture = (table: string): string =>
 const documentOf = (
   job: string,
   tables: { table: string; rows: unknown[] }[],
-  warnings: string[] = []
+  warnings: string[] = [],
+  info?: string[]
 ) =>
   JSON.stringify({
+    ...(info === undefined ? {} : { info }),
     job,
     openbbVersion: "1.4.0",
     schemaVersion: "openbb-batch.v1",
@@ -1378,15 +1385,15 @@ describe("openbb tick daily-prices", () => {
   });
 });
 
-describe("openbb tick cboe-option-iv OCC skip classification", () => {
-  it("records ok for cboe-option-iv when only Cboe non-standard OCC skip lines appear, keeping the count", async () => {
-    const tables = (
-      JSON.parse(fixture("option_iv_daily")) as {
-        tables: { table: string; rows: unknown[] }[];
-      }
-    ).tables;
-    // Matches services/openbb/vertex_openbb/jobs/cboe.py (chain_rows, line 186).
-    const warnings = [
+describe("openbb tick producer info channel (cboe-option-iv OCC skips)", () => {
+  const optionIvTables = () =>
+    OpenbbBatchDocumentSchema.parse(JSON.parse(fixture("option_iv_daily")))
+      .tables;
+
+  it("records ok when only producer info lines appear, preserving them in recordRun.warnings and printing info in --dry-run", async () => {
+    const tables = optionIvTables();
+    // Matches services/openbb/vertex_openbb/jobs/cboe.py (chain_rows -> ctx.info).
+    const info = [
       "cboe chain SPY: skipped 224 rows without a standard OCC symbol",
       "cboe chain BRK.B: skipped 1 rows without a standard OCC symbol",
     ];
@@ -1395,7 +1402,7 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
       spawn: {
         exitCode: 0,
         stderr: "",
-        stdout: documentOf("cboe-option-iv", tables, warnings),
+        stdout: documentOf("cboe-option-iv", tables, [], info),
       },
     });
     expect(await runOpenbbTick(run.io)).toBe(0);
@@ -1403,26 +1410,57 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
       rowsReceived: 1,
       rowsWritten: 1,
       status: "ok",
-      warnings,
+      warnings: info,
     });
     expect(run.out.at(-1)).toBe("cboe-option-iv: ok, 1 of 1 rows written\n");
+
+    const dryRun = harness({
+      argv: ["cboe-option-iv", "--dry-run"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("cboe-option-iv", tables, [], info),
+      },
+    });
+    expect(await runOpenbbTick(dryRun.io)).toBe(0);
+    expect(dryRun.posts).toHaveLength(0);
+    expect(dryRun.out).toContain("warnings: 0\n");
+    expect(dryRun.out).toContain("info: 2\n");
+
+    // Empty info array omits the dry-run info line.
+    const emptyInfoDryRun = harness({
+      argv: ["cboe-option-iv", "--dry-run"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("cboe-option-iv", tables, [], []),
+      },
+    });
+    expect(await runOpenbbTick(emptyInfoDryRun.io)).toBe(0);
+    expect(emptyInfoDryRun.out.some((line) => line.startsWith("info:"))).toBe(
+      false
+    );
   });
 
-  it("keeps cboe-option-iv partial for Yahoo fallback, Yahoo skip lines, real Cboe warnings, malformed skip lines, and other jobs", async () => {
-    const tables = (
-      JSON.parse(fixture("option_iv_daily")) as {
-        tables: { table: string; rows: unknown[] }[];
-      }
-    ).tables;
+  it("keeps partial for any document.warnings (including Yahoo fallback, Yahoo skips, real Cboe warnings, or skip text sent as a warning) and dedupes combined notes", async () => {
+    const tables = optionIvTables();
     const cboeSkip =
       "cboe chain SPY: skipped 224 rows without a standard OCC symbol";
-    // Yahoo lines (cboe.py lines 311 and 318-321), real Cboe warnings, and non-matching variants stay partial.
-    const partialCases: readonly (readonly [string, string[]])[] = [
+    const partialCases: readonly (readonly [
+      string,
+      string[],
+      string[] | undefined,
+      string[],
+    ])[] = [
       [
         "cboe-option-iv",
         [
-          cboeSkip,
           "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)",
+        ],
+        [cboeSkip],
+        [
+          "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)",
+          cboeSkip,
         ],
       ],
       [
@@ -1430,49 +1468,84 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
         [
           "cboe chain SPY: skipped 1 Yahoo rows without a standard OCC symbol or strike",
         ],
-      ],
-      ["cboe-option-iv", [cboeSkip, "cboe chain SPY: no unexpired contracts"]],
-      ["cboe-option-iv", [cboeSkip, "cboe-option-iv: every table is empty"]],
-      [
-        "cboe-option-iv",
-        ["cboe chain spy: skipped 1 rows without a standard OCC symbol"],
+        undefined,
+        [
+          "cboe chain SPY: skipped 1 Yahoo rows without a standard OCC symbol or strike",
+        ],
       ],
       [
         "cboe-option-iv",
-        ["cboe chain SPY: skipped 0 rows without a standard OCC symbol"],
+        ["cboe chain SPY: no unexpired contracts"],
+        [cboeSkip],
+        ["cboe chain SPY: no unexpired contracts", cboeSkip],
       ],
       [
         "cboe-option-iv",
-        ["cboe chain SPY: skipped 2 rows without a standard OCC symbol; extra"],
+        ["cboe-option-iv: every table is empty"],
+        [cboeSkip],
+        ["cboe-option-iv: every table is empty", cboeSkip],
       ],
-      ["fed-rates", [cboeSkip]],
+      // Duplicate entry across warnings and info is deduped, with warnings kept first.
+      [
+        "cboe-option-iv",
+        [cboeSkip],
+        [
+          cboeSkip,
+          "cboe chain QQQ: skipped 4 rows without a standard OCC symbol",
+        ],
+        [
+          cboeSkip,
+          "cboe chain QQQ: skipped 4 rows without a standard OCC symbol",
+        ],
+      ],
+      // Without the interim regex, skip wording sent in warnings stays partial for every job.
+      ["cboe-option-iv", [cboeSkip], undefined, [cboeSkip]],
+      ["fed-rates", [cboeSkip], undefined, [cboeSkip]],
     ];
 
-    for (const [job, warnings] of partialCases) {
+    for (const [job, warnings, info, expectedWarnings] of partialCases) {
       const jobTables = job === "cboe-option-iv" ? tables : [];
       const run = harness({
         argv: [job],
         spawn: {
           exitCode: 0,
           stderr: "",
-          stdout: documentOf(job, jobTables, warnings),
+          stdout: documentOf(job, jobTables, warnings, info),
         },
       });
       expect(await runOpenbbTick(run.io)).toBe(0);
       expect(recorded(run.posts)).toMatchObject({
         status: "partial",
-        warnings,
+        warnings: expectedWarnings,
       });
     }
   });
 
-  it("still records partial or failed when ingest chunks fail alongside Cboe non-standard OCC skip lines", async () => {
-    const row = (
-      JSON.parse(fixture("option_iv_daily")) as {
-        tables: { table: string; rows: Record<string, unknown>[] }[];
-      }
-    ).tables[0]?.rows[0];
-    const warnings = [
+  it("caps combined warnings + info at OPENBB_MAX_WARNINGS (500) keeping warnings first", async () => {
+    const tables = optionIvTables();
+    const warnings = Array.from({ length: 498 }, (_, i) => `warn-${i}`);
+    const info = Array.from({ length: 5 }, (_, i) => `info-${i}`);
+    const run = harness({
+      argv: ["cboe-option-iv"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("cboe-option-iv", tables, warnings, info),
+      },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    const rec = OpenbbRecordRunInputSchema.parse(recorded(run.posts));
+    expect(rec.status).toBe("partial");
+    expect(rec.warnings).toHaveLength(500);
+    expect(rec.warnings.slice(0, 498)).toEqual(warnings);
+    expect(rec.warnings[498]).toBe("info-0");
+    expect(rec.warnings[499]).toBe("4 more notes not shown");
+  });
+
+  it("still records partial or failed when ingest chunks fail alongside info notes", async () => {
+    const row = optionIvTables()[0]?.rows[0];
+    expect(row).toBeDefined();
+    const info = [
       "cboe chain SPY: skipped 224 rows without a standard OCC symbol",
     ];
 
@@ -1488,17 +1561,12 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
         if (url.endsWith("/recordRun"))
           return { body: { json: { id: "r" } }, status: 200 };
         ingestCalls += 1;
-        return ingestCalls === 2
-          ? { body: "boom", status: 500 }
-          : {
-              body: {
-                json: {
-                  written: (input as { batch: { rows: unknown[] } }).batch.rows
-                    .length,
-                },
-              },
-              status: 200,
-            };
+        if (ingestCalls === 2) return { body: "boom", status: 500 };
+        const parsed = OpenbbIngestInputSchema.parse(input);
+        return {
+          body: { json: { written: parsed.batch.rows.length } },
+          status: 200,
+        };
       },
       spawn: {
         exitCode: 0,
@@ -1506,7 +1574,8 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
         stdout: documentOf(
           "cboe-option-iv",
           [{ rows: manyRows, table: "option_iv_daily" }],
-          warnings
+          [],
+          info
         ),
       },
     });
@@ -1515,7 +1584,7 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
       rowsReceived: 2001,
       rowsWritten: 2000,
       status: "partial",
-      warnings,
+      warnings: info,
     });
 
     // Total chunk failure: 1 chunk fails -> status failed, exit 1.
@@ -1531,7 +1600,8 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
         stdout: documentOf(
           "cboe-option-iv",
           [{ rows: [row], table: "option_iv_daily" }],
-          warnings
+          [],
+          info
         ),
       },
     });
@@ -1540,7 +1610,7 @@ describe("openbb tick cboe-option-iv OCC skip classification", () => {
       rowsReceived: 1,
       rowsWritten: 0,
       status: "failed",
-      warnings,
+      warnings: info,
     });
   });
 });

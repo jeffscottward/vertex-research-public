@@ -111,8 +111,57 @@ describe("golden vectors", () => {
 
   it("the fixture carries the rules object, the study rules item and the filter profile of the code", () => {
     expect(golden.rules).toEqual(FLOW_CONTROL_RULES);
+    expect(golden.futuresRules).toEqual(FLOW_FUTURES_RULES);
     expect(golden.studyRulesItem).toBe(FLOW_CONTROL_STUDY_RULES_ITEM);
     expect(golden.filterProfile).toBe(FLOW_FILTER_PROFILE);
+  });
+
+  it("replays every futures case of the golden fixture: ratio, state, reason, start minute, hold and trades", () => {
+    expect(golden.futuresCases.length).toBeGreaterThan(0);
+    for (const testCase of golden.futuresCases) {
+      const rules: FlowFuturesRules = {
+        ...FLOW_FUTURES_RULES,
+        ...("rules" in testCase
+          ? (testCase.rules as Partial<FlowFuturesRules>)
+          : {}),
+      };
+      const through =
+        "through" in testCase && typeof testCase.through === "number"
+          ? testCase.through
+          : -1;
+      const steps = foldFuturesState(testCase.minutes, rules, through);
+      expect(
+        steps.map((step) => step.minute),
+        testCase.name
+      ).toEqual(testCase.expected.map((step) => step.minute));
+      steps.forEach((step, index) => {
+        const expected = testCase.expected[index];
+        expect(step.state, `${testCase.name} ${index}`).toBe(expected?.state);
+        expect(step.noDataReason, `${testCase.name} ${index}`).toBe(
+          expected?.noDataReason
+        );
+        expect(step.sinceMinute, `${testCase.name} ${index}`).toBe(
+          expected?.sinceMinute
+        );
+        expect(step.hold, `${testCase.name} ${index}`).toBe(expected?.hold);
+        expect(step.trades, `${testCase.name} ${index}`).toBe(expected?.trades);
+        if (expected?.ratio === null || expected?.ratio === undefined)
+          expect(step.ratio).toBeNull();
+        else expect(step.ratio).toBeCloseTo(expected.ratio, 9);
+      });
+    }
+  });
+
+  it("replays every agreement case of the golden fixture", () => {
+    expect(golden.agreementCases.length).toBe(25);
+    for (const testCase of golden.agreementCases)
+      expect(
+        agreementOf(
+          testCase.futures as FlowControlState,
+          testCase.options as FlowControlState
+        ),
+        testCase.name
+      ).toEqual(testCase.expected);
   });
 });
 

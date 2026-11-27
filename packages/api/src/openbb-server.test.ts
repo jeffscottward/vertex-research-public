@@ -1111,6 +1111,20 @@ describe("openbb reads", () => {
     expect(parse({ blocked: { ...blocked, httpStatus: 99 } })).toBe(false);
     expect(parse({ blocked: { ...blocked, host: "" } })).toBe(false);
     expect(parse({ blocked: { ...blocked, path: "/x" } })).toBe(false);
+    expect(parse({ info: [] })).toBe(true);
+    expect(
+      parse({
+        info: [
+          "cboe chain SPY: skipped 224 rows without a standard OCC symbol",
+        ],
+      })
+    ).toBe(true);
+    expect(parse({ info: null })).toBe(false);
+    expect(parse({ info: [123] })).toBe(false);
+    expect(parse({ info: ["x".repeat(2001)] })).toBe(false);
+    expect(parse({ info: Array.from({ length: 501 }, () => "note") })).toBe(
+      false
+    );
     expect(
       OpenbbRecordRunInputSchema.safeParse({
         error: openbbBlockedError(blocked),
