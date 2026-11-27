@@ -52,11 +52,13 @@ const readChartPalette = (element: HTMLElement): ChartPalette => {
   const background = token("--background", style.backgroundColor);
   const accent = token("--vx-gold", foreground);
   const warning = token("--warning", accent);
+  const fontFamily = style.fontFamily.trim() || undefined;
   return {
     accent,
     background,
     destructive: token("--destructive", foreground),
     falling: token("--muted-foreground", foreground),
+    ...(fontFamily === undefined ? {} : { fontFamily }),
     foreground,
     grid: token("--border", foreground),
     info: token("--info", foreground),
@@ -235,7 +237,7 @@ export const CandleCanvas = ({
       <div
         aria-describedby={description}
         aria-label={label}
-        className="h-[calc(clamp(18rem,45cqi,32rem)+var(--vx-chart-sub-panes,0)*6rem)] min-h-[18rem] w-full min-w-0 max-w-full overflow-hidden bg-background"
+        className="h-[calc(clamp(22rem,45cqi,32rem)+var(--vx-chart-sub-panes,0)*6rem)] min-h-[22rem] w-full min-w-0 max-w-full overflow-hidden bg-background"
         data-chart-canvas=""
         ref={element}
         role="group"

@@ -11,7 +11,11 @@ import {
   type FlowGex,
   type OptionsAnalyticsOutput,
 } from "@darkfactory/api";
-
+import {
+  chartFontFamily,
+  isCompactPlotWidth,
+  legendClearancePx,
+} from "./chart-legend-layout.ts";
 import type { ChartPalette, GammaLevelsOverlay } from "./types.ts";
 
 export type { GammaLevelsOverlay } from "./types.ts";
@@ -123,12 +127,10 @@ export type GammaLevelGroup = Readonly<{
 
 const COINCIDENT_EPSILON = 1e-6;
 const PILL_MIN_GAP_PX = 20;
+const PILL_HALF_HEIGHT_PX = 9;
+const ABOVE_PILL_CLEARANCE_PX = 28;
 const PILL_PADDING_Y_PX = 12;
 const PILL_EDGE_X_PX = 8;
-// KLineCharts draws its legend (the candle row, then one row per overlay indicator) over the
-// top-left of the pane, after the overlays. One row is about 22 px high.
-const LEGEND_ROW_PX = 22;
-
 const positiveFiniteOrNull = (
   value: number | null | undefined
 ): number | null =>
@@ -443,6 +445,7 @@ export type GammaLevelsFigure =
         borderColor: string;
         borderSize: number;
         borderRadius: number;
+        family: string;
         size: number;
         paddingLeft: number;
         paddingRight: number;
@@ -471,6 +474,7 @@ export type GammaLevelsOverlayData = Readonly<{
   lines: readonly GammaLevelLineSpec[];
   foreground: string;
   background: string;
+  fontFamily: string;
   grid: string;
   kingColor: string;
 }>;
@@ -496,6 +500,7 @@ export const gammaLevelsOverlayData = (
   const kingColor = paletteColorFor("kingNode", palette);
   return {
     background: palette.background,
+    fontFamily: chartFontFamily(palette),
     foreground: palette.foreground,
     grid: palette.grid,
     kingColor,
@@ -528,6 +533,7 @@ const isOverlayData = (value: unknown): value is GammaLevelsOverlayData => {
     Array.isArray(candidate["lines"]) &&
     typeof candidate["foreground"] === "string" &&
     typeof candidate["background"] === "string" &&
+    typeof candidate["fontFamily"] === "string" &&
     typeof candidate["grid"] === "string" &&
     typeof candidate["kingColor"] === "string"
   );
@@ -542,13 +548,15 @@ const pillStyle = (
   background: string,
   foreground: string,
   borderColor: string,
-  size: number
+  size: number,
+  family: string
 ) => ({
   backgroundColor: background,
   borderColor,
   borderRadius: 3,
   borderSize: 1,
   color: foreground,
+  family,
   paddingBottom: 2,
   paddingLeft: 5,
   paddingRight: 5,
@@ -629,7 +637,8 @@ const levelFigures = (
       data.background,
       data.foreground,
       spec.hasKingNode ? data.kingColor : spec.color,
-      11
+      11,
+      data.fontFamily
     ),
     type: "text",
   });
@@ -643,6 +652,7 @@ const edgeSummaryFigures = (
   width: number,
   height: number,
   narrow: boolean,
+  aboveY: number,
   data: GammaLevelsOverlayData
 ): readonly GammaLevelsFigure[] => {
   const edgeX = Math.max(8, width - 6);
@@ -667,10 +677,16 @@ const edgeSummaryFigures = (
         baseline: "top",
         text: summary(above, "↑ Above"),
         x: edgeX,
-        y: 4,
+        y: aboveY,
       },
       ignoreEvent: true,
-      styles: pillStyle(data.background, data.foreground, data.grid, 10),
+      styles: pillStyle(
+        data.background,
+        data.foreground,
+        data.grid,
+        10,
+        data.fontFamily
+      ),
       type: "text",
     });
   }
@@ -684,7 +700,13 @@ const edgeSummaryFigures = (
         y: Math.max(14, height - 4),
       },
       ignoreEvent: true,
-      styles: pillStyle(data.background, data.foreground, data.grid, 10),
+      styles: pillStyle(
+        data.background,
+        data.foreground,
+        data.grid,
+        10,
+        data.fontFamily
+      ),
       type: "text",
     });
   }
@@ -725,14 +747,18 @@ export const gammaLevelsFigures = (
     below.length > 0
       ? height - PILL_PADDING_Y_PX - 20
       : height - PILL_PADDING_Y_PX;
-  // Keep the pills below the legend: two rows on a wide pane; on a narrow pane the candle row
-  // wraps to three. A short pane gives the legend only the room that the pills do not need.
+  // Place the top-right "↑ Above" summary below the price + overlay legend on every pane width
+  // so it never overlaps the legend rows. Visible pills (baseline "middle", ~18 px tall) start
+  // cleanly below the legend or below the "↑ Above" pill.
+  const legendTop = legendClearancePx(isCompactPlotWidth(width), 1);
+  const aboveY = Math.min(legendTop, Math.max(4, height - 36));
+  const minPillTop =
+    above.length > 0
+      ? aboveY + ABOVE_PILL_CLEARANCE_PX
+      : legendTop + PILL_HALF_HEIGHT_PX;
   const topReserve = Math.max(
     PILL_PADDING_Y_PX,
-    Math.min(
-      (narrow ? 4 : 2) * LEGEND_ROW_PX,
-      bottomReserve - (visible.length - 1) * PILL_MIN_GAP_PX
-    )
+    Math.min(minPillTop, bottomReserve - (visible.length - 1) * PILL_MIN_GAP_PX)
   );
   const placedY = resolveGammaLabelY(
     visible.map((entry) => ({ id: entry.spec.key, idealY: entry.y })),
@@ -745,6 +771,6 @@ export const gammaLevelsFigures = (
     ...visible.flatMap(({ spec, y }) =>
       levelFigures(spec, y, placedY[spec.key] as number, width, narrow, data)
     ),
-    ...edgeSummaryFigures(above, below, width, height, narrow, data),
+    ...edgeSummaryFigures(above, below, width, height, narrow, aboveY, data),
   ];
 };

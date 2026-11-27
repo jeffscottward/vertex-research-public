@@ -7,6 +7,13 @@ import {
 } from "@darkfactory/scripting";
 import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
 import {
+  candlePaneGap,
+  chartFontFamily,
+  chartLegendStyles,
+  isCompactChartWidth,
+  subPaneGap,
+} from "./chart-legend-layout.ts";
+import {
   barSpacing,
   EXPECTED_MOVE_GROUP_ID,
   EXPECTED_MOVE_OVERLAY,
@@ -271,6 +278,7 @@ const validChartMarkers = (markers: readonly ChartMarker[]): boolean => {
 type StyledMarkerData = Readonly<{
   background: string;
   color: string;
+  fontFamily: string;
   foreground: string;
   position: "above" | "below";
   shape: "arrow" | "diamond";
@@ -284,6 +292,7 @@ const isStyledMarkerData = (value: unknown): value is StyledMarkerData => {
   return (
     typeof candidate["background"] === "string" &&
     typeof candidate["color"] === "string" &&
+    typeof candidate["fontFamily"] === "string" &&
     typeof candidate["foreground"] === "string" &&
     (candidate["position"] === "above" || candidate["position"] === "below") &&
     (candidate["shape"] === "arrow" || candidate["shape"] === "diamond") &&
@@ -305,6 +314,7 @@ const styledMarkerData = (
         : tone === "bearish"
           ? palette.falling
           : palette.accent,
+    fontFamily: chartFontFamily(palette),
     foreground: palette.foreground,
     position: marker.position ?? (tone === "bearish" ? "above" : "below"),
     shape: marker.shape ?? "arrow",
@@ -370,6 +380,7 @@ export const styledMarkerFigures = (
         borderRadius: 2,
         borderSize: 1,
         color: data.foreground,
+        family: data.fontFamily,
         paddingBottom: 2,
         paddingLeft: 3,
         paddingRight: 3,
@@ -598,19 +609,19 @@ type SignalMark = Readonly<{
   text: string;
   location: "abovebar" | "belowbar";
   color: string;
+  fontFamily: string;
   foreground: string;
   background: string;
 }>;
 const isSignalMark = (value: unknown): value is SignalMark => {
   if (typeof value !== "object" || value === null) return false;
-  const { text, location, color, foreground, background } = value as Record<
-    string,
-    unknown
-  >;
+  const { text, location, color, fontFamily, foreground, background } =
+    value as Record<string, unknown>;
   return (
     typeof text === "string" &&
     (location === "abovebar" || location === "belowbar") &&
     typeof color === "string" &&
+    typeof fontFamily === "string" &&
     typeof foreground === "string" &&
     typeof background === "string"
   );
@@ -636,6 +647,7 @@ export const signalMark = (
         : signal.kind === "short"
           ? palette.falling
           : palette.accent,
+    fontFamily: chartFontFamily(palette),
     foreground: palette.foreground,
     location: signal.location,
     text: `${above ? "\u25BC" : "\u25B2"} ${text}`,
@@ -684,6 +696,7 @@ export const scriptSignalFigures = (
         borderRadius: 2,
         borderSize: 1,
         color: data.foreground,
+        family: data.fontFamily,
         paddingBottom: 2,
         paddingLeft: 3,
         paddingRight: 3,
@@ -757,6 +770,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
       indicatorTemplate(VERTEX_STUDIES[id], options.pricePrecision)
     );
   const palette = options.palette;
+  let compact = isCompactChartWidth(element.clientWidth);
+  const initialLegend = chartLegendStyles(palette, compact, NO_VOLUME_LABEL);
   const chart = library.init(element, {
     // Volume axis and tooltip as 1.2K / 3.4M / 5.6B.
     customApi: { formatBigNumber },
@@ -776,15 +791,35 @@ export const createKLineRenderer: CandleRendererFactory = async (
         },
         priceMark: { show: false },
         // Only volume can be missing from a bar (forex, non-USD stocks).
-        tooltip: { defaultValue: NO_VOLUME_LABEL },
+        tooltip: {
+          ...initialLegend.candleTooltip,
+          custom: [...initialLegend.candleTooltip.custom],
+        },
         type: library.CandleType.CandleUpStroke,
+      },
+      crosshair: {
+        horizontal: { text: { family: initialLegend.fontFamily } },
+        vertical: { text: { family: initialLegend.fontFamily } },
       },
       grid: {
         horizontal: { color: palette.grid },
         vertical: { color: palette.grid },
       },
-      xAxis: { tickText: { color: palette.foreground } },
-      yAxis: { tickText: { color: palette.foreground } },
+      indicator: {
+        tooltip: initialLegend.indicatorTooltip,
+      },
+      xAxis: {
+        tickText: {
+          color: palette.foreground,
+          family: initialLegend.fontFamily,
+        },
+      },
+      yAxis: {
+        tickText: {
+          color: palette.foreground,
+          family: initialLegend.fontFamily,
+        },
+      },
     },
     timezone: "UTC",
   });
@@ -808,6 +843,11 @@ export const createKLineRenderer: CandleRendererFactory = async (
       options.pricePrecision,
       options.volumePrecision
     );
+    if (typeof chart.setPaneOptions === "function")
+      chart.setPaneOptions({
+        gap: candlePaneGap(compact, 0),
+        id: CANDLE_PANE_ID,
+      });
     const interaction = chart.getDom();
     if (interaction) {
       // 9.8.12 creates a positive tabindex and inline outline:none. Keep its
@@ -1080,6 +1120,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     emaKey = setAverage("EMA", studies.ema, emaKey);
     setExtra(extra);
     setPanes(panes);
+    syncPaneGaps();
     return;
   };
   let markerKey = "[]";
@@ -1213,6 +1254,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     });
     scriptSlots = panes;
     setScriptSignals(layers);
+    syncPaneGaps();
     return;
   };
   let seriesTemplate = false;
@@ -1261,6 +1303,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
         id: SERIES_PANE_ID,
       });
     seriesShown = true;
+    syncPaneGaps();
     return;
   };
   const overlayEvents = (onChange: (drawing: Drawing) => void) => {
@@ -1346,6 +1389,31 @@ export const createKLineRenderer: CandleRendererFactory = async (
     });
     return;
   };
+  const syncPaneGaps = () => {
+    if (typeof chart.setPaneOptions !== "function") return;
+    const extraIds = [...shownExtra];
+    const overlayCount =
+      Number(smaKey !== "") +
+      Number(emaKey !== "") +
+      extraIds.filter((id) => VERTEX_STUDIES[id].placement === "candle")
+        .length +
+      scriptSlots.filter((paneId) => paneId === CANDLE_PANE_ID).length;
+    chart.setPaneOptions({
+      gap: candlePaneGap(compact, overlayCount),
+      id: CANDLE_PANE_ID,
+    });
+    const gap = subPaneGap(compact);
+    const subPanes = [
+      ...(volumeShown ? [VOLUME_PANE_ID] : []),
+      ...extraIds
+        .filter((id) => VERTEX_STUDIES[id].placement === "pane")
+        .map(studyPaneId),
+      ...[...shownPanes].map((id) => `vx_${id.toLowerCase()}_builtin_pane`),
+      ...scriptSlots.filter((paneId) => paneId !== CANDLE_PANE_ID),
+      ...(seriesShown ? [SERIES_PANE_ID] : []),
+    ];
+    for (const id of subPanes) chart.setPaneOptions({ gap, id });
+  };
   const snapshot = (): string =>
     disposed ? "" : chart.getConvertPictureUrl(true, "png", palette.background);
   return {
@@ -1353,8 +1421,23 @@ export const createKLineRenderer: CandleRendererFactory = async (
     onCrosshair,
     replace,
     resize: () => {
-      if (!disposed) return chart.resize();
-      return;
+      if (disposed) return;
+      const nextCompact = isCompactChartWidth(element.clientWidth);
+      if (nextCompact !== compact) {
+        compact = nextCompact;
+        const nextLegend = chartLegendStyles(palette, compact, NO_VOLUME_LABEL);
+        chart.setStyles({
+          candle: {
+            tooltip: {
+              ...nextLegend.candleTooltip,
+              custom: [...nextLegend.candleTooltip.custom],
+            },
+          },
+          indicator: { tooltip: nextLegend.indicatorTooltip },
+        });
+        syncPaneGaps();
+      }
+      return chart.resize();
     },
     setChartType,
     setDrawings,
