@@ -969,12 +969,10 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         self.assertEqual(leaks, [])
         self.assertEqual(json.loads(v1_text)["schema"], "vertex-deploy-status-v1")
         v2 = json.loads(v2_text)
-        self.assertFalse(v2["orders"]["available"])
-        self.assertIn("RuntimeError", v2["orders"]["reason"])
-        self.assertNotIn("boom", v2["orders"]["reason"])
-        self.assertFalse(v2["fills"]["available"])
-        self.assertIn("RuntimeError", v2["fills"]["reason"])
-        self.assertNotIn("boom", v2["fills"]["reason"])
+        for key in ("positions", "orders", "fills", "equity"):
+            self.assertFalse(v2[key]["available"], key)
+            self.assertIn("RuntimeError", v2[key]["reason"], key)
+            self.assertNotIn("boom", v2[key]["reason"], key)
         self.assertTrue(v2["session"]["available"])
 
 
