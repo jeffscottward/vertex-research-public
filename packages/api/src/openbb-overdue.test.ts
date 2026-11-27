@@ -6,7 +6,7 @@ import {
   OpenbbIngestBatchSchema,
   OpenbbIngestInputSchema,
 } from "./contracts/openbb.ts";
-import { utcDay } from "./nyse-calendar.ts";
+import { previousNyseTradingDay, utcDay } from "./nyse-calendar.ts";
 import {
   diffOverdueIncident,
   elapsedTradingDayMs,
@@ -19,7 +19,6 @@ import {
   nyWallTimeUtcMs,
   OPENBB_MONITORED_OVERDUE_KEYS,
   type OverdueJobRunInput,
-  previousNyseTradingDay,
   sourceKeyOf,
   tradingDayDeadline,
 } from "./openbb-overdue.ts";
@@ -96,6 +95,99 @@ describe("isMarketPremiumSessionOpen", () => {
     expect(isMarketPremiumSessionOpen(new Date("2026-11-22T17:00:00Z"))).toBe(
       false
     );
+  });
+
+  it("ends at 13:15 ET on an NYSE early close", () => {
+    // Fri 2026-11-27 (day after Thanksgiving, EST): 13:14 ET = 18:14Z, 13:15 ET = 18:15Z
+    expect(isMarketPremiumSessionOpen(new Date("2026-11-27T18:14:00Z"))).toBe(
+      true
+    );
+    expect(isMarketPremiumSessionOpen(new Date("2026-11-27T18:15:00Z"))).toBe(
+      false
+    );
+  });
+});
+
+describe("evaluateOpenbbSources on an NYSE early close", () => {
+  const evaluateAt = (
+    now: Date,
+    flow: NonNullable<Parameters<typeof evaluateOpenbbSources>[0]["flow"]>
+  ) => {
+    const evaluation = evaluateOpenbbSources({
+      flow,
+      form4Days: [],
+      now,
+      runs: healthyRuns(now),
+      shortVolumeNewestDate: null,
+    });
+    return {
+      clearable: evaluation.clearableKeys,
+      overdue: new Map(
+        evaluation.sources.map((source) => [
+          sourceKeyOf(source),
+          source.overdue,
+        ])
+      ),
+    };
+  };
+  const samplesAt = (options: Date, depth: Date) => ({
+    marketPremiumSessions: [],
+    samples: {
+      latest: [],
+      latestOk: [
+        {
+          at: options,
+          message: null,
+          source: "options" as const,
+          status: "ok",
+        },
+        { at: depth, message: null, source: "depth" as const, status: "ok" },
+      ],
+    },
+  });
+
+  it("expects no option or stock tape sample after the early close", () => {
+    // 2026-11-27 14:00 ET; newest options read 13:10 ET, newest depth read 12:59 ET.
+    const early = evaluateAt(
+      new Date("2026-11-27T19:00:00Z"),
+      samplesAt(
+        new Date("2026-11-27T18:10:00Z"),
+        new Date("2026-11-27T17:59:00Z")
+      )
+    );
+    expect(early.overdue.get("flow:options")).toBe(false);
+    expect(early.overdue.get("flow:depth")).toBe(false);
+    // Control: the same clock times on a regular Friday are overdue.
+    const regular = evaluateAt(
+      new Date("2026-11-20T19:00:00Z"),
+      samplesAt(
+        new Date("2026-11-20T18:10:00Z"),
+        new Date("2026-11-20T17:59:00Z")
+      )
+    );
+    expect(regular.overdue.get("flow:options")).toBe(true);
+    expect(regular.overdue.get("flow:depth")).toBe(true);
+  });
+
+  it("clears the market premium alert from a capture at or after 12:45 ET", () => {
+    const session = (capturedAt: Date) => ({
+      marketPremiumSessions: [
+        {
+          capturedAt,
+          lastAttemptAt: capturedAt,
+          lastMessage: null,
+          sessionDate: "2026-11-27",
+          status: "partial" as const,
+        },
+      ],
+    });
+    const now = new Date("2026-11-27T18:30:00Z"); // 13:30 ET
+    expect(
+      evaluateAt(now, session(new Date("2026-11-27T18:00:00Z"))).clearable
+    ).toContain("flow:market_premium");
+    expect(
+      evaluateAt(now, session(new Date("2026-11-27T17:40:00Z"))).clearable
+    ).not.toContain("flow:market_premium");
   });
 });
 

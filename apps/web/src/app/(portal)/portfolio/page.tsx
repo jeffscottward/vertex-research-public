@@ -25,6 +25,7 @@ export default async function PortfolioPage({
     <PortfolioTabs
       initialTab={typeof tab === "string" ? tab : undefined}
       operator={session?.isOperator === true}
+      owner={session?.isOwner === true}
       projection={<PortfolioWorkspace />}
     />
   );

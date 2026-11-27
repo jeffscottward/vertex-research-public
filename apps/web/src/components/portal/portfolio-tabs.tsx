@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeader } from "@darkfactory/ui";
-import { type ReactNode, useLayoutEffect, useState } from "react";
+import { type ReactNode, useLayoutEffect, useMemo, useState } from "react";
 
 import {
   DraftsAndOrders,
@@ -68,6 +68,8 @@ interface PortfolioTabsProps {
   /** From the server session. The ibkr-monitor sections are operator-only. */
   readonly operator?: boolean;
   readonly ordersGateway?: VertexOrdersGateway;
+  /** From the server session. Order status, position buttons and Vertex orders are owner-only (admin operator, never agent viewer). */
+  readonly owner?: boolean;
   readonly projection: ReactNode;
 }
 
@@ -82,6 +84,7 @@ export const PortfolioTabs = ({
   draftsGateway: suppliedDraftsGateway,
   initialTab,
   operator = false,
+  owner = false,
 }: PortfolioTabsProps) => {
   const [view, setView] = useStoredState(
     PORTFOLIO_VIEW_STORAGE_KEY,
@@ -94,17 +97,20 @@ export const PortfolioTabs = ({
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserIbkrMonitorGateway()
   );
-  const [ordersGateway] = useState(
-    () => suppliedOrdersGateway ?? createBrowserVertexOrdersGateway()
-  );
-  const [draftsGateway] = useState((): DraftsAndOrdersGateway => {
+  const [defaultOrdersGateway] = useState(createBrowserVertexOrdersGateway);
+  const [defaultGoLiveGateway] = useState(createBrowserGoLiveDraftsGateway);
+  const ordersGateway = owner
+    ? (suppliedOrdersGateway ?? defaultOrdersGateway)
+    : undefined;
+  const draftsGateway = useMemo((): DraftsAndOrdersGateway => {
     if (suppliedDraftsGateway !== undefined) return suppliedDraftsGateway;
-    const goLive = createBrowserGoLiveDraftsGateway();
-    return {
-      drafts: (options) => goLive.queue(options),
-      orders: (options) => ordersGateway.status({}, options),
-    };
-  });
+    return ordersGateway === undefined
+      ? { drafts: (options) => defaultGoLiveGateway.queue(options) }
+      : {
+          drafts: (options) => defaultGoLiveGateway.queue(options),
+          orders: (options) => ordersGateway.status({}, options),
+        };
+  }, [suppliedDraftsGateway, ordersGateway, defaultGoLiveGateway]);
   if (!operator)
     return (
       <div className="space-y-4">
@@ -112,28 +118,35 @@ export const PortfolioTabs = ({
         {projection}
       </div>
     );
-  return (
-    <div className="space-y-4">
-      <PageHeader title="Portfolio" />
-      <DraftsAndOrders gateway={draftsGateway} />
-      <PortfolioMonitor
-        defaultTab={view}
-        extraTabs={[
-          {
-            value: "projection",
-            label: "Projection",
-            content: projection,
-          },
+  const defaultTab =
+    ordersGateway === undefined && view === "orders" ? "positions" : view;
+  const extraTabs = [
+    {
+      value: "projection",
+      label: "Projection",
+      content: projection,
+    },
+    ...(ordersGateway === undefined
+      ? []
+      : [
           {
             value: "orders",
             label: "Vertex orders",
             content: <VertexOrders gateway={ordersGateway} />,
           },
-        ]}
+        ]),
+  ];
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Portfolio" />
+      <DraftsAndOrders gateway={draftsGateway} />
+      <PortfolioMonitor
+        defaultTab={defaultTab}
+        extraTabs={extraTabs}
         gateway={gateway}
         initialTab={initialTab}
         onTabShown={rememberView}
-        ordersGateway={ordersGateway}
+        {...(ordersGateway === undefined ? {} : { ordersGateway })}
         title="Portfolio · IBKR (via ibkr-monitor)"
       />
     </div>
