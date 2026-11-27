@@ -1042,7 +1042,7 @@ class StatusV2AlertTests(unittest.TestCase):
 
     def test_unicode_line_separators_sanitized_in_state_file(self) -> None:
         # Unicode U+2028/U+2029/U+0085 splitlines() characters must never inject state.txt keys.
-        injected = "bridge down stale_alert_open=false avail_failures=99tail"
+        injected = "bridge down\u2028stale_alert_open=false\u2029avail_failures=99\u0085tail"
         self.mock.auth_body = json.dumps(
             _healthy_v2_payload(
                 block_overrides={
