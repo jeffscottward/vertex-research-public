@@ -35,6 +35,7 @@ export interface RegimePillarCellView {
   readonly scopeLabel: "ETF" | "Market-wide";
   readonly secondary: string;
   readonly source: string;
+  readonly sourceLabel: string;
   readonly stale: boolean;
 }
 
@@ -131,6 +132,38 @@ export const regimeSourceStatus = (
 const scopeLabelFor = (scope: "etf" | "market_wide"): "ETF" | "Market-wide" =>
   scope === "etf" ? "ETF" : "Market-wide";
 
+const REGIME_SOURCE_LABELS: Readonly<Record<string, string>> = {
+  breadth90: "Breadth-90",
+  ibkr_bars: "IBKR bars",
+  ibkr_monitor_volatility: "IBKR volatility",
+  market_context_gex: "Market-context GEX",
+  market_context_macro: "Market-context macro",
+  market_daily_series: "Daily price series",
+  none: "No source",
+  openbb_macro: "OpenBB macro",
+  openbb_vol_context: "OpenBB volatility",
+};
+
+const formatRegimeSourceAtom = (atom: string): string => {
+  const known = REGIME_SOURCE_LABELS[atom];
+  if (known !== undefined) return known;
+  const words = atom.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/** Prints an internal market-regime source id (such as market_daily_series or openbb_macro:HY_OAS) as plain words. */
+export const formatRegimeSource = (source: string): string =>
+  source
+    .split("+")
+    .map((part) => {
+      const colon = part.indexOf(":");
+      if (colon === -1) return formatRegimeSourceAtom(part);
+      const prefix = formatRegimeSourceAtom(part.slice(0, colon));
+      const detail = part.slice(colon + 1).replaceAll("_", " ");
+      return `${prefix} (${detail})`;
+    })
+    .join(" + ");
+
 export const trendCellView = (
   pillar: RegimeTrendPillar
 ): RegimePillarCellView => ({
@@ -145,6 +178,7 @@ export const trendCellView = (
       ? `${pillar.sessions} sessions`
       : `50d ${signedPct(pillar.pctVsSma50)} · 200d ${signedPct(pillar.pctVsSma200)}`,
   source: pillar.source,
+  sourceLabel: formatRegimeSource(pillar.source),
   stale: pillar.stale,
 });
 
@@ -170,6 +204,7 @@ export const breadthCellView = (
     scopeLabel: scopeLabelFor(pillar.scope),
     secondary,
     source: pillar.source,
+    sourceLabel: formatRegimeSource(pillar.source),
     stale: pillar.stale,
   };
 };
@@ -187,6 +222,7 @@ export const gammaCellView = (
       scopeLabel: scopeLabelFor(pillar.scope),
       secondary: "SPY & QQQ only",
       source: pillar.source,
+      sourceLabel: formatRegimeSource(pillar.source),
       stale: false,
     };
   }
@@ -204,6 +240,7 @@ export const gammaCellView = (
     scopeLabel: scopeLabelFor(pillar.scope),
     secondary: `${spotPart}${vsPart}`,
     source: pillar.source,
+    sourceLabel: formatRegimeSource(pillar.source),
     stale: pillar.stale,
   };
 };
@@ -233,6 +270,7 @@ export const creditCellView = (
     scopeLabel: scopeLabelFor(pillar.scope),
     secondary: parts.length > 0 ? parts.join(" · ") : "HY OAS",
     source: pillar.source,
+    sourceLabel: formatRegimeSource(pillar.source),
     stale: pillar.stale,
   };
 };
@@ -258,6 +296,7 @@ export const volatilityCellView = (
     scopeLabel: scopeLabelFor(pillar.scope),
     secondary: parts.length > 0 ? parts.join(" · ") : "No term ratio",
     source: pillar.source,
+    sourceLabel: formatRegimeSource(pillar.source),
     stale: pillar.stale,
   };
 };

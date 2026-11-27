@@ -76,15 +76,18 @@ const PillarCell = ({
 }: Readonly<{ cell: RegimePillarCellView; pillar: string }>) => (
   <TableCell
     className="align-top"
+    data-pillar-source={cell.source}
     data-regime-pillar={pillar}
     data-regime-stale={cell.stale ? "true" : "false"}
     title={cell.detail}
   >
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-1.5">
-        <StatusBadge status={cell.badge.tone}>{cell.badge.label}</StatusBadge>
+        <StatusBadge plain status={cell.badge.tone}>
+          {cell.badge.label}
+        </StatusBadge>
         {cell.stale ? (
-          <StatusBadge data-pillar-stale="true" status="warning">
+          <StatusBadge data-pillar-stale="true" plain status="warning">
             Stale
           </StatusBadge>
         ) : null}
@@ -98,7 +101,7 @@ const PillarCell = ({
       <div className="text-[11px] text-muted-foreground tabular-nums">
         {cell.asOf ?? "no as-of"}
         {cell.ageLabel === null ? "" : ` (${cell.ageLabel})`} ·{" "}
-        {cell.scopeLabel} · {cell.source}
+        {cell.scopeLabel} · {cell.sourceLabel}
       </div>
       <div
         className="text-[11px] text-muted-foreground"
@@ -204,7 +207,9 @@ export const MarketRegimeSection = ({
       <Panel
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status="destructive">Error</StatusBadge>
+            <StatusBadge plain status="destructive">
+              Error
+            </StatusBadge>
             <Button
               className="min-h-11"
               disabled={busy}
@@ -238,12 +243,13 @@ export const MarketRegimeSection = ({
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge
             data-regime-summary={data.overall.summary}
+            plain
             status={overallBadge.tone}
           >
             {overallBadge.label}
           </StatusBadge>
           {data.overall.stalePillarCount > 0 ? (
-            <StatusBadge data-regime-stale-banner="true" status="warning">
+            <StatusBadge data-regime-stale-banner="true" plain status="warning">
               Stale inputs ({data.overall.stalePillarCount})
             </StatusBadge>
           ) : null}
@@ -296,7 +302,7 @@ export const MarketRegimeSection = ({
                   </TableHead>
                   <TableCell className="align-top">
                     <div className="space-y-1">
-                      <StatusBadge status={row.summary.tone}>
+                      <StatusBadge plain status={row.summary.tone}>
                         {row.summary.label}
                       </StatusBadge>
                       {row.hasStaleInputs ? (

@@ -195,7 +195,7 @@ const GexRow = ({
         {row.regime === null ? (
           "regime not computed"
         ) : (
-          <StatusBadge status={REGIME_TONE[row.regime] ?? "info"}>
+          <StatusBadge plain status={REGIME_TONE[row.regime] ?? "info"}>
             {row.regime}
           </StatusBadge>
         )}
@@ -323,13 +323,17 @@ const MacroSection = ({ data }: Readonly<{ data: MarketContextOutput }>) => {
         <>
           {macro.regimes.length === 0 ? null : (
             <ul
-              className="flex flex-wrap gap-2 border-b px-4 py-3 text-sm"
+              className="flex flex-wrap gap-x-4 gap-y-1 border-b px-4 py-3 text-sm"
               data-macro-regimes=""
             >
               {macro.regimes.map((regime) => (
-                <li key={regime.id} title={regime.rule ?? undefined}>
-                  <StatusBadge status="neutral">
-                    {regime.id}: {regime.label}
+                <li
+                  data-macro-regime={regime.id}
+                  key={regime.id}
+                  title={regime.rule ?? undefined}
+                >
+                  <StatusBadge plain status="neutral">
+                    {regime.id.replaceAll("_", " ")}: {regime.label}
                   </StatusBadge>
                 </li>
               ))}
@@ -436,11 +440,15 @@ const NewsSection = ({ data }: Readonly<{ data: MarketContextOutput }>) => {
       ) : (
         <div className="space-y-3">
           {news.themes.length === 0 ? null : (
-            <ul className="flex flex-wrap gap-2 text-sm" data-news-themes="">
+            <ul
+              className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm"
+              data-news-themes=""
+            >
               {news.themes.map((theme) => (
                 <li className="max-w-full" data-theme={theme.id} key={theme.id}>
                   <StatusBadge
                     className="max-w-full whitespace-normal text-left"
+                    plain
                     status={theme.shock ? "destructive" : "neutral"}
                   >
                     {theme.label}: {theme.count24h} in 24 h,{" "}

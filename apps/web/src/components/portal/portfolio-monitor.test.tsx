@@ -179,7 +179,12 @@ describe("PortfolioMonitor", () => {
     expect(find("[data-stat=daily]").textContent).toContain(
       "1.01% of start NLV"
     );
-    expect(document.querySelectorAll("[data-stat]")).toHaveLength(12);
+    const statCells = [...document.querySelectorAll("[data-stat]")];
+    expect(statCells).toHaveLength(12);
+    for (const cell of statCells) {
+      expect(cell.className).not.toContain("border");
+    }
+    expect(find("[data-api-messages]").className).not.toContain("rounded-md");
     expect(
       [...document.querySelectorAll("[data-position-id]")].map((row) =>
         row.getAttribute("data-position-id")

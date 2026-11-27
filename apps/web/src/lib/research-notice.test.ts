@@ -188,6 +188,7 @@ describe("portal research notice", () => {
 
   it("applies to research routes and to no execution route or its children", () => {
     expect(researchNoticeApplies("/research")).toBe(true);
+    expect(researchNoticeApplies("/pick-lists")).toBe(true);
     expect(researchNoticeApplies("/portfolio-combos")).toBe(true);
     expect(researchNoticeApplies("/settings/appearance")).toBe(true);
     expect(researchNoticeApplies(null)).toBe(false);
