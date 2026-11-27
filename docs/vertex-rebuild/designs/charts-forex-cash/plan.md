@@ -35,7 +35,7 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 
 1. **Bars accept `CASH`.** `marketData/bars` accepts `secType: "CASH"`. The pair is `symbol` (base currency, for example `EUR`) plus `currency` (quote currency, for example `USD`). An exchange is required, as for futures; the form presets `IDEALPRO`, the IBKR forex venue. A wrong venue gives the same typed error as for every other security type.
 2. **Forex bars are always midpoint bars.** IBKR has no trade data for forex. The API server sends `whatToShow=MIDPOINT` to the history service for `CASH`, even when the caller asked for `TRADES` (the schema default). The `request` block of the response comes from the history service answer, so it says `MIDPOINT`.
-3. **Forex bars have no volume.** Every bar has `v: null`. The chart draws a null volume as 0, as it already does for other instruments without volume: the volume pane is empty, the bar details say `Volume 0`, and the volume studies (VWAP, RVOL) plot nothing.
+3. **Forex bars have no volume.** Every bar has `v: null`. Since PR #446 (`a6a04ee2`), the chart shows `No volume` instead of `Volume 0` for bars without volume: the volume pane is off, the bar details and tooltip say `No volume`, and the volume studies (VWAP, RVOL and OBV) stay off.
 4. **Ticks and depth refuse `CASH`.** `marketData/ticks` and `marketData/depth` give a validation error with the text `Forex (CASH) has bars only: IBKR gives no ticks or depth for it`. The history service has no ticks or depth for forex.
 5. **Charts form.** The `Security type` list has a fourth entry, `Forex (CASH)`. While it is selected, the exchange preset is `IDEALPRO` and the `Data` list holds only `MIDPOINT`. The form keeps the operator's own `Data` choice: after a forex chart, a stock or futures chart loads with the value that was selected before. A venue that the operator typed (not `SMART`, `CME` or `IDEALPRO`) stays when the security type changes.
 6. **Quick picks.** The `Quick pick` list gets `EUR.USD`, `USD.JPY` and `GBP.USD` after the existing four entries. These are the three pairs that the removed code offered and that the probe covered. A pick sets symbol, security type, exchange and currency.
@@ -56,9 +56,9 @@ The baseline is the inverse of commit `1c7987817`: put back what it removed. A d
 
 - Any change to `infra/quant-vps/history/` or a reinstall of `vertex-history`.
 - Forex ticks, depth, order flow, options panels, and `BID_ASK` bars.
-- A "no volume" display in place of `Volume 0`. The web app does not read the volume unit; this is a separate change for all instruments without volume.
+- A "no volume" display in place of `Volume 0`. Out of scope for PR #443; implemented separately in PR #446 (`a6a04ee2`) for all instruments without volume.
 - A forex chart in the page URL. The URL holds stock symbols only, as for futures today.
-- Forex for agents. The definition of the MCP tool `market_bars` (description and input schema) is part of every recorded model call of the semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`). A new `secType` value in that definition makes all 90 recorded trials stale; CI showed this on the first run of the PR. A new recording needs about 200 model calls and 270 grading calls (`docs/vertex-rebuild/agent-semantic-layer.md`). So the tool keeps `STK`, `FUT` and `CONTFUT`, and forex for agents is the follow-up card `vertex-fx-mcp-market-bars`.
+- Forex for agents. Out of scope for PR #443 (the MCP tool `market_bars` kept `STK`, `FUT` and `CONTFUT` so PR #443 did not invalidate the semantic-layer eval recording); resolved by card `vertex-fx-mcp-market-bars`, which removes `MARKET_BARS_TOOL_SEC_TYPES`, updates the tool description for `CASH`, and records the semantic-layer eval witness trials.
 - Indices (`IND`).
 - Orders, arming, risk settings, sizing and live trading units. This change reads historical bars only.
 

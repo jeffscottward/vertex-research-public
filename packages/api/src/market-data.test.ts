@@ -652,15 +652,34 @@ describe("market_bars MCP tool", () =>
     );
     expect(call).toHaveBeenCalledWith("marketData/bars", { symbol: "SPY" });
     expect(result["isError"]).toBe(false);
-    // The agent tool keeps stocks and futures (mcp.ts says why); the procedure itself takes forex.
     const forexResult = await callMcpTool(
       "market_bars",
-      { exchange: "IDEALPRO", secType: "CASH", symbol: "EUR" },
+      { currency: "USD", exchange: "IDEALPRO", secType: "CASH", symbol: "EUR" },
       call
     );
-    expect(forexResult["isError"]).toBe(true);
-    expect(call).toHaveBeenCalledTimes(1);
-    expect(tool?.description).toContain("secType STK|FUT|CONTFUT,");
+    expect(forexResult["isError"]).toBe(false);
+    expect(call).toHaveBeenLastCalledWith("marketData/bars", {
+      currency: "USD",
+      exchange: "IDEALPRO",
+      secType: "CASH",
+      symbol: "EUR",
+    });
+    const forexMissingExchange = await callMcpTool(
+      "market_bars",
+      { secType: "CASH", symbol: "EUR" },
+      call
+    );
+    expect(forexMissingExchange["isError"]).toBe(true);
+    expect(JSON.stringify(forexMissingExchange["content"])).toContain(
+      "Futures and forex need an exchange, for example CME or IDEALPRO"
+    );
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(tool?.description).toContain("secType STK|FUT|CONTFUT|CASH,");
+    expect(tool?.description).toContain("IDEALPRO");
+    expect(tool?.description).toContain("Forex (CASH):");
+    expect(tool?.description).toContain(
+      "bars are always MIDPOINT and v is null"
+    );
     const presented = presentMarketBars(
       { bars: [{ t: 1 }, { t: 2 }], count: 2 },
       1

@@ -179,14 +179,7 @@ export const presentOptimization = (
   };
 };
 
-// The agent tool keeps stocks and futures; the procedure marketData/bars also takes forex (CASH).
-// Reason: this tool definition (description and input schema) is part of every recorded Plan-mode model
-// call of the semantic-layer eval (tests/integration/semantic-layer/eval-replay.test.ts). A new value
-// makes all recorded trials stale, so forex for agents comes with a new recording (card
-// vertex-fx-mcp-market-bars).
-const MARKET_BARS_TOOL_SEC_TYPES = ["STK", "FUT", "CONTFUT"] as const;
 const MarketBarsToolInputSchema = MarketBarsInputSchema.safeExtend({
-  secType: z.enum(MARKET_BARS_TOOL_SEC_TYPES).default("STK"),
   lastBars: z
     .number()
     .int()
@@ -670,7 +663,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "market_bars",
     title: "Market bars",
     description:
-      "Read-only IBKR historical OHLCV bars from the QuantVPS history service (IB Gateway, client id 77): symbol, secType STK|FUT|CONTFUT, exchange (SMART for stocks; required for futures, e.g. CME), currency, barSize (1 min to 1 day), duration (daily <= 1 Y, intraday <= 1 M, 1 min <= 2 D), whatToShow TRADES|MIDPOINT, useRTH. Bars are {t epoch seconds UTC, o, h, l, c, v}; includes contract, asOf, fetchedAt and cache age. The service paces IBKR requests; PACED errors say when to retry.",
+      "Read-only IBKR historical OHLCV bars from the QuantVPS history service (IB Gateway, client id 77): symbol, secType STK|FUT|CONTFUT|CASH, exchange (SMART for stocks; required for futures, e.g. CME, and for forex, e.g. IDEALPRO), currency, barSize (1 min to 1 day), duration (daily <= 1 Y, intraday <= 1 M, 1 min <= 2 D), whatToShow TRADES|MIDPOINT, useRTH. Forex (CASH): symbol is the base currency and currency is the quote currency (EUR.USD is symbol EUR, currency USD); bars are always MIDPOINT and v is null. Bars are {t epoch seconds UTC, o, h, l, c, v}; includes contract, asOf, fetchedAt and cache age. The service paces IBKR requests; PACED errors say when to retry.",
     procedure: "marketData/bars",
     input: MarketBarsToolInputSchema,
     readOnly: true,
