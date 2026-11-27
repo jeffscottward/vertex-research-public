@@ -49,7 +49,7 @@ Every block has one of two shapes:
 - available: `{available: true, source: string, as_of: ISO-8601 Z | null, ...}`
 - unavailable: `{available: false, source: string, reason: string}`
 
-Blocks sourced from report files or `ibkr-monitor.service` also carry `age_seconds` (int) and `stale` (bool; true when older than 300 s, when `as_of` is unknown, or when `ibkr-monitor.service` reports `status.stale: true`). `as_of` is the producer's own timestamp (`generated_at` for disk reports, `ordersAsOf` or `status.dataAsOf` for `ibkr-monitor.service`), not the collector time. List blocks have `count`, `items`, and `truncated`.
+Blocks sourced from `ibkr-monitor.service` (`positions`, `orders`, `fills`, `equity`) carry `age_seconds` (int) and `stale` (bool; true when older than 300 s, when `as_of` is unknown, or when `ibkr-monitor.service` reports `status.stale: true`). `as_of` is the producer's own timestamp (`ordersAsOf` for `orders` with fallback to `status.dataAsOf`; `status.dataAsOf` for `positions`, `fills`, and `equity`), not the collector time. List blocks have `count`, `items`, and `truncated`.
 
 ### `session`
 
@@ -61,7 +61,7 @@ Blocks sourced from report files or `ibkr-monitor.service` also carry `age_secon
 | `trading_mode`, `safe_mode` | from `data/nautilus/health.json` (last written by the runner) |
 | `strategies[]` | `{id, name, started_at, symbols[], observation_only, trading_mode}`: latest `strategy_started` per strategy since the runner start (Postgres `strategy_events`; falls back to the runner log) |
 | `symbols[]` | union of strategy watchlists |
-| `account_masked` | `****NNNN` |
+| `account_masked` | `****NNNN` or `null` (collector 2.4.0+ reads broker blocks from `ibkr-monitor.service`, which intentionally omits account codes, so `account_masked` is `null`) |
 | `started_at`, `stopped_at`, `last_heartbeat_at` | ISO Z. `stopped_at` is set only when the state is stopped, error or stopping. The heartbeat is the latest of health.json, the Redis `vertex_quant:nautilus:heartbeat:state` hash and runner-log `strategy_heartbeat` events. |
 | `ibkr_adapter` | `{ok, detail, checked_at}` from health.json |
 
@@ -86,7 +86,7 @@ State mapping (nautilus-trader container plus runner signals):
 
 ### `positions`
 
-Items: `{symbol, sec_type, qty, avg_px, avg_cost, multiplier|null, market_price, market_value, unrealized_pnl, realized_pnl, currency}`. Options also carry `right`, `strike` and `expiry`. `avg_px` = `avg_cost / multiplier`. Source: the newest `data/nautilus/reports/ibkr-account-snapshot-*.json`, written by the portfolio-ui snapshot refresh. The collector reads the file and never calls IBKR.
+Items: `{symbol, sec_type, qty, avg_px, avg_cost, multiplier|null, market_price, market_value, unrealized_pnl, realized_pnl, currency}`. Options (`OPT`, `FOP`) also carry `right`, `strike` and `expiry`. `avg_px` = `avgPrice` (per-share; derived from `avgCost / multiplier` if absent) and `avg_cost` = `avgCost` (derived from `avgPrice * multiplier` if absent). Source (collector 2.4.0+): `positions` from the same single read-only `GET /api/snapshot` to `ibkr-monitor.service` (IBKR client id 195), stamped with `status.dataAsOf`. Fails closed (`available: false`) under the same bridge/mode-mismatch/missing-`dataAsOf` rules as `orders` and `fills`. The collector never reads `data/nautilus/reports/ibkr-account-snapshot-*.json` from disk, eliminating off-hours staleness when the market-hours-only `vertex-ibkr-account-heartbeat` window (09:15–16:15 ET) is closed.
 
 ### `orders`
 
@@ -98,7 +98,7 @@ Last 50, newest first: `{time, symbol, side (buy|sell), qty, price, order_id_mas
 
 ### `equity`
 
-`{currency: "USD", net_liq, cash, available_funds, buying_power, unrealized, realized}`. `unrealized` and `realized` are sums over the snapshot positions. Source: the summary in the same account-snapshot file.
+`{currency: "USD", net_liq, cash, available_funds, buying_power, unrealized, realized}`. Source (collector 2.4.0+): `summary` (`NetLiquidation`, `TotalCashValue`, `AvailableFunds`, `BuyingPower`) and `pnl` (`unrealized`, `realized`, falling back to sums over the available `positions` items when absent or IBKR `Double.MAX`) from the same single read-only `GET /api/snapshot` to `ibkr-monitor.service` (IBKR client id 195), stamped with `status.dataAsOf`. Fails closed (`available: false`) under the same bridge/mode-mismatch/missing-`dataAsOf` rules.
 
 ### `risk`
 

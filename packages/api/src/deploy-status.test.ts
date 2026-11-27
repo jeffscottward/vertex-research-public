@@ -455,7 +455,7 @@ describe("deploy status v2 schema", () => {
     ).toBe(false);
   });
 
-  it("parses live output from collect.py 2.3.0 with ibkr-monitor orders and fills", () => {
+  it("parses live output from collect.py 2.4.0 with ibkr-monitor positions, orders, fills and equity", () => {
     const statusDir = fileURLToPath(
       new URL("../../../infra/quant-vps/status/", import.meta.url)
     );
@@ -487,6 +487,11 @@ describe("deploy status v2 schema", () => {
       const parsed = DeployUpstreamStatusV2Schema.safeParse(raw);
       expect(parsed.success).toBe(true);
       const mapped = toDeploymentStatusV2(raw, v2At);
+      expect(mapped.positions).toMatchObject({
+        available: true,
+        stale: false,
+        count: 2,
+      });
       expect(mapped.orders).toMatchObject({
         available: true,
         stale: false,
@@ -496,6 +501,11 @@ describe("deploy status v2 schema", () => {
         available: true,
         stale: false,
         count: 2,
+      });
+      expect(mapped.equity).toMatchObject({
+        available: true,
+        stale: false,
+        net_liq: 150_000.25,
       });
     } finally {
       rmSync(dir, { force: true, recursive: true });
