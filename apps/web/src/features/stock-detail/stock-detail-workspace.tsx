@@ -130,18 +130,35 @@ type ChainSummary = Readonly<{
   atmIv: number | null;
   calls: OiSide;
   puts: OiSide;
-  /** Puts / calls; null unless every contract on both sides reported and calls sum above 0. */
+  /**
+   * Puts / calls of the reported open interest; null unless each side reports open interest for
+   * at least MIN_OI_COVERAGE_PERCENT percent of its contracts and calls sum above 0.
+   */
   putCallOi: number | null;
 }>;
 
-const complete = (side: OiSide): boolean =>
-  side.contracts > 0 && side.reported === side.contracts;
+/**
+ * A ratio requires each side to report open interest for at least this percent of its contracts.
+ * The floor keeps out a chain for which a source sent almost none of the open interest (an expiry
+ * that ended, a newly listed expiry): its few reported values do not stand for the chain. At or
+ * above the floor, a contract with no value had no open interest on record in the measured chains.
+ * Measurement and limits: docs/vertex-rebuild/designs/stock-pc-oi-partial-ratio/plan.md.
+ */
+const MIN_OI_COVERAGE_PERCENT = 50;
+
+/**
+ * The side has contracts and at least MIN_OI_COVERAGE_PERCENT percent of them report open
+ * interest. Integer comparison: the floor percent exactly passes.
+ */
+const covered = (side: OiSide): boolean =>
+  side.contracts > 0 &&
+  side.reported * 100 >= side.contracts * MIN_OI_COVERAGE_PERCENT;
 
 /**
  * The muted detail of the Put/call OI tile: the contracts behind the ratio, or why there is none.
- * No contracts, open interest the source did not report, and a reported 0 stay distinct: a missing
- * value is never summed as 0. Every text speaks for the returned chain only, which can hold fewer
- * contracts than the expiry lists.
+ * No contracts, a side below the coverage floor, and a reported 0 stay distinct: a contract with
+ * no open interest value is not counted as reported and is left out of the totals. Every text
+ * speaks for the returned chain only, which can hold fewer contracts than the expiry lists.
  */
 const putCallOiDetail = ({ calls, puts, putCallOi }: ChainSummary): string => {
   const reported = (side: OiSide, name: "calls" | "puts"): string =>
@@ -152,11 +169,13 @@ const putCallOiDetail = ({ calls, puts, putCallOi }: ChainSummary): string => {
     return `No call contracts; OI reported for ${reported(puts, "puts")} in the returned chain`;
   if (puts.contracts === 0)
     return `No put contracts; OI reported for ${reported(calls, "calls")} in the returned chain`;
-  // With a ratio, and with a side that lacks OI: the same sentence, so the counts explain both.
-  if (putCallOi !== null || !(complete(calls) && complete(puts)))
-    return `OI reported for ${reported(calls, "calls")} and ${reported(puts, "puts")} in the returned chain`;
+  // With a ratio, and below the floor: the same counts sentence, so the counts explain both.
+  const counts = `OI reported for ${reported(calls, "calls")} and ${reported(puts, "puts")} in the returned chain`;
+  if (putCallOi !== null) return counts;
+  if (!(covered(calls) && covered(puts)))
+    return `${counts}; a ratio needs at least ${MIN_OI_COVERAGE_PERCENT}% of each side`;
   if (puts.total === 0) return "Reported call and put OI totals are 0";
-  return "Call OI is 0; a ratio needs call OI above 0";
+  return "Reported call OI total is 0; a ratio needs call OI above 0";
 };
 
 const addLeg = (side: OiSide, openInterest: number | null): OiSide =>
@@ -190,7 +209,7 @@ export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
     atmStrike: row?.strike ?? null,
     calls,
     putCallOi:
-      complete(calls) && complete(puts) && calls.total > 0
+      covered(calls) && covered(puts) && calls.total > 0
         ? puts.total / calls.total
         : null,
     puts,

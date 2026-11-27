@@ -785,7 +785,7 @@ describe("chainKpis", () => {
     ]);
     expect(oi([0, 1200])).toEqual([
       "No ratio",
-      "Call OI is 0; a ratio needs call OI above 0",
+      "Reported call OI total is 0; a ratio needs call OI above 0",
     ]);
     // Puts and no call contracts: no ratio, and the puts are not zero.
     expect(oi(["absent", 1200])).toEqual([
@@ -800,18 +800,72 @@ describe("chainKpis", () => {
       "No ratio",
       "No put contracts; OI reported for 1 of 3 calls in the returned chain",
     ]);
+    // Below the coverage floor (50% of each side) there is no ratio, and the detail names the floor.
+    const belowFloor = (counts: string) =>
+      `OI reported for ${counts} in the returned chain; a ratio needs at least 50% of each side`;
     expect(oi([null, null])).toEqual([
       "No ratio",
-      "OI reported for 0 of 1 calls and 0 of 1 puts in the returned chain",
+      belowFloor("0 of 1 calls and 0 of 1 puts"),
     ]);
     expect(oi([400, null])).toEqual([
       "No ratio",
-      "OI reported for 1 of 1 calls and 0 of 1 puts in the returned chain",
+      belowFloor("1 of 1 calls and 0 of 1 puts"),
     ]);
-    // A partly reported side is never summed as complete.
     expect(oi([0, 1200], [null, 300], [null, null])).toEqual([
       "No ratio",
-      "OI reported for 1 of 3 calls and 2 of 3 puts in the returned chain",
+      belowFloor("1 of 3 calls and 2 of 3 puts"),
+    ]);
+    // At or above the floor the ratio uses the reported OI, and the counts show what it covers.
+    const fill = (count: number, pair: readonly [Leg, Leg]) =>
+      Array.from({ length: count }, () => pair);
+    const reportedCounts = (counts: string) =>
+      `OI reported for ${counts} in the returned chain`;
+    // The floor is exact on each side: 10 of 20 (50%) passes, 9 of 19 (47.4%) does not.
+    expect(oi(...fill(10, [100, 50]), ...fill(10, [null, 50]))).toEqual([
+      "1.00",
+      reportedCounts("10 of 20 calls and 20 of 20 puts"),
+    ]);
+    expect(oi(...fill(9, [100, 50]), ...fill(10, [null, 50]))).toEqual([
+      "No ratio",
+      belowFloor("9 of 19 calls and 19 of 19 puts"),
+    ]);
+    expect(oi(...fill(10, [100, 60]), ...fill(10, [100, null]))).toEqual([
+      "0.30",
+      reportedCounts("20 of 20 calls and 10 of 20 puts"),
+    ]);
+    expect(oi(...fill(9, [100, 60]), ...fill(10, [100, null]))).toEqual([
+      "No ratio",
+      belowFloor("19 of 19 calls and 9 of 19 puts"),
+    ]);
+    // Only a floor of exactly 50 rejects 49 of 100 and accepts 10 of 20.
+    expect(oi(...fill(49, [100, 50]), ...fill(51, [null, 50]))).toEqual([
+      "No ratio",
+      belowFloor("49 of 100 calls and 100 of 100 puts"),
+    ]);
+    expect(oi(...fill(49, [100, 60]), ...fill(51, [100, null]))).toEqual([
+      "No ratio",
+      belowFloor("100 of 100 calls and 49 of 100 puts"),
+    ]);
+    expect(oi(...fill(18, [100, 50]), [null, 50], [100, null])).toEqual([
+      "0.50",
+      reportedCounts("19 of 20 calls and 19 of 20 puts"),
+    ]);
+    expect(oi([400, 600], [null, 300])).toEqual([
+      "2.25",
+      reportedCounts("1 of 2 calls and 2 of 2 puts"),
+    ]);
+    // The zero-total reasons also hold for a chain that is not complete.
+    expect(oi(...fill(19, [100, 0]), [null, 0])).toEqual([
+      "0.00",
+      reportedCounts("19 of 20 calls and 20 of 20 puts"),
+    ]);
+    expect(oi(...fill(19, [0, 0]), [null, 0])).toEqual([
+      "No ratio",
+      "Reported call and put OI totals are 0",
+    ]);
+    expect(oi(...fill(19, [0, 10]), [null, 10])).toEqual([
+      "No ratio",
+      "Reported call OI total is 0; a ratio needs call OI above 0",
     ]);
   });
 });
@@ -946,5 +1000,34 @@ describe("chainSummary", () => {
       putCallOi: null,
       puts: none,
     });
+  });
+
+  it("returns the ratio of the reported open interest for a covered, incomplete chain", async () => {
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    const legs = chain.rows.find(
+      (row) => row.put !== null && row.call !== null
+    );
+    const call = legs?.call ?? null;
+    const put = legs?.put ?? null;
+    expect(call).not.toBeNull();
+    expect(put).not.toBeNull();
+    // 19 calls report 100 each and one call reports nothing; all 20 puts report 50 each.
+    const summary = chainSummary({
+      ...chain,
+      rows: Array.from({ length: 20 }, (_, index) => ({
+        call:
+          call === null
+            ? null
+            : { ...call, openInterest: index === 19 ? null : 100 },
+        put: put === null ? null : { ...put, openInterest: 50 },
+        strike: 250 + index,
+      })),
+      spot: 250,
+    });
+    expect(summary.calls).toEqual({ contracts: 20, reported: 19, total: 1900 });
+    expect(summary.puts).toEqual({ contracts: 20, reported: 20, total: 1000 });
+    expect(summary.putCallOi).toBeCloseTo(1000 / 1900, 5);
   });
 });
