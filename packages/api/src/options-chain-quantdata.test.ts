@@ -362,9 +362,10 @@ describe("createQuantDataOptionsSource", () => {
             // Every print carries 0, as a number and as a string.
             put(90, { openInterest: 0, tradeTime: early }),
             put(90, { openInterest: "0", tradeTime: late }),
-            // The newest print carries 0: the older value does not come back.
+            // The newest print carries 0: an older value does not come back in either array order.
             put(91, { openInterest: 1554, tradeTime: early }),
             put(91, { openInterest: 0, tradeTime: late }),
+            put(91, { openInterest: 999, tradeTime: early }),
             // The newest print carries a value: an older 0 changes nothing.
             put(92, { openInterest: 0, tradeTime: early }),
             put(92, { openInterest: 785, tradeTime: late }),
@@ -388,7 +389,7 @@ describe("createQuantDataOptionsSource", () => {
         },
         "91put": {
           delta: null,
-          flow: { premium: 200_000, trades: 2, volume: 200 },
+          flow: { premium: 300_000, trades: 3, volume: 300 },
           iv: null,
           openInterest: null,
           right: "put",
