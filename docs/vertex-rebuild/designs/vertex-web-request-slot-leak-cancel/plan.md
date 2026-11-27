@@ -36,7 +36,8 @@ This plan bounds the outage in two layers:
 
 - **Journal (verified, read on QuantVPS; a copy is in the job's private evidence folder, outside the repository):**
   - 245 responses with status 503 in the 21:00 UTC hour, the first at 21:15:46; in the two weeks before, at most 6 per hour.
-  - The `flow/collect` timer request starts at about `hh:mm:00.3` every minute and completed every minute until the run of 21:14:00 (14.4 s). The run of 21:15:00 never logged a completion. 21:15:00 plus 714 s is 21:26:54, which is consistent with the one request to `:3450` that was open for 714 s when the outage was examined.
+  - The `flow/collect` timer request starts at about `hh:mm:00.3` every minute and completed every minute until the run of 21:14:00 (14.4 s). The run of 21:15:00 never logged a completion.
+- **Proxy log (verified, `vertex-web-tailnet` Caddy error log):** one request, `POST /api/orpc/optionsChain/chain` from the browser check, was reset at 21:26:13 UTC after 721 s, so it started at about 21:14:12. This is the request to `:3450` that was open for 714 s when the outage was examined, and it matches the oldest idle Postgres connection (open since about 21:14). `optionsChain.chain` waits on all three shared sites of Layer 1 (QuantData step turn, Yahoo session, chain cache).
   - A headless browser check (`live-check.mjs` of card `vertex-charts-legend-overlap-375-deploy`) signed in and loaded `/charts` at 21:13:41, 21:13:51, 21:14:57, 21:15:32 and 21:15:44, and navigated away after 10 s each time. `/charts` calls `optionsChain.*` and `optionsAnalytics.*`, which use the same QuantData client as `flow.collect`. The first 503 came at 21:15:46.
   - `vite preview` logs only completed requests and no `workerd` warnings, so requests that never finished are not visible in the journal.
 - **Postgres (verified, `vertex-postgres` at 21:26 UTC):** 5 app connections `idle` (waiting for the client), the oldest open since about 21:14 UTC, and no active app query. All 8 slots were taken (every admission failed after its 2 s wait), so 3 slots were held without an open connection.
@@ -54,7 +55,7 @@ This plan bounds the outage in two layers:
 
 ## Cause
 
-- **Verified:** from 21:15 on, all 8 slots were held by requests that waited on something that never finished, and admission had no way to take slots back. The shared QuantData chain turns one stuck step into a permanent stop of all QuantData callers.
+- **Verified:** from 21:15 on, all 8 slots were held by requests that waited on something that never finished, and admission had no way to take slots back. The first of them was an `optionsChain.chain` request of the browser check (21:14:12, open 721 s). The shared QuantData chain turns one stuck step into a permanent stop of all QuantData callers.
 - **Hypothesis (not reproduced on demand):** what made the first step stop. The candidate is a shared step whose request context ended while other requests waited on it. `workerd` then drops continuations that belong to the ended context ("handle_cross_request_promise_resolution" compatibility flag, on by default since 2024-10-14; this app uses compatibility date 2026-07-22), and the ended context's own abort timer never fires. The fix does not depend on the exact trigger.
 
 ## Design
