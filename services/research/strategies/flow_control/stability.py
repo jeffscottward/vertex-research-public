@@ -19,8 +19,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from urllib.parse import unquote, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
-
 from strategies.imom.data import is_closed, is_early_close
 
 from .control import (
@@ -137,7 +137,7 @@ class SessionStability:
     hold_spells: Mapping[str, int]
 
     def to_json(self) -> dict[str, object]:
-        denom = SESSION_MINUTES
+        denom = self.folded_steps
         return {
             "day": self.day,
             "symbol": self.symbol,
@@ -164,10 +164,10 @@ class SessionStability:
                 GAP: self.gap_minutes,
             },
             "stateSessionShares": {
-                BUYERS: round(self.buyers_minutes / denom, 6),
-                SELLERS: round(self.sellers_minutes / denom, 6),
-                BALANCED: round(self.balanced_minutes / denom, 6),
-                NO_DATA: round(self.no_data_minutes / denom, 6),
+                BUYERS: round(self.buyers_minutes / denom, 6) if denom > 0 else 0.0,
+                SELLERS: round(self.sellers_minutes / denom, 6) if denom > 0 else 0.0,
+                BALANCED: round(self.balanced_minutes / denom, 6) if denom > 0 else 0.0,
+                NO_DATA: round(self.no_data_minutes / denom, 6) if denom > 0 else 0.0,
             },
             "ratioReachedBalancedMinutes": self.ratio_reached_balanced_minutes,
             "holdMinutes": dict(self.hold_minutes),
@@ -271,7 +271,7 @@ def parse_utc_timestamp(value: str | datetime) -> datetime:
 
 def ny_session_minute(ts: datetime) -> tuple[str, int] | None:
     """Return (YYYY-MM-DD, minute_offset_from_0930) in America/New_York, or None outside 09:30..16:00."""
-    local = ts.astimezone(NY_TZ)
+    local = parse_utc_timestamp(ts).astimezone(NY_TZ)
     minute_of_day = local.hour * 60 + local.minute
     if minute_of_day < RTH_OPEN_MINUTE_OF_DAY or minute_of_day >= RTH_CLOSE_MINUTE_OF_DAY:
         return None
@@ -303,11 +303,12 @@ def build_session_inputs(
             raise ValueError(f"Unexpected deep trade side {trade.side!r} on {day} {trade.symbol}")
         bucket[2] = int(bucket[2]) + 1
         counts = capture_counts[(day, trade.symbol)]
-        if trade.capture == "sampled":
+        if trade.capture == "streamed":
+            counts[0] += 1
+        elif trade.capture == "sampled":
             counts[1] += 1
         else:
-            counts[0] += 1
-
+            raise ValueError(f"Unexpected deep trade capture {trade.capture!r} on {day} {trade.symbol}")
     # Deduplicate by (day, symbol, minute_offset); keep latest row if duplicates appear.
     minutes_by_session: dict[tuple[str, str], dict[int, RawMinuteRow]] = defaultdict(dict)
     for row in minute_rows:
@@ -456,13 +457,21 @@ def summarize_futures_steps(
 
 
 def summarize_futures_session(
-    tape_input: SessionTapeInput, rules: FuturesRules = FUTURES_RULES
+    tape_input: SessionTapeInput,
+    rules: FuturesRules = FUTURES_RULES,
+    *,
+    full_session: bool = False,
 ) -> SessionStability:
-    """Fold one session's covered tape minutes with `flow-futures-rules.v1` and count state stability."""
+    """Fold one session's covered tape minutes with `flow-futures-rules.v1` and count state stability.
+
+    When `full_session` is True (completed RTH session), the fold runs through minute 389 so a late-day
+    outage carries for `max_missing_minutes` and then exits on a gap instead of truncating the session.
+    """
+    through = max(tape_input.last_stored_minute, SESSION_MINUTES - 1) if full_session else tape_input.last_stored_minute
     steps = fold_futures_state(
         tape_input.covered_minutes,
         rules=rules,
-        through=tape_input.last_stored_minute,
+        through=through,
     )
     return summarize_futures_steps(
         day=tape_input.day,
@@ -484,6 +493,8 @@ def classify_session_day(
     min_covered_minutes: int = MIN_STREAMED_COVERED_MINUTES,
 ) -> str | None:
     """Return None when `day` is a qualifying streamed RTH session, else the disqualification reason."""
+    if min_covered_minutes < 1 or min_covered_minutes > SESSION_MINUTES:
+        raise ValueError(f"min_covered_minutes must be between 1 and {SESSION_MINUTES}, got {min_covered_minutes}")
     parsed = date.fromisoformat(day)
     if is_closed(parsed):
         return "closed"
@@ -500,7 +511,7 @@ def classify_session_day(
 
 def _aggregate_symbol(symbol: str, rows: Sequence[SessionStability]) -> SymbolAggregate:
     count = len(rows)
-    denom = count * SESSION_MINUTES
+    denom = sum(r.folded_steps for r in rows)
     state_minutes = {
         BUYERS: sum(r.buyers_minutes for r in rows),
         SELLERS: sum(r.sellers_minutes for r in rows),
@@ -549,11 +560,20 @@ def evaluate_stability(
     to_day: str | None = None,
 ) -> StabilityReport:
     """Qualify streamed RTH sessions and summarize futures state stability across them (no returns read)."""
+    if min_covered_minutes < 1 or min_covered_minutes > SESSION_MINUTES:
+        raise ValueError(f"min_covered_minutes must be between 1 and {SESSION_MINUTES}, got {min_covered_minutes}")
+    if min_sessions < 1:
+        raise ValueError(f"min_sessions must be at least 1, got {min_sessions}")
+    norm_from = _validate_iso_day(from_day) if from_day is not None else None
+    norm_to = _validate_iso_day(to_day) if to_day is not None else None
+    if norm_from is not None and norm_to is not None and norm_to < norm_from:
+        raise ValueError(f"to_day ({norm_to}) precedes from_day ({norm_from})")
+
     days = sorted({day for day, _ in sessions.keys()})
-    if from_day is not None:
-        days = [d for d in days if d >= from_day]
-    if to_day is not None:
-        days = [d for d in days if d <= to_day]
+    if norm_from is not None:
+        days = [d for d in days if d >= norm_from]
+    if norm_to is not None:
+        days = [d for d in days if d <= norm_to]
 
     qualifying_days: list[str] = []
     disqualified: list[DisqualifiedDay] = []
@@ -565,15 +585,19 @@ def evaluate_stability(
         es_cov = len(es_input.covered_minutes) if es_input else 0
         nq_cov = len(nq_input.covered_minutes) if nq_input else 0
         reason = classify_session_day(day, es_cov, nq_cov, min_covered_minutes=min_covered_minutes)
-        if reason is not None:
+        if reason is not None or es_input is None or nq_input is None:
             disqualified.append(
-                DisqualifiedDay(day=day, reason=reason, es_covered_minutes=es_cov, nq_covered_minutes=nq_cov)
+                DisqualifiedDay(
+                    day=day,
+                    reason=reason or "both_under_covered",
+                    es_covered_minutes=es_cov,
+                    nq_covered_minutes=nq_cov,
+                )
             )
             continue
         qualifying_days.append(day)
-        assert es_input is not None and nq_input is not None
-        per_session.append(summarize_futures_session(es_input, rules=rules))
-        per_session.append(summarize_futures_session(nq_input, rules=rules))
+        per_session.append(summarize_futures_session(es_input, rules=rules, full_session=True))
+        per_session.append(summarize_futures_session(nq_input, rules=rules, full_session=True))
 
     by_symbol = {
         "ES": _aggregate_symbol("ES", [s for s in per_session if s.symbol == "ES"]),
@@ -590,7 +614,6 @@ def evaluate_stability(
         per_session=tuple(per_session),
         by_symbol=by_symbol,
     )
-
 
 def _validate_iso_day(value: str) -> str:
     return date.fromisoformat(value).isoformat()
@@ -628,6 +651,34 @@ def build_readonly_sql(table: str, from_day: str, to_day: str | None = None) -> 
     return f"SELECT row_to_json(t) FROM ({inner}) AS t;"
 
 
+PSQL_TIMEOUT_SECONDS = 120
+SSH_CONNECT_TIMEOUT_SECONDS = 15
+
+
+def _validate_cli_token(name: str, value: str) -> str:
+    if not value or value.startswith("-") or any(ch.isspace() for ch in value):
+        raise ValueError(f"Invalid {name}: must be non-empty, without whitespace or a leading '-'")
+    return value
+
+
+def split_dsn_password(dsn: str) -> tuple[str, str | None]:
+    """Strip any password from a PostgreSQL URI so credentials stay in PGPASSWORD env, never argv."""
+    if not dsn or dsn.startswith("-"):
+        raise ValueError("Invalid dsn: must be non-empty and must not start with '-'")
+    parts = urlsplit(dsn)
+    if parts.scheme not in ("postgres", "postgresql") or parts.password is None:
+        return dsn, None
+    host = parts.hostname or ""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    hostport = f"{host}:{parts.port}" if parts.port is not None else host
+    userinfo = parts.netloc.rsplit("@", 1)[0]
+    raw_user = userinfo.split(":", 1)[0]
+    netloc = f"{raw_user}@{hostport}" if raw_user else hostport
+    redacted = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+    return redacted, unquote(parts.password)
+
+
 def build_psql_command(
     sql: str,
     *,
@@ -640,30 +691,58 @@ def build_psql_command(
     """Construct a read-only psql invocation (local DSN or remote SSH/docker container)."""
     base_psql = ["psql", "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-Atq"]
     sql_args = ["-c", READONLY_SESSION_SQL, "-c", sql]
-    if ssh_host:
-        if docker_container:
+    if ssh_host is not None:
+        host = _validate_cli_token("ssh_host", ssh_host)
+        user = _validate_cli_token("pg_user", pg_user)
+        db = _validate_cli_token("pg_db", pg_db)
+        if docker_container is not None:
+            container = _validate_cli_token("docker_container", docker_container)
             remote_args = [
                 "docker",
                 "exec",
-                "-i",
-                docker_container,
+                container,
                 *base_psql,
                 "-U",
-                pg_user,
+                user,
                 "-d",
-                pg_db,
+                db,
                 *sql_args,
             ]
         else:
-            remote_args = [*base_psql, "-U", pg_user, "-d", pg_db, *sql_args]
-        return ["ssh", "-o", "BatchMode=yes", ssh_host, shlex.join(remote_args)]
-    if dsn:
-        return [*base_psql, dsn, *sql_args]
+            remote_args = [*base_psql, "-U", user, "-d", db, *sql_args]
+        return [
+            "ssh",
+            "-n",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            f"ConnectTimeout={SSH_CONNECT_TIMEOUT_SECONDS}",
+            "--",
+            host,
+            shlex.join(remote_args),
+        ]
+    if dsn is not None:
+        redacted_dsn, _ = split_dsn_password(dsn)
+        return [*base_psql, "-d", redacted_dsn, *sql_args]
     return [*base_psql, *sql_args]
 
 
-def _run_psql_jsonl(cmd: Sequence[str], label: str) -> list[dict]:
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+def _run_psql_jsonl(
+    cmd: Sequence[str],
+    label: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    timeout: int = PSQL_TIMEOUT_SECONDS,
+) -> list[dict]:
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+        stdin=subprocess.DEVNULL,
+        env=dict(env) if env is not None else None,
+        timeout=timeout,
+    )
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout).strip()
         raise RuntimeError(f"psql {label} failed (exit {proc.returncode}): {err}")
@@ -692,9 +771,17 @@ def load_rows_from_psql(
     """Read `flow_minutes` and `flow_large_trades` from PostgreSQL in read-only transactions."""
     minutes_sql = build_readonly_sql("flow_minutes", from_day, to_day)
     trades_sql = build_readonly_sql("flow_large_trades", from_day, to_day)
+    env: dict[str, str] | None = None
+    redacted_dsn = dsn
+    if dsn is not None and ssh_host is None:
+        redacted_dsn, password = split_dsn_password(dsn)
+        env = dict(os.environ)
+        env["PGOPTIONS"] = f"{env.get('PGOPTIONS', '')} -c default_transaction_read_only=on".strip()
+        if password is not None:
+            env["PGPASSWORD"] = password
     minutes_cmd = build_psql_command(
         minutes_sql,
-        dsn=dsn,
+        dsn=redacted_dsn,
         ssh_host=ssh_host,
         docker_container=docker_container,
         pg_user=pg_user,
@@ -702,15 +789,14 @@ def load_rows_from_psql(
     )
     trades_cmd = build_psql_command(
         trades_sql,
-        dsn=dsn,
+        dsn=redacted_dsn,
         ssh_host=ssh_host,
         docker_container=docker_container,
         pg_user=pg_user,
         pg_db=pg_db,
     )
-    raw_minutes = _run_psql_jsonl(minutes_cmd, "flow_minutes")
-    raw_trades = _run_psql_jsonl(trades_cmd, "flow_large_trades")
-
+    raw_minutes = _run_psql_jsonl(minutes_cmd, "flow_minutes", env=env)
+    raw_trades = _run_psql_jsonl(trades_cmd, "flow_large_trades", env=env)
     minute_rows = [
         RawMinuteRow(
             symbol=str(r["symbol"]),
@@ -824,35 +910,55 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown", help="Output format.")
     args = parser.parse_args(argv)
 
+    try:
+        norm_from = _validate_iso_day(args.from_day)
+        norm_to = _validate_iso_day(args.to_day) if args.to_day is not None else None
+        if norm_to is not None and norm_to < norm_from:
+            raise ValueError(f"--to-day ({norm_to}) precedes --from-day ({norm_from})")
+        if args.min_covered < 1 or args.min_covered > SESSION_MINUTES:
+            raise ValueError(f"--min-covered must be between 1 and {SESSION_MINUTES}, got {args.min_covered}")
+        if args.min_sessions < 1:
+            raise ValueError(f"--min-sessions must be at least 1, got {args.min_sessions}")
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
     dsn = args.dsn or os.environ.get("DATABASE_URL")
     if not dsn and not args.ssh_host:
         print("Error: set DATABASE_URL, pass --dsn, or pass --ssh-host.", file=sys.stderr)
         return 2
 
-    minute_rows, trade_rows = load_rows_from_psql(
-        from_day=args.from_day,
-        to_day=args.to_day,
-        dsn=dsn,
-        ssh_host=args.ssh_host,
-        docker_container=args.docker_container,
-        pg_user=args.pg_user,
-        pg_db=args.pg_db,
-    )
-    sessions = build_session_inputs(minute_rows, trade_rows, rules=FUTURES_RULES)
-    report = evaluate_stability(
-        sessions,
-        rules=FUTURES_RULES,
-        min_covered_minutes=args.min_covered,
-        min_sessions=args.min_sessions,
-        from_day=args.from_day,
-        to_day=args.to_day,
-    )
+    try:
+        minute_rows, trade_rows = load_rows_from_psql(
+            from_day=norm_from,
+            to_day=norm_to,
+            dsn=dsn,
+            ssh_host=args.ssh_host,
+            docker_container=args.docker_container,
+            pg_user=args.pg_user,
+            pg_db=args.pg_db,
+        )
+        sessions = build_session_inputs(minute_rows, trade_rows, rules=FUTURES_RULES)
+        report = evaluate_stability(
+            sessions,
+            rules=FUTURES_RULES,
+            min_covered_minutes=args.min_covered,
+            min_sessions=args.min_sessions,
+            from_day=norm_from,
+            to_day=norm_to,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
     if args.format == "json":
         print(json.dumps(report.to_json(), indent=2))
     else:
         print(format_markdown_report(report))
     return 0 if report.ready_for_task1 else EXIT_TIME_GATED
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

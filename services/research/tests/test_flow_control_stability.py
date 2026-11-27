@@ -24,6 +24,7 @@ from strategies.flow_control.control import (
 )
 from strategies.flow_control.stability import (
     EXIT_TIME_GATED,
+    PSQL_TIMEOUT_SECONDS,
     READONLY_SESSION_SQL,
     RawDeepTradeRow,
     RawMinuteRow,
@@ -38,6 +39,7 @@ from strategies.flow_control.stability import (
     main,
     ny_session_minute,
     parse_utc_timestamp,
+    split_dsn_password,
     summarize_futures_session,
 )
 
@@ -144,9 +146,13 @@ def test_build_session_inputs_handles_est_edt_rth_window_coverage_and_deep_trade
     assert nq_edt.covered_minutes[0].minute == 0
     assert ny_session_minute(parse_utc_timestamp("2026-07-07T13:30:00Z")) == ("2026-07-07", 0)
     assert ny_session_minute(parse_utc_timestamp("2026-11-20T14:30:00Z")) == ("2026-11-20", 0)
+    # Naive datetime is treated as UTC consistently with parse_utc_timestamp.
+    assert ny_session_minute(datetime(2026, 11, 20, 14, 30, 0)) == ("2026-11-20", 0)
 
     with pytest.raises(ValueError, match="Unexpected deep trade side"):
         build_session_inputs([], [RawDeepTradeRow("ES", _ny_utc("2026-11-20", 9, 30, 5), "unknown", 10.0)])
+    with pytest.raises(ValueError, match="Unexpected deep trade capture"):
+        build_session_inputs([], [RawDeepTradeRow("ES", _ny_utc("2026-11-20", 9, 30, 5), "buy", 10.0, "other")])
 
 
 def test_summarize_futures_session_counts_starts_ends_reversals_and_holds():
@@ -207,6 +213,9 @@ def test_summarize_futures_session_counts_starts_ends_reversals_and_holds():
         HOLD_PRICE_AGAINST: 1,
     }
     assert summary.ratio_reached_balanced_minutes == 12  # m=9..16 (8) + m=19..22 (4)
+    # Partial-session JSON shares divide by folded_steps (31) and sum to 1.0.
+    shares = summary.to_json()["stateSessionShares"]
+    assert sum(shares.values()) == pytest.approx(1.0, abs=1e-5)
 
 
 def test_direct_flip_counted_when_min_minutes_is_one():
@@ -280,16 +289,31 @@ def test_readonly_sql_and_psql_commands_and_error_handling(monkeypatch, capsys):
     with pytest.raises(ValueError):
         build_readonly_sql("unknown_table", "2026-11-20")
 
-    local_cmd = build_psql_command(sql_min, dsn="postgres://user@localhost/vertex")
-    assert local_cmd[:6] == ["psql", "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-Atq", "postgres://user@localhost/vertex"]
-    assert local_cmd[6:] == ["-c", READONLY_SESSION_SQL, "-c", sql_min]
+    # URI password is stripped from argv and passed via PGPASSWORD env instead.
+    redacted, pwd = split_dsn_password("postgres://vertex_research:s3cr%40t@db.local:5432/vertex")
+    assert redacted == "postgres://vertex_research@db.local:5432/vertex"
+    assert pwd == "s3cr@t"
+
+    local_cmd = build_psql_command(sql_min, dsn="postgres://user:secret@localhost/vertex")
+    assert local_cmd[:7] == ["psql", "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-Atq", "-d", "postgres://user@localhost/vertex"]
+    assert local_cmd[7:] == ["-c", READONLY_SESSION_SQL, "-c", sql_min]
+    assert "secret" not in " ".join(local_cmd)
 
     ssh_cmd = build_psql_command(
         sql_min, ssh_host="quantvps", docker_container="vertex-postgres", pg_user="vertex_research", pg_db="vertex"
     )
-    assert ssh_cmd[:4] == ["ssh", "-o", "BatchMode=yes", "quantvps"]
-    assert "docker exec -i vertex-postgres psql -v ON_ERROR_STOP=1" in ssh_cmd[4]
-    assert READONLY_SESSION_SQL in ssh_cmd[4]
+    assert ssh_cmd[:8] == ["ssh", "-n", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "--", "quantvps"]
+    assert "docker exec vertex-postgres psql -v ON_ERROR_STOP=1" in ssh_cmd[8]
+    assert "docker exec -i" not in ssh_cmd[8]
+    assert READONLY_SESSION_SQL in ssh_cmd[8]
+
+    # Leading '-' tokens are rejected to prevent flag injection.
+    with pytest.raises(ValueError):
+        build_psql_command(sql_min, ssh_host="-oProxyCommand=bad")
+    with pytest.raises(ValueError):
+        build_psql_command(sql_min, ssh_host="quantvps", docker_container="-u0")
+    with pytest.raises(ValueError):
+        build_psql_command(sql_min, dsn="-f/etc/passwd")
 
     # Fake subprocess returning one session (time-gated -> CLI returns EXIT_TIME_GATED).
     start = _ny_utc("2026-11-20", 9, 30)
@@ -317,18 +341,24 @@ def test_readonly_sql_and_psql_commands_and_error_handling(monkeypatch, capsys):
             "capture": "streamed",
         }
     )
-    calls = {"n": 0}
+    seen: list[dict] = []
 
-    def fake_run(cmd, capture_output, text, check):
-        calls["n"] += 1
-        out = min_lines if calls["n"] % 2 == 1 else trade_line
+    def fake_run(cmd, capture_output, text, check, stdin=None, env=None, timeout=None):
+        seen.append({"cmd": cmd, "stdin": stdin, "env": env, "timeout": timeout})
+        out = min_lines if len(seen) % 2 == 1 else trade_line
         return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    mins, trades = load_rows_from_psql(from_day="2026-11-20", dsn="postgres://localhost/vertex")
+    mins, trades = load_rows_from_psql(from_day="2026-11-20", dsn="postgres://user:secret@localhost/vertex")
     assert len(mins) == 760 and len(trades) == 1
+    assert seen[0]["stdin"] is subprocess.DEVNULL
+    assert seen[0]["timeout"] == PSQL_TIMEOUT_SECONDS
+    assert seen[0]["env"]["PGPASSWORD"] == "secret"
+    assert "default_transaction_read_only=on" in seen[0]["env"]["PGOPTIONS"]
+    assert "secret" not in " ".join(seen[0]["cmd"])
 
-    rc_gated = main(["--from-day", "2026-11-20", "--dsn", "postgres://localhost/vertex", "--format", "json"])
+    # Non-canonical ISO date (20261120) normalizes identically in SQL and evaluate_stability.
+    rc_gated = main(["--from-day", "20261120", "--dsn", "postgres://localhost/vertex", "--format", "json"])
     assert rc_gated == EXIT_TIME_GATED
     parsed = json.loads(capsys.readouterr().out)
     assert parsed["readyForTask1"] is False
@@ -340,14 +370,51 @@ def test_readonly_sql_and_psql_commands_and_error_handling(monkeypatch, capsys):
     assert rc_ready == 0
     assert "**READY** (1/1 qualifying streamed RTH sessions" in capsys.readouterr().out
 
-    # Missing DSN & ssh-host -> exit 2.
+    # Invalid arguments return exit 2 cleanly without traceback.
     monkeypatch.delenv("DATABASE_URL", raising=False)
     assert main(["--from-day", "2026-11-20"]) == 2
+    assert main(["--from-day", "2026-11-20", "--min-covered", "0", "--dsn", "postgres://localhost/vertex"]) == 2
+    assert main(["--from-day", "2026-11-25", "--to-day", "2026-11-20", "--dsn", "postgres://localhost/vertex"]) == 2
+    assert main(["--from-day", "2026-11-20", "--min-sessions", "0", "--dsn", "postgres://localhost/vertex"]) == 2
 
-    # SQL error stops loudly.
-    def fake_fail(cmd, capture_output, text, check):
+    # SQL error stops loudly in loader and returns exit 1 cleanly in main().
+    def fake_fail(cmd, capture_output, text, check, stdin=None, env=None, timeout=None):
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="ERROR: permission denied")
 
     monkeypatch.setattr(subprocess, "run", fake_fail)
     with pytest.raises(RuntimeError, match="permission denied"):
         load_rows_from_psql(from_day="2026-11-20", dsn="postgres://localhost/vertex")
+    assert main(["--from-day", "2026-11-20", "--dsn", "postgres://localhost/vertex"]) == 1
+    assert "permission denied" in capsys.readouterr().err
+
+
+def test_evaluate_stability_folds_trailing_outage_through_389_and_shares_sum_to_one():
+    # Qualifying session with 375 covered minutes (0..374) where buyers is active at 374,
+    # followed by a late-day outage (no rows stored for 375..389).
+    sessions = {
+        ("2026-11-20", "ES"): _full_covered_tape(
+            "2026-11-20",
+            "ES",
+            375,
+            deep_buy=80.0,
+            deep_sell=20.0,
+            deep_trades=2,
+            delta=30.0,
+            volume=200.0,
+            vwap=5000.0,
+            close=5001.0,
+        ),
+        ("2026-11-20", "NQ"): _full_covered_tape("2026-11-20", "NQ", 390),
+    }
+    report = evaluate_stability(sessions, min_sessions=1)
+    assert report.ready_for_task1 is True
+    es = [s for s in report.per_session if s.symbol == "ES"][0]
+    # Fold runs through minute 389 (390 steps): m=375..379 carry buyers (5 missing), m=380..389 are gap (10 min).
+    assert es.folded_steps == 390
+    assert es.starts == 1
+    assert es.ends == 1
+    assert es.ends_to_gap == 1
+    assert es.gap_minutes == 10
+    assert sum(es.to_json()["stateSessionShares"].values()) == pytest.approx(1.0, abs=1e-5)
+    assert sum(report.by_symbol["ES"].state_shares.values()) == pytest.approx(1.0, abs=1e-6)
+    assert sum(report.by_symbol["ALL"].state_shares.values()) == pytest.approx(1.0, abs=1e-6)
