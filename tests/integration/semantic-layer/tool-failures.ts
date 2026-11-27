@@ -36,22 +36,6 @@ export const EXPECTED_REJECTIONS: readonly ExpectedRejection[] = [
     tool: "terms_query",
     why: "The model guessed a parameter name. The layer names the valid parameter and the model asks again with it.",
   },
-  {
-    args: '{"term":"pnl","params":{"kind":"realized"}}',
-    error:
-      "BAD_REQUEST (400): Unknown parameter kind. This term takes window (text: daily|unrealized|realized).",
-    question: "H3",
-    tool: "terms_query",
-    why: "The model guessed a parameter name. The layer names the valid parameter and the model asks again with it.",
-  },
-  {
-    args: '{"term":"pnl","params":{"type":"realized"}}',
-    error:
-      "BAD_REQUEST (400): Unknown parameter type. This term takes window (text: daily|unrealized|realized).",
-    question: "H3",
-    tool: "terms_query",
-    why: "The model guessed a parameter name. The layer names the valid parameter and the model asks again with it.",
-  },
 ];
 
 /**

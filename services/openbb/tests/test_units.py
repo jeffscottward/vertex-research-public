@@ -803,3 +803,20 @@ def test_yahoo_quote_day_out_of_range_timestamp_is_a_payload_error() -> None:
     payload["quote"]["regularMarketTime"] = 1e20  # finite for num(), out of range for fromtimestamp
     with pytest.raises(ValueError, match="out of range"):
         yahoo_chains.quote_day(payload, date(2026, 11, 21))
+
+
+def test_context_info_normalizes_dedupes_and_caps() -> None:
+    from vertex_openbb.context import MAX_WARNINGS, Context
+    from vertex_openbb.upstream import ReplayUpstream
+
+    ctx = Context(job="cboe-option-iv", today=date(2026, 11, 21), up=ReplayUpstream([]))
+    ctx.info("  cboe chain   SPY:\tskipped 2 rows  ")
+    ctx.info("cboe chain SPY: skipped 2 rows")
+    assert ctx.warnings == []
+    assert ctx.capped_info() == ["cboe chain SPY: skipped 2 rows"]
+
+    for index in range(MAX_WARNINGS + 5):
+        ctx.info(f"note {index}")
+    capped = ctx.capped_info()
+    assert len(capped) == MAX_WARNINGS
+    assert capped[-1] == "7 more info notes not shown"

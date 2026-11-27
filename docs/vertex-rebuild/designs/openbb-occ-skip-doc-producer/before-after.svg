@@ -1,0 +1,576 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="680"
+  viewBox="0 0 1200 680"
+  font-family="DejaVu Sans, system-ui, sans-serif"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">OpenBB cboe-option-iv OCC skip flow: before vs after</title>
+  <desc id="desc">
+    Before: cboe.py wrote Cboe non-standard OCC skips to warnings, tick.ts
+    matched them with an interim regex, and openbb.md still documented any
+    warning as partial. After: cboe.py emits skips on the producer-side info
+    channel of openbb-batch.v1, tick.ts removes the regex and computes status
+    from warnings only while preserving info in openbb_ingest_runs.warnings, and
+    openbb.md matches the code.
+  </desc>
+  <defs>
+    <marker
+      id="arrow-amber"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#f59e0b" />
+    </marker>
+    <marker
+      id="arrow-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#22c55e" />
+    </marker>
+    <marker
+      id="arrow-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#d4a843" />
+    </marker>
+    <marker
+      id="arrow-muted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="1200" height="680" fill="#0b0f17" />
+
+  <!-- Header -->
+  <text x="48" y="54" fill="#f8fafc" font-size="24" font-weight="700">
+    OpenBB cboe-option-iv: Producer-Side Info Channel &amp; Doc Reconciliation
+  </text>
+  <text x="48" y="80" fill="#94a3b8" font-size="14">
+    Retires interim regex in tick.ts · adds optional info[] to openbb-batch.v1 ·
+    aligns docs/vertex-rebuild/openbb.md
+  </text>
+  <line x1="48" y1="98" x2="1152" y2="98" stroke="#1e293b" stroke-width="1.5" />
+
+  <!-- ==================== BEFORE LANE ==================== -->
+  <rect
+    x="48"
+    y="120"
+    width="1104"
+    height="220"
+    rx="14"
+    fill="#111827"
+    stroke="#334155"
+    stroke-width="1.5"
+  />
+  <rect
+    x="68"
+    y="138"
+    width="108"
+    height="28"
+    rx="6"
+    fill="#451a03"
+    stroke="#f59e0b"
+    stroke-width="1.2"
+  />
+  <text
+    x="122"
+    y="157"
+    text-anchor="middle"
+    fill="#fbbf24"
+    font-size="13"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text x="190" y="157" fill="#cbd5e1" font-size="14" font-weight="600">
+    Interim consumer regex + stale docs
+  </text>
+
+  <!-- Before Node 1: cboe.py -->
+  <rect
+    x="76"
+    y="188"
+    width="210"
+    height="118"
+    rx="10"
+    fill="#1e293b"
+    stroke="#475569"
+    stroke-width="1.2"
+  />
+  <!-- Python / Producer Icon -->
+  <circle
+    cx="104"
+    cy="216"
+    r="12"
+    fill="#334155"
+    stroke="#94a3b8"
+    stroke-width="1.2"
+  />
+  <path d="M99 216 L104 211 L109 216 L104 221 Z" fill="#fbbf24" />
+  <text x="126" y="221" fill="#f8fafc" font-size="14" font-weight="700">
+    cboe.py
+  </text>
+  <text
+    x="92"
+    y="248"
+    fill="#fbbf24"
+    font-size="12"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    ctx.warn(occ_skip)
+  </text>
+  <text x="92" y="272" fill="#94a3b8" font-size="11.5">
+    Mixed with real warnings
+  </text>
+  <text x="92" y="290" fill="#94a3b8" font-size="11.5">
+    stderr: "; N warnings"
+  </text>
+
+  <!-- Arrow 1 -> 2 -->
+  <line
+    x1="286"
+    y1="247"
+    x2="346"
+    y2="247"
+    stroke="#f59e0b"
+    stroke-width="2.2"
+    marker-end="url(#arrow-amber)"
+  />
+  <text x="316" y="236" text-anchor="middle" fill="#fbbf24" font-size="11">
+    warnings[]
+  </text>
+
+  <!-- Before Node 2: tick.ts regex -->
+  <rect
+    x="354"
+    y="188"
+    width="256"
+    height="118"
+    rx="10"
+    fill="#1e293b"
+    stroke="#f59e0b"
+    stroke-width="1.5"
+    stroke-dasharray="5 3"
+  />
+  <!-- Filter funnel icon -->
+  <path
+    d="M374 208 L394 208 L386 218 L386 226 L382 226 L382 218 Z"
+    fill="#fbbf24"
+  />
+  <text x="404" y="221" fill="#f8fafc" font-size="14" font-weight="700">
+    tick.ts (interim)
+  </text>
+  <text
+    x="370"
+    y="248"
+    fill="#fbbf24"
+    font-size="11.5"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    CBOE_OCC_SKIP_INFO regex
+  </text>
+  <text x="370" y="272" fill="#94a3b8" font-size="11.5">
+    Job-specific prose filter
+  </text>
+  <text x="370" y="290" fill="#94a3b8" font-size="11.5">
+    Coupled to exact wording
+  </text>
+
+  <!-- Arrow 2 -> 3 -->
+  <line
+    x1="610"
+    y1="247"
+    x2="670"
+    y2="247"
+    stroke="#94a3b8"
+    stroke-width="2.2"
+    marker-end="url(#arrow-muted)"
+  />
+
+  <!-- Before Node 3: DB / Status -->
+  <rect
+    x="678"
+    y="188"
+    width="204"
+    height="118"
+    rx="10"
+    fill="#1e293b"
+    stroke="#475569"
+    stroke-width="1.2"
+  />
+  <!-- DB cylinder icon -->
+  <ellipse
+    cx="704"
+    cy="210"
+    rx="10"
+    ry="4"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+  />
+  <path
+    d="M694 210 v12 a10 4 0 0 0 20 0 v-12"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+  />
+  <text x="724" y="221" fill="#f8fafc" font-size="14" font-weight="700">
+    recordRun
+  </text>
+  <text x="694" y="250" fill="#22c55e" font-size="12" font-weight="700">
+    status: "ok"
+  </text>
+  <text x="694" y="274" fill="#cbd5e1" font-size="11.5">
+    warnings[] keeps skip
+  </text>
+
+  <!-- Before Node 4: openbb.md drift -->
+  <rect
+    x="910"
+    y="188"
+    width="218"
+    height="118"
+    rx="10"
+    fill="#2a1215"
+    stroke="#ef4444"
+    stroke-width="1.4"
+  />
+  <!-- Warning triangle icon -->
+  <path
+    d="M936 206 L947 224 L925 224 Z"
+    fill="none"
+    stroke="#f87171"
+    stroke-width="1.8"
+  />
+  <line
+    x1="936"
+    y1="212"
+    x2="936"
+    y2="218"
+    stroke="#f87171"
+    stroke-width="1.8"
+  />
+  <circle cx="936" cy="221" r="1.2" fill="#f87171" />
+  <text x="958" y="221" fill="#fecaca" font-size="14" font-weight="700">
+    openbb.md (drift)
+  </text>
+  <text x="926" y="250" fill="#fca5a5" font-size="11.5">
+    "any warning =&gt; partial"
+  </text>
+  <text x="926" y="274" fill="#fca5a5" font-size="11.5">
+    Out of sync with code
+  </text>
+
+  <!-- ==================== AFTER LANE ==================== -->
+  <rect
+    x="48"
+    y="366"
+    width="1104"
+    height="274"
+    rx="14"
+    fill="#0f172a"
+    stroke="#22c55e"
+    stroke-width="1.5"
+  />
+  <rect
+    x="68"
+    y="384"
+    width="108"
+    height="28"
+    rx="6"
+    fill="#052e16"
+    stroke="#22c55e"
+    stroke-width="1.2"
+  />
+  <text
+    x="122"
+    y="403"
+    text-anchor="middle"
+    fill="#4ade80"
+    font-size="13"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text x="190" y="403" fill="#e2e8f0" font-size="14" font-weight="600">
+    Structured openbb-batch.v1 info[] channel + job-agnostic tick.ts +
+    reconciled docs
+  </text>
+
+  <!-- After Node 1: cboe.py -->
+  <rect
+    x="76"
+    y="434"
+    width="224"
+    height="176"
+    rx="10"
+    fill="#1e293b"
+    stroke="#22c55e"
+    stroke-width="1.4"
+  />
+  <circle
+    cx="104"
+    cy="462"
+    r="12"
+    fill="#052e16"
+    stroke="#4ade80"
+    stroke-width="1.2"
+  />
+  <path
+    d="M99 462 L103 466 L110 457"
+    fill="none"
+    stroke="#4ade80"
+    stroke-width="2"
+  />
+  <text x="126" y="467" fill="#f8fafc" font-size="14" font-weight="700">
+    cboe.py + cli.py
+  </text>
+
+  <rect
+    x="90"
+    y="484"
+    width="196"
+    height="46"
+    rx="6"
+    fill="#052e16"
+    stroke="#22c55e"
+    stroke-width="1"
+  />
+  <text
+    x="100"
+    y="502"
+    fill="#4ade80"
+    font-size="11.5"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    ctx.info(occ_skip)
+  </text>
+  <text x="100" y="520" fill="#bbf7d0" font-size="11">
+    Cboe adjusted OCC rows
+  </text>
+
+  <rect
+    x="90"
+    y="544"
+    width="196"
+    height="50"
+    rx="6"
+    fill="#451a03"
+    stroke="#f59e0b"
+    stroke-width="1"
+  />
+  <text
+    x="100"
+    y="562"
+    fill="#fbbf24"
+    font-size="11.5"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    ctx.warn(...)
+  </text>
+  <text x="100" y="580" fill="#fde68a" font-size="11">
+    Yahoo fallback · 0 contracts
+  </text>
+
+  <!-- Dual arrows from Producer -> tick.ts -->
+  <line
+    x1="300"
+    y1="507"
+    x2="392"
+    y2="507"
+    stroke="#22c55e"
+    stroke-width="2.4"
+    marker-end="url(#arrow-green)"
+  />
+  <text
+    x="346"
+    y="497"
+    text-anchor="middle"
+    fill="#4ade80"
+    font-size="11.5"
+    font-weight="700"
+  >
+    info[]
+  </text>
+
+  <line
+    x1="300"
+    y1="569"
+    x2="392"
+    y2="569"
+    stroke="#f59e0b"
+    stroke-width="2.4"
+    marker-end="url(#arrow-amber)"
+  />
+  <text
+    x="346"
+    y="559"
+    text-anchor="middle"
+    fill="#fbbf24"
+    font-size="11.5"
+    font-weight="700"
+  >
+    warnings[]
+  </text>
+
+  <!-- After Node 2: tick.ts (clean) -->
+  <rect
+    x="400"
+    y="434"
+    width="268"
+    height="176"
+    rx="10"
+    fill="#1e293b"
+    stroke="#d4a843"
+    stroke-width="1.5"
+  />
+  <!-- Check gear / clean icon -->
+  <circle
+    cx="426"
+    cy="462"
+    r="11"
+    fill="none"
+    stroke="#d4a843"
+    stroke-width="1.8"
+  />
+  <circle cx="426" cy="462" r="4" fill="#d4a843" />
+  <text x="448" y="467" fill="#f8fafc" font-size="14" font-weight="700">
+    tick.ts (job-agnostic)
+  </text>
+  <text x="416" y="497" fill="#4ade80" font-size="11.5">
+    statusOf(outcome, warnings.length)
+  </text>
+  <text x="416" y="520" fill="#cbd5e1" font-size="11.5">
+    • No CBOE_OCC_SKIP_INFO regex
+  </text>
+  <text x="416" y="544" fill="#cbd5e1" font-size="11.5">
+    • info[] never flips status partial
+  </text>
+  <text x="416" y="568" fill="#cbd5e1" font-size="11.5">
+    • warnings first + dedupe + cap 500
+  </text>
+  <text x="416" y="592" fill="#94a3b8" font-size="11">
+    --dry-run prints "info: N"
+  </text>
+
+  <!-- Arrows tick.ts -> recordRun -->
+  <line
+    x1="668"
+    y1="507"
+    x2="722"
+    y2="507"
+    stroke="#d4a843"
+    stroke-width="2.4"
+    marker-end="url(#arrow-gold)"
+  />
+
+  <!-- After Node 3: DB / Status -->
+  <rect
+    x="730"
+    y="434"
+    width="194"
+    height="176"
+    rx="10"
+    fill="#1e293b"
+    stroke="#38bdf8"
+    stroke-width="1.4"
+  />
+  <ellipse
+    cx="756"
+    cy="456"
+    rx="10"
+    ry="4"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+  />
+  <path
+    d="M746 456 v12 a10 4 0 0 0 20 0 v-12"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+  />
+  <text x="776" y="467" fill="#f8fafc" font-size="14" font-weight="700">
+    recordRun
+  </text>
+  <text x="746" y="502" fill="#4ade80" font-size="12" font-weight="700">
+    info only =&gt; ok
+  </text>
+  <text x="746" y="528" fill="#fbbf24" font-size="12" font-weight="700">
+    warning =&gt; partial
+  </text>
+  <text x="746" y="558" fill="#cbd5e1" font-size="11.5">
+    Skip count preserved in
+  </text>
+  <text x="746" y="576" fill="#cbd5e1" font-size="11.5">
+    openbb.status &amp; MCP
+  </text>
+  <text x="746" y="594" fill="#94a3b8" font-size="11">No DB migration</text>
+
+  <!-- After Node 4: openbb.md synced -->
+  <rect
+    x="946"
+    y="434"
+    width="182"
+    height="176"
+    rx="10"
+    fill="#052e16"
+    stroke="#22c55e"
+    stroke-width="1.4"
+  />
+  <!-- Doc checkmark icon -->
+  <rect
+    x="964"
+    y="450"
+    width="18"
+    height="22"
+    rx="2"
+    fill="none"
+    stroke="#4ade80"
+    stroke-width="1.6"
+  />
+  <path
+    d="M968 461 L972 465 L978 457"
+    fill="none"
+    stroke="#4ade80"
+    stroke-width="1.8"
+  />
+  <text x="992" y="467" fill="#dcfce7" font-size="14" font-weight="700">
+    openbb.md
+  </text>
+  <text x="962" y="502" fill="#bbf7d0" font-size="11.5">
+    • Documents info[]
+  </text>
+  <text x="962" y="526" fill="#bbf7d0" font-size="11.5">
+    • Cboe skip =&gt; ok
+  </text>
+  <text x="962" y="550" fill="#bbf7d0" font-size="11.5">• Skip count kept</text>
+  <text x="962" y="574" fill="#bbf7d0" font-size="11.5">
+    • Yahoo =&gt; partial
+  </text>
+</svg>
