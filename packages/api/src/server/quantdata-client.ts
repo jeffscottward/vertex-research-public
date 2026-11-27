@@ -6,7 +6,8 @@
 //   request that runs it, and when that request's context ends the step can stay pending for good
 //   and its own timeout timer never fires. A waiter therefore bounds its wait with its own timer
 //   and takes the turn when the running step is older than `stepDeadlineMs`
-//   (`minIntervalMs + timeoutMs + 2 s`). A slow live step past that can overlap the next one; the
+//   (`minIntervalMs + timeoutMs + 2 s`), or when the first waiter did not claim a handed-over turn
+//   within 2 s (its request ended). A slow live step past that can overlap the next one; the
 //   spacing and the per-minute budget are checked before every start.
 // - At most `maxRequestsPerMinute` (default 54) request starts in any 60 s window. Measured over
 //   10 trading days (2026-11-10 to 2026-11-23): market-watch-gex peaks at 122 req / 60 s at the
@@ -70,11 +71,24 @@ const STEP_DEADLINE_MARGIN_MS = 2000;
 type Turn = Readonly<{ startedAt: number }>;
 const NO_TURN: Turn = Object.freeze({ startedAt: Number.NEGATIVE_INFINITY });
 
+// How long the first waiter has to claim a turn that a finished step handed to it.
+const CLAIM_WINDOW_MS = 2000;
+
 // A caller waiting for the turn; a finished step sets `granted` and wakes it.
 interface TurnWaiter {
-  granted: Turn | null;
-  readonly wake: () => void;
+  granted: boolean;
+  wake: () => void;
 }
+
+// A promise and the function that settles it: one wait of a TurnWaiter.
+const wakeSignal = (): [Promise<void>, () => void] => {
+  // Executor form: the ES2023 lib has no Promise.withResolvers.
+  let wake!: () => void;
+  const woken = new Promise<void>((resolve) => {
+    wake = resolve;
+  });
+  return [woken, wake];
+};
 
 export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;
 
@@ -233,14 +247,17 @@ export const createQuantDataClient = (
   const waiting: TurnWaiter[] = [];
   const stepDeadlineMs = minInterval + timeoutMs + STEP_DEADLINE_MARGIN_MS;
 
-  const startTurn = (): Turn => {
-    const turn = Object.freeze({ startedAt: Date.now() });
+  const startTurn = (startedAt = Date.now()): Turn => {
+    const turn = Object.freeze({ startedAt });
     running = turn;
     return turn;
   };
 
-  // Ends a turn. The next waiter gets the turn at once, before anyone can call again, so the
-  // order of the waits holds. A step that ends after a waiter took over changes nothing.
+  // Ends a turn. The first waiter gets it at once, before anyone can call again, so the order
+  // of the waits holds. The turn it gets is a claim of CLAIM_WINDOW_MS: in workerd a waiter whose
+  // request context ended never wakes, so every waiter is woken to measure that short claim, and
+  // the next one takes over when it passes. A step that ends after a waiter took over changes
+  // nothing.
   const endTurn = (turn: Turn): void => {
     if (running !== turn) return;
     const next = waiting.shift();
@@ -248,24 +265,25 @@ export const createQuantDataClient = (
       running = NO_TURN;
       return;
     }
-    next.granted = startTurn();
+    next.granted = true;
+    startTurn(Date.now() - stepDeadlineMs + CLAIM_WINDOW_MS);
     next.wake();
+    for (const other of waiting) other.wake();
   };
 
   // Takes the turn now, or waits in line. A waiter also takes the turn when the running step
-  // is older than `stepDeadlineMs`. Wall time (`Date.now`) and the global timer, not the
-  // injected `now`/`sleep`: an injected clock that jumps must not hand the turn over early.
+  // (or an unclaimed hand-off) is older than `stepDeadlineMs`. Wall time (`Date.now`) and the
+  // global timer, not the injected `now`/`sleep`: an injected clock that jumps must not hand the
+  // turn over early.
   const takeTurn = async (): Promise<Turn> => {
     if (running === NO_TURN) return startTurn();
-    // Executor form: the ES2023 lib has no Promise.withResolvers.
-    let wake!: () => void;
-    const woken = new Promise<void>((resolve) => {
-      wake = resolve;
-    });
-    const me: TurnWaiter = { granted: null, wake };
+    let [woken, wake] = wakeSignal();
+    const me: TurnWaiter = { granted: false, wake };
     waiting.push(me);
     for (;;) {
-      if (me.granted !== null) return me.granted;
+      // Claimed: a full turn from now. If a waiter took over first, both steps run; the spacing
+      // and the budget are checked before each start.
+      if (me.granted) return startTurn();
       const left = running.startedAt + stepDeadlineMs - Date.now();
       if (left <= 0) {
         // Not granted, so still in line: leave it and take over.
@@ -273,6 +291,8 @@ export const createQuantDataClient = (
         return startTurn();
       }
       await waitAtMost(woken, left);
+      [woken, wake] = wakeSignal();
+      me.wake = wake;
     }
   };
 
