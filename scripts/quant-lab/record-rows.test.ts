@@ -47,7 +47,7 @@ describe("Quant Lab record mapping", () => {
   it("keeps paper notes within the column limit and states the PDF status", () => {
     const notes = paperRow(captureFixture).notes ?? "";
     expect(notes.length).toBeLessThanOrEqual(4000);
-    expect(notes).toContain("No PDF retained (no_free_copy)");
+    expect(notes).toContain("No PDF retained (no free copy)");
     expect(notes.endsWith("…")).toBe(true);
     expect(
       captureRow(captureFixture, "paper-ssrn-2242795").abstract

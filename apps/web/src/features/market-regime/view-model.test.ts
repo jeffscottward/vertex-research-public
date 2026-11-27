@@ -12,6 +12,7 @@ import {
   buildRegimeRowViews,
   creditCellView,
   formatRegimeAge,
+  formatRegimeSource,
   gammaCellView,
   regimeSourceStatus,
   summaryBadgeFor,
@@ -533,5 +534,25 @@ describe("market-regime view-model", () => {
     expect(volatilityCellView(data.etfs[3]!.volatility).secondary).toBe(
       "1.08 backwardation · VXD 25.0"
     );
+  });
+
+  it("formats internal market-regime source ids as readable words", () => {
+    expect(formatRegimeSource("market_daily_series")).toBe(
+      "Daily price series"
+    );
+    expect(formatRegimeSource("ibkr_bars")).toBe("IBKR bars");
+    expect(formatRegimeSource("breadth90")).toBe("Breadth-90");
+    expect(formatRegimeSource("market_context_gex")).toBe("Market-context GEX");
+    expect(formatRegimeSource("openbb_macro:HY_OAS")).toBe(
+      "OpenBB macro (HY OAS)"
+    );
+    expect(formatRegimeSource("market_context_macro:hy_oas")).toBe(
+      "Market-context macro (hy oas)"
+    );
+    expect(
+      formatRegimeSource("ibkr_monitor_volatility+openbb_vol_context")
+    ).toBe("IBKR volatility + OpenBB volatility");
+    expect(formatRegimeSource("none")).toBe("No source");
+    expect(formatRegimeSource("custom_feed_v2")).toBe("Custom feed v2");
   });
 });

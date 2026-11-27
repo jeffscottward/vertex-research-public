@@ -1115,7 +1115,8 @@ describe("OrderFlowPanel edge states", () => {
     expect(marksList?.textContent).toContain("Stacked buy imbalance");
     expect(marksList?.textContent).toContain("Buying absorbed");
     expect(marksList?.textContent).toContain("Selling absorbed");
-    expect(marksList?.textContent).toContain("Stored IBKR flow_events");
+    expect(marksList?.textContent).toContain("Stored IBKR flow events");
+    expect(marksList?.textContent).not.toContain("flow_events");
     expect(marksList?.textContent).toContain("Neutral stored mark");
     expect(
       container.querySelector('[data-footprint-total="Marks"]')?.textContent

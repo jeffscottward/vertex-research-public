@@ -408,6 +408,29 @@ describe("PapersWorkspace layout", () => {
     expect(container.querySelector('[aria-label="Paper p2 notes"]')).toBeNull();
   });
 
+  it("prints stored PDF retention reason codes in notes as words without altering the edit draft", async () => {
+    const rawNote =
+      "SSRN capture 2026-10-18. No PDF retained (no_free_copy). Retry: No PDF retained (free_copy_unreachable).";
+    const container = await render(
+      <PapersWorkspace
+        gateway={gatewayWith([paper("p1", { notes: rawNote })])}
+      />
+    );
+    expect(container.textContent).toContain("No PDF retained (no free copy)");
+    expect(container.textContent).toContain(
+      "No PDF retained (free copy unreachable)"
+    );
+    expect(container.textContent).not.toContain("no_free_copy");
+    expect(container.textContent).not.toContain("free_copy_unreachable");
+    await click(
+      container.querySelector('[aria-label="Edit Paper p1"]') as HTMLElement
+    );
+    expect(
+      container.querySelector<HTMLTextAreaElement>(
+        '[aria-label="Paper p1 notes"]'
+      )?.value
+    ).toBe(rawNote);
+  });
   it("ignores a list load that settles after the page is gone", async () => {
     // Executor form: the web TypeScript lib has no Promise.withResolvers.
     const settlers: (() => void)[] = [];

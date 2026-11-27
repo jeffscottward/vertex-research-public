@@ -487,7 +487,10 @@ describe("Market feeds", () => {
           events: [
             { date: "2026-11-10", name: "Consumer Price Index", time: null },
           ],
-          regimes: [{ id: "oil", label: "rising", rule: null }],
+          regimes: [
+            { id: "oil", label: "rising", rule: null },
+            { id: "yield_curve", label: "steep", rule: null },
+          ],
           series: [],
         },
         news: {
@@ -546,6 +549,13 @@ describe("Market feeds", () => {
     expect(text(sparse, '[data-gex-notes="SPY"]')).toContain("levels may fade");
     expect(text(sparse, '[data-gex-notes="QQQ"]')).not.toContain("fade");
     expect(text(sparse, "[data-macro-regimes]")).toContain("oil: rising");
+    expect(text(sparse, "[data-macro-regimes]")).toContain(
+      "yield curve: steep"
+    );
+    expect(text(sparse, "[data-macro-regimes]")).not.toContain("yield_curve");
+    for (const badge of sparse.querySelectorAll('[data-slot="badge"]')) {
+      expect(badge.getAttribute("data-plain")).toBe("true");
+    }
     expect(text(sparse, "[data-macro-events]")).toContain(
       "2026-11-10: Consumer Price Index"
     );

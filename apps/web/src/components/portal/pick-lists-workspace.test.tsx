@@ -327,7 +327,7 @@ describe("PickListsWorkspace", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "Loading pick lists…"
     );
-    expect(container.textContent).toContain("Research only — not an order");
+    expect(container.textContent).not.toContain("Research only");
     await act(async () =>
       pending.resolve([
         pickList(),
