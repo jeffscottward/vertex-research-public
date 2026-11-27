@@ -70,9 +70,9 @@ On timeout a site redoes the work where it is local and cheap, and fails fast wh
 | QuantData step turn (`quantdata-client.ts`) | 13 s: `minIntervalMs` 1 s + `timeoutMs` 10 s + 2 s | The waiter takes the turn; a late end of the old step does not end the new turn |
 | Yahoo session (`options-chain-yahoo.ts`) | 22 s: two fetch timeouts (cookie, crumb) of 10 s + 2 s | One waiter starts a new session; the others wait for that one |
 | Options chain in-flight read (`options-chain.ts`) | 45 s: above the slowest live read (Yahoo session 22 s + options fetch 10 s; QuantData two steps of up to 13 s) | The entry is dropped; the request fails with `UNAVAILABLE` "Options chain read did not finish in time; retry" |
-| Bar column load (`instant-backtest.ts`) | 30 s: one bars query (10 s query timeout) plus decoding | The entry is dropped; the request loads with its own connection |
+| Bar column load (`instant-backtest.ts`) | 30 s: one bars query (10 s query timeout) plus decoding | The entry is dropped; the request waits (bounded) for a newer load that another waiter started, else loads with its own connection |
 
-The QuantData turn uses a time lease, the same pattern as `vertex-orders.ts#onePlacementAtATime`: one record `{ startedAt, done }` of the running step. A waiter waits while that step is younger than 13 s, then takes the turn. Wake order follows the order of the waits. After a takeover two steps can run at once; the 1 s spacing and the per-minute budget still apply, because `send` reads `lastStart` and the `starts` window.
+The QuantData turn uses a time lease, the same pattern as `vertex-orders.ts#onePlacementAtATime`: one record `{ startedAt }` of the running step and a first-come-first-served line of waiters. A finished step hands the turn to the first waiter at once, so a caller that calls again right away queues behind it. A waiter waits while the running step is younger than 13 s, then takes the turn. After a takeover two steps can run at once; the 1 s spacing and the per-minute budget are still checked before every start, because `send` reads `lastStart` and the `starts` window synchronously.
 
 ### Layer 2: slot age limit (`packages/db`)
 
