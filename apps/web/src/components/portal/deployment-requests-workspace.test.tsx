@@ -579,6 +579,102 @@ describe("DeploymentRequestsWorkspace", () => {
     expect(gateway.create).not.toHaveBeenCalled();
   });
 
+  it("does not save a draft for a strategy with a no-edge study and names the reason", async () => {
+    const reason =
+      "The Vertex study of this strategy found no edge; a paper deployment cannot be requested for it.";
+    const noEdge = summary({
+      id: "s-insider",
+      name: "Insider Purchase Confirmation",
+      params: [],
+      slug: "insider-purchase-confirmation",
+      tags: ["backtest-study", "failed"],
+      vertexStudy: { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+    const gateway = requestsGateway([]);
+    const strategies = strategiesGateway();
+    strategies.list.mockResolvedValue([summary(), noEdge]);
+    strategies.get.mockImplementation(async (id: string) =>
+      id === "s-insider"
+        ? { backtests: [], presets: [], strategy: noEdge }
+        : strategyDetail()
+    );
+    // The link a stale page or a typed address still gives: the form opens on the blocked strategy.
+    window.history.replaceState(null, "", newRequestHref("s-insider"));
+    const container = await mount(
+      <DeploymentRequestsWorkspace gateway={gateway} strategies={strategies} />
+    );
+    expect(
+      [...field<HTMLSelectElement>("#request-strategy").options].map(
+        (option) => [option.value, option.disabled, option.textContent]
+      )
+    ).toEqual([
+      ["", false, "Choose…"],
+      ["s-hmm", false, "HMM forward filter (hmm)"],
+      [
+        "s-insider",
+        true,
+        "Insider Purchase Confirmation (insider-purchase-confirmation) · No edge: no paper deployment",
+      ],
+    ]);
+    expect(
+      container.querySelector('[data-request-blocked="study-no-edge"]')
+        ?.textContent
+    ).toBe(reason);
+    expect(button("Save draft").disabled).toBe(true);
+    expect(gateway.create).not.toHaveBeenCalled();
+    // Another strategy: the block is not its state.
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
+    expect(container.querySelector("[data-request-blocked]")).toBeNull();
+    return expect(button("Save draft").disabled).toBe(false);
+  });
+
+  it("does not offer an Academy strategy in the picker: its request starts on the lesson page", async () => {
+    const wheel = summary({
+      id: "s-wheel",
+      name: "DYR: Wheel",
+      slug: "dyr-wheel",
+    });
+    const strategies = strategiesGateway();
+    strategies.list.mockResolvedValue([summary(), wheel]);
+    strategies.get.mockResolvedValue(strategyDetail(wheel));
+    // A typed or old address opens the form on the Academy strategy: it cannot be saved here.
+    window.history.replaceState(null, "", newRequestHref("s-wheel"));
+    const linked = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    expect(
+      linked.querySelector('[data-request-blocked="academy-lesson"]')
+        ?.textContent
+    ).toBe(
+      "This is an Academy strategy; request its paper deployment from its Academy lesson page."
+    );
+    expect(button("Save draft", linked).disabled).toBe(true);
+    window.history.replaceState(null, "", "/deployments");
+    await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    await click(button("New request"));
+    return expect(
+      [...field<HTMLSelectElement>("#request-strategy").options].map(
+        (option) => [option.value, option.disabled, option.textContent]
+      )
+    ).toEqual([
+      ["", false, "Choose…"],
+      ["s-hmm", false, "HMM forward filter (hmm)"],
+      [
+        "s-wheel",
+        true,
+        "DYR: Wheel (dyr-wheel) · request from the Academy lesson page",
+      ],
+    ]);
+  });
+
   it("says a withdrawn request was never decided", async () => {
     window.history.replaceState(
       null,
