@@ -248,11 +248,9 @@ describe("OwnerMarketNotesCard", () => {
     expect(badgeLabel(active as HTMLElement, "[data-note-verification]")).toBe(
       "Partly checked: 1 contradicted"
     );
-    expect(
-      active
-        ?.querySelector("[data-note-verification]")
-        ?.getAttribute("data-status")
-    ).toBe("destructive");
+    const verificationBadge = active?.querySelector("[data-note-verification]");
+    expect(verificationBadge?.getAttribute("data-status")).toBe("destructive");
+    expect(verificationBadge?.getAttribute("data-plain")).toBe("true");
     expect(active?.querySelector("[data-note-stale]")).toBeNull();
     expect(active?.querySelector("[data-note-stale-notice]")).toBeNull();
     const facts = [...(active?.querySelectorAll("dl > div") ?? [])].map(

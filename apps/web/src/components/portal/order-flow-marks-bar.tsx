@@ -114,7 +114,7 @@ export const OrderFlowMarksBar = ({
         {/* A forex chart has no Order flow panel (no ticks or depth), so the text does not point to one. */}
         {state.secType === "CASH"
           ? "Order-flow marks: none for forex (CASH). IBKR gives no ticks or depth for a forex pair."
-          : `Order-flow marks: stored IBKR flow_events cover SPY and QQQ equities and ES and NQ futures only (${state.symbol} ${state.secType} shows print-computed marks in the Order flow Footprint tab below).`}
+          : `Order-flow marks: stored IBKR flow events cover SPY and QQQ equities and ES and NQ futures only (${state.symbol} ${state.secType} shows print-computed marks in the Order flow Footprint tab below).`}
       </p>
     );
   if (state.type === "loading")
@@ -159,7 +159,7 @@ export const OrderFlowMarksBar = ({
         role="status"
       >
         <span className="font-medium text-foreground">
-          Order-flow marks (stored IBKR flow_events)
+          Order-flow marks (stored IBKR flow events)
         </span>
         {summary.shownEvents === 0 ? (
           <span>

@@ -126,9 +126,9 @@ describe("Market context", () => {
     expect(container.querySelector("[data-spx]")?.textContent).toContain(
       "VIX-implied move 1.08% · actual ×0.32"
     );
-    expect(
-      container.querySelector('[data-band="review"]')?.textContent
-    ).toContain("Review: large move");
+    const bandBadge = container.querySelector('[data-band="review"]');
+    expect(bandBadge?.textContent).toContain("Review: large move");
+    expect(bandBadge?.getAttribute("data-plain")).toBe("true");
     expect(container.querySelector("[data-source-errors]")).toBeNull();
     expect(
       container.querySelector('[role="group"][aria-label="Volatility"]')

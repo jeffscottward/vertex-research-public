@@ -293,6 +293,7 @@ const StatSub = ({ text }: { readonly text: string }) => (
   <dd className="text-muted-foreground text-xs tabular-nums">{text}</dd>
 );
 
+// CollapsibleSummary is the sole bordered surface: the stat cells have no inner border.
 const SummaryGrid = ({
   snapshot,
   nowMs,
@@ -302,15 +303,11 @@ const SummaryGrid = ({
 }) => (
   <dl
     aria-label="Account summary"
-    className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+    className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6"
   >
     {summaryStats(snapshot, nowMs).map((stat) => {
       return (
-        <div
-          className="min-w-0 rounded-md border border-border bg-surface p-3"
-          data-stat={stat.key}
-          key={stat.key}
-        >
+        <div className="min-w-0" data-stat={stat.key} key={stat.key}>
           <dt className="text-muted-foreground text-xs">{stat.label}</dt>
           <dd
             className={cn(
@@ -335,7 +332,7 @@ const MessageList = ({
   if (messages.length === 0) return null;
   return (
     <details
-      className="rounded-md border border-border px-3 text-muted-foreground text-xs"
+      className="border-border border-t pt-2 text-muted-foreground text-xs"
       data-api-messages="true"
     >
       <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -409,7 +406,7 @@ export const Banner = ({
 const LoadingState = () => (
   <div
     aria-busy="true"
-    className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+    className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6"
     data-monitor-state="loading"
     role="status"
   >
