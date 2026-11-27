@@ -38,11 +38,12 @@ describe("fake options chain gateway", () => {
       spotSource: "quantdata",
     });
     expect(listed.quoteTime).toBeNull();
-    // Quant Data first, then IBKR, then Yahoo.
+    // Quant Data first, then IBKR, then Yahoo, then Nasdaq OI fallback.
     expect(nearest.sources.map((item) => [item.source, item.status])).toEqual([
       ["quantdata", "used"],
       ["ibkr", "used"],
       ["yahoo", "used"],
+      ["nasdaq", "off"],
     ]);
     expect(listed.sources).toEqual(nearest.sources);
     expect(nearest.rows[20]?.call).toMatchObject({

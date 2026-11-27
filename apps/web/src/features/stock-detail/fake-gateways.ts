@@ -111,6 +111,7 @@ const quoteFields = (
     { message: null, source: "quantdata", status: "used" },
     { message: null, source: "ibkr", status: "used" },
     { message: null, source: "yahoo", status: "used" },
+    { message: null, source: "nasdaq", status: "off" },
   ],
   spot,
   spotSource: "quantdata",
