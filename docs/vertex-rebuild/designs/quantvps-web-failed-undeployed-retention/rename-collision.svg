@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560" font-family="DejaVu Sans, sans-serif">
+  <rect width="1000" height="560" fill="#111318"/>
+  <text x="500" y="40" fill="#e6e6e6" font-size="24" font-weight="bold" text-anchor="middle">Rename name collision: before vs after</text>
+
+  <!-- BEFORE -->
+  <rect x="20" y="60" width="470" height="480" rx="14" fill="#1b1d24" stroke="#ed4245" stroke-width="2"/>
+  <text x="255" y="95" fill="#ed4245" font-size="20" font-weight="bold" text-anchor="middle">❌ Before: one shared name</text>
+  <g font-size="15">
+    <rect x="50" y="120" width="180" height="60" rx="8" fill="#23324a"/>
+    <text x="140" y="146" fill="#9cc3ff" text-anchor="middle">📦 dist.bak-T</text>
+    <text x="140" y="168" fill="#aaa" text-anchor="middle" font-size="12">old backup, delete</text>
+    <rect x="280" y="120" width="180" height="60" rx="8" fill="#3a2f1a"/>
+    <text x="370" y="146" fill="#ffd27a" text-anchor="middle">📌 dist.undeployed-T</text>
+    <text x="370" y="168" fill="#aaa" text-anchor="middle" font-size="12">kept, same T</text>
+    <path d="M140 180 V230" stroke="#9cc3ff" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="50" y="240" width="180" height="60" rx="8" fill="#4d1f22"/>
+    <text x="140" y="268" fill="#fff" text-anchor="middle">dist.prune-T</text>
+    <text x="140" y="288" fill="#ddd" text-anchor="middle" font-size="12">kind lost</text>
+    <path d="M370 180 V270 H235" fill="none" stroke="#ffd27a" stroke-width="3" stroke-dasharray="6 5" marker-end="url(#b)"/>
+    <text x="380" y="230" fill="#ffd27a" font-size="12">"rename busy?"</text>
+    <text x="140" y="350" fill="#ed4245" font-size="42" text-anchor="middle">🔒</text>
+    <text x="255" y="400" fill="#e6e6e6" text-anchor="middle">Delete step skips it on every run</text>
+    <text x="255" y="428" fill="#e6e6e6" text-anchor="middle">Exit 0, no warning</text>
+    <text x="255" y="470" fill="#ed4245" font-size="18" font-weight="bold" text-anchor="middle">~130 MiB stuck forever</text>
+  </g>
+
+  <!-- AFTER -->
+  <rect x="510" y="60" width="470" height="480" rx="14" fill="#1b1d24" stroke="#3ba55d" stroke-width="2"/>
+  <text x="745" y="95" fill="#3ba55d" font-size="20" font-weight="bold" text-anchor="middle">✅ After: kind in the name</text>
+  <g font-size="15">
+    <rect x="540" y="120" width="180" height="60" rx="8" fill="#23324a"/>
+    <text x="630" y="146" fill="#9cc3ff" text-anchor="middle">📦 dist.bak-T</text>
+    <text x="630" y="168" fill="#aaa" text-anchor="middle" font-size="12">old backup, delete</text>
+    <rect x="770" y="120" width="180" height="60" rx="8" fill="#3a2f1a"/>
+    <text x="860" y="146" fill="#ffd27a" text-anchor="middle">📌 dist.undeployed-T</text>
+    <text x="860" y="168" fill="#aaa" text-anchor="middle" font-size="12">PINNED: never deleted</text>
+    <path d="M630 180 V230" stroke="#9cc3ff" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="540" y="240" width="180" height="60" rx="8" fill="#1f3d2a"/>
+    <text x="630" y="268" fill="#fff" text-anchor="middle">dist.prune-T</text>
+    <text x="630" y="288" fill="#ddd" text-anchor="middle" font-size="12">bak name unchanged</text>
+    <rect x="770" y="240" width="180" height="60" rx="8" fill="#1f3d2a"/>
+    <text x="860" y="268" fill="#fff" text-anchor="middle">dist.prune-failed-T</text>
+    <text x="860" y="288" fill="#ddd" text-anchor="middle" font-size="12">other kinds carry kind</text>
+    <path d="M630 300 V330" stroke="#3ba55d" stroke-width="3" marker-end="url(#c)"/>
+    <text x="630" y="372" fill="#3ba55d" font-size="38" text-anchor="middle">🗑️</text>
+    <text x="745" y="410" fill="#e6e6e6" text-anchor="middle">Each kind checks only its own names</text>
+    <text x="745" y="438" fill="#e6e6e6" text-anchor="middle">Old script copies skip the new names</text>
+    <text x="745" y="480" fill="#3ba55d" font-size="18" font-weight="bold" text-anchor="middle">Space freed on the next run</text>
+  </g>
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#9cc3ff"/></marker>
+    <marker id="b" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#ffd27a"/></marker>
+    <marker id="c" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#3ba55d"/></marker>
+  </defs>
+</svg>

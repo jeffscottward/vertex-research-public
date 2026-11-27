@@ -3,6 +3,8 @@
 * **Author:** jeffscottward
 * **Date:** 2026-11-27
 
+![Rename name collision: before vs after](rename-collision.svg)
+
 ## Overview
 
 The QuantVPS web prune script (`infra/quantvps/prune-web-backups.sh`) keeps the newest 10 build backup (`bak`) pairs. It reports failed and undeployed build folders as "not managed" and never deletes them. The concept extends the same script: keep the newest 2 failed pairs and the newest 2 undeployed pairs, and delete older ones. The existing safety steps stay: preview by default, rename under the restart lock, at most 3 pairs per run. Today there are 0 failed pairs and 1 undeployed pair (121 MiB), so the first run deletes nothing.
@@ -49,8 +51,8 @@ Half pairs lose their size in the report; the delete log line lacks size; the co
 
 ## Goals vs. Non-Goals
 
-* **In-Scope Goals:** automatic retention of failed pairs (newest 2) in the existing script; the `bak` rule deletes exactly what the baseline deletes; same safety steps; per-family reporting; docs and alert text that match the new behaviour.
-* **Out-of-Scope Non-Goals:** `.runtime-failed-*` retention (follow-up card); `--link-dest` staging (follow-up card); a new timer or deploy step.
+* **In-Scope Goals:** automatic retention of failed pairs (newest 2) and undeployed pairs (newest 2) in the existing script; a reported pin that is never deleted; family in the rename name for non-`bak` kinds; the `bak` rule deletes exactly what the baseline deletes; same safety steps; per-family reporting; docs and alert text that match the new behaviour.
+* **Out-of-Scope Non-Goals:** prune after a rollback (follow-up card `quantvps-web-prune-after-rollback`); `.runtime-failed-*` retention and `--link-dest` staging (possible later cards, not filed); a new timer or deploy step.
 
 ## Alternatives Weighed
 
@@ -61,10 +63,10 @@ Half pairs lose their size in the report; the delete log line lacks size; the co
 
 ## Key Decisions & Staging for Next Steps
 
-Open owner decisions, carried to `egm-draft`:
+Owner decisions (2026-11-27, card `quantvps-web-failed-undeployed-retention`):
 
-1. Scope of `undeployed`: keep in the rule with a pin, keep with a minimum age, or drop it (report only).
-2. Fix for the blocker: family rename names (recommended), or the narrow half-pair check.
-3. Prune after a rollback: follow-up card for `restart-when-idle.sh`, or accept the stated growth bound.
+1. Undeployed pairs: keep the newest 2, plus a pin. A pinned pair is never deleted, and the report shows its size. Minimum age and report-only were not chosen. Proposal for `egm-draft`, not yet decided: a pinned pair does not count toward the keep count of 2.
+2. Blocker fix: put the kind in the rename name (`dist.prune-failed-<TS>`, `dist.prune-undeployed-<TS>`); `bak` keeps `dist.prune-<TS>`. The narrow half-pair check was not chosen.
+3. Prune after a rollback: separate follow-up card `quantvps-web-prune-after-rollback`. This change states the growth bound (about 260 MiB per failed attempt until the next good deploy).
 
 Carried without a decision needed: per-family summary and log fields; one pair ID form; single `FAMILIES` table; differential `bak` test; docs and alert text updates; run from a checkout at or after the merge; tests for every reproduced case.
