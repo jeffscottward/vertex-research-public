@@ -24,6 +24,7 @@ import type { AssistantCompletionRequest } from "../../../packages/api/src/serve
 import {
   type EvalBackend,
   replayRecording,
+  replayTrial,
   runTrial,
   startEvalBackend,
 } from "./harness.ts";
@@ -31,14 +32,15 @@ import { EVAL_QUESTIONS } from "./questions.ts";
 import {
   parseBridgeLine,
   type RecordRunOptions,
-  replyToCompletion,
   type RunMessage,
   recordRun,
+  replyToCompletion,
   type TrialModel,
   upgradeRecording,
 } from "./recorder.ts";
 import {
   calledTools,
+  type IdentifiedToolList,
   RECORDING_MODEL,
   type RecordedTrial,
   type Recording,
@@ -100,6 +102,7 @@ const scripted =
   };
 
 let backend: EvalBackend;
+let currentToolList: IdentifiedToolList;
 let folder: string;
 let files: RecordRunOptions["files"];
 let messages: RunMessage[];
@@ -136,15 +139,16 @@ const run = (
  */
 const writeWithOlderToolList = (changed: string): string => {
   const older = "0".repeat(64);
-  const [current] = Object.values(COMMITTED.toolLists);
-  if (current === undefined || !(changed in current)) {
-    throw new Error(`the committed tool list has no tool ${changed}`);
+  if (!(changed in currentToolList.tools)) {
+    throw new Error(`the current tool list has no tool ${changed}`);
   }
   writeFileSync(
     files.recording,
     JSON.stringify({
       ...COMMITTED,
-      toolLists: { [older]: { ...current, [changed]: "f".repeat(64) } },
+      toolLists: {
+        [older]: { ...currentToolList.tools, [changed]: "f".repeat(64) },
+      },
       trials: COMMITTED.trials.map((trial) => ({ ...trial, toolList: older })),
     })
   );
@@ -153,6 +157,15 @@ const writeWithOlderToolList = (changed: string): string => {
 
 beforeAll(async () => {
   backend = await startEvalBackend();
+  const sample = await replayTrial(
+    backend,
+    question("Q1"),
+    stored(COMMITTED, "Q1.1")
+  );
+  if (sample.toolList === null) {
+    throw new Error("the sample replay produced no current tool list");
+  }
+  currentToolList = sample.toolList;
 }, 120_000);
 
 afterAll(async () => {
@@ -200,10 +213,14 @@ describe("recordRun", () => {
     const after = read();
     for (const before of COMMITTED.trials) {
       const { audit: _audit, ...unaudited } = before;
-      // A recorded trial is the committed one with a new date and no audit grade.
+      // A recorded trial is the committed one with a new date, current tool list and no audit grade.
       expect(stored(after, trialKey(before))).toEqual(
         before.question === "Q1"
-          ? { ...unaudited, recordedAt: NOW.toISOString() }
+          ? {
+              ...unaudited,
+              recordedAt: NOW.toISOString(),
+              toolList: currentToolList.id,
+            }
           : before
       );
     }
@@ -444,7 +461,7 @@ describe("recordRun with the stale selection", () => {
       COMMITTED.trials.length - EVAL_QUESTIONS.length
     );
     expect(Object.keys(after.toolLists).sort()).toEqual(
-      [older, ...Object.keys(COMMITTED.toolLists)].sort()
+      [older, currentToolList.id].sort()
     );
     // A second stale run finds nothing to record.
     messages = [];
@@ -574,11 +591,25 @@ describe("upgradeRecording", () => {
   };
 
   it("gives a version 2 trial that still replays its tool list and message digests, and changes nothing else", async () => {
+    const currentTrialKeyOf = (id: string): string => {
+      const found = COMMITTED.trials.find(
+        (trial) =>
+          trial.question === id && trial.toolList === currentToolList.id
+      );
+      if (found === undefined) {
+        throw new Error(
+          `no committed trial of ${id} uses the current tool list`
+        );
+      }
+      return trialKey(found);
+    };
+    const firstKey = currentTrialKeyOf("Q1");
+    const secondKey = currentTrialKeyOf("Q13");
     const versionTwo = {
       audit: COMMITTED["audit"],
       note: COMMITTED["note"],
       schemaVersion: 2,
-      trials: [await asVersionTwo("Q1.1"), await asVersionTwo("Q13.2")],
+      trials: [await asVersionTwo(firstKey), await asVersionTwo(secondKey)],
     } as unknown as Recording;
 
     const result = await upgradeRecording(
@@ -588,14 +619,19 @@ describe("upgradeRecording", () => {
       String(COMMITTED["note"])
     );
 
-    expect(result.upgraded).toEqual(["Q1.1", "Q13.2"]);
+    expect(result.upgraded).toEqual([firstKey, secondKey]);
     expect(result.kept).toEqual({});
     expect(result.changed).toBe(true);
     // Byte-equal to the committed trials, field order included.
     expect(JSON.stringify(result.recording.trials)).toBe(
-      JSON.stringify([stored(COMMITTED, "Q1.1"), stored(COMMITTED, "Q13.2")])
+      JSON.stringify([
+        stored(COMMITTED, firstKey),
+        stored(COMMITTED, secondKey),
+      ])
     );
-    expect(result.recording.toolLists).toEqual(COMMITTED.toolLists);
+    expect(result.recording.toolLists).toEqual({
+      [currentToolList.id]: currentToolList.tools,
+    });
     expect(result.recording.schemaVersion).toBe(3);
     // A second run changes nothing.
     const again = await upgradeRecording(
