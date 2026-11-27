@@ -314,7 +314,7 @@ describe("backtests workspace", () => {
       section.querySelector('[data-split="Out-of-sample"]')?.textContent
     ).toContain("2022-01-01");
     expect(section.querySelector('[data-fold="wf-1"]')?.textContent).toContain(
-      "sharpe=0.4"
+      "Sharpe=0.4"
     );
     expect(section.textContent).toContain("No benchmark reported.");
 

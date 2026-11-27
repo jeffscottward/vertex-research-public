@@ -14,6 +14,7 @@ import {
   type FlowGex,
   type FlowMinute,
   type FlowOptionPrint,
+  FRESHNESS_LABELS,
   freshnessRows,
   gexLevelRows,
   gexMetrics,
@@ -253,15 +254,19 @@ describe("flow view model", () => {
     ]);
     expect(rows[0]).toMatchObject({
       flags: ["OTM", "golden sweep", "unusual", "vol>OI", "opening"],
+      kind: "Sweep",
       premium: "$1.4M",
       right: "C",
+      sentiment: "Bullish",
       side: "At ask",
       sideTitle: null,
       tone: "success",
     });
     expect(rows[1]).toMatchObject({
       flags: ["OTM"],
+      kind: "Block",
       right: "P",
+      sentiment: "Bearish",
       tone: "destructive",
     });
     expect(rows[2]?.flags).toEqual([]);
@@ -275,22 +280,34 @@ describe("flow view model", () => {
     expect(new Set(rows.map((row) => row.key)).size).toBe(5);
   });
 
-  it("names a print without a classified side, a side without a label and a price that was not sent", () => {
+  it("names a print without a classified side, codes without a label and a price that was not sent", () => {
     const [call] = spy.optionsFlow.topPrints as [FlowOptionPrint];
     const rows = optionPrintRows([
       { ...call, price: null, side: "not_classified" },
-      { ...call, side: "later_side" as FlowOptionPrint["side"] },
+      {
+        ...call,
+        consolidation: "later_kind" as FlowOptionPrint["consolidation"],
+        sentiment: "neutral",
+        side: "later_side" as FlowOptionPrint["side"],
+      },
+      { ...call, consolidation: "other" },
+      { ...call, consolidation: "split" },
     ]);
     expect(rows[0]).toMatchObject({
       price: "price not sent",
-      side: "not classified",
+      side: "Not classified",
       sideTitle:
         "QuantData sent no side code for this print, or a code that this version does not map",
     });
+    // A code without a label (a page older than the server) names itself and the next step.
     expect(rows[1]).toMatchObject({
+      kind: 'Value "later_kind" has no label in this page version · reload the page',
+      sentiment: "Neutral",
       side: 'Value "later_side" has no label in this page version · reload the page',
       sideTitle: null,
     });
+    expect(rows[2]?.kind).toBe("Print");
+    expect(rows[3]?.kind).toBe("Split");
   });
 
   it("gives each vote a tone and a label, and info for a vote without a tone", () => {
@@ -308,11 +325,17 @@ describe("flow view model", () => {
     expect(voteTone("bullish")).toBe("success");
     expect(voteTone("later_vote")).toBe("info");
     expect(VOTE_LABELS).toEqual({
-      bearish: "bearish",
-      bullish: "bullish",
-      context: "context",
-      neutral: "neutral",
-      no_data: "no data",
+      bearish: "Bearish",
+      bullish: "Bullish",
+      context: "Context",
+      neutral: "Neutral",
+      no_data: "No data",
+    });
+    expect(FRESHNESS_LABELS).toEqual({
+      closed: "Closed",
+      fresh: "Fresh",
+      never: "Never collected",
+      stale: "Stale",
     });
   });
 
@@ -393,7 +416,7 @@ describe("flow view model", () => {
     expect(metricValue(metrics, "SPX spot")).toBe("spot not received");
   });
 
-  it("names a GEX regime and an IV regime that have no label in this page version", () => {
+  it("names a GEX regime and an IV regime without a label", () => {
     const gex = es.gex as FlowGex;
     const metrics = gexMetrics({
       ...gex,
@@ -436,12 +459,16 @@ describe("flow view model", () => {
   it("labels events", () => {
     const rows = eventRows(spy.events);
     expect(rows[0]).toMatchObject({
-      direction: "bullish",
+      direction: "Bullish",
       kind: "Option sweep",
       time: "3:56 PM EDT",
       tone: "success",
     });
-    expect(rows[1]).toMatchObject({ kind: "Large print", tone: "neutral" });
+    expect(rows[1]).toMatchObject({
+      direction: "Neutral",
+      kind: "Large print",
+      tone: "neutral",
+    });
   });
 });
 

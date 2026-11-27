@@ -8,6 +8,7 @@
 import {
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
+  type FlowAgreementState,
   type FlowControl,
   type FlowControlState,
   type FlowGroupId,
@@ -53,6 +54,25 @@ export const STATE_TONE: Readonly<Record<FlowControlState, Tone>> = {
   mixed: "warning",
   no_data: "info",
   sellers: "destructive",
+};
+
+/**
+ * The words of a control state (options or futures side) and of an agreement state. The page
+ * prints these, never the state code.
+ */
+export const CONTROL_STATE_LABELS: Readonly<
+  Partial<Record<FlowControlState | FlowAgreementState, string>>
+> = {
+  agree: "Agree",
+  balanced: "Balanced",
+  both_balanced: "Both balanced",
+  buyers: "Buyers",
+  diverge: "Diverge",
+  mixed: "Mixed",
+  no_data: "No data",
+  not_comparable: "Not comparable",
+  one_sided: "One sided",
+  sellers: "Sellers",
 };
 
 export type ControlLine = Readonly<{

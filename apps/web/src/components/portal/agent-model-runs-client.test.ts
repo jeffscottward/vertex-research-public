@@ -139,6 +139,16 @@ describe("model run filters", () => {
     expect(facetValueLabel("horizonBucket", "unknown")).toBe(
       "Horizon not stated or not recognised"
     );
+    // A status, a flag and a purpose print as words; the code never reaches the page.
+    expect(facetValueLabel("status", "succeeded")).toBe("Succeeded");
+    expect(facetValueLabel("status", "later_status")).toBe("Later status");
+    expect(facetValueLabel("flags", "research_only")).toBe("Research only");
+    expect(facetValueLabel("flags", "single_call")).toBe("Single call");
+    expect(facetValueLabel("purpose", "benchmark")).toBe("Benchmark");
+    // Names and identifiers print as written.
+    expect(facetValueLabel("variant", "memory_off.v2")).toBe("memory_off.v2");
+    expect(facetValueLabel("framework", "tradingagents")).toBe("tradingagents");
+    expect(facetValueLabel("batch", "bench_2026_11")).toBe("bench_2026_11");
   });
 });
 

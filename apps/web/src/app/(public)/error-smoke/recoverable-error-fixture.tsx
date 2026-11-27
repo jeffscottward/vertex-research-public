@@ -28,8 +28,7 @@ export const RecoverableErrorFixture = () => {
   return (
     <PublicPage
       description="The public error boundary reset the failed route without exposing it in production."
-      eyebrow="E2E fixture"
-      title="The error fixture recovered."
+      title="The error fixture recovered"
     >
       <p className="py-8 text-base text-muted-foreground leading-7">
         Recovery completed without submitting data or changing an account.

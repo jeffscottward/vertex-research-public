@@ -56,6 +56,11 @@ describe("Agents data-first research records", () => {
       "Use output artifact identities in Strategies or Data"
     );
     const visible = withoutHelp(html);
+    // The label above the heading is plain sentence-case text, not an eyebrow.
+    expect(visible).toContain(
+      '<p class="font-medium text-muted-foreground text-sm">Research job / research</p>'
+    );
+    expect(html).not.toContain("vx-eyebrow");
     expect(visible).toMatch(
       new RegExp(
         `<table class="[^"]*tabular-nums[^"]*" data-slot="data-table" aria-labelledby="${headingId}">`

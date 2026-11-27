@@ -566,7 +566,7 @@ export const RotationMatrixWorkspace = ({
             Refresh
           </Button>
         }
-        description="Median returns by sector, industry and cap bucket, with your watchlist names. Research only."
+        description="Median returns by sector, industry and cap bucket, with your watchlist names."
         status={status}
         title="Rotation matrix"
       />

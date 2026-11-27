@@ -38,7 +38,9 @@ export const AgentRunDetails = ({
   return (
     <article className="vx-artifact" aria-label={`Run ${artifact.value.runId}`}>
       <div className="vx-artifact-heading">
-        <p className="vx-eyebrow">Research job / {artifact.value.agentRole}</p>
+        <p className="font-medium text-muted-foreground text-sm">
+          Research job / {artifact.value.agentRole}
+        </p>
         <ResearchTableHeading
           id={headingId}
           title={`Run ${artifact.value.runId}`}

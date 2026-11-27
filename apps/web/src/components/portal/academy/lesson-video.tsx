@@ -68,8 +68,11 @@ const ELEMENT_NAMES: Readonly<Record<string, string>> = {
   title: "title",
 };
 
-export const elementName = (element: string): string =>
-  ELEMENT_NAMES[element] ?? element;
+// Sentence case: the label prints as written, with a capital first letter.
+export const elementName = (element: string): string => {
+  const name = ELEMENT_NAMES[element] ?? element;
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+};
 
 // Live SVG preview of the lesson timeline (only mounted when there is no MP4).
 const PreviewChart = ({
@@ -272,7 +275,7 @@ export const LessonVideo = ({
         ) : (
           <span>
             <span
-              className="mr-2 font-semibold text-xs uppercase tracking-wide"
+              className="mr-2 font-semibold text-xs"
               style={{ color: palette.tokens[active.color] }}
             >
               ● {elementName(active.element)}

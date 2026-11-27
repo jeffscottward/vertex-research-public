@@ -344,10 +344,12 @@ describe("breadth90.get", () => {
       }),
     ]) {
       const card = await client.breadth90.get({});
+      // The stored basket keeps reportPath (a file path on the collector host); the read hides it.
+      expect(push().basket.reportPath).toBe("reports/dip-basket.md");
       expect(card.status).toEqual({
         armedOn: "2026-10-28",
         asOf: "2026-11-06T21:15:00.000Z",
-        basket: push().basket,
+        basket: { ...push().basket, reportPath: null },
         sessionsLeft: 23,
         state: "FORMING",
         strict: true,
@@ -366,6 +368,24 @@ describe("breadth90.get", () => {
     }
     expect(memory.repository.listRecentDays).toHaveBeenCalledWith(31);
     expect(memory.repository.listRecentEvents).toHaveBeenCalledWith(20);
+  });
+
+  it("returns a status that has no basket", async () => {
+    const memory = createMemoryRepository();
+    await clientFor({
+      apiKey: PLAINTEXT,
+      repository: memory.repository,
+    }).breadth90.collect(push());
+    const stored = await memory.repository.getStatus();
+    expect(stored).not.toBeNull();
+    memory.repository.getStatus.mockResolvedValueOnce(
+      stored === null ? null : { ...stored, basket: null }
+    );
+    const card = await clientFor({
+      repository: memory.repository,
+    }).breadth90.get({});
+    expect(card.status?.basket).toBeNull();
+    expect(card.status?.state).toBe("FORMING");
   });
 
   it("is operator-only and needs storage", async () => {

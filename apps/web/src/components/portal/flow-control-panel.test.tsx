@@ -72,13 +72,48 @@ describe("FlowControlPanel", () => {
         ?.querySelector("[data-flow-control-state]")
         ?.getAttribute("data-flow-control-state")
     ).toBe("buyers");
-    expect(options?.textContent).toContain("buyers");
+    // The state prints as words in plain text; the code stays in the attribute.
+    const state = options?.querySelector("[data-flow-control-state]");
+    expect(state?.textContent).toBe("Status:Buyers");
+    expect(state?.getAttribute("data-plain")).toBe("true");
     expect(options?.textContent).toContain(
       "SPX options: bullish, call buying leads"
     );
     expect(options?.textContent).toContain("since ");
     expect(options?.textContent).toContain("Ratio 0.42 (enter ratio 0.30)");
     expect(options?.textContent).toContain("as of ");
+    // Each freshness row is plain status text.
+    const freshness = [
+      ...container.querySelectorAll<HTMLElement>('li > [data-slot="badge"]'),
+    ];
+    expect(freshness.length).toBeGreaterThan(0);
+    for (const row of freshness)
+      expect(row.getAttribute("data-plain")).toBe("true");
+  });
+
+  it("keeps the warning colour on a stale freshness row", async () => {
+    const { container } = await mount(
+      panel({
+        control: {
+          ...sp500,
+          freshness: sp500.freshness.map((row, index) =>
+            index === 0 ? { ...row, state: "stale" as const } : row
+          ),
+        },
+      })
+    );
+    const rows = [
+      ...container.querySelectorAll<HTMLElement>('li > [data-slot="badge"]'),
+    ];
+    const stale = rows.filter(
+      (row) => row.getAttribute("data-status") === "warning"
+    );
+    expect(stale).toHaveLength(1);
+    expect(stale[0]?.getAttribute("data-plain")).toBe("true");
+    expect(stale[0]?.textContent).toContain("stale");
+    expect(stale[0]?.className.split(" ")).toContain("text-warning-foreground");
+    for (const row of rows.filter((item) => item !== stale[0]))
+      expect(row.className.split(" ")).not.toContain("text-warning-foreground");
   });
 
   it("shows the options, futures and agreement rows with their names, states and texts", async () => {
@@ -134,6 +169,36 @@ describe("FlowControlPanel", () => {
     ).toBe("not_comparable");
     expect(agreement?.textContent).toContain("Cannot compare; Options mixed");
     expect(agreement?.textContent).not.toContain("since ");
+    expect(
+      [...container.querySelectorAll("[data-flow-control-state]")].map(
+        (item) => item.textContent
+      )
+    ).toEqual(["Status:Mixed", "Status:Balanced", "Status:Not comparable"]);
+    expect(agreement?.textContent).not.toContain("not_comparable");
+  });
+
+  it("prints a side without data as words and names a state without a label", async () => {
+    const control = {
+      ...nasdaq,
+      agreement: {
+        ...nasdaq.agreement,
+        state: "later_state" as typeof nasdaq.agreement.state,
+      },
+      options: { ...nasdaq.options, state: "no_data" as const },
+    };
+    const { container } = await mount(panel({ control }));
+    const states = [...container.querySelectorAll("[data-flow-control-state]")];
+    expect(states.map((item) => item.textContent)).toEqual([
+      "Status:No data",
+      "Status:Balanced",
+      'Status:Value "later_state" has no label in this page version · reload the page',
+    ]);
+    expect(
+      states.map((item) => item.getAttribute("data-flow-control-state"))
+    ).toEqual(["no_data", "balanced", "later_state"]);
+    // A state with a label prints no code. The state without a label is the stale-page message.
+    for (const item of states.slice(0, 2))
+      expect(item.textContent).not.toMatch(/[a-z]_[a-z]/);
   });
 
   it("shows the age notice and neutral badges for an old document", async () => {

@@ -599,7 +599,7 @@ export const DeepValueWorkspace = ({
             Refresh
           </Button>
         }
-        description="Small caps ranked by the TRUE timing and SLAP strategic lenses, plus a scorecard for any ticker. Research only."
+        description="Small caps ranked by the TRUE timing and SLAP strategic lenses, plus a scorecard for any ticker."
         status={status}
         title="Deep value screen"
       />

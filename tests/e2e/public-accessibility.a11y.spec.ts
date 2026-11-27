@@ -389,7 +389,7 @@ test("@a11y axe evidence schema excludes DOM content and account data", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Evidence before conviction.",
+      name: "See the evidence behind every research claim",
     })
   ).toBeVisible();
 });
@@ -411,7 +411,7 @@ test("@a11y authenticated evidence disables credential-bearing browser artifacts
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Evidence before conviction.",
+      name: "See the evidence behind every research claim",
     })
   ).toBeVisible();
 });
@@ -471,7 +471,7 @@ for (const viewport of AXE_VIEWPORTS) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "The loading fixture completed.",
+        name: "The loading fixture completed",
       })
     ).toBeVisible({ timeout: 10_000 });
     await installExpectedErrorConsoleNormalization(page);
@@ -497,7 +497,7 @@ for (const viewport of AXE_VIEWPORTS) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "This page needs another attempt.",
+        name: "This page needs another attempt",
       })
     ).toBeVisible();
     expect(

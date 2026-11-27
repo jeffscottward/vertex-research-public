@@ -25,8 +25,7 @@ export const PublicErrorContent = ({ reset }: PublicErrorContentProps) => (
       </PublicLink>
     }
     description="The public content could not be rendered. No form data or account changes were submitted from this page."
-    eyebrow="Page error"
-    title="This page needs another attempt."
+    title="This page needs another attempt"
   >
     <p className="sr-only" role="alert">
       The page failed to render. Recovery options are ready.
@@ -40,7 +39,7 @@ export const PublicErrorContent = ({ reset }: PublicErrorContentProps) => (
     >
       <div className="md:col-span-7">
         <h2
-          className="font-heading font-semibold text-3xl text-foreground tracking-tight"
+          className="font-heading font-semibold text-3xl text-foreground"
           id="public-error-actions-title"
         >
           Retry the current route

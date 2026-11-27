@@ -157,7 +157,10 @@ export const ResourcePanel = <Value,>({
         <a className="vx-text-link" href="/account">
           Review account access
         </a>
-      ) : !action && retry !== undefined ? (
+      ) : !action &&
+        retry !== undefined &&
+        // The detail of this kind says that a retry cannot succeed, so no page offers one.
+        state.failure.kind !== "server-not-configured" ? (
         <Button variant="outline" type="button" onClick={retry}>
           Retry read
         </Button>

@@ -26,11 +26,13 @@ import {
   InfoGlyph,
   OperatorAccessRequired,
   STATUS_LABELS,
+  TASK_KIND_LABELS,
   createBrowserAgentOpsGateway,
   describeAgentOpsFailure,
   isOperatorAccessDenied,
   formatDuration,
   formatMetrics,
+  labelledMetrics,
   formatTimestamp,
   labelFor,
   upsertById,
@@ -70,7 +72,7 @@ const selectClass =
   "h-9 rounded-md border border-border bg-background px-2 text-sm";
 
 const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
-  const metrics = Object.entries(detail.task.metrics);
+  const metrics = labelledMetrics(detail.task.metrics);
   return (
     <div className="grid gap-4 py-2 md:grid-cols-3">
       <section aria-label="Task metrics" className="space-y-1">
@@ -79,10 +81,11 @@ const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
           <p className="text-muted-foreground text-xs">No metrics reported.</p>
         ) : (
           <dl className="grid grid-cols-2 gap-x-3 font-mono text-xs">
-            {metrics.map(([key, value]) => {
+            {metrics.map(([label, value], index) => {
               return (
-                <Fragment key={key}>
-                  <dt className="text-muted-foreground">{key}</dt>
+                // Two stored keys can print as the same label, so the key holds the position.
+                <Fragment key={`${index}:${label}`}>
+                  <dt className="text-muted-foreground">{label}</dt>
                   <dd className="tabular-nums">{String(value)}</dd>
                 </Fragment>
               );
@@ -321,7 +324,7 @@ export const AgentRunsWorkspace = ({
             >
               {AGENT_TASK_KIND_VALUES.map((kind) => (
                 <option key={kind} value={kind}>
-                  {kind}
+                  {labelFor(TASK_KIND_LABELS, kind)}
                 </option>
               ))}
             </select>
@@ -397,7 +400,7 @@ export const AgentRunsWorkspace = ({
             <option value="">All</option>
             {AGENT_TASK_KIND_VALUES.map((kind) => (
               <option key={kind} value={kind}>
-                {kind}
+                {labelFor(TASK_KIND_LABELS, kind)}
               </option>
             ))}
           </select>
@@ -512,7 +515,7 @@ export const AgentRunsWorkspace = ({
                         )}
                       </TableHead>
                       <TableCell className="whitespace-normal py-1 font-mono text-xs">
-                        {task.kind}
+                        {labelFor(TASK_KIND_LABELS, task.kind)}
                       </TableCell>
                       <TableCell className="whitespace-normal py-1 font-mono text-xs">
                         {task.agent}

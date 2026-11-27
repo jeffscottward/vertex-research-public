@@ -282,7 +282,9 @@ const MarketWidget = ({
       return (
         <div className="space-y-2 text-sm">
           {context.stale ? (
-            <StatusBadge status="warning">Stale</StatusBadge>
+            <StatusBadge plain status="warning">
+              Stale
+            </StatusBadge>
           ) : null}
           {headline === null ? (
             <Muted>No headline in the last rig push.</Muted>

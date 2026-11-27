@@ -9,17 +9,17 @@ export const metadata = {
 
 const expectations = [
   {
-    title: "A real delivery state",
+    title: "You see the real delivery state",
     description:
       "We report whether the message was sent, written to a local preview, or not delivered. Preview and disabled delivery are never presented as sent.",
   },
   {
-    title: "A bounded request",
+    title: "One question per message",
     description:
       "Keep the message focused on one question or decision. The form shows each limit before anything leaves the page.",
   },
   {
-    title: "A reply, not a subscription",
+    title: "No marketing subscription",
     description:
       "Your contact details are used to handle this request. Submitting the form does not opt you into marketing messages.",
   },
@@ -29,19 +29,15 @@ export default function ContactPage() {
   return (
     <PublicPage
       description="Send a focused question about the research workspace. Do not include credentials, account holdings, or private financial information. Delivery is reported exactly as it happens."
-      eyebrow="Contact"
-      title="Talk to the people behind the system."
+      title="Contact Vertex Research"
     >
       <section className="grid gap-6 py-8 md:grid-cols-12 md:gap-5 md:py-10">
         <div className="md:col-span-5">
-          <p className="font-semibold text-primary text-sm tracking-wide">
-            Before you send
-          </p>
           <h2
-            className="mt-4 font-heading font-semibold text-3xl text-foreground tracking-tight"
+            className="font-heading font-semibold text-3xl text-foreground"
             id="contact-expectations-title"
           >
-            Clear context makes a useful reply possible.
+            Before you send
           </h2>
           <section
             aria-labelledby="contact-expectations-title"

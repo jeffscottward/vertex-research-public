@@ -41,7 +41,7 @@ describe("auth form surface", () => {
   it("renders the shadcn login card with a labelled heading", () => {
     const html = markup(
       createElement(AuthPanel, {
-        title: "Welcome back.",
+        title: "Sign in",
         description: "Use your DarkFactory account.",
         children: createElement("p", {}, "Form body"),
       })
@@ -49,14 +49,14 @@ describe("auth form surface", () => {
 
     expect(html).toContain('aria-labelledby="auth-title"');
     expect(html).toContain(
-      '<h1 class="font-semibold text-xl leading-none" id="auth-title">Welcome back.</h1>'
+      '<h1 class="font-semibold text-xl leading-none" id="auth-title">Sign in</h1>'
     );
     expect(html).toContain('data-slot="card"');
     expect(html).toContain("Use your DarkFactory account.");
     expect(html).not.toContain("<footer");
     const withFooter = markup(
       createElement(AuthPanel, {
-        title: "Welcome back.",
+        title: "Sign in",
         description: "Use your DarkFactory account.",
         children: createElement("p", {}, "Form body"),
         footer: "Need an account?",

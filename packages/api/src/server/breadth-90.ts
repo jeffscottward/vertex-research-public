@@ -135,7 +135,12 @@ export const readBreadth90 = async (
         : {
             armedOn: status.armedOn,
             asOf: status.asOf.toISOString(),
-            basket: status.basket,
+            // reportPath is a file path on the collector host: it is stored for the desk, and no
+            // reader of this snapshot gets it.
+            basket:
+              status.basket === null
+                ? null
+                : { ...status.basket, reportPath: null },
             sessionsLeft: status.sessionsLeft,
             state: status.state,
             strict: status.strict,

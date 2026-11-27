@@ -28,7 +28,7 @@ type LoadState = Readonly<
 >;
 
 const listClass = "list-disc space-y-1 pl-5 text-sm";
-const labelClass = "font-medium text-muted-foreground text-xs uppercase";
+const labelClass = "font-medium text-muted-foreground text-xs";
 
 const ToolList = ({
   label,

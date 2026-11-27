@@ -345,7 +345,7 @@ export const StopLadders = ({
                 </div>
                 {ladder.rungs.length === 0 || scale === null ? (
                   <p
-                    className="rounded-md border border-warning-border bg-warning-subtle px-2 py-1 text-warning-foreground text-xs"
+                    className="rounded-md bg-warning-subtle px-2 py-1 text-warning-foreground text-xs"
                     data-no-stops="true"
                   >
                     No stop orders for this position.

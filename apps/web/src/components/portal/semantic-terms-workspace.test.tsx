@@ -315,8 +315,11 @@ describe("SemanticTermsWorkspace", () => {
     expect(pnl.textContent).toContain("postgres");
     expect(pnl.textContent).toContain("USD");
     expect(pnl.textContent).toContain("pnl, profit");
-    expect(pnl.textContent).toContain("Certified");
-    expect(pnl.textContent).toContain("11/2/26, 2:30 PM by op@example.com");
+    // The status is one plain line, with no pill.
+    expect(pnl.querySelector("[data-certified-status]")?.textContent).toBe(
+      "Certified 11/2/26, 2:30 PM by op@example.com"
+    );
+    expect(pnl.querySelector('[data-slot="badge"]')).toBeNull();
     expect(pnl.textContent).toContain("Note: Checked against IBKR");
     // The certified term's SQL attribute is not certified yet.
     const attribute = pnl.querySelector('[data-attribute="realized_pnl_sql"]');

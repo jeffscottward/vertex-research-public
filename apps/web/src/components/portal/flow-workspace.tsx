@@ -103,6 +103,7 @@ import {
   type FlowRequest,
   type FlowSymbol,
   type FlowWindowMinutes,
+  FRESHNESS_LABELS,
   failingFreshnessSources,
   freshnessRows,
   gexLevelRows,
@@ -330,8 +331,8 @@ const FreshnessPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-sm">{row.label}</span>
-                <StatusBadge data-freshness={row.state} status={row.tone}>
-                  {row.state}
+                <StatusBadge data-freshness={row.state} plain status={row.tone}>
+                  {enumLabel(FRESHNESS_LABELS, row.state)}
                 </StatusBadge>
               </div>
               <p className="text-muted-foreground text-xs">
@@ -380,7 +381,7 @@ const ConfluencePanel = ({
           >
             <span className="font-medium text-sm">{factor.label}</span>
             <span className="text-sm tabular-nums">{factor.value}</span>
-            <StatusBadge status={voteTone(factor.vote)}>
+            <StatusBadge plain status={voteTone(factor.vote)}>
               {enumLabel(VOTE_LABELS, factor.vote)}
             </StatusBadge>
             <span className="text-muted-foreground text-xs">

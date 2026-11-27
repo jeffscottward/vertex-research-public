@@ -11,7 +11,7 @@ export default function SignUpPage() {
   return (
     <AuthPanel
       description="Create an account, then confirm the email address before signing in."
-      title="Start with a verified identity."
+      title="Create an account"
     >
       <SessionRedirect callbackURL="/dashboard">
         <SignUpForm />

@@ -114,7 +114,7 @@ const Shell = ({
       <h2 className="font-heading font-semibold text-lg" id="breadth90-title">
         Breadth-90 signal
       </h2>
-      <span className="rounded-full border border-destructive-border bg-destructive-subtle px-2 py-0.5 font-semibold text-destructive text-xs uppercase tracking-wide">
+      <span className="rounded-full border border-destructive-border bg-destructive-subtle px-2 py-0.5 font-semibold text-destructive text-xs">
         High priority
       </span>
     </div>
@@ -122,10 +122,11 @@ const Shell = ({
   </section>
 );
 
+// The record's reportPath is a file path on the rig's own disk. The card does not print it.
 const BasketSection = ({
   basket,
 }: Readonly<{ basket: Breadth90Status["basket"] }>) => (
-  <section aria-labelledby="breadth90-basket" className="space-y-2">
+  <section aria-labelledby="breadth90-basket" className="min-w-0 space-y-2">
     <h3 className="font-medium text-sm" id="breadth90-basket">
       Dip basket
     </h3>
@@ -133,7 +134,7 @@ const BasketSection = ({
     (basket.summary === null && basket.tiers.length === 0) ? (
       <p className="text-muted-foreground text-sm">No dip basket published.</p>
     ) : (
-      <div className="space-y-1 text-sm" data-breadth90-basket="">
+      <div className="wrap-anywhere space-y-1 text-sm" data-breadth90-basket="">
         {basket.summary === null ? null : <p>{basket.summary}</p>}
         {basket.tiers.length === 0 ? null : (
           <ul className="space-y-0.5">
@@ -153,11 +154,8 @@ const BasketSection = ({
       </div>
     )}
     {basket?.rulesNote ? (
-      <p className="text-muted-foreground text-xs">{basket.rulesNote}</p>
-    ) : null}
-    {basket?.reportPath ? (
-      <p className="text-muted-foreground text-xs">
-        Report: <code className="break-all">{basket.reportPath}</code>
+      <p className="wrap-anywhere text-muted-foreground text-xs">
+        {basket.rulesNote}
       </p>
     ) : null}
   </section>
@@ -263,14 +261,20 @@ const Breadth90Signal = ({
         <Breadth90Chart days={days} thresholds={thresholds} />
       )}
       <div className="grid gap-4 lg:grid-cols-2">
-        <section aria-labelledby="breadth90-events" className="space-y-2">
+        <section
+          aria-labelledby="breadth90-events"
+          className="min-w-0 space-y-2"
+        >
           <h3 className="font-medium text-sm" id="breadth90-events">
             Recent events
           </h3>
           {events.length === 0 ? (
             <p className="text-muted-foreground text-sm">No events yet.</p>
           ) : (
-            <ul className="space-y-1 text-sm" data-breadth90-events="">
+            <ul
+              className="wrap-anywhere space-y-1 text-sm"
+              data-breadth90-events=""
+            >
               {events.map((event) => (
                 <li key={`${event.kind}|${event.date}|${event.tier}`}>
                   <span className="font-medium tabular-nums">{event.date}</span>{" "}
@@ -285,7 +289,10 @@ const Breadth90Signal = ({
         </section>
         <BasketSection basket={basket} />
       </div>
-      <p className="text-muted-foreground text-xs" data-breadth90-source="">
+      <p
+        className="wrap-anywhere text-muted-foreground text-xs"
+        data-breadth90-source=""
+      >
         {latest === undefined
           ? "No sessions yet."
           : `Source ${latest.source}, as of ${latest.sourceAsOf}.`}

@@ -1355,7 +1355,6 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
   return (
     <div className="vx-research-chat">
       <header className="vx-chat-heading">
-        <p className="vx-chat-eyebrow">Shared research conversation</p>
         <h2>Research room</h2>
         <p>
           Discuss evidence with named corpus-based research agents. They are not

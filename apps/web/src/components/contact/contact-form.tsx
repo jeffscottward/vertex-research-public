@@ -135,7 +135,7 @@ export const ContactForm = ({ gateway }: ContactFormProps) => {
     >
       <div>
         <h2
-          className="font-heading font-semibold text-2xl text-foreground tracking-tight"
+          className="font-heading font-semibold text-2xl text-foreground"
           id="contact-form-title"
         >
           Send a message

@@ -35,10 +35,10 @@ export default async function VerifyEmailPage({
       }
       title={
         verificationError
-          ? "Verification link needs attention."
+          ? "Verification link needs attention"
           : wasProcessed
-            ? "Verification link processed."
-            : "Send a verification link."
+            ? "Verification link processed"
+            : "Send a verification link"
       }
     >
       <SessionRedirect callbackURL="/dashboard">
