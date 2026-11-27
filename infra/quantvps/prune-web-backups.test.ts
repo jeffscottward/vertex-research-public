@@ -47,14 +47,29 @@ const web = (): string => join(dir, "web");
 const shown = (path: string): string =>
   path.replace(/^\/home\/[^/]+\//, "/home/*/");
 
-const addPair = (ts: string, sha = ""): void => {
-  mkdirSync(join(web(), `dist.bak-${ts}`, "server"), { recursive: true });
-  mkdirSync(join(web(), `.wrangler.bak-${ts}`, "deploy"), { recursive: true });
-  writeFileSync(join(web(), `dist.bak-${ts}`, "server", "a.js"), "x");
+const addFamilyPair = (
+  family: "bak" | "failed" | "undeployed",
+  ts: string,
+  sha = "",
+  pinned = false
+): void => {
+  mkdirSync(join(web(), `dist.${family}-${ts}`, "server"), { recursive: true });
+  mkdirSync(join(web(), `.wrangler.${family}-${ts}`, "deploy"), {
+    recursive: true,
+  });
+  writeFileSync(join(web(), `dist.${family}-${ts}`, "server", "a.js"), "x");
   if (sha) {
-    writeFileSync(join(web(), `dist.bak-${ts}`, "DEPLOYED_SHA"), `${sha}\n`);
+    writeFileSync(
+      join(web(), `dist.${family}-${ts}`, "DEPLOYED_SHA"),
+      `${sha}\n`
+    );
+  }
+  if (pinned) {
+    writeFileSync(join(web(), `dist.${family}-${ts}`, "PINNED"), "");
   }
 };
+
+const addPair = (ts: string, sha = ""): void => addFamilyPair("bak", ts, sha);
 
 /** A sandbox apps/web folder with a live build and `pairs` backup pairs. */
 const sandbox = (pairs: number, root = tmpdir()): void => {
@@ -69,10 +84,11 @@ const sandbox = (pairs: number, root = tmpdir()): void => {
 };
 
 const names = (): string[] => readdirSync(web()).sort();
-const pairStamps = (): string[] =>
+const familyPairStamps = (family: "bak" | "failed" | "undeployed"): string[] =>
   names()
-    .filter((name) => name.startsWith("dist.bak-"))
-    .map((name) => name.slice("dist.bak-".length));
+    .filter((name) => name.startsWith(`dist.${family}-`))
+    .map((name) => name.slice(`dist.${family}-`.length));
+const pairStamps = (): string[] => familyPairStamps("bak");
 const renamed = (): string[] =>
   names().filter((name) => name.includes(".prune-"));
 
@@ -257,16 +273,17 @@ describe("rule (--plan)", { timeout: 30_000 }, () => {
     expect(lines).toContain("waiting 0");
   });
 
-  it("reports failed and undeployed folders as unmanaged and ignores other names", () => {
+  it("manages failed and undeployed pairs, skips half-pairs, and ignores other names", () => {
     const lines = plan([
       ...pairLines(1),
       "N d dist.failed-20261101T000000Z",
       "N d .wrangler.undeployed-20261101T000000Z",
       "N d dist.other",
     ]);
-    expect(of(lines, "unmanaged").sort()).toEqual([
-      ".wrangler.undeployed-20261101T000000Z",
-      "dist.failed-20261101T000000Z",
+    expect(of(lines, "unmanaged")).toEqual([]);
+    expect(of(lines, "skip")).toEqual([
+      ".wrangler.undeployed-20261101T000000Z no dist.undeployed pair",
+      "dist.failed-20261101T000000Z no .wrangler.failed pair",
     ]);
     expect(lines.join("\n")).not.toContain("dist.other");
   });
@@ -296,7 +313,7 @@ describe("preview", { timeout: 30_000 }, () => {
     expect(result.status).toBe(0);
     expect(result.last).toBe("PREVIEW: nothing deleted");
     expect(result.lines[0]).toBe(
-      `prune-web-backups: mode=preview folder=${shown(web())} keep=10 limit=3`
+      `prune-web-backups: mode=preview folder=${shown(web())} keep=10 keep_failed=2 keep_undeployed=2 limit=3`
     );
     expect(result.stdout).toMatch(
       new RegExp(`^delete ${stamp(0)} abcdef000000 \\d+ MiB$`, "m")
@@ -308,10 +325,10 @@ describe("preview", { timeout: 30_000 }, () => {
       new RegExp(`^keep ${stamp(14)} none \\d+ MiB$`, "m")
     );
     expect(result.stdout).toContain(
-      "note: 5 complete pairs are over the keep count; one --apply run deletes the oldest 3"
+      "note: 5 complete pairs are over the keep count; one --apply run deletes up to 3 (bak first, then failed, then undeployed)"
     );
     expect(result.stdout).toMatch(
-      /^summary mode=preview pairs_before=15 delete=5 over=5 leftover_folders=0 used_before_mib=\d+$/m
+      /^summary mode=preview pairs_before=15 pinned=0 pinned_mib=0 delete=5 over=5 bak_over=5 failed_over=0 undeployed_over=0 leftover_folders=0 used_before_mib=\d+$/m
     );
     expect(names()).toEqual(before);
     expect(existsSync(join(dir, "lock"))).toBe(false);
@@ -344,13 +361,16 @@ describe("preview", { timeout: 30_000 }, () => {
     expect(names()).toEqual(before);
   });
 
-  it("reports names it does not manage", () => {
+  it("reports managed failed pairs and skipped names without a not managed line", () => {
     sandbox(1);
     mkdirSync(join(web(), "dist.failed-20261101T000000Z"));
     mkdirSync(join(web(), ".wrangler.failed-20261101T000000Z"));
     mkdirSync(join(web(), "dist.bak-old"));
     const result = run();
-    expect(result.stdout).toContain("not managed: 2 *.failed-* folder(s)");
+    expect(result.stdout).not.toContain("not managed:");
+    expect(result.stdout).toMatch(
+      /^keep dist\.failed-20261101T000000Z none \d+ MiB$/m
+    );
     expect(result.stdout).toContain("skip dist.bak-old (name form)");
   });
 });
@@ -362,7 +382,7 @@ describe("--apply", { timeout: 30_000 }, () => {
     expect(result.status).toBe(0);
     expect(result.last).toBe("PRUNED: 1 pairs");
     expect(result.stdout).toMatch(
-      /^summary mode=apply pairs_before=11 renamed=1 deleted=1 pairs_after=10 over_after=0 leftover_folders=0 /m
+      /^summary mode=apply pairs_before=11 renamed=1 deleted=1 pairs_after=10 pinned=0 pinned_mib=0 over_after=0 bak_over_after=0 failed_over_after=0 undeployed_over_after=0 leftover_folders=0 /m
     );
     expect(pairStamps()).toEqual(stamps(1, 10));
     expect(renamed()).toEqual([]);
@@ -374,7 +394,7 @@ describe("--apply", { timeout: 30_000 }, () => {
     );
     expect(log).toMatch(
       new RegExp(
-        `^\\S+ delete ${stamp(0)} abcdef000000\\n\\S+ run renamed=1 keep=10 rc=0\\n$`
+        `^\\S+ delete ${stamp(0)} abcdef000000 bak\\n\\S+ run renamed=1 keep=10 keep_failed=2 keep_undeployed=2 rc=0\\n$`
       )
     );
   });
@@ -614,7 +634,9 @@ describe("--apply", { timeout: 30_000 }, () => {
     expect(preview.stdout).toContain(
       "skip: 3 name(s) with a blank or another unusual character (never touched)"
     );
-    expect(preview.stdout).toMatch(/pairs_before=10 delete=0 over=0 /);
+    expect(preview.stdout).toMatch(
+      /pairs_before=10 pinned=0 pinned_mib=0 delete=0 over=0 bak_over=0 failed_over=0 undeployed_over=0 /
+    );
     const result = run(["--apply"]);
     expect(result.status).toBe(0);
     expect(result.last).toBe("PRUNED: 0 pairs");
@@ -624,7 +646,7 @@ describe("--apply", { timeout: 30_000 }, () => {
     );
   });
 
-  it("never touches skipped and unmanaged names", () => {
+  it("never touches skipped names", () => {
     sandbox(11);
     const untouched = [
       "dist.failed-20261001T000000Z",
@@ -824,5 +846,438 @@ exit 0
       "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z";
     expect(restart).toContain(`dist.bak-${glob}`);
     expect(prune).toContain(`TS_GLOB='${glob}'`);
+  });
+});
+
+describe("failed and undeployed families (--plan)", { timeout: 30_000 }, () => {
+  const famLines = (
+    family: "bak" | "failed" | "undeployed",
+    from: number,
+    count: number
+  ): string[] =>
+    stamps(from, count).flatMap((ts) => [
+      `N d dist.${family}-${ts}`,
+      `N d .wrangler.${family}-${ts}`,
+    ]);
+
+  it("keeps the newest 2 failed and newest 2 undeployed pairs and deletes older ones", () => {
+    const lines = plan([
+      ...famLines("failed", 0, 4),
+      ...famLines("undeployed", 10, 3),
+    ]);
+    expect(of(lines, "delete")).toEqual([
+      `${stamp(0)} failed`,
+      `${stamp(1)} failed`,
+      `${stamp(10)} undeployed`,
+    ]);
+    expect(of(lines, "keep")).toEqual([
+      `${stamp(2)} failed`,
+      `${stamp(3)} failed`,
+      `${stamp(11)} undeployed`,
+      `${stamp(12)} undeployed`,
+    ]);
+    expect(of(lines, "over")).toEqual(["3"]);
+    expect(of(lines, "over_bak")).toEqual(["0"]);
+    expect(of(lines, "over_failed")).toEqual(["2"]);
+    expect(of(lines, "over_undeployed")).toEqual(["1"]);
+  });
+
+  it("protects pinned undeployed pairs outside keep=2 and skips unreadable ones fail-closed", () => {
+    const lines = plan([
+      `N p dist.undeployed-${stamp(0)}`,
+      `N d .wrangler.undeployed-${stamp(0)}`,
+      `N u dist.undeployed-${stamp(1)}`,
+      `N d .wrangler.undeployed-${stamp(1)}`,
+      ...famLines("undeployed", 2, 3),
+    ]);
+    expect(of(lines, "pinned")).toEqual([`${stamp(0)} undeployed`]);
+    expect(of(lines, "delete")).toEqual([`${stamp(2)} undeployed`]);
+    expect(of(lines, "keep")).toEqual([
+      `${stamp(3)} undeployed`,
+      `${stamp(4)} undeployed`,
+    ]);
+    expect(of(lines, "skip")).toEqual([
+      `.wrangler.undeployed-${stamp(1)} no dist.undeployed pair`,
+      `dist.undeployed-${stamp(1)} not readable; cannot check PINNED`,
+    ]);
+  });
+
+  it("does not shadow malformed prune-failed or prune-undeployed names under prune-", () => {
+    const lines = plan([
+      "N d dist.prune-failed-bad",
+      "N d .wrangler.prune-failed-bad",
+      "N d dist.prune-undeployed-bad",
+      "N d .wrangler.prune-undeployed-bad",
+      "N d dist.prune-bad",
+    ]);
+    expect(of(lines, "leftover")).toEqual([]);
+    expect(of(lines, "skip")).toEqual([
+      ".wrangler.prune-failed-bad name form",
+      ".wrangler.prune-undeployed-bad name form",
+      "dist.prune-bad name form",
+      "dist.prune-failed-bad name form",
+      "dist.prune-undeployed-bad name form",
+    ]);
+  });
+
+  it("isolates same-second timestamps across bak, failed, and undeployed with disjoint staging", () => {
+    const t = stamp(0);
+    const lines = plan(
+      [
+        ...pairLines(11),
+        `N d dist.failed-${t}`,
+        `N d .wrangler.failed-${t}`,
+        ...famLines("failed", 1, 2),
+        `N d dist.undeployed-${t}`,
+        `N d .wrangler.undeployed-${t}`,
+        ...famLines("undeployed", 1, 2),
+        `N d dist.prune-failed-${t}`,
+      ],
+      ["--apply"]
+    );
+    expect(of(lines, "delete")).toEqual([t, `${t} undeployed`]);
+    expect(of(lines, "blocked")).toEqual([`${t} failed`]);
+    expect(of(lines, "finish")).toEqual([]);
+  });
+
+  it("isolates interrupted rename finish detection per family", () => {
+    const t = stamp(0);
+    const lines = plan([
+      `N d dist.prune-failed-${t}`,
+      `N d .wrangler.bak-${t}`,
+      `N d .wrangler.failed-${t}`,
+    ]);
+    expect(of(lines, "finish")).toEqual([`${t} failed`]);
+    expect(of(lines, "skip")).toEqual([`.wrangler.bak-${t} no dist.bak pair`]);
+  });
+
+  it("allocates global LIMIT=3 budget (limit - waiting) in bak -> failed -> undeployed order", () => {
+    const lines = plan(
+      [
+        ...pairLines(12),
+        ...famLines("failed", 20, 4),
+        ...famLines("undeployed", 30, 4),
+        `N d dist.prune-undeployed-${stamp(99)}`,
+      ],
+      ["--apply"]
+    );
+    expect(of(lines, "waiting")).toEqual(["1"]);
+    expect(of(lines, "delete")).toEqual([stamp(0), stamp(1)]);
+    expect(of(lines, "over")).toEqual(["6"]);
+    expect(of(lines, "over_bak")).toEqual(["2"]);
+    expect(of(lines, "over_failed")).toEqual(["2"]);
+    expect(of(lines, "over_undeployed")).toEqual(["2"]);
+  });
+
+  it("sorts leftover and skip lines lexicographically and preserves bak parity with baseline", () => {
+    const lines = plan(
+      [
+        ...pairLines(14),
+        `N d dist.prune-${stamp(100)}`,
+        `N d .wrangler.bak-${stamp(100)}`,
+        `N d dist.prune-${stamp(0)}`,
+        "N d dist.bak-zzz",
+        "N d dist.bak-aaa",
+      ],
+      ["--apply"]
+    );
+    expect(of(lines, "blocked")).toEqual([stamp(0)]);
+    expect(of(lines, "delete")).toEqual([stamp(1), stamp(2)]);
+    expect(of(lines, "keep")).toEqual([stamp(3), ...stamps(4, 10)]);
+    expect(of(lines, "finish")).toEqual([stamp(100)]);
+    expect(of(lines, "leftover")).toEqual([
+      `dist.prune-${stamp(0)}`,
+      `dist.prune-${stamp(100)}`,
+    ]);
+    expect(of(lines, "skip")).toEqual([
+      "dist.bak-aaa name form",
+      "dist.bak-zzz name form",
+    ]);
+    expect(of(lines, "waiting")).toEqual(["1"]);
+    expect(of(lines, "over")).toEqual(["4"]);
+  });
+});
+
+describe("failed and undeployed families (sandbox)", {
+  timeout: 30_000,
+}, () => {
+  it("previews all three families with pinned size and accurate per-family summary", () => {
+    sandbox(10);
+    for (let i = 0; i < 3; i += 1) {
+      addFamilyPair("failed", stamp(20 + i), `fa11ed00000${i}`);
+    }
+    addFamilyPair("undeployed", stamp(30), "deadbeef0000", true);
+    for (let i = 1; i <= 3; i += 1) {
+      addFamilyPair("undeployed", stamp(30 + i), `deadbeef000${i}`);
+    }
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.last).toBe("PREVIEW: nothing deleted");
+    expect(result.stdout).not.toContain("not managed:");
+    expect(result.stdout).toMatch(
+      new RegExp(
+        `^delete dist\\.failed-${stamp(20)} fa11ed000000 \\d+ MiB$`,
+        "m"
+      )
+    );
+    expect(result.stdout).toMatch(
+      new RegExp(
+        `^pinned dist\\.undeployed-${stamp(30)} deadbeef0000 \\d+ MiB$`,
+        "m"
+      )
+    );
+    expect(result.stdout).toMatch(
+      new RegExp(
+        `^delete dist\\.undeployed-${stamp(31)} deadbeef0001 \\d+ MiB$`,
+        "m"
+      )
+    );
+    expect(result.stdout).toMatch(
+      /^summary mode=preview pairs_before=17 pinned=1 pinned_mib=\d+ delete=2 over=2 bak_over=0 failed_over=1 undeployed_over=1 leftover_folders=0 used_before_mib=\d+$/m
+    );
+  });
+
+  it("deletes older failed and undeployed pairs, keeps pinned pairs, and logs family tags", () => {
+    sandbox(10);
+    for (let i = 0; i < 3; i += 1) {
+      addFamilyPair("failed", stamp(20 + i), `fa11ed00000${i}`);
+    }
+    addFamilyPair("undeployed", stamp(30), "111111111111", true);
+    for (let i = 1; i <= 3; i += 1) {
+      addFamilyPair("undeployed", stamp(30 + i), `22222222222${i}`);
+    }
+    const result = run(["--apply"]);
+    expect(result.status).toBe(0);
+    expect(result.last).toBe("PRUNED: 2 pairs");
+    expect(result.stdout).toContain(
+      `  renamed ${stamp(20)} fa11ed000000 failed`
+    );
+    expect(result.stdout).toContain(
+      `  renamed ${stamp(31)} 222222222221 undeployed`
+    );
+    expect(familyPairStamps("failed")).toEqual([stamp(21), stamp(22)]);
+    expect(familyPairStamps("undeployed")).toEqual([
+      stamp(30),
+      stamp(32),
+      stamp(33),
+    ]);
+    expect(renamed()).toEqual([]);
+    const log = readFileSync(
+      join(dir, "state", "vertex-web-prune.log"),
+      "utf8"
+    );
+    expect(log).toMatch(
+      new RegExp(
+        `^\\S+ delete ${stamp(20)} fa11ed000000 failed\\n\\S+ delete ${stamp(31)} 222222222221 undeployed\\n\\S+ run renamed=2 keep=10 keep_failed=2 keep_undeployed=2 rc=0\\n$`
+      )
+    );
+  });
+
+  it("drains a multi-family backlog in bak -> failed -> undeployed order under LIMIT=3", () => {
+    sandbox(12);
+    for (let i = 0; i < 4; i += 1) {
+      addFamilyPair("failed", stamp(20 + i));
+      addFamilyPair("undeployed", stamp(30 + i));
+    }
+    const first = run(["--apply"]);
+    expect(first.status).toBe(0);
+    expect(first.last).toBe(
+      "PRUNED: 3 pairs; more remain (3 over the keep count, 0 renamed pair(s) wait); the next run continues"
+    );
+    expect(pairStamps()).toEqual(stamps(2, 10));
+    expect(familyPairStamps("failed")).toEqual(stamps(21, 3));
+    expect(familyPairStamps("undeployed")).toEqual(stamps(30, 4));
+
+    const second = run(["--apply"]);
+    expect(second.status).toBe(0);
+    expect(second.last).toBe("PRUNED: 3 pairs");
+    expect(familyPairStamps("failed")).toEqual([stamp(22), stamp(23)]);
+    expect(familyPairStamps("undeployed")).toEqual([stamp(32), stamp(33)]);
+  });
+
+  it("handles same-second timestamps across bak, failed, and undeployed without collision or SHA overwrite", () => {
+    const t = stamp(0);
+    sandbox(11);
+    addFamilyPair("failed", t, "fa11ed000000");
+    addFamilyPair("failed", stamp(1), "fa11ed000001");
+    addFamilyPair("failed", stamp(2), "fa11ed000002");
+    addFamilyPair("undeployed", t, "deadbeef0000");
+    addFamilyPair("undeployed", stamp(1), "deadbeef0001");
+    addFamilyPair("undeployed", stamp(2), "deadbeef0002");
+    const preview = run();
+    expect(preview.stdout).toMatch(
+      new RegExp(`^delete ${t} abcdef000000 \\d+ MiB$`, "m")
+    );
+    expect(preview.stdout).toMatch(
+      new RegExp(`^delete dist\\.failed-${t} fa11ed000000 \\d+ MiB$`, "m")
+    );
+    expect(preview.stdout).toMatch(
+      new RegExp(`^delete dist\\.undeployed-${t} deadbeef0000 \\d+ MiB$`, "m")
+    );
+    const apply = run(["--apply"]);
+    expect(apply.status).toBe(0);
+    expect(apply.last).toBe("PRUNED: 3 pairs");
+    expect(pairStamps()).toEqual(stamps(1, 10));
+    expect(familyPairStamps("failed")).toEqual([stamp(1), stamp(2)]);
+    expect(familyPairStamps("undeployed")).toEqual([stamp(1), stamp(2)]);
+  });
+
+  it("finishes an interrupted failed rename without touching .wrangler.bak-<TS>", () => {
+    sandbox(10);
+    const t = stamp(50);
+    mkdirSync(join(web(), `dist.prune-failed-${t}`));
+    mkdirSync(join(web(), `.wrangler.failed-${t}`));
+    mkdirSync(join(web(), `.wrangler.bak-${t}`));
+    const result = run(["--apply"]);
+    expect(result.status).toBe(0);
+    expect(result.last).toBe("PRUNED: 1 pairs");
+    expect(result.stdout).toContain(`  finished ${t} failed`);
+    expect(existsSync(join(web(), `dist.prune-failed-${t}`))).toBe(false);
+    expect(existsSync(join(web(), `.wrangler.failed-${t}`))).toBe(false);
+    expect(existsSync(join(web(), `.wrangler.bak-${t}`))).toBe(true);
+  });
+
+  it("protects an in-flight failed rename in DELETE while .wrangler.failed-<TS> exists", () => {
+    sandbox(10);
+    const t = stamp(50);
+    mkdirSync(join(web(), `dist.prune-failed-${t}`));
+    mkdirSync(join(web(), `.wrangler.failed-${t}`));
+    // Fail the rename command with @@END 1 so DELETE runs while .wrangler.failed-<TS> still exists.
+    const runner = join(dir, "fail-rename.sh");
+    writeFileSync(
+      runner,
+      `#!/usr/bin/env bash
+cmd="$1"; name="\${cmd#: }"; name="\${name%%;*}"
+if [ "$name" = prune-rename ]; then
+  echo "@@END 1"
+  exit 0
+fi
+exec bash -c "$cmd"
+`
+    );
+    chmodSync(runner, 0o755);
+    const result = run(["--apply"], { VERTEX_WEB_SSH: runner });
+    expect(result.status).toBe(13);
+    expect(existsSync(join(web(), `dist.prune-failed-${t}`))).toBe(true);
+    expect(existsSync(join(web(), `.wrangler.failed-${t}`))).toBe(true);
+  });
+
+  it("skips cleanly with exit 0 if PINNED appears between preview and RENAME", () => {
+    sandbox(10);
+    for (let i = 0; i < 3; i += 1) {
+      addFamilyPair("undeployed", stamp(30 + i));
+    }
+    const runner = join(dir, "pin-between.sh");
+    writeFileSync(
+      runner,
+      `#!/usr/bin/env bash
+cmd="$1"; name="\${cmd#: }"; name="\${name%%;*}"
+if [ "$name" = prune-rename ]; then
+  touch "${web()}/dist.undeployed-${stamp(30)}/PINNED"
+fi
+exec bash -c "$cmd"
+`
+    );
+    chmodSync(runner, 0o755);
+    const res = run(["--apply"], { VERTEX_WEB_SSH: runner });
+    expect(res.status).toBe(0);
+    expect(res.last).toBe("PRUNED: 0 pairs");
+    expect(familyPairStamps("undeployed")).toEqual([
+      stamp(30),
+      stamp(31),
+      stamp(32),
+    ]);
+  });
+
+  it("rejects an unwritable undeployed tree before staging so bak pruning is not starved", () => {
+    sandbox(11);
+    for (let i = 0; i < 3; i += 1) {
+      addFamilyPair("undeployed", stamp(30 + i));
+    }
+    const lockedDir = join(web(), `dist.undeployed-${stamp(30)}`, "server");
+    chmodSync(lockedDir, 0o555);
+    try {
+      const result = run(["--apply"]);
+      expect(result.status).toBe(13);
+      expect(result.last).toContain("PARTIAL: a rename step failed");
+      expect(pairStamps()).toEqual(stamps(1, 10));
+      expect(existsSync(join(web(), `dist.undeployed-${stamp(30)}`))).toBe(
+        true
+      );
+      expect(
+        existsSync(join(web(), `dist.prune-undeployed-${stamp(30)}`))
+      ).toBe(false);
+    } finally {
+      chmodSync(lockedDir, 0o755);
+    }
+  });
+
+  it("skips unreadable 0000 dist.undeployed-<TS> fail-closed without deleting it", () => {
+    sandbox(10);
+    addFamilyPair("undeployed", stamp(30), "deadbeef0000", true);
+    addFamilyPair("undeployed", stamp(31));
+    addFamilyPair("undeployed", stamp(32));
+    const unreadable = join(web(), `dist.undeployed-${stamp(30)}`);
+    chmodSync(unreadable, 0o000);
+    try {
+      const result = run(["--apply"]);
+      expect(result.status).toBe(0);
+      expect(result.last).toBe("PRUNED: 0 pairs");
+      expect(result.stdout).toContain(
+        `skip dist.undeployed-${stamp(30)} (not readable; cannot check PINNED)`
+      );
+      expect(existsSync(unreadable)).toBe(true);
+    } finally {
+      chmodSync(unreadable, 0o755);
+    }
+  });
+
+  it("reports both rename and delete steps when both fail in one run", () => {
+    sandbox(10);
+    addFamilyPair("undeployed", stamp(30));
+    addFamilyPair("undeployed", stamp(31));
+    addFamilyPair("undeployed", stamp(32));
+    const lockedDir = join(web(), `dist.undeployed-${stamp(30)}`, "server");
+    chmodSync(lockedDir, 0o555);
+    const runner = join(dir, "fail-del.sh");
+    writeFileSync(
+      runner,
+      `#!/usr/bin/env bash
+cmd="$1"; name="\${cmd#: }"; name="\${name%%;*}"
+[ "$name" = prune-delete ] && exit 1
+exec bash -c "$cmd"
+`
+    );
+    chmodSync(runner, 0o755);
+    try {
+      const result = run(["--apply"], { VERTEX_WEB_SSH: runner });
+      expect(result.status).toBe(13);
+      expect(result.last).toContain(
+        "PARTIAL: both rename and delete steps failed"
+      );
+    } finally {
+      chmodSync(lockedDir, 0o755);
+    }
+  });
+
+  it("emits the full extended summary on the no-op --apply fast path", () => {
+    sandbox(10);
+    addFamilyPair("undeployed", stamp(30), "deadbeef0000", true);
+    const result = run(["--apply"]);
+    expect(result.status).toBe(0);
+    expect(result.last).toBe("PRUNED: 0 pairs");
+    expect(result.stdout).toMatch(
+      /^summary mode=apply pairs_before=11 renamed=0 deleted=0 pairs_after=11 pinned=1 pinned_mib=\d+ over_after=0 bak_over_after=0 failed_over_after=0 undeployed_over_after=0 leftover_folders=0 used_before_mib=\d+ used_after_mib=\d+$/m
+    );
+  });
+
+  it("matches restart-when-idle.sh rollback naming for failed pairs", () => {
+    const restart = readFileSync(restartScript, "utf8");
+    expect(restart).toContain(
+      "mv dist dist.failed-$NOW && mv .wrangler .wrangler.failed-$NOW"
+    );
+    const ts = "20261127T123456Z";
+    const lines = plan([`N d dist.failed-${ts}`, `N d .wrangler.failed-${ts}`]);
+    expect(of(lines, "keep")).toEqual([`${ts} failed`]);
   });
 });

@@ -1,0 +1,751 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1280 420"
+  width="1280"
+  height="420"
+  role="img"
+  aria-labelledby="t d"
+>
+  <title id="t">Flow of one prune run with three families</title>
+  <desc id="d">
+    The rig lists the folders on QuantVPS, plans per family with keep counts 10,
+    2 and 2 and a shared limit of 3 pairs, renames under the restart lock,
+    deletes after the lock is released, and lists again.
+  </desc>
+  <defs>
+    <marker
+      id="ah-8b949e"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e" />
+    </marker>
+    <marker
+      id="ah-f85149"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#f85149" />
+    </marker>
+    <marker
+      id="ah-3fb950"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="ah-f0883e"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#f0883e" />
+    </marker>
+  </defs>
+  <rect width="1280" height="420" fill="#0d1117" />
+  <rect
+    x="40"
+    y="60"
+    width="208"
+    height="300"
+    rx="14"
+    fill="#161b22"
+    stroke="#30363d"
+    stroke-width="1"
+  />
+  <circle cx="70" cy="92" r="16" fill="#0d1117" stroke="#8b949e" />
+  <text
+    x="70"
+    y="98"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    1
+  </text>
+  <text
+    x="96"
+    y="99"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    list
+  </text>
+  <text
+    x="144.0"
+    y="340"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    no lock
+  </text>
+  <line
+    x1="254"
+    y1="210"
+    x2="282"
+    y2="210"
+    stroke="#8b949e"
+    stroke-width="4"
+    marker-end="url(#ah-8b949e)"
+    stroke-linecap="round"
+  />
+  <path
+    d="M78,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="78"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M124,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="124"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M170,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="170"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M78,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="78"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M124,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="124"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M170,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="170"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M78,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="78"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M124,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="124"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M170,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="170"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="288"
+    y="60"
+    width="208"
+    height="300"
+    rx="14"
+    fill="#161b22"
+    stroke="#30363d"
+    stroke-width="1"
+  />
+  <circle cx="318" cy="92" r="16" fill="#0d1117" stroke="#8b949e" />
+  <text
+    x="318"
+    y="98"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    2
+  </text>
+  <text
+    x="344"
+    y="99"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    plan
+  </text>
+  <text
+    x="392.0"
+    y="340"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    per family
+  </text>
+  <line
+    x1="502"
+    y1="210"
+    x2="530"
+    y2="210"
+    stroke="#8b949e"
+    stroke-width="4"
+    marker-end="url(#ah-8b949e)"
+    stroke-linecap="round"
+  />
+  <path
+    d="M318,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <rect
+    x="318"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <path
+    d="M362,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="362"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <text
+    x="412"
+    y="162"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="17"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 10
+  </text>
+  <path
+    d="M318,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <rect
+    x="318"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <path
+    d="M362,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="362"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <text
+    x="412"
+    y="218"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="17"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 2
+  </text>
+  <path
+    d="M318,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <rect
+    x="318"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <path
+    d="M362,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="362"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <text
+    x="412"
+    y="274"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="17"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 2
+  </text>
+  <rect
+    x="536"
+    y="60"
+    width="208"
+    height="300"
+    rx="14"
+    fill="#161b22"
+    stroke="#f0883e"
+    stroke-width="2"
+  />
+  <circle cx="566" cy="92" r="16" fill="#0d1117" stroke="#8b949e" />
+  <text
+    x="566"
+    y="98"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    3
+  </text>
+  <text
+    x="592"
+    y="99"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    rename
+  </text>
+  <text
+    x="640.0"
+    y="340"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    restart lock
+  </text>
+  <line
+    x1="750"
+    y1="210"
+    x2="778"
+    y2="210"
+    stroke="#8b949e"
+    stroke-width="4"
+    marker-end="url(#ah-8b949e)"
+    stroke-linecap="round"
+  />
+  <g stroke="#f0883e" stroke-width="4" fill="none" stroke-linecap="round">
+    <path d="M624.0,164 v-14 a16,16 0 0 1 32,0 v14" />
+  </g>
+  <rect x="614.0" y="164" width="52" height="40" rx="6" fill="#f0883e" />
+  <text
+    x="640.0"
+    y="232"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="13"
+    fill="#58a6ff"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    *.prune-&lt;TS&gt;
+  </text>
+  <text
+    x="640.0"
+    y="252"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="13"
+    fill="#f0883e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    *.prune-failed-&lt;TS&gt;
+  </text>
+  <text
+    x="640.0"
+    y="272"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="12"
+    fill="#bc8cff"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    *.prune-undeployed-&lt;TS&gt;
+  </text>
+  <text
+    x="640.0"
+    y="302"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="13"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    max 3 pairs, bak first
+  </text>
+  <rect
+    x="784"
+    y="60"
+    width="208"
+    height="300"
+    rx="14"
+    fill="#161b22"
+    stroke="#f85149"
+    stroke-width="2"
+  />
+  <circle cx="814" cy="92" r="16" fill="#0d1117" stroke="#8b949e" />
+  <text
+    x="814"
+    y="98"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    4
+  </text>
+  <text
+    x="840"
+    y="99"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    delete
+  </text>
+  <text
+    x="888.0"
+    y="340"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    lock released
+  </text>
+  <line
+    x1="998"
+    y1="210"
+    x2="1026"
+    y2="210"
+    stroke="#8b949e"
+    stroke-width="4"
+    marker-end="url(#ah-8b949e)"
+    stroke-linecap="round"
+  />
+  <g
+    transform="translate(854.0,150) scale(1.6)"
+    stroke="#f85149"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M4,10 h36" />
+    <path d="M16,10 v-5 h12 v5" />
+    <path d="M8,10 l3,34 h22 l3,-34" />
+    <path d="M18,18 v18 M26,18 v18" />
+  </g>
+  <text
+    x="888.0"
+    y="262"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    oldest first
+  </text>
+  <rect
+    x="1032"
+    y="60"
+    width="208"
+    height="300"
+    rx="14"
+    fill="#161b22"
+    stroke="#30363d"
+    stroke-width="1"
+  />
+  <circle cx="1062" cy="92" r="16" fill="#0d1117" stroke="#8b949e" />
+  <text
+    x="1062"
+    y="98"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    5
+  </text>
+  <text
+    x="1088"
+    y="99"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    list again
+  </text>
+  <text
+    x="1136.0"
+    y="340"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    summary
+  </text>
+  <path
+    d="M1082,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1082"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1128,148 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1128"
+    y="146"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1082,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="1082"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M1128,204 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="1128"
+    y="202"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M1082,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="1082"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M1128,260 v-4 a4,4 0 0 1 4,-4 h11 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="1128"
+    y="258"
+    width="36"
+    height="24"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M1184,196 l10,12 l20,-26"
+    stroke="#3fb950"
+    stroke-width="5"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text
+    x="40"
+    y="36"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="20"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    One run of prune-web-backups.sh --apply
+  </text>
+  <text
+    x="1240"
+    y="36"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="end"
+    font-weight="400"
+  >
+    rig → QuantVPS over SSH
+  </text>
+</svg>
