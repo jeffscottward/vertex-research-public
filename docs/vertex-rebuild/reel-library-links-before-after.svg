@@ -1,0 +1,557 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 520"
+  width="1120"
+  height="520"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">
+    Vertex Papers Library: Before vs After Migration 0103
+  </title>
+  <desc id="desc">
+    Dark before-vs-after architecture diagram showing the Vertex Papers library
+    growing from 4 seeded regime references to 7 entries by adding 3 learning
+    links from reel DfDt0GDR8Oa via idempotent Drizzle migration 0103 and
+    guarded rollback.
+  </desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d4af37" />
+      <stop offset="100%" stop-color="#f3d27a" />
+    </linearGradient>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#e5c158" />
+    </marker>
+    <marker
+      id="arrowMuted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="520" rx="16" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="40"
+    y="48"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    Vertex Papers Library — Reel DfDt0GDR8Oa Learning Links
+  </text>
+  <text
+    x="40"
+    y="72"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    Migration 0103 · research_papers · idempotent seed + guarded rollback ·
+    research/reference only
+  </text>
+  <rect
+    x="920"
+    y="28"
+    width="160"
+    height="28"
+    rx="14"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text
+    x="1000"
+    y="47"
+    text-anchor="middle"
+    fill="#e5c158"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="600"
+  >
+    NO CODE COPIED
+  </text>
+
+  <!-- BEFORE panel -->
+  <rect
+    x="40"
+    y="96"
+    width="440"
+    height="390"
+    rx="14"
+    fill="#131a26"
+    stroke="#263244"
+    stroke-width="1.5"
+  />
+  <rect
+    x="60"
+    y="114"
+    width="84"
+    height="24"
+    rx="12"
+    fill="#2a1f2d"
+    stroke="#7c3f58"
+  />
+  <text
+    x="102"
+    y="130"
+    text-anchor="middle"
+    fill="#f4a4b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="156"
+    y="131"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    4 seeded rows · 3 links parked
+  </text>
+
+  <!-- Postgres cylinder BEFORE -->
+  <g transform="translate(70,162)">
+    <ellipse
+      cx="190"
+      cy="14"
+      rx="170"
+      ry="14"
+      fill="#1e293b"
+      stroke="#475569"
+      stroke-width="1.5"
+    />
+    <path
+      d="M20,14 L20,136 A170,14 0 0,0 360,136 L360,14"
+      fill="#172030"
+      stroke="#475569"
+      stroke-width="1.5"
+    />
+    <text
+      x="190"
+      y="42"
+      text-anchor="middle"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="600"
+    >
+      public.research_papers (0015)
+    </text>
+    <!-- 4 rows -->
+    <rect x="42" y="54" width="296" height="18" rx="4" fill="#1f2c3f" />
+    <text
+      x="54"
+      y="67"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      1. ORCA Regime Analyzer (paper)
+    </text>
+    <rect x="42" y="76" width="296" height="18" rx="4" fill="#1f2c3f" />
+    <text
+      x="54"
+      y="89"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      2. HMM + RL Allocation (paper)
+    </text>
+    <rect x="42" y="98" width="296" height="18" rx="4" fill="#1f2c3f" />
+    <text
+      x="54"
+      y="111"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      3. Statistical Jump Model (paper)
+    </text>
+    <rect x="42" y="120" width="296" height="18" rx="4" fill="#1f2c3f" />
+    <text
+      x="54"
+      y="133"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      4. Ruuj HMM Regimes (article)
+    </text>
+  </g>
+
+  <!-- Parked docs box BEFORE -->
+  <g transform="translate(70,332)">
+    <rect
+      x="0"
+      y="0"
+      width="380"
+      height="126"
+      rx="10"
+      fill="#1a1520"
+      stroke="#6b3a4d"
+      stroke-dasharray="6 4"
+      stroke-width="1.5"
+    />
+    <text
+      x="16"
+      y="24"
+      fill="#f4a4b8"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+      font-weight="700"
+    >
+      Parked in upstream-candidates-20261030.md
+    </text>
+    <text
+      x="16"
+      y="44"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      Not reachable on /papers (needed operator session)
+    </text>
+    <text
+      x="16"
+      y="70"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      × jpmorganchase/python-training
+    </text>
+    <text
+      x="16"
+      y="90"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      × quantopian/research_public
+    </text>
+    <text
+      x="16"
+      y="110"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+    >
+      × firmai/financial-machine-learning
+    </text>
+  </g>
+
+  <!-- Center Flow Arrow -->
+  <g transform="translate(490,224)">
+    <rect
+      x="4"
+      y="0"
+      width="132"
+      height="92"
+      rx="10"
+      fill="#1d2433"
+      stroke="#d4af37"
+      stroke-width="1.5"
+    />
+    <text
+      x="70"
+      y="24"
+      text-anchor="middle"
+      fill="#f3d27a"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+    >
+      0103 SQL
+    </text>
+    <text
+      x="70"
+      y="44"
+      text-anchor="middle"
+      fill="#e2e8f0"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      ON CONFLICT
+    </text>
+    <text
+      x="70"
+      y="60"
+      text-anchor="middle"
+      fill="#e2e8f0"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      DO NOTHING
+    </text>
+    <text
+      x="70"
+      y="78"
+      text-anchor="middle"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      + URL dedupe
+    </text>
+    <line
+      x1="-10"
+      y1="46"
+      x2="2"
+      y2="46"
+      stroke="#64748b"
+      stroke-width="2"
+      marker-end="url(#arrowMuted)"
+    />
+    <line
+      x1="138"
+      y1="46"
+      x2="152"
+      y2="46"
+      stroke="#e5c158"
+      stroke-width="2.5"
+      marker-end="url(#arrowGold)"
+    />
+  </g>
+
+  <!-- AFTER panel -->
+  <rect
+    x="640"
+    y="96"
+    width="440"
+    height="390"
+    rx="14"
+    fill="#131a26"
+    stroke="#d4af37"
+    stroke-opacity="0.55"
+    stroke-width="1.5"
+  />
+  <rect
+    x="660"
+    y="114"
+    width="76"
+    height="24"
+    rx="12"
+    fill="#192d24"
+    stroke="#2f855a"
+  />
+  <text
+    x="698"
+    y="130"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="748"
+    y="131"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    7 seeded rows on /papers
+  </text>
+
+  <!-- Postgres cylinder AFTER -->
+  <g transform="translate(670,158)">
+    <ellipse
+      cx="190"
+      cy="14"
+      rx="170"
+      ry="14"
+      fill="#1e293b"
+      stroke="#d4af37"
+      stroke-opacity="0.7"
+      stroke-width="1.5"
+    />
+    <path
+      d="M20,14 L20,214 A170,14 0 0,0 360,214 L360,14"
+      fill="#172030"
+      stroke="#d4af37"
+      stroke-opacity="0.7"
+      stroke-width="1.5"
+    />
+    <text
+      x="190"
+      y="42"
+      text-anchor="middle"
+      fill="#f3d27a"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="600"
+    >
+      public.research_papers (0015 + 0103)
+    </text>
+
+    <!-- Existing 4 compressed -->
+    <rect x="42" y="54" width="296" height="24" rx="4" fill="#1f2c3f" />
+    <text
+      x="54"
+      y="70"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      1–4. Existing regime papers &amp; Ruuj article (unchanged)
+    </text>
+
+    <!-- 3 New rows highlighted -->
+    <rect
+      x="42"
+      y="86"
+      width="296"
+      height="36"
+      rx="6"
+      fill="#1f2a22"
+      stroke="#38a169"
+    />
+    <text
+      x="54"
+      y="102"
+      fill="#a7f3d0"
+      font-family="system-ui, sans-serif"
+      font-size="11.5"
+      font-weight="700"
+    >
+      5. J.P. Morgan Python Training
+    </text>
+    <text
+      x="54"
+      y="116"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      article · 2026 · github:jpmorganchase/python-training
+    </text>
+
+    <rect
+      x="42"
+      y="128"
+      width="296"
+      height="36"
+      rx="6"
+      fill="#1f2a22"
+      stroke="#38a169"
+    />
+    <text
+      x="54"
+      y="144"
+      fill="#a7f3d0"
+      font-family="system-ui, sans-serif"
+      font-size="11.5"
+      font-weight="700"
+    >
+      6. Quantopian Lecture Series
+    </text>
+    <text
+      x="54"
+      y="158"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      article · 2020 · github:quantopian/research_public
+    </text>
+
+    <rect
+      x="42"
+      y="170"
+      width="296"
+      height="36"
+      rx="6"
+      fill="#1f2a22"
+      stroke="#38a169"
+    />
+    <text
+      x="54"
+      y="186"
+      fill="#a7f3d0"
+      font-family="system-ui, sans-serif"
+      font-size="11.5"
+      font-weight="700"
+    >
+      7. Financial Machine Learning (List)
+    </text>
+    <text
+      x="54"
+      y="200"
+      fill="#94a3b8"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+    >
+      article · 2025 · github:firmai/financial-machine-learning
+    </text>
+  </g>
+
+  <!-- Guardrails strip AFTER -->
+  <g transform="translate(670,398)">
+    <rect
+      x="0"
+      y="0"
+      width="380"
+      height="68"
+      rx="10"
+      fill="#182232"
+      stroke="#334155"
+    />
+    <text
+      x="16"
+      y="22"
+      fill="#e5c158"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+      font-weight="700"
+    >
+      Safety &amp; Verification
+    </text>
+    <text
+      x="16"
+      y="40"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Never overwrites operator rows (id / identifier / URL)
+    </text>
+    <text
+      x="16"
+      y="57"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      • Guarded rollback checks edits + all 4 FK tables
+    </text>
+  </g>
+</svg>
