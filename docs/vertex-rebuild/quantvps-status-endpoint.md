@@ -32,7 +32,7 @@ The tailnet URL is not secret. It is reachable only by tailnet members that use 
 
 | File | Purpose |
 | --- | --- |
-| `collect.py` (2.1.0) | Collector, stdlib Python. Tests: `python3 infra/quant-vps/status/test_collect.py` (14 tests). |
+| `collect.py` (2.3.0) | Collector, stdlib Python. Reads live `orders` and `fills` via one read-only `GET /api/snapshot` to `ibkr-monitor.service` (IBKR client id 195). Tests: `python3 infra/quant-vps/status/test_collect.py`. |
 | `vertex-status-collect.service.tailnet` | Deployed unit: `VERTEX_STATUS_V2=1`, `VERTEX_STATUS_V2_DIR=/opt/vertex-status/private-v2`. |
 | `vertex-status-collect.service` | v1-only unit (`VERTEX_STATUS_V2=0`). |
 | `vertex-status-collect.timer` | Runs the collector every 30 s. |
@@ -43,8 +43,7 @@ The tailnet URL is not secret. It is reachable only by tailnet members that use 
 | `deploy-status-v2-alert.sh` | Market-hours-guarded deployer for `Caddyfile.tailnet` (graceful reload) and `vertex-status-v2-alert.{service,timer}`. |
 | `status_v2_alert.py` | Read-only stdlib Python probe alerting `#omp-alerts` on `/vertex-status/v2` 403/failures (3 consecutive ticks) or auth bypass (immediate). Tests: `test_status_v2_alert.py`. |
 | `vertex-status-v2-alert.{service,timer}` | Hardened `DynamicUser=yes` unit (`LoadCredential` for token) running every 2 minutes. |
-| `deploy-open-orders-refresh.sh` | Market-hours-guarded deployer for `vertex-ibkr-open-orders-refresh.{service,timer}` (no container restarts). Tests: `test_open_orders_refresh.py`. |
-| `vertex-ibkr-open-orders-refresh.{service,timer}` | Transitional oneshot timer (`OnUnitInactiveSec=60s`, `Persistent=false`, `RandomizedDelaySec=0`) running the frozen read-only writer inside `portfolio-ui` (IBKR client id 149, `timeout -k 5 40`, `TimeoutStartSec=50`). |
+| `deploy-status-v2-ibkr-monitor.sh` | Market-hours-guarded deployer for `collect.py` (2.3.0) that dry-runs and verifies live `orders`/`fills` from `ibkr-monitor.service` before retiring `vertex-ibkr-open-orders-refresh.{service,timer}` (no container restarts). Tests: `test_deploy_status_v2_ibkr_monitor.py`. |
 | `install-remote.sh` | Public-v2 installer. Refuses to run unless `VERTEX_STATUS_ENABLE_V2=1`. **Do not use.** |
 | `Caddyfile.route.snippet` | Retirement note for the former public main-Caddy route. |
 | `SCHEMA.md` | v2 contract. |
@@ -55,12 +54,11 @@ Rig-side deployers live in `~/.local/state/vertex-vps-status/`: `deploy-tailnet.
 
 | Item | Location | Notes |
 | --- | --- | --- |
-| Collector | `/opt/vertex-status/collect.py` + `vertex-status-collect.{service,timer}` (30 s, oneshot, `Nice=10`, `TimeoutStartSec=25`) | Writes the public `public/status.json` (v1). Writes v2 **only** to `/opt/vertex-status/private-v2/status-v2.json` (0700); it refuses the public dir and deletes any v2 file found there. Read-only inputs (see below). Never starts or stops containers, never calls portfolio-ui, never opens an IBKR client, never touches kill-switch files. |
+| Collector | `/opt/vertex-status/collect.py` + `vertex-status-collect.{service,timer}` (30 s, oneshot, `Nice=10`, `TimeoutStartSec=25`) | Writes the public `public/status.json` (v1). Writes v2 **only** to `/opt/vertex-status/private-v2/status-v2.json` (0700); it refuses the public dir and deletes any v2 file found there. Reads `orders` and `fills` from local `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195, redirects refused, 4 MiB cap, 5 s timeout). Never starts or stops containers, never calls portfolio-ui, never opens an IBKR client, never touches kill-switch files. |
 | v1 status server | container `vertex-status` (caddy:2-alpine; network `ibkr-nautilus-exec-node_prototype`; published on `127.0.0.1:8790` only; read-only; caps dropped except NET_BIND_SERVICE; 64 MB) | Mounts only `/opt/vertex-status/public`. Bearer token required, otherwise 401. |
 | Public route | none (retired 2026-11-05) | The main Caddy serves no public site. v1 is served by `vertex-status-tailnet` (`@status_v1_caller`). |
 | Tailnet status server | container `vertex-status-tailnet` (caddy:2-alpine; `--network host`; read-only; caps dropped except NET_BIND_SERVICE; 64 MB; restart unless-stopped) | Binds **only** 100.64.0.10:8443 and [fd7a:115c:a1e0::10]:8443. TLS certificate for `quant-vps-host.example-tailnet.ts.net` comes from tailscaled through the mounted socket. `@status_v2_caller` allows the rig (`100.64.0.20`, `fd7a:115c:a1e0::20`) and VPS self (`100.64.0.10`, `fd7a:115c:a1e0::10`) with a valid bearer token on `/vertex-status/v2` (200); rig without/wrong token 401; VPS without/wrong token 403; other sources 403; `/vertex-history/v1/*` and `/vertex-portfolio/v1/*` stay rig-only. Mounts `private-v2` read-only. |
 | v2 alert probe | `/opt/vertex-status/status_v2_alert.py` + `vertex-status-v2-alert.{service,timer}` (2 min, `DynamicUser=yes`, `LoadCredential=status-token:/opt/vertex-status/token.env`, `TimeoutStartSec=60`) | Probes `/vertex-status/v2` with valid token (expect 200 + `vertex-deploy-status-v2` schema) plus no-token and wrong-token guards (expect 401/403). Alerts `#omp-alerts` via `http://127.0.0.1:47821/post` after 3 availability failures (once per incident + recovery) or immediately on any unauthorized 2xx bypass. State persists in `/var/lib/vertex-status-v2-alert/state.txt`. |
-| Open-orders refresh | `vertex-ibkr-open-orders-refresh.{service,timer}` (60 s 24/7 via `OnUnitInactiveSec=60s`, `TimeoutStartSec=50`, `Nice=10`) | Transitional bridge (card `vertex-open-orders-report-stale`). Runs `/opt/ibkr-snapshot-venv/bin/python3 /app/scripts/ibkr_open_orders.py --client-id 149 --timeout-seconds 15` inside `ibkr-nautilus-exec-node-portfolio-ui-1` under BusyBox `/usr/bin/timeout -k 5 40`. Non-zero exit marks the unit failed and self-clears on the next successful minute. Remove once `collect.py` stops reading `ibkr-open-orders.json` or before retiring `portfolio-ui`. |
 | Tailscale | `tailscale 1.102.4` from the official apt repo (key `2596A99EAAB33821893C0A79458CA832957F5868`), node `quant-vps-host` | Prefs: `--accept-dns=false --accept-routes=false --ssh=false --netfilter-mode=off`; no exit node. Main routes, DNS and iptables are unchanged against `/opt/vertex-status/net-baseline-20261003T1140Z/`. tailscaled adds ip rules 5210–5270, and table 52 holds only tailnet routes. |
 | Token | `/opt/vertex-status/token.env` (0600) | Used by both status containers and `vertex-status-v2-alert.service` (via `LoadCredential`). |
 | Web app | `vertex-web.service` (`vite preview` of the prebuilt `dist/` folder of `apps/web` on 127.0.0.1:3450; tailnet proxy container `vertex-web-tailnet` on :3451) | Deploy and restart only through `infra/quantvps/restart-when-idle.sh` (idle wait, health check, rollback; see [infra/quantvps/README.md](../../infra/quantvps/README.md)). |
@@ -68,7 +66,8 @@ Rig-side deployers live in `~/.local/state/vertex-vps-status/`: `deploy-tailnet.
 Collector inputs (all read-only):
 
 - `docker inspect` and `docker logs --tail`.
-- Files under `/opt/vertex-exec-node/data` (formerly `/opt/vertex-quant/data`): health.json, the newest account snapshot, `ibkr-open-orders.json` (rewritten every 60 s by `vertex-ibkr-open-orders-refresh.timer` and on demand by `portfolio-ui`), `ibkr-fills.json`, and the tails of watchdog.log and prototype-runner.log.
+- Local `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195; loopback `127.0.0.1:3461` with fallback to `VERTEX_TAILNET_IPV4:3461` from `/etc/vertex/hosts.env`): live `orders` (`ordersAsOf`) and `fills` (`executions`, `status.dataAsOf`).
+- Files under `/opt/vertex-exec-node/data` (formerly `/opt/vertex-quant/data`): health.json, the newest account snapshot, and the tails of watchdog.log and prototype-runner.log. (`ibkr-open-orders.json` and `ibkr-fills.json` are no longer read by `collect.py`, and the transitional `vertex-ibkr-open-orders-refresh.{service,timer}` bridge is retired.)
 - Redis `HGETALL` of the heartbeat hash.
 - Postgres inside `BEGIN READ ONLY` with a 4 s statement timeout, cached 300 s in `/opt/vertex-status/state/`.
 - Allow-listed non-secret nautilus-trader env keys.
@@ -81,8 +80,8 @@ v2 keeps all v1 fields with identical values. Every block has `available`, `sour
 | --- | --- |
 | `session` | `state` (starting, running, paused, degraded, halted, stopping, stopped, error, unknown) plus `raw_state`, strategies, symbols, `account_masked` (`****NNNN`), start/stop/heartbeat times |
 | `positions`, `equity` | newest IBKR account-snapshot report |
-| `orders` | `ibkr-open-orders.json`, read from disk without a refresh |
-| `fills` | last 50 |
+| `orders` | live open orders from `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195; fails closed when bridge != live, mode mismatch, or `ordersAsOf` is null) |
+| `fills` | last 50 executions from the same `ibkr-monitor.service` `/api/snapshot` call (newest first; fails closed when bridge != live, mode mismatch, or `dataAsOf` is null) |
 | `risk` | kill switch (engaged, clear or unknown) with indicators; risk limits; last risk check; watchdog summary |
 | `logs` | at most 50 scrubbed WARNING/ERROR entries |
 
@@ -336,14 +335,18 @@ rm -f /etc/systemd/system/vertex-status-v2-alert.{service,timer} /opt/vertex-sta
 systemctl daemon-reload
 ```
 
-### Roll back the IBKR open-orders refresh timer
+### Roll back the `ibkr-monitor` orders/fills migration (collector 2.3.0)
 
 ```sh
-systemctl disable --now vertex-ibkr-open-orders-refresh.timer
-rm -f /etc/systemd/system/vertex-ibkr-open-orders-refresh.{service,timer}
-# If rolling back an update to existing units, restore from /opt/vertex-status/rollback-<UTC>-open-orders-refresh/
+R=/opt/vertex-status/rollback-<UTC>-ibkr-monitor
+install -m 700 "$R/collect.py.before" /opt/vertex-status/collect.py
+# Optional: if the transitional open-orders timer was installed before the migration, restore it:
+for u in vertex-ibkr-open-orders-refresh.service vertex-ibkr-open-orders-refresh.timer; do
+  [ -f "$R/$u" ] && install -m 644 "$R/$u" "/etc/systemd/system/$u"
+done
 systemctl daemon-reload
-# After restoring prior units, re-run: systemctl enable --now vertex-ibkr-open-orders-refresh.timer
+[ -f /etc/systemd/system/vertex-ibkr-open-orders-refresh.timer ] && systemctl enable --now vertex-ibkr-open-orders-refresh.timer
+systemctl start vertex-status-collect.service
 ```
 
 ### Remove the tailnet v2 site (keep the public v1 endpoint)

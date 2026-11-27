@@ -1,3 +1,8 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   AUTHORIZATION_ERROR_CODES,
   AuthAuthorizationError,
@@ -448,6 +453,53 @@ describe("deploy status v2 schema", () => {
     return expect(
       DeployUpstreamStatusSchema.safeParse(v2Document()).success
     ).toBe(false);
+  });
+
+  it("parses live output from collect.py 2.3.0 with ibkr-monitor orders and fills", () => {
+    const statusDir = fileURLToPath(
+      new URL("../../../infra/quant-vps/status/", import.meta.url)
+    );
+    const dir = mkdtempSync(join(tmpdir(), "vx-collect-contract-"));
+    const pub = join(dir, "pub");
+    const priv = join(dir, "priv");
+    try {
+      const run = spawnSync(
+        "python3",
+        [
+          "-B",
+          "-I",
+          join(statusDir, "collect.py"),
+          "--fixtures",
+          join(statusDir, "fixtures", "stopped-session"),
+          "--out",
+          pub,
+          "--v2",
+          "--v2-out",
+          priv,
+        ],
+        { encoding: "utf8", env: { ...process.env, TMPDIR: dir } }
+      );
+      expect(run.error).toBeUndefined();
+      expect(run.status, run.stderr).toBe(0);
+      const raw = JSON.parse(
+        readFileSync(join(priv, "status-v2.json"), "utf8")
+      ) as unknown;
+      const parsed = DeployUpstreamStatusV2Schema.safeParse(raw);
+      expect(parsed.success).toBe(true);
+      const mapped = toDeploymentStatusV2(raw, v2At);
+      expect(mapped.orders).toMatchObject({
+        available: true,
+        stale: false,
+        count: 2,
+      });
+      expect(mapped.fills).toMatchObject({
+        available: true,
+        stale: false,
+        count: 2,
+      });
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
   });
 
   it("maps v2 into the procedure output with session, risk and list blocks", () => {

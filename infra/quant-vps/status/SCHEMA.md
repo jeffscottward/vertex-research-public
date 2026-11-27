@@ -49,7 +49,7 @@ Every block has one of two shapes:
 - available: `{available: true, source: string, as_of: ISO-8601 Z | null, ...}`
 - unavailable: `{available: false, source: string, reason: string}`
 
-Blocks sourced from report files also carry `age_seconds` (int) and `stale` (bool; true when older than 300 s or when `as_of` is unknown). `as_of` is the producer's own timestamp (`generated_at`), not the collector time. List blocks have `count`, `items`, and `truncated`.
+Blocks sourced from report files or `ibkr-monitor.service` also carry `age_seconds` (int) and `stale` (bool; true when older than 300 s, when `as_of` is unknown, or when `ibkr-monitor.service` reports `status.stale: true`). `as_of` is the producer's own timestamp (`generated_at` for disk reports, `ordersAsOf` or `status.dataAsOf` for `ibkr-monitor.service`), not the collector time. List blocks have `count`, `items`, and `truncated`.
 
 ### `session`
 
@@ -90,11 +90,11 @@ Items: `{symbol, sec_type, qty, avg_px, avg_cost, multiplier|null, market_price,
 
 ### `orders`
 
-Items: `{order_id_masked, client_id, symbol, sec_type, side (buy|sell), type, qty, filled, remaining, price (limit), stop, aux_price, tif, status, currency, warning?}`. `stop` holds the IB aux price for `STP`, `STP LMT`, `TRAIL`, `TRAIL LIMIT` and `STP PRT`; for every other type the value goes in `aux_price`. Source: `data/nautilus/reports/ibkr-open-orders.json`, rewritten every 60 seconds by `vertex-ibkr-open-orders-refresh.timer` (transitional bridge using the frozen writer inside `portfolio-ui` with IBKR client id 149; `portfolio-ui` on-demand triggers stay active). The collector reads the file from disk without a portfolio-ui call or refresh.
+Items: `{order_id_masked, client_id, symbol, sec_type, side (buy|sell), type, qty, filled, remaining, price (limit), stop, aux_price, tif, status, currency, warning?}`. `stop` holds the IB aux price for `STP`, `STP LMT`, `TRAIL`, `TRAIL LIMIT` and `STP PRT`; for every other type the value goes in `aux_price`. Source (collector 2.3.0+): read-only `GET /api/snapshot` from the local `ibkr-monitor.service` (IBKR client id 195, loopback `127.0.0.1:3461` with fallback to `VERTEX_TAILNET_IPV4:3461` from `/etc/vertex/hosts.env`, or explicit `VERTEX_IBKR_MONITOR_URL`). Fails closed (`available: false`) when `ibkr-monitor` is unreachable, redirects, returns an HTTP/JSON error, reports `status.bridge != "live"`, reports `account.modeError == "mismatch"`, or omits a ready `ordersAsOf` timestamp (explicit `ordersAsOf: null` never reports zero working orders). The collector never reads `ibkr-open-orders.json` from disk and never opens an IBKR TWS connection.
 
 ### `fills`
 
-Last 50, newest first: `{time, symbol, side (buy|sell), qty, price, order_id_masked, exec_id_masked}`. Source: `data/nautilus/reports/ibkr-fills.json` (written by `/opt/vertex-exec-node/scripts/ibkr_fill_check.py`, a QuantVPS host script outside this repository). Postgres `execution_events` is empty on this host.
+Last 50, newest first: `{time, symbol, side (buy|sell), qty, price, order_id_masked, exec_id_masked}`. Source (collector 2.3.0+): `executions` from the same single read-only `GET /api/snapshot` to `ibkr-monitor.service` (IBKR client id 195), stamped with `status.dataAsOf`. Fails closed (`available: false`) under the same bridge/mode-mismatch/missing-`dataAsOf` rules as `orders`. The collector never reads `ibkr-fills.json` from disk. Postgres `execution_events` is empty on this host.
 
 ### `equity`
 
