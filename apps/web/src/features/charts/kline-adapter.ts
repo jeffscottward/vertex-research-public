@@ -7,6 +7,12 @@ import {
 } from "@darkfactory/scripting";
 import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
 import {
+  candlePaneGap,
+  chartLegendStyles,
+  isCompactChartWidth,
+  subPaneGap,
+} from "./chart-legend-layout.ts";
+import {
   barSpacing,
   EXPECTED_MOVE_GROUP_ID,
   EXPECTED_MOVE_OVERLAY,
@@ -757,6 +763,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
       indicatorTemplate(VERTEX_STUDIES[id], options.pricePrecision)
     );
   const palette = options.palette;
+  let compact = isCompactChartWidth(element.clientWidth);
+  const initialLegend = chartLegendStyles(palette, compact, NO_VOLUME_LABEL);
   const chart = library.init(element, {
     // Volume axis and tooltip as 1.2K / 3.4M / 5.6B.
     customApi: { formatBigNumber },
@@ -776,15 +784,31 @@ export const createKLineRenderer: CandleRendererFactory = async (
         },
         priceMark: { show: false },
         // Only volume can be missing from a bar (forex, non-USD stocks).
-        tooltip: { defaultValue: NO_VOLUME_LABEL },
+        tooltip: {
+          ...initialLegend.candleTooltip,
+          custom: [...initialLegend.candleTooltip.custom],
+        },
         type: library.CandleType.CandleUpStroke,
       },
       grid: {
         horizontal: { color: palette.grid },
         vertical: { color: palette.grid },
       },
-      xAxis: { tickText: { color: palette.foreground } },
-      yAxis: { tickText: { color: palette.foreground } },
+      indicator: {
+        tooltip: initialLegend.indicatorTooltip,
+      },
+      xAxis: {
+        tickText: {
+          color: palette.foreground,
+          family: initialLegend.fontFamily,
+        },
+      },
+      yAxis: {
+        tickText: {
+          color: palette.foreground,
+          family: initialLegend.fontFamily,
+        },
+      },
     },
     timezone: "UTC",
   });
@@ -808,6 +832,11 @@ export const createKLineRenderer: CandleRendererFactory = async (
       options.pricePrecision,
       options.volumePrecision
     );
+    if (typeof chart.setPaneOptions === "function")
+      chart.setPaneOptions({
+        gap: candlePaneGap(compact, 0),
+        id: CANDLE_PANE_ID,
+      });
     const interaction = chart.getDom();
     if (interaction) {
       // 9.8.12 creates a positive tabindex and inline outline:none. Keep its
@@ -1080,6 +1109,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     emaKey = setAverage("EMA", studies.ema, emaKey);
     setExtra(extra);
     setPanes(panes);
+    syncPaneGaps();
     return;
   };
   let markerKey = "[]";
@@ -1213,6 +1243,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     });
     scriptSlots = panes;
     setScriptSignals(layers);
+    syncPaneGaps();
     return;
   };
   let seriesTemplate = false;
@@ -1261,6 +1292,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
         id: SERIES_PANE_ID,
       });
     seriesShown = true;
+    syncPaneGaps();
     return;
   };
   const overlayEvents = (onChange: (drawing: Drawing) => void) => {
@@ -1346,6 +1378,31 @@ export const createKLineRenderer: CandleRendererFactory = async (
     });
     return;
   };
+  const syncPaneGaps = () => {
+    if (typeof chart.setPaneOptions !== "function") return;
+    const extraIds = [...shownExtra];
+    const overlayCount =
+      Number(smaKey !== "") +
+      Number(emaKey !== "") +
+      extraIds.filter((id) => VERTEX_STUDIES[id].placement === "candle")
+        .length +
+      scriptSlots.filter((paneId) => paneId === CANDLE_PANE_ID).length;
+    chart.setPaneOptions({
+      gap: candlePaneGap(compact, overlayCount),
+      id: CANDLE_PANE_ID,
+    });
+    const gap = subPaneGap(compact);
+    const subPanes = [
+      ...(volumeShown ? [VOLUME_PANE_ID] : []),
+      ...extraIds
+        .filter((id) => VERTEX_STUDIES[id].placement === "pane")
+        .map(studyPaneId),
+      ...[...shownPanes].map((id) => `vx_${id.toLowerCase()}_builtin_pane`),
+      ...scriptSlots.filter((paneId) => paneId !== CANDLE_PANE_ID),
+      ...(seriesShown ? [SERIES_PANE_ID] : []),
+    ];
+    for (const id of subPanes) chart.setPaneOptions({ gap, id });
+  };
   const snapshot = (): string =>
     disposed ? "" : chart.getConvertPictureUrl(true, "png", palette.background);
   return {
@@ -1353,8 +1410,23 @@ export const createKLineRenderer: CandleRendererFactory = async (
     onCrosshair,
     replace,
     resize: () => {
-      if (!disposed) return chart.resize();
-      return;
+      if (disposed) return;
+      const nextCompact = isCompactChartWidth(element.clientWidth);
+      if (nextCompact !== compact) {
+        compact = nextCompact;
+        const nextLegend = chartLegendStyles(palette, compact, NO_VOLUME_LABEL);
+        chart.setStyles({
+          candle: {
+            tooltip: {
+              ...nextLegend.candleTooltip,
+              custom: [...nextLegend.candleTooltip.custom],
+            },
+          },
+          indicator: { tooltip: nextLegend.indicatorTooltip },
+        });
+        syncPaneGaps();
+      }
+      return chart.resize();
     },
     setChartType,
     setDrawings,

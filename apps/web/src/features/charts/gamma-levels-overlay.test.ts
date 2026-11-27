@@ -554,7 +554,7 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
     ).toEqual(["▲★ 615.00", "⇄ 602.50", "◎ 600.00", "▼ 590.00"]);
 
     // The chart legend covers the top-left of the pane. A level near the top keeps its line there
-    // and gets its pill below the legend rows: two rows on a wide pane, four on a narrow one.
+    // and gets its pill below the legend rows: 44 px on a wide pane, 54 px on a compact narrow one.
     const pillYs = (
       ys: readonly number[],
       bounding: { height: number; width: number }
@@ -568,9 +568,40 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
       44, 140, 200, 280,
     ]);
     expect(pillYs([10, 140, 200, 280], { height: 360, width: 375 })).toEqual([
-      88, 140, 200, 280,
+      54, 140, 200, 280,
     ]);
-    // A short pane gives the legend only the room that the four pills do not need.
+    // With off-scale "↑ Above" levels, the summary pill clears the legend on both narrow and wide
+    // panes and visible pills sit below the summary pill so neither overlaps the legend or each other.
+    const narrowWithAbove = gammaLevelsFigures(
+      [
+        { x: 50, y: -20 },
+        { x: 50, y: 10 },
+        { x: 50, y: 140 },
+        { x: 50, y: 200 },
+      ],
+      data,
+      { height: 360, width: 375 }
+    ).filter((f) => f.type === "text");
+    const abovePill = narrowWithAbove.find((f) =>
+      f.attrs.text.startsWith("↑ Above:")
+    );
+    expect(abovePill?.attrs.y).toBe(54);
+    expect(narrowWithAbove[0]?.attrs.y).toBe(74);
+    const wideWithAbove = gammaLevelsFigures(
+      [
+        { x: 50, y: -20 },
+        { x: 50, y: 10 },
+        { x: 50, y: 140 },
+        { x: 50, y: 200 },
+      ],
+      data,
+      { height: 360, width: 800 }
+    ).filter((f) => f.type === "text");
+    const wideAbovePill = wideWithAbove.find((f) =>
+      f.attrs.text.startsWith("↑ Above:")
+    );
+    expect(wideAbovePill?.attrs.y).toBe(44);
+    expect(wideWithAbove[0]?.attrs.y).toBe(64);
     expect(pillYs([10, 30, 50, 70], { height: 100, width: 800 })).toEqual([
       28, 48, 68, 88,
     ]);

@@ -93,6 +93,7 @@ export type ChartPalette = Readonly<{
   destructive?: string;
   info?: string;
   king?: string;
+  fontFamily?: string;
 }>;
 export type CandleRendererOptions = Readonly<{
   palette: ChartPalette;
