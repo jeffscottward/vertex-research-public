@@ -629,11 +629,30 @@ describe("DeploymentRequestsWorkspace", () => {
   });
 
   it("does not offer an Academy strategy in the picker: its request starts on the lesson page", async () => {
+    const wheel = summary({
+      id: "s-wheel",
+      name: "DYR: Wheel",
+      slug: "dyr-wheel",
+    });
     const strategies = strategiesGateway();
-    strategies.list.mockResolvedValue([
-      summary(),
-      summary({ id: "s-wheel", name: "DYR: Wheel", slug: "dyr-wheel" }),
-    ]);
+    strategies.list.mockResolvedValue([summary(), wheel]);
+    strategies.get.mockResolvedValue(strategyDetail(wheel));
+    // A typed or old address opens the form on the Academy strategy: it cannot be saved here.
+    window.history.replaceState(null, "", newRequestHref("s-wheel"));
+    const linked = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    expect(
+      linked.querySelector('[data-request-blocked="academy-lesson"]')
+        ?.textContent
+    ).toBe(
+      "This is an Academy strategy; request its paper deployment from its Academy lesson page."
+    );
+    expect(button("Save draft", linked).disabled).toBe(true);
+    window.history.replaceState(null, "", "/deployments");
     await mount(
       <DeploymentRequestsWorkspace
         gateway={requestsGateway([])}

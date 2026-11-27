@@ -6,6 +6,7 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  DatabasePersistenceError,
   DEPLOYMENT_MAX_LOSS_PCT_CEILING,
   DeploymentRequestStateError,
   InvalidRepositoryInputError,
@@ -240,6 +241,8 @@ type StrategyWiring = Readonly<{
   withoutLibrary?: boolean;
   /** The strategy the library returns for every id; null when the library has no such strategy. */
   strategy?: LibraryStrategy | null;
+  /** The error that every library read throws. */
+  libraryError?: Error;
   researchStudies?: NonNullable<Repositories["researchStudies"]>;
 }>;
 
@@ -257,13 +260,15 @@ const repositoriesFor = (
     ? {}
     : {
         strategyLibrary: {
-          get: async (id: string) =>
-            wiring.strategy === null
+          get: async (id: string) => {
+            if (wiring.libraryError !== undefined) throw wiring.libraryError;
+            return wiring.strategy === null
               ? null
               : {
                   strategy: { id, ...(wiring.strategy ?? PLAIN_STRATEGY) },
                   presets: [],
-                },
+                };
+          },
         } as unknown as NonNullable<Repositories["strategyLibrary"]>,
       }),
   ...(wiring.researchStudies === undefined
@@ -731,6 +736,22 @@ describe("deploymentRequests strategy block", () => {
       409,
       "This strategy is tagged failed (Vertex tested it and it failed); a paper deployment cannot be requested for it."
     );
+    // A study tag with no stored row, or a stored verdict that is not valid, shows no study:
+    // the tag failed then blocks.
+    for (const stored of [
+      [],
+      [{ id: "tagged", kind: "strategy-backtest", verdict: "maybe" }],
+    ])
+      await expectCode(
+        clientFor({
+          repository,
+          strategy: { slug: "tagged", tags: ["backtest-study", "failed"] },
+          researchStudies: studiesWith(stored).repository,
+        }).deploymentRequests.create(createInput),
+        "CONFLICT",
+        409,
+        "This strategy is tagged failed (Vertex tested it and it failed); a paper deployment cannot be requested for it."
+      );
     // The tag needs no study read: with the study store down the answer is still the reason (409).
     const failing = vi.fn(async () => {
       throw new Error("connection refused");
@@ -764,20 +785,43 @@ describe("deploymentRequests strategy block", () => {
       503,
       UNREAD
     );
-    const failing = {
-      verdicts: vi.fn(async () => {
-        throw new Error("connection refused");
-      }),
-    } as unknown as NonNullable<Repositories["researchStudies"]>;
+    const studiesThatThrow = (error: Error) =>
+      ({
+        verdicts: vi.fn(async () => {
+          throw error;
+        }),
+      }) as unknown as NonNullable<Repositories["researchStudies"]>;
     await expectCode(
       clientFor({
         repository,
         strategy: NO_EDGE,
-        researchStudies: failing,
+        researchStudies: studiesThatThrow(
+          new DatabasePersistenceError("research study read")
+        ),
       }).deploymentRequests.submit({ id: "dr-1" }),
       "STORAGE_ERROR",
       503,
       UNREAD
+    );
+    // An error that is no database error is not renamed; the request still fails and writes nothing.
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: NO_EDGE,
+        researchStudies: studiesThatThrow(new Error("bug")),
+      }).deploymentRequests.approve({ id: "dr-1", confirmSlug: "hmm" }),
+      "INTERNAL_SERVER_ERROR",
+      500
+    );
+    // The library read: the 503 names the library, not the request table.
+    await expectCode(
+      clientFor({
+        repository,
+        libraryError: new DatabasePersistenceError("strategy read"),
+      }).deploymentRequests.create(createInput),
+      "STORAGE_ERROR",
+      503,
+      "The strategy library could not be read; nothing was saved. Retry."
     );
     expect(repository.create).not.toHaveBeenCalled();
     return expect(repository.transition).not.toHaveBeenCalled();
@@ -910,11 +954,20 @@ describe("deploymentRequests strategy block", () => {
     );
   });
 
-  it("approves an Academy request: the Academy refusal covers create, edit and submit only", async () => {
+  it("approves an Academy request unless its strategy is blocked: the Academy refusal covers create, edit and submit only", async () => {
     const repository = memoryRequests();
     await clientFor({ repository }).deploymentRequests.submit({ id: "dr-1" });
     repository.get.mockResolvedValue(
       requestRow({ status: "requested", strategySlug: "dyr-wheel" })
+    );
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: { slug: "dyr-wheel", tags: ["dyr", "research-only"] },
+      }).deploymentRequests.approve({ id: "dr-1", confirmSlug: "hmm" }),
+      "CONFLICT",
+      409,
+      "This strategy is tagged research-only; a paper deployment cannot be requested for it."
     );
     return expect(
       await clientFor({
@@ -1030,15 +1083,15 @@ describe("deploymentRequests modules have no network path", () => {
     });
   }
 
-  it("limits the server module to the contract, repository and operator gate", () => {
+  it("limits the server module to the contract, repository, operator gate and pure strategy rules", () => {
     expect(importsOf(source("./server/deployment-requests.ts")).sort()).toEqual(
       [
         "../contract.ts",
         "../contracts/deployment-requests.ts",
         // Types only.
         "../contracts/strategy-library.ts",
-        // The request rule and the study verdict projection (pure, no I/O): research-only tag and
-        // no-edge or FAIL study verdict.
+        // The request rule and the study verdict projection (pure, no I/O): research-only tag,
+        // no-edge or FAIL study verdict, failed tag with no study.
         "../strategy-deployment-eligibility.ts",
         "../strategy-library.ts",
         "./context.ts",

@@ -35,9 +35,11 @@ describe("strategyDeploymentBlock", () => {
         tags: ["quantconnect-idea"],
         vertexStudy: port("FAIL"),
       })
-    ).toMatchObject({
+    ).toEqual({
       code: "study-failed",
       label: "Failed backtest: no paper deployment",
+      reason:
+        "The Vertex backtest of this strategy failed its pass rule; a paper deployment cannot be requested for it.",
     });
   });
 
@@ -45,9 +47,11 @@ describe("strategyDeploymentBlock", () => {
     expect(RESEARCH_ONLY_TAG).toBe("research-only");
     expect(
       strategyDeploymentBlock({ tags: ["research-only"], vertexStudy: null })
-    ).toMatchObject({
+    ).toEqual({
       code: "research-only",
       label: "Research only: no deployment",
+      reason:
+        "This strategy is tagged research-only; a paper deployment cannot be requested for it.",
     });
     expect(
       strategyDeploymentBlock({
@@ -82,6 +86,12 @@ describe("strategyDeploymentBlock", () => {
       strategyDeploymentBlock({
         tags: ["failed", "backtest-study"],
         vertexStudy: backtest("needs-more-data"),
+      })
+    ).toBeNull();
+    expect(
+      strategyDeploymentBlock({
+        tags: ["failed", "quantconnect-idea"],
+        vertexStudy: port("PASS"),
       })
     ).toBeNull();
     expect(

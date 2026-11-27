@@ -1047,10 +1047,10 @@ const BacktestsTab = ({
 };
 
 /**
- * The deployment action of the detail header. A blocked strategy (research-only tag, or a Vertex
- * study verdict of no-edge or FAIL) offers no deployment or order action at all: a line of text
- * names the reason, and the server refuses the same strategies. Academy strategies deploy only
- * from their lesson page (rule gates, password, audit).
+ * The deployment action of the detail header. A blocked strategy (research-only tag, a Vertex
+ * study verdict of no-edge or FAIL, or the tag failed with no stored study) offers no deployment
+ * or order action at all: a line of text names the reason, and the server refuses the same
+ * strategies. Academy strategies deploy only from their lesson page (rule gates, password, audit).
  */
 const DeploymentAction = ({
   strategy,

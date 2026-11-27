@@ -123,6 +123,27 @@ const cell = "px-2 py-1.5 align-top";
 const filterSelectClass =
   "h-11 w-auto min-w-36 rounded-sm border border-border-strong bg-surface px-2 text-sm";
 
+type RequestRefusal = Readonly<{ code: string; label: string; reason: string }>;
+
+const ACADEMY_REFUSAL: RequestRefusal = {
+  code: "academy-lesson",
+  label: "request from the Academy lesson page",
+  reason:
+    "This is an Academy strategy; request its paper deployment from its Academy lesson page.",
+};
+
+/**
+ * Why a request for this strategy cannot be saved from this form, or null: the block of the
+ * strategy (research-only tag or negative Vertex result), else an Academy strategy, whose request
+ * starts on its lesson page. The server refuses both.
+ */
+const requestRefusal = (
+  strategy: Pick<StrategySummaryOutput, "slug" | "tags"> &
+    Partial<Pick<StrategySummaryOutput, "vertexStudy">>
+): RequestRefusal | null =>
+  strategyDeploymentBlock(strategy) ??
+  (lessonSlugOfStrategy(strategy.slug) === null ? null : ACADEMY_REFUSAL);
+
 const describeRequestFailure = (error: unknown): string => {
   if (typeof error === "object" && error !== null) {
     const code = Reflect.get(error, "code");
@@ -284,10 +305,10 @@ const RequestForm = ({
     };
   }, [strategies, strategyId, editing]);
 
-  // Why the chosen strategy has no paper deployment request, or null. The server refuses the same
-  // strategies (deploymentRequests create, edit, submit and approve).
-  const block =
-    strategy === null ? null : strategyDeploymentBlock(strategy.strategy);
+  // Why the chosen strategy cannot be saved here, or null: its block (the server refuses the same
+  // strategies in deploymentRequests create, edit, submit and approve), or an Academy strategy
+  // (the server refuses it on this path). A typed or old address can open the form on either.
+  const refusal = strategy === null ? null : requestRefusal(strategy.strategy);
 
   const choosePreset = (value: string): void => {
     setPresetId(value);
@@ -380,21 +401,15 @@ const RequestForm = ({
             >
               <option value="">Choose…</option>
               {options.map((option) => {
-                // Why this entry cannot be chosen, or null: the block of the strategy, or an
-                // Academy strategy (the server refuses it here; its request starts on the lesson page).
-                const note =
-                  strategyDeploymentBlock(option)?.label ??
-                  (lessonSlugOfStrategy(option.slug) === null
-                    ? null
-                    : "request from the Academy lesson page");
+                const optionRefusal = requestRefusal(option);
                 return (
                   <option
-                    disabled={note !== null}
+                    disabled={optionRefusal !== null}
                     key={option.id}
                     value={option.id}
                   >
                     {option.name} ({option.slug})
-                    {note === null ? "" : ` · ${note}`}
+                    {optionRefusal === null ? "" : ` · ${optionRefusal.label}`}
                   </option>
                 );
               })}
@@ -511,17 +526,21 @@ const RequestForm = ({
             })}
           </div>
         </fieldset>
-        {block === null ? null : (
+        {refusal === null ? null : (
           <p
             className="text-muted-foreground text-sm"
-            data-request-blocked={block.code}
+            data-request-blocked={refusal.code}
+            id="request-blocked-reason"
           >
-            {block.reason}
+            {refusal.reason}
           </p>
         )}
         <Feedback message={message} />
         <Button
-          disabled={busy || strategy === null || block !== null}
+          aria-describedby={
+            refusal === null ? undefined : "request-blocked-reason"
+          }
+          disabled={busy || strategy === null || refusal !== null}
           type="submit"
         >
           {editing === null ? "Save draft" : "Save changes"}

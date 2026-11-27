@@ -84,13 +84,15 @@ After the deploy, 23 of 103 strategies are blocked on the server and in the pick
 
 - Library detail header: a blocked strategy shows the label as plain text (`span`, the classes of the existing research-only line) in place of the link, with `data-strategy-deployment-blocked="<block code>"` and the reason as `title`. The research-only line keeps its attribute `data-strategy-research-only`. A blocked Academy strategy shows the label, not the lesson link.
 - Request form (`/deployments`, Requests tab): in the strategy picker, a blocked strategy is a disabled entry with the text `<name> (<slug>) · <label>`. The block of an entry comes from the list that the picker already loads. When the form opens on a blocked strategy (an old `?new=<id>` link, or a draft saved before the block), it shows the reason in a paragraph with `data-request-blocked="<block code>"` above the form message, and the submit button ("Save draft" or "Save changes") is disabled. The block of the open form comes from the strategy detail that the form already loads.
+- Academy strategies in the request form (second commit): an Academy strategy is a disabled picker entry with the text `<name> (<slug>) · request from the Academy lesson page`. A block label comes before this note. A form that opens on an Academy strategy shows "This is an Academy strategy; request its paper deployment from its Academy lesson page." (`data-request-blocked="academy-lesson"`) and its submit button is disabled. The server refuses these strategies on this path with a 403, which the form showed as "Operator access required".
+- The submit button names the reason paragraph with `aria-describedby`.
 - Request detail panel: no change. For a request whose strategy became blocked later, Submit and Approve stay offered; the server answers 409 and the panel shows the reason (it shows the message of a 409 as it is).
 
 ### Server
 
 - `deploymentRequests.create`, `createGroup`, `update`, `submit` and `approve` refuse a blocked strategy with the error `CONFLICT` (HTTP 409) and the reason. Nothing is written. `reject` and `withdraw` stay open: they only close a request.
 - The server computes the block from the inputs that the page uses: the tags of the strategy and the verdict that `strategyLibrary.get` shows. It uses the same two pure functions as the library (`studyCandidateSlugs`, `studyVerdictsBySlug`), so a study that the page does not show (no study tag, other kind, invalid verdict) does not block.
-- The verdict read fails closed. When a strategy has a study tag and the read cannot be done (no study repository on this server, or the read throws), the server answers `STORAGE_ERROR` (HTTP 503) with "The Vertex study verdict of this strategy could not be read; nothing was saved. Retry." A successful read with no valid row is "no study": the strategy is then blocked only by the tag `failed`.
+- The verdict read fails closed. When a strategy has a study tag and the read cannot be done (no study repository on this server, or the read fails with a database error), the server answers `STORAGE_ERROR` (HTTP 503) with "The Vertex study verdict of this strategy could not be read; nothing was saved. Retry." A successful read with no valid row is "no study": the strategy is then blocked only by the tag `failed`.
 - The tag `research-only` needs no read: the answer is 409 with its reason even when the study store is down.
 - Degraded page state: the library list and get are fail-open. When their study read fails, they show no verdict. The page then shows the badge and the line of the tag `failed` if the strategy has it, and else the link; a write for a study-tagged strategy gets the 503 above, which the form shows as it is.
 
@@ -121,11 +123,11 @@ After the deploy, 23 of 103 strategies are blocked on the server and in the pick
 | The rule follows the badge, so it follows the tags. A person or an agent with a write API key can edit tags (`strategyLibrary.update`) and remove `backtest-study`, `failed` or `research-only`. | The badge and the block go away together. | Accepted. The rule prevents a mistake; it is not an access control. Requests need an operator session, and approval needs the typed slug. Removing the tag `failed` is the intended way to open the path again. |
 | A study stored without its study tag. | No badge and no block. | Known limit of the library display rule; the page shows no contradiction in this state. |
 | The study store cannot be read. | No new request for the 20 study-tagged strategies (503). | Accepted: the store is the same Postgres database as the library, so the library is down too. |
-| A request exists and its strategy is blocked later. | A draft or requested record can only be rejected or withdrawn; an approved record stays approved and can be withdrawn. | 0 records today. The panel shows the reason on Submit and Approve. |
+| A request exists and its strategy is blocked later. | A draft can only be withdrawn; a requested record can be rejected or withdrawn; an approved record stays approved and can be withdrawn. | 0 records today. The panel shows the reason on Submit and Approve. |
 | The verdict is read at each write and not stored on the request. | A verdict that changes to `edge` opens the path again. | Intended. |
-| Academy strategies stay selectable in the request form picker; the server refuses them with a 403 whose text the form replaces. | False message "Operator access required". | Existing behavior; 0 Academy strategies in the library. Fixed in a second commit of this pull request (disabled picker entries). |
+| Before this change an Academy strategy could be chosen in the request form; the server refused it with a 403 whose text the form replaced. | False message "Operator access required". | Fixed in the second commit: disabled picker entry, and a reason with a disabled submit button when the form opens on such a strategy. 0 Academy strategies are in the library today. |
 | Security | None added: no new input, no new read path for a caller, the same operator gate. | |
-| Load | One library read and at most one study read (one row) per write of a request. Requests are written by hand. | |
+| Load | Per write of a request: one library read and at most one study read (one row). `update`, `submit` and `approve` also read the request once for the check (`approve` reads it a second time for its options check). Requests are written by hand. | |
 
 ## Acceptance checks
 
@@ -174,13 +176,13 @@ In `packages/api/src/server/deployment-requests.ts`. They replace `refuseAcademy
 | Helper | Does |
 | --- | --- |
 | `refuseAcademySlug(slug, errors)` | Throws `FORBIDDEN` (403) with the existing Academy message for an Academy slug. |
-| `strategyOf(context, strategyId, errors)` | Reads the library record. No library repository: `STORAGE_ERROR` (503) "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry." (the existing text said "the request was not saved"). Returns the strategy (`slug`, `tags`) or null. |
-| `vertexStudyOf(context, strategy, errors)` | Returns null when `studyCandidateSlugs([strategy])` is empty (no study tag, or the slug is no valid study id). Else calls `context.repositories.researchStudies.verdicts([slug])`; a missing repository or any thrown error becomes the 503 of the Fix section (it does not go through the module's `procedure` wrapper, whose 503 text names migrations of another table). Returns `studyVerdictsBySlug([strategy], rows).get(slug) ?? null`. Emits no semantic event: the caller gets the error. |
+| `strategyOf(context, strategyId, errors)` | Reads the library record. No library repository: `STORAGE_ERROR` (503) "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry." (the existing text said "the request was not saved"). A database error of the read: `STORAGE_ERROR` "The strategy library could not be read; nothing was saved. Retry." Returns the strategy (`slug`, `tags`) or null. |
+| `vertexStudyOf(context, strategy, errors)` | Returns null when `studyCandidateSlugs([strategy])` is empty (no study tag, or the slug is no valid study id). Else calls `context.repositories.researchStudies.verdicts([slug])`; a missing repository or a database error of the read (`DatabasePersistenceError`) becomes the 503 of the Fix section. Another error is not caught: the request fails as an internal error (500) and nothing is written. Returns `studyVerdictsBySlug([strategy], rows).get(slug) ?? null`. |
 | `refuseBlockedStrategy(context, strategy, errors)` | Calls the rule with the tags and, unless the strategy has `research-only`, the result of `vertexStudyOf`. Throws `CONFLICT` with the reason for a block. |
 | `refuseUnrequestableStrategy(context, strategyId, errors)` | For `create` and `createGroup` (one strategy per group): `strategyOf`; null passes (the repository then gives 404 "Strategy not found"); then `refuseAcademySlug`; then `refuseBlockedStrategy`. |
 | `refuseUnrequestableRequest(context, id, errors, path)` | For `update`, `submit` (`path` "generic") and `approve` (`path` "approve"): reads the request; null passes (404 from the repository); `refuseAcademySlug` on the stored slug only for "generic", so Academy requests stay approvable; then `strategyOf(row.strategyId)` and `refuseBlockedStrategy` (a strategy that is gone passes). |
 
-Each helper runs first in its handler, before `normalizeDeploymentOptions` and before the repository write, so a block is reported before a state conflict or a slug mismatch. Tags are never null (`strategies.tags` is `NOT NULL`).
+The two library reads go through `readOrUnavailable(read, message, errors)`, which turns a database error into a 503 with the given message; the module's `procedure` wrapper is not used for them, because its 503 text names the migrations of the request table. Each refusal helper runs in its handler right after the check that the request repository exists, before `normalizeDeploymentOptions` and before the repository write, so a block is reported before a state conflict or a slug mismatch. Tags are never null (`strategies.tags` is `NOT NULL`).
 
 Imports added to the server module: `../contracts/strategy-library.ts` (type), `../strategy-deployment-eligibility.ts`, `../strategy-library.ts`. The import-list test of `packages/api/src/deployment-requests.test.ts` gets these three, and its list of modules with no network path gets `strategy-deployment-eligibility.ts`, `strategy-library.ts` and `strategy-study-tags.ts`.
 
@@ -197,9 +199,9 @@ Imports added to the server module: `../contracts/strategy-library.ts` (type), `
 | `apps/web/src/components/portal/strategy-library-detail.test.tsx` | Modify: acceptance check 3 for the detail page (jsdom, the existing `mount` helper). |
 | `apps/web/src/components/portal/strategy-library-model.ts` | Modify: `FAILED_TAG` comes from the API package. |
 | `apps/web/src/components/portal/strategy-library-model.test.ts` | Modify: import of `FAILED_TAG`. |
-| `apps/web/src/components/portal/deployment-requests-workspace.tsx` | Modify: the request form as in the Fix section. |
-| `apps/web/src/components/portal/deployment-requests-workspace.test.tsx` | Modify: acceptance check 3 for the form (form opened with `?new=<blocked id>`). |
-| `CHANGELOG.md` | Modify: one line under "Fixed" in "Unreleased". |
+| `apps/web/src/components/portal/deployment-requests-workspace.tsx` | Modify: the request form as in the Fix section (`requestRefusal`: the block of the strategy, else the Academy note). |
+| `apps/web/src/components/portal/deployment-requests-workspace.test.tsx` | Modify: acceptance check 3 for the form (form opened with `?new=<blocked id>`), and the Academy entry and form. |
+| `CHANGELOG.md` | Modify: two lines under "Fixed" in "Unreleased" (one per commit). |
 | `docs/vertex-rebuild/designs/library-no-edge-deploy-button/plan.md`, `before-after.svg` | Create: this plan and its figure. |
 
 No contract schema, database schema, migration or OpenAPI output changes: the errors `CONFLICT` and `STORAGE_ERROR` and the field `vertexStudy` exist already.
@@ -208,11 +210,11 @@ No contract schema, database schema, migration or OpenAPI output changes: the er
 
 1. Write the tests. Save one failing run of the API tests and one of the web tests against the base commit as text files in the job report folder on the rig (outside the repository). The repository rule is one commit that holds the change and its tests.
 2. Apply the change. Run the focused tests (`pnpm exec vitest run` on the test files of the table), then `bun run check`.
-3. Make one `fix(library)` commit that holds the change, the tests, this plan and the changelog line. A second commit disables Academy entries in the request form picker.
+3. Make one `fix(library)` commit that holds the change, the tests, this plan and the changelog line. A second commit handles Academy strategies in the request form. A third commit holds the fixes of the code review and of the drift check.
 4. Run `bun run verify:prepush`, push, open the pull request with its before and after graphic.
 5. A fresh-context reviewer agent reviews the full diff at the head; add the line `Agent review: <head SHA>` to the pull request body. Wait for the required check `ci-gate`.
 6. Merge with `scripts/merge-pr`.
 7. Deploy the merged commit by the eight steps of `infra/quantvps/README.md` ("Deploy a new web build"), with the deploy claim `deploy:quantvps-web`. `infra/quantvps/restart-when-idle.sh` restarts only the unit `vertex-web` and refuses in US market hours (08:30 to 16:00 New York time on trading days; owner rule of 2026-11-16). It never restarts Nautilus, the IB gateway, the exec node or a container.
 8. Run acceptance check 5 with a Playwright script on the rig; store the JSON result and the PNG screenshots in the job report folder.
 
-Rollback: revert the commit and deploy again; the change adds no schema and no stored data. `restart-when-idle.sh` restores the previous build by itself only when the health check after the restart fails (exit 5). Its exits 3, 4, 9, 12, 14 and 15 mean that no restart happened. Exit 6 means that the restore failed or the state is unknown: check the unit and the build folders on QuantVPS by hand before any new run.
+Rollback: revert the commit and deploy again; the change adds no schema and no stored data. `restart-when-idle.sh` restores the previous build by itself only when the health check after the restart fails (exit 5). Exit 6 means that the restore failed or the state is unknown: check the unit and the build folders on QuantVPS by hand before any new run. The README lists every other exit code.

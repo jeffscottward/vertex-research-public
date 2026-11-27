@@ -77,8 +77,8 @@ const requestsFor = (
   errors: unknown
 ): DeploymentRequestsRepository => {
   const repository = context.repositories.deploymentRequests;
-  // No repository wired: no database was asked. The text is inline because this module imports only
-  // the contract, the repository and the operator gate (deployment-requests.test.ts).
+  // No repository wired: no database was asked. The text is inline because the imports of this
+  // module are a fixed list (deployment-requests.test.ts).
   if (repository === undefined)
     throw factories(errors).STORAGE_ERROR({
       message:
@@ -237,6 +237,23 @@ const refuseAcademySlug = (slug: string, errors: unknown): void => {
 
 type RequestStrategy = Readonly<{ slug: string; tags: readonly string[] }>;
 
+// A read that the refusal needs. A database error becomes a 503 that names the store that failed
+// (the module's `procedure` wrapper names the request table and its migrations). Another error is
+// not caught: the request then fails as an internal error. In both cases nothing is written.
+const readOrUnavailable = async <T>(
+  read: () => Promise<T>,
+  message: string,
+  errors: unknown
+): Promise<T> => {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof DatabasePersistenceError)
+      throw factories(errors).STORAGE_ERROR({ message });
+    throw error;
+  }
+};
+
 // Fail closed: without the library the strategy cannot be proven to be requestable.
 const strategyOf = async (
   context: ApiContext,
@@ -249,7 +266,11 @@ const strategyOf = async (
       message:
         "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
     });
-  const record = await procedure(() => library.get(strategyId), errors);
+  const record = await readOrUnavailable(
+    () => library.get(strategyId),
+    "The strategy library could not be read; nothing was saved. Retry.",
+    errors
+  );
   return record === null ? null : record.strategy;
 };
 
@@ -265,14 +286,16 @@ const vertexStudyOf = async (
   errors: unknown
 ): Promise<StrategyVertexStudy | null> => {
   if (studyCandidateSlugs([strategy]).length === 0) return null;
-  const unread = factories(errors).STORAGE_ERROR({
-    message: STUDY_VERDICT_UNREAD_MESSAGE,
-  });
   const studies = context.repositories.researchStudies;
-  if (studies === undefined) throw unread;
-  const projected = await studies.verdicts([strategy.slug]).catch(() => {
-    throw unread;
-  });
+  if (studies === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: STUDY_VERDICT_UNREAD_MESSAGE,
+    });
+  const projected = await readOrUnavailable(
+    () => studies.verdicts([strategy.slug]),
+    STUDY_VERDICT_UNREAD_MESSAGE,
+    errors
+  );
   return studyVerdictsBySlug([strategy], projected).get(strategy.slug) ?? null;
 };
 
