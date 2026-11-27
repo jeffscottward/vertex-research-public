@@ -1390,13 +1390,6 @@ test.describe
         pathname: "/api/orpc/sectorRotation/map",
         status: 404,
       });
-      // Alice is an operator (VERTEX_OPERATOR_EMAILS) with role "member", not "admin";
-      // /portfolio mounts operator order reads whose endpoint requires admin (HTTP 403).
-      browserErrors.allowHttpError({
-        method: "POST",
-        pathname: "/api/orpc/vertexOrders/status",
-        status: 403,
-      });
       await signInAs(page, E2E_IDENTITIES.alice);
       await page.goto("/settings/account/profile");
       await waitForAccountPage(page, "Profile");

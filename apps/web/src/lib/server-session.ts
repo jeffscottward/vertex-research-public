@@ -17,8 +17,10 @@ export type PortalRole = "member" | "admin";
 
 export interface PortalSession {
   readonly expiresAt: Date;
-  /** Same rule as `requireOperator` in packages/api: active, verified, on VERTEX_OPERATOR_EMAILS. */
+  /** Same rule as `requireOperator` in packages/api: active, verified, on VERTEX_OPERATOR_EMAILS (or VERTEX_AGENT_VIEWER_EMAILS). */
   readonly isOperator: boolean;
+  /** Same rule as `requireOwner` in vertex-orders.ts: active, verified operator with the admin role and not an agent viewer. */
+  readonly isOwner: boolean;
   readonly name: string;
   readonly role: PortalRole;
   readonly status: "active";
@@ -28,6 +30,8 @@ export interface PortalSession {
 export type PortalSessionFetch = (request: Request) => Promise<Response>;
 
 export interface GetPortalSessionOptions {
+  /** Parsed VERTEX_AGENT_VIEWER_EMAILS; viewers stay read-only and never pass owner checks. */
+  readonly agentViewerEmails?: readonly string[];
   readonly cfConnectingIp?: string | null;
   readonly cookieHeader: string | null;
   readonly fetch?: PortalSessionFetch;
@@ -142,7 +146,8 @@ const isPortalRole = (value: unknown): value is PortalRole => {
 export const parsePortalSession = (
   value: unknown,
   now = new Date(),
-  operatorEmails: readonly string[] = []
+  operatorEmails: readonly string[] = [],
+  agentViewerEmails: readonly string[] = []
 ): PortalSession | null => {
   if (
     !(isRecord(value) && isRecord(value["user"]) && isRecord(value["session"]))
@@ -180,16 +185,25 @@ export const parsePortalSession = (
   }
 
   const email = user["email"];
+  const normalizedEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : "";
+  const isOperator = isOperatorIdentity(
+    {
+      email: normalizedEmail,
+      emailVerified: user["emailVerified"] === true,
+      status,
+    },
+    operatorEmails
+  );
+  const isAgentViewer =
+    normalizedEmail.length > 0 &&
+    agentViewerEmails.some(
+      (viewer) => viewer.trim().toLowerCase() === normalizedEmail
+    );
   return {
     expiresAt,
-    isOperator: isOperatorIdentity(
-      {
-        email: typeof email === "string" ? email : "",
-        emailVerified: user["emailVerified"] === true,
-        status,
-      },
-      operatorEmails
-    ),
+    isOperator,
+    isOwner: isOperator && role === "admin" && !isAgentViewer,
     name: name.trim(),
     role,
     status,
@@ -289,7 +303,8 @@ const parseSessionResponse = async (
   response: Response,
   now: Date,
   signal: AbortSignal,
-  operatorEmails: readonly string[]
+  operatorEmails: readonly string[],
+  agentViewerEmails: readonly string[]
 ): Promise<SessionCheckOutcome> => {
   if (!response.ok) {
     const capacity = isCapacityResponse(response);
@@ -318,7 +333,9 @@ const parseSessionResponse = async (
   } catch {
     return { failure: "reason=invalid-body" };
   }
-  return { session: parsePortalSession(parsed, now, operatorEmails) };
+  return {
+    session: parsePortalSession(parsed, now, operatorEmails, agentViewerEmails),
+  };
 };
 
 /**
@@ -331,6 +348,7 @@ const parseSessionResponse = async (
  * throws PortalSessionUnavailableError so a busy isolate never signs users out.
  */
 export const getPortalSession = async ({
+  agentViewerEmails = [],
   cookieHeader,
   cfConnectingIp = null,
   fetch: fetchSession = globalThis.fetch,
@@ -383,7 +401,8 @@ export const getPortalSession = async ({
         await fetchSession(request.clone()),
         now,
         controller.signal,
-        operatorEmails
+        operatorEmails,
+        agentViewerEmails
       );
       if (!("failure" in outcome)) return outcome.session;
       if (outcome.capacity !== true) return fail(outcome.failure);

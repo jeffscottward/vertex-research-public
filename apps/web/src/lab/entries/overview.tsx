@@ -215,6 +215,7 @@ export const OVERVIEW_LAB_ENTRIES: readonly LabEntry[] = [
               gateway={labIbkrMonitor}
               operator
               ordersGateway={labVertexOrders}
+              owner
               projection={<PortfolioWorkspace />}
             />
           </LabPortfolioView>

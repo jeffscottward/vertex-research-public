@@ -18,9 +18,12 @@ export type DraftsAndOrdersGateway = Readonly<{
   drafts: (
     options: Readonly<{ signal: AbortSignal }>
   ) => Promise<GoLiveQueueOutput>;
-  orders: (
-    options: Readonly<{ signal: AbortSignal }>
-  ) => Promise<VertexOrdersStatus>;
+  /** Absent for non-owner operators, so the browser skips the admin-only order status call. */
+  orders?:
+    | ((
+        options: Readonly<{ signal: AbortSignal }>
+      ) => Promise<VertexOrdersStatus>)
+    | undefined;
 }>;
 
 // Each feed is read on its own: one failed feed shows "unknown" for that feed only.
@@ -42,14 +45,19 @@ export const DraftsAndOrders = ({
   const [view, setView] = useState<DraftsAndOrdersView | null>(null);
   useEffect(() => {
     const abort = new AbortController();
+    const readOrders = gateway.orders;
+    const ordersPromise: Promise<DraftsAndOrdersView["orders"]> =
+      readOrders === undefined
+        ? Promise.resolve("owner-only" as const)
+        : // A sync throw (client not ready) and a rejection both end here.
+          (async () => readOrders({ signal: abort.signal }))()
+            .then(orderRows)
+            .catch((error: unknown) =>
+              isOperatorAccessDenied(error) ? ("owner-only" as const) : null
+            );
     void Promise.all([
       settle(() => gateway.drafts({ signal: abort.signal }), draftRows),
-      // A sync throw (client not ready) and a rejection both end here.
-      (async () => gateway.orders({ signal: abort.signal }))()
-        .then(orderRows)
-        .catch((error: unknown) =>
-          isOperatorAccessDenied(error) ? ("owner-only" as const) : null
-        ),
+      ordersPromise,
     ]).then(([drafts, orders]) => {
       if (!abort.signal.aborted)
         setView({ checkedAt: new Date(), drafts, orders });
@@ -82,7 +90,11 @@ export const DraftsAndOrders = ({
         </Link>
       </div>
       <p aria-live="polite" className="text-muted-foreground text-sm">
-        {view === null ? "Checking drafts and IBKR orders…" : summaryText(view)}
+        {view === null
+          ? gateway.orders === undefined
+            ? "Checking drafts…"
+            : "Checking drafts and IBKR orders…"
+          : summaryText(view)}
       </p>
       {view !== null && view.drafts !== null && view.drafts.length > 0 ? (
         <ul className="space-y-2" data-drafts-list="">

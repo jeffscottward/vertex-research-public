@@ -71,6 +71,7 @@ describe("parsePortalSession", () => {
     ).toEqual({
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
       isOperator: false,
+      isOwner: false,
       name: "Example Member",
       role: "member",
       status: "active",
@@ -97,12 +98,29 @@ describe("parsePortalSession", () => {
         operators
       )?.isOperator
     ).toBe(false);
-    return expect(
+    expect(
       parsePortalSession(
         { ...listed, user: { ...listed.user, email: 42 } },
         now,
         operators
       )?.isOperator
+    ).toBe(false);
+
+    // Owner (vertexOrders.status): operator + admin role + not an agent viewer.
+    const adminListed = {
+      ...listed,
+      user: { ...listed.user, role: "admin" },
+    };
+    expect(parsePortalSession(listed, now, operators)?.isOwner).toBe(false);
+    expect(parsePortalSession(adminListed, now)?.isOwner).toBe(false);
+    expect(parsePortalSession(adminListed, now, operators)?.isOwner).toBe(true);
+    expect(
+      parsePortalSession(adminListed, now, operators, ["other@example.test"])
+        ?.isOwner
+    ).toBe(true);
+    return expect(
+      parsePortalSession(adminListed, now, operators, ["MEMBER@example.test"])
+        ?.isOwner
     ).toBe(false);
   });
 
@@ -194,24 +212,34 @@ describe("getPortalSession", () => {
     return expect(fetchSession).toHaveBeenCalledOnce();
   });
 
-  it("passes the operator list through to the parsed session", async () =>
+  it("passes the operator and agent viewer lists through to the parsed session", async () => {
+    const adminPayload = {
+      ...activeSession,
+      user: {
+        ...activeSession.user,
+        email: "member@example.test",
+        emailVerified: true,
+        role: "admin",
+      },
+    };
     await expect(
       getPortalSession({
         cookieHeader: "better-auth.session_token=opaque",
-        fetch: vi.fn(async () =>
-          Response.json({
-            ...activeSession,
-            user: {
-              ...activeSession.user,
-              email: "member@example.test",
-              emailVerified: true,
-            },
-          })
-        ),
+        fetch: vi.fn(async () => Response.json(adminPayload)),
         now: new Date("2029-01-01T00:00:00.000Z"),
         operatorEmails: ["member@example.test"],
       })
-    ).resolves.toMatchObject({ isOperator: true }));
+    ).resolves.toMatchObject({ isOperator: true, isOwner: true });
+    return await expect(
+      getPortalSession({
+        agentViewerEmails: ["member@example.test"],
+        cookieHeader: "better-auth.session_token=opaque",
+        fetch: vi.fn(async () => Response.json(adminPayload)),
+        now: new Date("2029-01-01T00:00:00.000Z"),
+        operatorEmails: ["member@example.test"],
+      })
+    ).resolves.toMatchObject({ isOperator: true, isOwner: false });
+  });
 
   it.each([
     new Response(null, { status: 401 }),
@@ -324,6 +352,7 @@ describe("getPortalSession", () => {
     ).toEqual({
       expiresAt,
       isOperator: false,
+      isOwner: false,
       name: "Example Admin",
       role: "admin",
       status: "active",
