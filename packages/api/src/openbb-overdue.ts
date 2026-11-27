@@ -163,7 +163,8 @@ const parseIsoUtcDay = (iso: string): number =>
 
 /**
  * Whether QuantData `market_premium` live options session is open right now: NYSE trading day
- * and 09:30–16:15 America/New_York. Shared between `openbb.status` and `smartMoney.ranking`.
+ * and 09:30–16:15 America/New_York. Shared between the live capture of `flow.collect`,
+ * `openbb.status` and `smartMoney.ranking`.
  */
 export const isMarketPremiumSessionOpen = (now: Date): boolean => {
   const parts = nyParts(now);

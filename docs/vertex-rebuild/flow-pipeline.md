@@ -16,7 +16,7 @@ side with the options side (section "Control document").
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
-| Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
+| Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade on NYSE trading days; otherwise one gap-fill request per run (section "Market premium") |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, king node, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
 | Tape speed counts (ES, NQ) | the streamed tape of the ticks row | `flow_tape_seconds` (per minute: the prints and the contracts of each of its 60 seconds, and which seconds were covered) | with each tape read |
@@ -798,14 +798,17 @@ are recorded under SPY in `flow_samples`, so `flow.collect` with `symbols` that 
 
 Each run makes at most one request (`packages/api/src/server/flow-market-premium-collect.ts`):
 
-1. **Live capture.** While options trade (09:30-16:15 New York, the options and GEX session), today's
-   session is captured when its ledger row is missing or its last attempt is at least 840 s old
-   (about every 15 minutes with the 60 s timer).
+1. **Live capture.** While options trade (09:30-16:15 New York on an NYSE trading day;
+   `isMarketPremiumSessionOpen`), today's session is captured when its ledger row is missing or its
+   last attempt is at least 840 s old (about every 15 minutes with the 60 s timer).
 2. **Gap fill.** Otherwise the collector requests the oldest weekday of the last 400 days (before
    today) whose ledger row is missing, or is `partial` or `unavailable` and was last tried at least
    6 hours ago. This is the one-year backfill (about 280 weekdays at one request per run, about 5
    hours after the first deploy), the settle fetch of each live session after midnight, and the
    repair of missed sessions. QuantData kept at least 371 days on 2026-11-20.
+
+On a market holiday no live capture runs. The gap fill stores the holiday on a later day: as
+`complete` with the few tickers that traded, or as `no_data` when QuantData returns no rows.
 
 Storage: `flow_market_premium` keeps one row per (session date, ticker); a capture replaces the
 session's whole row set in one transaction (rows of older captures are deleted). An answer with
