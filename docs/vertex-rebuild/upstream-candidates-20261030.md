@@ -288,7 +288,7 @@ Tracker cards are entries of the owner's work tracker; the card id is the refere
 
 * **Dataset run** (card `vertex-prediction-market-dataset-run`): check the dataset rights, download the dataset, add the DuckDB Parquet reader with a pinned lock and a CI run, and run the calibration on real rows. Starts when the owner asks for the download. Done for Polymarket only on 2026-11-26, from public chain logs instead of the archive ([prediction-market-onchain-sample.md](prediction-market-onchain-sample.md)); Kalshi stays blocked.
 * **Posture on real bars**: feed `index_posture` with daily QQQ and SPY bars (for example from [`ibkr_history.py`](../../services/research/providers/ibkr_history.py)) and show the level with its audit flags on a research page.
-* **Library links** (card `vertex-repos-reel-library-links`): add the three learning links (candidates 6, 7 and 10) to the Vertex Papers library. The route that adds a row needs an operator session.
+* **Library links** (card `vertex-repos-reel-library-links`): done on 2026-11-27 via idempotent Drizzle migration [`0103_research_papers_reel_links.sql`](../../packages/db/migrations/0103_research_papers_reel_links.sql) (guarded rollback [`0103_research_papers_reel_links.down.sql`](../../packages/db/rollback/0103_research_papers_reel_links.down.sql)), which seeds candidates 6 (`article-jpmorgan-python-training`), 7 (`article-quantopian-research-public`) and 10 (`article-firmai-financial-ml`) into `research_papers` as `article` links (`queued` / `pending`, no code copied, existing rows and matching `source_url`s never overwritten).
 
 --------------------------------------------------------------------------------
 
