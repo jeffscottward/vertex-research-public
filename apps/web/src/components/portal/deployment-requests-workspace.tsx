@@ -1,5 +1,6 @@
 "use client";
 
+import { lessonSlugOfStrategy } from "@darkfactory/academy/courses";
 import {
   DEPLOYMENT_REQUEST_STATUS_VALUES,
   strategyDeploymentBlock,
@@ -379,15 +380,21 @@ const RequestForm = ({
             >
               <option value="">Choose…</option>
               {options.map((option) => {
-                const optionBlock = strategyDeploymentBlock(option);
+                // Why this entry cannot be chosen, or null: the block of the strategy, or an
+                // Academy strategy (the server refuses it here; its request starts on the lesson page).
+                const note =
+                  strategyDeploymentBlock(option)?.label ??
+                  (lessonSlugOfStrategy(option.slug) === null
+                    ? null
+                    : "request from the Academy lesson page");
                 return (
                   <option
-                    disabled={optionBlock !== null}
+                    disabled={note !== null}
                     key={option.id}
                     value={option.id}
                   >
                     {option.name} ({option.slug})
-                    {optionBlock === null ? "" : ` · ${optionBlock.label}`}
+                    {note === null ? "" : ` · ${note}`}
                   </option>
                 );
               })}

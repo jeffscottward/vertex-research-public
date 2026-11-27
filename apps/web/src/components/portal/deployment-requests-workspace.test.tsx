@@ -628,6 +628,34 @@ describe("DeploymentRequestsWorkspace", () => {
     return expect(button("Save draft").disabled).toBe(false);
   });
 
+  it("does not offer an Academy strategy in the picker: its request starts on the lesson page", async () => {
+    const strategies = strategiesGateway();
+    strategies.list.mockResolvedValue([
+      summary(),
+      summary({ id: "s-wheel", name: "DYR: Wheel", slug: "dyr-wheel" }),
+    ]);
+    await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    await click(button("New request"));
+    return expect(
+      [...field<HTMLSelectElement>("#request-strategy").options].map(
+        (option) => [option.value, option.disabled, option.textContent]
+      )
+    ).toEqual([
+      ["", false, "Choose…"],
+      ["s-hmm", false, "HMM forward filter (hmm)"],
+      [
+        "s-wheel",
+        true,
+        "DYR: Wheel (dyr-wheel) · request from the Academy lesson page",
+      ],
+    ]);
+  });
+
   it("says a withdrawn request was never decided", async () => {
     window.history.replaceState(
       null,
