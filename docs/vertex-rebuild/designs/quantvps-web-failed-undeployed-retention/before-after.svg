@@ -1,0 +1,1280 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1280 640"
+  width="1280"
+  height="640"
+  role="img"
+  aria-labelledby="t d"
+>
+  <title id="t">
+    Before and after: retention of failed and undeployed web build pairs on
+    QuantVPS
+  </title>
+  <desc id="d">
+    Before, the prune kept the newest 10 backup pairs and never deleted failed
+    or undeployed pairs. After, it also keeps the newest 2 failed and the newest
+    2 undeployed pairs and deletes older ones, at most 3 pairs per run in total.
+  </desc>
+  <defs>
+    <marker
+      id="ah-8b949e"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e" />
+    </marker>
+    <marker
+      id="ah-f85149"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#f85149" />
+    </marker>
+    <marker
+      id="ah-3fb950"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="ah-f0883e"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#f0883e" />
+    </marker>
+  </defs>
+  <rect width="1280" height="640" fill="#0d1117" />
+  <rect
+    x="24"
+    y="24"
+    width="596"
+    height="500"
+    rx="14"
+    fill="#161b22"
+    stroke="#30363d"
+  />
+  <text
+    x="52"
+    y="66"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="26"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="52"
+    y="114"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="17"
+    fill="#58a6ff"
+    text-anchor="start"
+    font-weight="700"
+  >
+    dist.bak-…
+  </text>
+  <path
+    d="M52,140 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <rect
+    x="52"
+    y="138"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <path
+    d="M82,140 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <rect
+    x="82"
+    y="138"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <line
+    x1="130"
+    y1="152"
+    x2="164"
+    y2="152"
+    stroke="#f85149"
+    stroke-width="3"
+    marker-end="url(#ah-f85149)"
+    stroke-linecap="round"
+  />
+  <g
+    transform="translate(172,128) scale(0.85)"
+    stroke="#f85149"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M4,10 h36" />
+    <path d="M16,10 v-5 h12 v5" />
+    <path d="M8,10 l3,34 h22 l3,-34" />
+    <path d="M18,18 v18 M26,18 v18" />
+  </g>
+  <path
+    d="M242,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="242"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M272,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="272"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M302,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="302"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M332,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="332"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M362,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="362"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M392,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="392"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M422,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="422"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M452,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="452"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M482,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="482"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M512,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="512"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <text
+    x="546"
+    y="158"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 10
+  </text>
+  <text
+    x="52"
+    y="254"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="17"
+    fill="#f0883e"
+    text-anchor="start"
+    font-weight="700"
+  >
+    dist.failed-…
+  </text>
+  <path
+    d="M52,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="52"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M104,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="104"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M156,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="156"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M208,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="208"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M260,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="260"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="312"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    stroke="#f0883e"
+    stroke-dasharray="4 3"
+    fill="none"
+    opacity="0.9"
+  />
+  <text
+    x="334"
+    y="300"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#f0883e"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    +
+  </text>
+  <text
+    x="378"
+    y="290"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="18"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="700"
+  >
+    never deleted
+  </text>
+  <text
+    x="378"
+    y="312"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="start"
+    font-weight="400"
+  >
+    +1 per rollback
+  </text>
+  <text
+    x="52"
+    y="394"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="17"
+    fill="#bc8cff"
+    text-anchor="start"
+    font-weight="700"
+  >
+    dist.undeployed-…
+  </text>
+  <path
+    d="M52,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="52"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M104,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="104"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M156,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="156"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M208,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="208"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M260,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="260"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="312"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    stroke="#bc8cff"
+    stroke-dasharray="4 3"
+    fill="none"
+    opacity="0.9"
+  />
+  <text
+    x="334"
+    y="440"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="22"
+    fill="#bc8cff"
+    text-anchor="middle"
+    font-weight="700"
+  >
+    +
+  </text>
+  <text
+    x="378"
+    y="430"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="18"
+    fill="#f85149"
+    text-anchor="start"
+    font-weight="700"
+  >
+    never deleted
+  </text>
+  <text
+    x="378"
+    y="452"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="15"
+    fill="#8b949e"
+    text-anchor="start"
+    font-weight="400"
+  >
+    left by hand
+  </text>
+  <rect
+    x="660"
+    y="24"
+    width="596"
+    height="500"
+    rx="14"
+    fill="#161b22"
+    stroke="#30363d"
+  />
+  <text
+    x="688"
+    y="66"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="26"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="688"
+    y="114"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="17"
+    fill="#58a6ff"
+    text-anchor="start"
+    font-weight="700"
+  >
+    dist.bak-…
+  </text>
+  <path
+    d="M688,140 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <rect
+    x="688"
+    y="138"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <path
+    d="M718,140 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <rect
+    x="718"
+    y="138"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#58a6ff"
+    opacity="0.28"
+  />
+  <line
+    x1="766"
+    y1="152"
+    x2="800"
+    y2="152"
+    stroke="#f85149"
+    stroke-width="3"
+    marker-end="url(#ah-f85149)"
+    stroke-linecap="round"
+  />
+  <g
+    transform="translate(808,128) scale(0.85)"
+    stroke="#f85149"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M4,10 h36" />
+    <path d="M16,10 v-5 h12 v5" />
+    <path d="M8,10 l3,34 h22 l3,-34" />
+    <path d="M18,18 v18 M26,18 v18" />
+  </g>
+  <path
+    d="M878,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="878"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M908,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="908"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M938,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="938"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M968,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="968"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M998,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="998"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1028,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1028"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1058,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1058"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1088,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1088"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1118,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1118"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M1148,140 v-4 a4,4 0 0 1 4,-4 h8 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="1148"
+    y="138"
+    width="26"
+    height="24"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <text
+    x="1182"
+    y="158"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 10
+  </text>
+  <text
+    x="688"
+    y="254"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="17"
+    fill="#f0883e"
+    text-anchor="start"
+    font-weight="700"
+  >
+    dist.failed-…
+  </text>
+  <path
+    d="M688,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <rect
+    x="688"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <path
+    d="M718,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <rect
+    x="718"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <path
+    d="M748,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <rect
+    x="748"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="0.28"
+  />
+  <line
+    x1="796"
+    y1="292"
+    x2="830"
+    y2="292"
+    stroke="#f85149"
+    stroke-width="3"
+    marker-end="url(#ah-f85149)"
+    stroke-linecap="round"
+  />
+  <g
+    transform="translate(838,268) scale(0.85)"
+    stroke="#f85149"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M4,10 h36" />
+    <path d="M16,10 v-5 h12 v5" />
+    <path d="M8,10 l3,34 h22 l3,-34" />
+    <path d="M18,18 v18 M26,18 v18" />
+  </g>
+  <path
+    d="M938,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="938"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <path
+    d="M990,280 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <rect
+    x="990"
+    y="278"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#f0883e"
+    opacity="1.0"
+  />
+  <text
+    x="1056"
+    y="298"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="18"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 2
+  </text>
+  <text
+    x="688"
+    y="394"
+    font-family="'DejaVu Sans Mono',monospace"
+    font-size="17"
+    fill="#bc8cff"
+    text-anchor="start"
+    font-weight="700"
+  >
+    dist.undeployed-…
+  </text>
+  <path
+    d="M688,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <rect
+    x="688"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <path
+    d="M718,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <rect
+    x="718"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <path
+    d="M748,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <rect
+    x="748"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="0.28"
+  />
+  <line
+    x1="796"
+    y1="432"
+    x2="830"
+    y2="432"
+    stroke="#f85149"
+    stroke-width="3"
+    marker-end="url(#ah-f85149)"
+    stroke-linecap="round"
+  />
+  <g
+    transform="translate(838,408) scale(0.85)"
+    stroke="#f85149"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M4,10 h36" />
+    <path d="M16,10 v-5 h12 v5" />
+    <path d="M8,10 l3,34 h22 l3,-34" />
+    <path d="M18,18 v18 M26,18 v18" />
+  </g>
+  <path
+    d="M938,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="938"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <path
+    d="M990,420 v-4 a4,4 0 0 1 4,-4 h13 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="990"
+    y="418"
+    width="44"
+    height="28"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <text
+    x="1056"
+    y="438"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="18"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    keep 2
+  </text>
+  <rect
+    x="1010"
+    y="40"
+    width="222"
+    height="38"
+    rx="19"
+    fill="none"
+    stroke="#8b949e"
+  />
+  <text
+    x="1121"
+    y="65"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#8b949e"
+    text-anchor="middle"
+    font-weight="400"
+  >
+    max 3 pairs per run
+  </text>
+  <line
+    x1="624"
+    y1="274"
+    x2="654"
+    y2="274"
+    stroke="#3fb950"
+    stroke-width="5"
+    marker-end="url(#ah-3fb950)"
+    stroke-linecap="round"
+  />
+  <rect
+    x="24"
+    y="540"
+    width="1232"
+    height="76"
+    rx="14"
+    fill="#161b22"
+    stroke="#30363d"
+  />
+  <text
+    x="48"
+    y="572"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#8b949e"
+    text-anchor="start"
+    font-weight="400"
+  >
+    QuantVPS apps/web on 2026-11-27 (read-only preview)
+  </text>
+  <path
+    d="M48,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="48"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M68,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="68"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M88,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="88"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M108,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="108"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M128,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="128"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M148,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="148"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M168,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="168"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M188,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="188"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M208,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="208"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <path
+    d="M228,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <rect
+    x="228"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#58a6ff"
+    opacity="1.0"
+  />
+  <text
+    x="256"
+    y="600"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="400"
+  >
+    10 bak
+  </text>
+  <rect
+    x="378"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    stroke="#f0883e"
+    stroke-dasharray="4 3"
+    fill="none"
+    opacity="0.9"
+  />
+  <text
+    x="404"
+    y="600"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="400"
+  >
+    0 failed
+  </text>
+  <path
+    d="M518,590 v-4 a4,4 0 0 1 4,-4 h5 l6,6 z"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <rect
+    x="518"
+    y="588"
+    width="16"
+    height="14"
+    rx="4"
+    fill="#bc8cff"
+    opacity="1.0"
+  />
+  <text
+    x="544"
+    y="600"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#e6edf3"
+    text-anchor="start"
+    font-weight="400"
+  >
+    1 undeployed (121 MiB)
+  </text>
+  <line
+    x1="778"
+    y1="594"
+    x2="838"
+    y2="594"
+    stroke="#3fb950"
+    stroke-width="3"
+    marker-end="url(#ah-3fb950)"
+    stroke-linecap="round"
+  />
+  <text
+    x="854"
+    y="600"
+    font-family="'DejaVu Sans',Verdana,sans-serif"
+    font-size="16"
+    fill="#3fb950"
+    text-anchor="start"
+    font-weight="700"
+  >
+    all kept: 0 pairs over the keep counts today
+  </text>
+</svg>

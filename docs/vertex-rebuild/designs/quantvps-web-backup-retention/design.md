@@ -54,7 +54,7 @@ Effects of low free space, each from a documented step:
 ## Non-Goals
 
 - No edit to `infra/quantvps/restart-when-idle.sh` or `infra/quantvps/stage-runtime.sh`.
-- No rule for `dist.failed-<TS>` and `dist.undeployed-<TS>` in `apps/web` (card `quantvps-web-failed-undeployed-retention`), or for `.runtime-bak-<TS>` and `.runtime-failed-<TS>` in the checkout root (card `quantvps-runtime-backup-retention`). The prune reports the first two families as "not managed".
+- No rule for `dist.failed-<TS>` and `dist.undeployed-<TS>` in `apps/web` (later implemented by [../quantvps-web-failed-undeployed-retention/design.md](../quantvps-web-failed-undeployed-retention/design.md)), or for `.runtime-bak-<TS>` and `.runtime-failed-<TS>` in the checkout root (card `quantvps-runtime-backup-retention`).
 - No change to how a backup is made (deploy step 2).
 - No shared sourced file for the scripts in `infra/quantvps/`. Each script carries its own copy of the runner and lock lines, as the restart and stage scripts do; a sourced file would add a way for the only restart route to fail.
 - No disk monitor, timer or unit on QuantVPS.
@@ -239,7 +239,7 @@ Rollout order (a hard rule, because nothing is deleted before the owner approves
 | The prune step is skipped, or fails in every deploy | Each run prints how many pairs are over the keep count, and a later run removes up to 3. A failure that repeats is covered by the escalation rule under "Exit codes". The prune does not run when a deploy stops before step 8, for example at the 5 GiB gate of step 4; then the catch-up loop is the way out. |
 | A deleted backup is needed | A deleted backup cannot be restored. The `dist.bak-<TS>` half is build output; with a recorded SHA it can be built again from that commit, and a deploy of an older commit needs `--allow-older` on the restart script. The `.wrangler.bak-<TS>` half is 76 KiB (measured): the deploy config that step 3 copies from the rig, and a small `state/v3` folder written on the host, which a rebuild does not reproduce. The 18 oldest pairs record no SHA and cannot be rebuilt. Both losses are accepted with the owner approval of the first deletion. |
 | The newest pair is incomplete (for example a copy that a full disk cut short) | Accepted. It is a property of deploy step 2, a Non-Goal. Nine other pairs remain. |
-| `dist.failed-*`, `dist.undeployed-*` and `.runtime-bak-*` grow | Accepted here (Non-Goal). The prune prints count and size of the first two families. Follow-up cards. |
+| `dist.failed-*`, `dist.undeployed-*` and `.runtime-bak-*` grow | Accepted here (Non-Goal). `dist.failed-*` and `dist.undeployed-*` are now managed by [../quantvps-web-failed-undeployed-retention/design.md](../quantvps-web-failed-undeployed-retention/design.md). |
 | The record cannot be written (full disk) | The append is best effort. The run output holds the same lines. |
 
 ## Alternatives Considered

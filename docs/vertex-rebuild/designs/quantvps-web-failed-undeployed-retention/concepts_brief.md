@@ -1,6 +1,6 @@
 # Failed and undeployed retention in prune-web-backups.sh
 
-* **Author:** jeffscottward
+* **Author:** Jeff Scott Ward
 * **Date:** 2026-11-27
 
 ![Rename name collision: before vs after](rename-collision.svg)
