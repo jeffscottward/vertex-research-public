@@ -76,6 +76,6 @@ Other files were being edited while I reviewed (`csp.py`, `options.py`, `books.p
 
 The A, F, G and H numbers above come from runs on the rig data. I ran B, C and D only on a 13-symbol subset as a sanity check; no full option-book run was done.
 
-**Verdict:** not correct yet. Findings 1 and 2 change published results (one verdict flips in A, and the sign of one Δμ in H).
+Verdict: not correct yet. Findings 1 and 2 change published results (one verdict flips in A, and the sign of one Δμ in H).
 
 **Confidence:** about 0.85.

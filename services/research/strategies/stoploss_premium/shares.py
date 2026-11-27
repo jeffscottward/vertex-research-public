@@ -207,8 +207,8 @@ def ladder_path(s: Series, lo: int, hi: int, rf: Sequence[float], start: int, *,
         for sr in sold:
             age = _days(sr.day, s.dates[i])
             if sr.day != s.dates[i] and age <= RECLAIM_DAYS and s.close[i] >= sr.level * (1 + RECLAIM_PCT / 100):
-                # re-buy the rung with the cash it raised (the reclaim price is above the sale price, so the
-                # proceeds buy slightly fewer shares; the rest of the position is unchanged)
+                # re-buy as many of the rung's shares as the name's cash buys (the reclaim price is above the
+                # sale price; on a day when another rung also sold, its proceeds can be used too)
                 qty = min(sr.qty, cash / (s.close[i] * (1 + COST)))
                 if qty > 0:
                     cash -= qty * s.close[i] * (1 + COST)

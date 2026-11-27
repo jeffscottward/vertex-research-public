@@ -65,4 +65,4 @@ Resolution after the report: code fixed for the F delta band (now enforced), the
 - **Types section.** Each variant also carries a `headline` key (study.py:134), which design.md:271–275 does not list. The E variant lacks `perTrade` and `exposure`.
 - **Output.** `results.json` `inputs` also hashes `intro.html` (run.py:196). `index.html` ends with a fixed "Method" section (report.METHOD_HTML) that the output description does not mention. An unknown `--tests` ID is silently ignored.
 
-The 63 tests in `tests/test_stoploss_premium.py` pass.
+The 63 tests in `services/research/tests/test_stoploss_premium.py` pass.
