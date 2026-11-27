@@ -859,6 +859,7 @@ describe("quantdata client", () => {
   });
 
   it("does not feed a failed read to an identical read that overlaps it", async () => {
+    // A regression guard: the client before the queue-head cache check passed this test, too.
     const doFetch = vi
       .fn<QuantDataFetch>()
       .mockResolvedValueOnce(json({ error: "busy" }, { status: 500 }))

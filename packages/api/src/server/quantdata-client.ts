@@ -460,7 +460,8 @@ export const createQuantDataClient = (
       if (result.ok) store(key, result.body, ttlMs);
       return result;
     });
-    // Keep the queue alive even if `send` throws unexpectedly (for example an injected clock).
+    // Keep the queue alive even if the queued step throws unexpectedly (for example an injected
+    // clock).
     queue = run.catch(() => undefined);
     return await run;
   };
