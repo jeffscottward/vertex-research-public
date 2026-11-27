@@ -20,12 +20,18 @@
 //   refused with the reason "reserved" when fewer than `keepFree` starts of the window would stay free.
 //   The flow collector uses `withCallerReserve(client, 6)`, so /charts option reads (keepFree 0) always
 //   find 6 starts free; `freeStarts()` reports the starts left in the current 60 s window. One
-//   uncached symbol costs 5 of them: 3 for the options snapshot and 2 for the Greek heatmap.
+//   uncached symbol costs 5 of them: 3 for the options snapshot and 2 for the Greek heatmap. The
+//   options chain reads the same term structure and 24 h order flow as the snapshot, so it adds
+//   none, also when the three read at the same time (see the cache line below).
 // - HTTP 429 starts a cooldown (Retry-After seconds, else 60 s); requests during it fail fast.
 // - HTTP 401/403 starts an auth-failure cooldown (default 300 s) and classifies as "auth_failed"
 //   so repeated ticks and UI loads fail fast instead of hammering QuantData with a rejected key,
 //   while keeping `cooldownSeconds()` dedicated to rate-limit waits.
-// - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`.
+// - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`. A read
+//   checks the cache when it is called and again when it reaches the head of the queue, so two
+//   identical reads that overlap make one request start: the second gets the answer of the first
+//   (a failure is not cached, so a failed first read does not feed the second). `ttlMs` 0 never
+//   gives a cache hit.
 // - Timeout, 2 MiB body cap, redirects never followed.
 
 const QUANTDATA_DEFAULT_BASE_URL = "https://api.quantdata.us";
@@ -406,6 +412,31 @@ export const createQuantDataClient = (
     }
   };
 
+  // A live cache entry of `key`, as the answer QuantData gave (it keeps its `fetchedAt`).
+  const cached = (key: string): QuantDataResult | null => {
+    const hit = cache.get(key);
+    if (hit === undefined || hit.expires <= now()) return null;
+    return {
+      body: hit.body,
+      data: hit.body["data"],
+      fetchedAt: hit.fetchedAt,
+      ok: true,
+    };
+  };
+
+  const store = (
+    key: string,
+    body: Record<string, unknown>,
+    ttlMs: number
+  ): void => {
+    cache.delete(key);
+    cache.set(key, { body, expires: now() + ttlMs, fetchedAt: now() });
+    for (const oldest of cache.keys()) {
+      if (cache.size <= MAX_CACHE_ENTRIES) break;
+      cache.delete(oldest);
+    }
+  };
+
   const request: QuantDataClient["request"] = async (
     endpoint,
     payload,
@@ -414,34 +445,24 @@ export const createQuantDataClient = (
     keepFree = 0
   ) => {
     const key = `${endpoint} ${cacheKey === undefined ? JSON.stringify(payload) : `key ${cacheKey}`}`;
-    const hit = cache.get(key);
-    if (hit !== undefined && hit.expires > now())
-      return {
-        body: hit.body,
-        data: hit.body["data"],
-        fetchedAt: hit.fetchedAt,
-        ok: true,
-      };
+    const hit = cached(key);
+    if (hit !== null) return hit;
     const held = blocked(endpoint);
     if (held !== null) return held;
     const kept = Math.min(Math.max(0, keepFree), maxPerMinute - 1);
-    const run = queue.then(() => send(endpoint, payload, kept));
+    // At the head of the queue, check the cache again: an identical read queued ahead of this
+    // one may have filled it while this one waited. Its entry keeps its expiry time. The queued
+    // step fills the cache itself, so the next queued read sees the answer.
+    const run = queue.then(async () => {
+      const filled = cached(key);
+      if (filled !== null) return filled;
+      const result = await send(endpoint, payload, kept);
+      if (result.ok) store(key, result.body, ttlMs);
+      return result;
+    });
     // Keep the queue alive even if `send` throws unexpectedly (for example an injected clock).
     queue = run.catch(() => undefined);
-    const result = await run;
-    if (result.ok) {
-      cache.delete(key);
-      cache.set(key, {
-        body: result.body,
-        expires: now() + ttlMs,
-        fetchedAt: now(),
-      });
-      for (const oldest of cache.keys()) {
-        if (cache.size <= MAX_CACHE_ENTRIES) break;
-        cache.delete(oldest);
-      }
-    }
-    return result;
+    return await run;
   };
 
   return Object.freeze({ cooldownSeconds, freeStarts, request });
