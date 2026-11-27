@@ -5,8 +5,7 @@ export default function PublicNotFound() {
     <PublicPage
       actions={<PublicLink href="/">Return home</PublicLink>}
       description="The requested public route is not available. Browse the field guide or return to the Vertex Research overview."
-      eyebrow="404"
-      title="That page is not available."
+      title="Page not found"
     >
       <section
         aria-labelledby="not-found-next-title"
@@ -14,7 +13,7 @@ export default function PublicNotFound() {
       >
         <div className="md:col-span-7">
           <h2
-            className="font-heading font-semibold text-3xl text-foreground tracking-tight"
+            className="font-heading font-semibold text-3xl text-foreground"
             id="not-found-next-title"
           >
             Continue with a real destination

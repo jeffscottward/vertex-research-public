@@ -9,9 +9,8 @@ export const metadata = {
 export default function SolutionsPage() {
   return (
     <ResearchPublicPage
-      eyebrow="Vertex Research / Method"
-      title="An idea is a question. Not a conclusion."
-      introduction="A disciplined inquiry makes the basis for a conclusion inspectable. Start with what a source can support—and be equally precise about what it cannot."
+      title="How to test a research idea"
+      introduction="A disciplined inquiry makes the basis for a conclusion inspectable. Start with what a source can support, and state what it cannot support."
       sections={[
         {
           title: "Ask a falsifiable question",

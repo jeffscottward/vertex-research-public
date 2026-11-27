@@ -1031,9 +1031,9 @@ describe("shared shell semantics", () => {
     expect(home).toContain('tabindex="-1"');
     expect(home).toContain("<h2");
     expect(home).toContain("<dl");
-    expect(home).toContain("Sources before signals");
-    expect(home).toContain("Context before conclusions");
-    return expect(home).toContain("Research before action");
+    expect(home).toContain("Each claim shows its source");
+    expect(home).toContain("Missing context stays visible");
+    return expect(home).toContain("Research is separate from execution");
   });
 
   it("renders portal and auth shells with semantic role-gated landmarks", () => {

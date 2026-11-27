@@ -179,10 +179,10 @@ describe("public route identity and semantics", () => {
 
   it("keeps the home story substantive and every CTA on a real destination", () => {
     const html = renderPage(HomePage);
-    expect(html).toContain("Evidence before");
-    expect(html).toContain("Sources before signals");
-    expect(html).toContain("Context before conclusions");
-    expect(html).toContain("Research before action");
+    expect(html).toContain("See the evidence behind every research claim");
+    expect(html).toContain("Each claim shows its source");
+    expect(html).toContain("Missing context stays visible");
+    expect(html).toContain("Research is separate from execution");
     expect(html).toContain('href="#research-principles"');
     expect(html).toContain('id="research-principles"');
     expect(html).toContain('tabindex="-1"');
@@ -274,7 +274,7 @@ describe("public route states", () => {
     assertHeadingHierarchy(error);
     assertLinksResolve(notFound);
     assertLinksResolve(error);
-    expect(notFound).toContain("404");
+    expect(notFound).toContain("Page not found");
     expect(error).toContain('role="alert"');
     expect(error).toContain("Recovery options are ready.");
     expect(error).toContain('tabindex="-1"');
@@ -311,7 +311,7 @@ describe("public route states", () => {
     const pending = LoadingSmokePage();
     await vi.advanceTimersByTimeAsync(1500);
     const loading = markup(await pending);
-    expect(loading).toContain("The loading fixture completed.");
+    expect(loading).toContain("The loading fixture completed");
     return expect(loading).toContain(
       "This route is available only to the isolated end-to-end server."
     );

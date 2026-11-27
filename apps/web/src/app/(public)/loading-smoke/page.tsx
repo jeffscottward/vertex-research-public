@@ -13,8 +13,7 @@ export default async function LoadingSmokePage() {
   return (
     <PublicPage
       description="The guarded loading boundary completed its deterministic delay."
-      eyebrow="E2E fixture"
-      title="The loading fixture completed."
+      title="The loading fixture completed"
     >
       <p className="py-8 text-base text-muted-foreground leading-7">
         This route is available only to the isolated end-to-end server.

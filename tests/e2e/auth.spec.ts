@@ -591,7 +591,7 @@ test.describe("DF-113 auth browser journeys", () => {
         `${url.pathname}${url.search}` === expectedSignInPath
     );
     await expect(
-      page.getByRole("heading", { level: 1, name: "Welcome back." })
+      page.getByRole("heading", { level: 1, name: "Sign in" })
     ).toBeVisible();
 
     recordRuntimeCheck();
@@ -668,7 +668,7 @@ test.describe("DF-113 auth browser journeys", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Verification link processed.",
+        name: "Verification link processed",
       })
     ).toBeVisible();
     await expect(page.getByRole("status")).toContainText(
@@ -934,7 +934,7 @@ test.describe("DF-113 auth browser journeys", () => {
       expect(resetEntryResponse.status()).toBe(302);
       await expect(page).toHaveURL(new URL("/reset-password", baseURL).href);
       await expect(
-        page.getByRole("heading", { level: 1, name: "Set a new password." })
+        page.getByRole("heading", { level: 1, name: "Set a new password" })
       ).toBeVisible();
       await expect(page.locator("body")).not.toContainText(TOKEN_TEXT_PATTERN);
       await assertPageDoesNotExposeSensitiveData(page, [
@@ -1120,7 +1120,7 @@ test.describe("DF-113 auth browser journeys", () => {
       await expect(
         page.getByRole("heading", {
           level: 1,
-          name: "Verification link needs attention.",
+          name: "Verification link needs attention",
         })
       ).toBeVisible();
       await expect(

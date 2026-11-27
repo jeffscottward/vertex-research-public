@@ -30,7 +30,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "app/(public)/about/page.tsx",
-    text: "Unknown availability, missing context, and incomplete integration are not design problems to conceal. They are information the researcher needs.",
+    text: "The workspace shows unknown availability, missing context, and incomplete integration, because the researcher needs this information.",
     count: 1,
     reason:
       "Kept: Static public prose that describes product policy on unavailable states. It is not a runtime status of any resource.",
@@ -44,31 +44,24 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "app/(public)/not-found.tsx",
-    text: "That page is not available.",
-    count: 1,
-    reason:
-      "Kept: Specific 404 title with cause in the description and a Return home action.",
-  },
-  {
-    file: "app/(public)/not-found.tsx",
     text: "The requested public route is not available. Browse the field guide or return to the Vertex Research overview.",
     count: 1,
     reason:
-      "Kept: Specific: names the cause (route does not exist, eyebrow 404) and the next step (field guide or home link).",
+      "Kept: Specific: names the cause (route does not exist) and the next step (field guide or home link).",
   },
   {
     file: "app/(public)/page.tsx",
-    text: "Availability comes from the connected source. When a service is unavailable, the workspace says so. No simulated market feed. No invented research results.",
+    text: "Availability comes from the connected source. When a service is unavailable, the workspace says so. The workspace does not simulate a market feed and does not invent research results.",
     count: 1,
     reason:
       "Kept: Static prose that states the product rule on unavailable services. Not a runtime status.",
   },
   {
     file: "app/(public)/page.tsx",
-    text: "Good research is not another signal. It is knowing what supports a claim, what limits it, and what remains unknown.",
+    text: "Vertex Research shows what supports a claim, what limits it, and what remains unknown.",
     count: 1,
     reason:
-      "Kept: Static marketing prose; 'unknown' is used as a concept, not a state.",
+      "Kept: Static public prose; 'unknown' is used as a concept, not a state.",
   },
   {
     file: "app/(public)/resources/page.tsx",

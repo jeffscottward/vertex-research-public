@@ -14,41 +14,41 @@ import { clearContactThrottle } from "./helpers/database.ts";
 
 const PUBLIC_ROUTES = [
   {
-    heading: "Evidence before conviction.",
+    heading: "See the evidence behind every research claim",
     name: "home",
     path: "/",
   },
   {
-    heading: "A workspace for the evidence behind the idea.",
+    heading: "What the platform does",
     name: "features",
     path: "/features",
   },
   {
-    heading: "An idea is a question. Not a conclusion.",
+    heading: "How to test a research idea",
     name: "solutions",
     path: "/solutions",
   },
   {
-    heading: "Read the record. Understand the context.",
+    heading: "Field guide to workspace terms",
     name: "resources",
     path: "/resources",
   },
   {
-    heading: "Clarity is a research advantage.",
+    heading: "About Vertex Research",
     name: "about",
     path: "/about",
   },
   {
-    heading: "Talk to the people behind the system.",
+    heading: "Contact Vertex Research",
     name: "contact",
     path: "/contact",
   },
   {
-    heading: "Privacy notice starter",
+    heading: "Privacy notice",
     name: "privacy",
     path: "/legal/privacy",
   },
-  { heading: "Terms of service starter", name: "terms", path: "/legal/terms" },
+  { heading: "Terms of service", name: "terms", path: "/legal/terms" },
 ] as const;
 
 const RESPONSIVE_VIEWPORTS = [
@@ -175,7 +175,7 @@ test("public visual source forbids authenticated or protected capture paths", as
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Evidence before conviction.",
+      name: "See the evidence behind every research claim",
     })
   ).toBeVisible();
 });
@@ -326,7 +326,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "The loading fixture completed.",
+        name: "The loading fixture completed",
       })
     ).toBeVisible({ timeout: 10_000 });
 
@@ -388,7 +388,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
           const recordFalseSuccess = (): void => {
             if (
               document.body?.textContent?.includes(
-                "The error fixture recovered."
+                "The error fixture recovered"
               )
             ) {
               state.__DARKFACTORY_E2E_FALSE_ERROR_SUCCESS__ = true;
@@ -418,7 +418,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "This page needs another attempt.",
+        name: "This page needs another attempt",
       })
     ).toBeVisible();
     expect(
@@ -478,7 +478,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "The error fixture recovered.",
+        name: "The error fixture recovered",
       })
     ).toBeVisible();
 
@@ -494,7 +494,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "That page is not available.",
+        name: "Page not found",
       })
     ).toBeVisible();
     await expectResponsiveDocument(page);
@@ -528,7 +528,7 @@ test("canonical legal aliases redirect and guarded fixtures stay out of navigati
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Evidence before conviction.",
+      name: "See the evidence behind every research claim",
     })
   ).toBeVisible();
   await expect(page.locator('a[href="/loading-smoke"]')).toHaveCount(0);

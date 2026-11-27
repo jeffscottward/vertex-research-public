@@ -1429,7 +1429,7 @@ describe("ResetPasswordEntry", () => {
       ["one-time-reset-token", vi.fn()],
     ]);
     const valid = ResetPasswordEntry() as ElementRecord;
-    expect(valid.props["title"]).toBe("Set a new password.");
+    expect(valid.props["title"]).toBe("Set a new password");
     expect(valid.props["description"]).toBe(
       "Choose a new password for this account."
     );
@@ -1445,7 +1445,7 @@ describe("ResetPasswordEntry", () => {
       [undefined, vi.fn()],
     ]);
     const invalid = ResetPasswordEntry() as ElementRecord;
-    expect(invalid.props["title"]).toBe("Request a new reset link.");
+    expect(invalid.props["title"]).toBe("Request a new reset link");
     expect(invalid.props["description"]).toBe(
       "The reset link is invalid or expired. Request another link to continue."
     );

@@ -23,7 +23,6 @@ export interface PublicPageProps {
   readonly actions?: ReactNode;
   readonly children: ReactNode;
   readonly description: ReactNode;
-  readonly eyebrow: ReactNode;
   readonly title: ReactNode;
 }
 
@@ -31,14 +30,12 @@ export const PublicPage = ({
   actions,
   children,
   description,
-  eyebrow,
   title,
 }: PublicPageProps) => (
   <div className="df-container py-8 md:py-10 lg:py-12">
     <PageHeader
       actions={actions}
       description={description}
-      eyebrow={eyebrow}
       title={title}
       variant="public"
     />

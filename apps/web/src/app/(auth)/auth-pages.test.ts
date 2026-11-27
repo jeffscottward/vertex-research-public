@@ -49,7 +49,7 @@ describe("auth route pages", () => {
     );
 
     expect(signInMetadata.title).toBe("Sign in");
-    expect(html).toContain("Welcome back.");
+    expect(html).toContain("Sign in");
     expect(html).toContain("Checking your session");
     expect(html).not.toContain('value="/feature-items"');
     return expect(html).not.toContain('type="email"');
@@ -59,9 +59,9 @@ describe("auth route pages", () => {
     const signup = markup(createElement(SignUpPage));
     const forgot = markup(createElement(ForgotPasswordPage));
 
-    expect(signup).toContain("Start with a verified identity.");
+    expect(signup).toContain("Create an account");
     expect(signup).toContain("Checking your session");
-    expect(forgot).toContain("Reset access without exposing the account.");
+    expect(forgot).toContain("Reset your password");
     return expect(forgot).toContain("Checking your session");
   });
 
@@ -89,19 +89,19 @@ describe("auth route pages", () => {
         }),
       })
     );
-    expect(verified).toContain("Verification link processed.");
+    expect(verified).toContain("Verification link processed<");
     expect(verified).toContain("Sign in to confirm the account status.");
     expect(verified).not.toContain("Email verified.");
     expect(invalid).not.toContain("ATTACKER_CONTROLLED_ERROR");
 
-    expect(invalid).toContain("Verification link needs attention.");
-    return expect(invalid).not.toContain("Verification link processed.");
+    expect(invalid).toContain("Verification link needs attention<");
+    return expect(invalid).not.toContain("Verification link processed<");
   });
 
   it("renders the default sign-in state without password-reset confirmation", async () => {
     const html = markup(await SignInPage({ searchParams: searchParams() }));
 
-    expect(html).toContain("Welcome back.");
+    expect(html).toContain("Sign in");
     return expect(html).not.toContain("Your password was updated.");
   });
 
@@ -120,7 +120,7 @@ describe("auth route pages", () => {
       description:
         "Confirm or resend a Vertex Research email verification link.",
     });
-    expect(request).toContain("Send a verification link.");
+    expect(request).toContain("Send a verification link<");
     expect(request).not.toContain('role="alert"');
     expect(expired).toContain("Request another verification link to continue.");
     expect(expired).not.toContain('role="alert"');

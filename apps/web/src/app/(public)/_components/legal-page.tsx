@@ -72,9 +72,7 @@ export interface LegalPageProps {
 
 export const LegalPage = ({ kind }: LegalPageProps) => {
   const isPrivacy = kind === "privacy";
-  const title = isPrivacy
-    ? "Privacy notice starter"
-    : "Terms of service starter";
+  const title = isPrivacy ? "Privacy notice" : "Terms of service";
   const description = isPrivacy
     ? "A useful review structure for documenting how a finished deployment collects, uses, retains, shares, and protects information."
     : "A useful review structure for defining access, responsibilities, content rights, acceptable use, service changes, and disputes.";
@@ -88,7 +86,6 @@ export const LegalPage = ({ kind }: LegalPageProps) => {
         </PublicLink>
       }
       description={description}
-      eyebrow="Legal starter"
       title={title}
     >
       <aside
@@ -97,7 +94,7 @@ export const LegalPage = ({ kind }: LegalPageProps) => {
       >
         <div className="max-w-reading">
           <h2
-            className="font-heading font-semibold text-2xl text-foreground tracking-tight"
+            className="font-heading font-semibold text-2xl text-foreground"
             id={`${kind}-legal-status-title`}
           >
             Starter placeholder — legal review required
@@ -117,7 +114,7 @@ export const LegalPage = ({ kind }: LegalPageProps) => {
       >
         <div className="md:col-span-4">
           <h2
-            className="font-heading font-semibold text-3xl text-foreground tracking-tight"
+            className="font-heading font-semibold text-3xl text-foreground"
             id={`${kind}-review-outline-title`}
           >
             Review outline
@@ -134,11 +131,8 @@ export const LegalPage = ({ kind }: LegalPageProps) => {
               className="py-5"
               key={section.title}
             >
-              <p className="font-semibold text-muted-foreground text-sm">
-                0{index + 1}
-              </p>
               <h3
-                className="mt-2 font-heading font-semibold text-foreground text-xl tracking-tight"
+                className="font-heading font-semibold text-foreground text-xl"
                 id={`${kind}-section-${index + 1}`}
               >
                 {section.title}
@@ -156,7 +150,7 @@ export const LegalPage = ({ kind }: LegalPageProps) => {
         className="mt-16 border-border border-t pt-6 md:mt-20"
       >
         <h2
-          className="font-heading font-semibold text-3xl text-foreground tracking-tight"
+          className="font-heading font-semibold text-3xl text-foreground"
           id={`${kind}-before-publishing-title`}
         >
           Before publishing

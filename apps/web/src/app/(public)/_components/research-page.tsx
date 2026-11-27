@@ -1,7 +1,6 @@
 import { PublicLink } from "./public-content.tsx";
 
 export interface ResearchPublicPageProps {
-  readonly eyebrow: string;
   readonly title: string;
   readonly introduction: string;
   readonly sections: readonly Readonly<{
@@ -12,7 +11,6 @@ export interface ResearchPublicPageProps {
 }
 
 export const ResearchPublicPage = ({
-  eyebrow,
   title,
   introduction,
   sections,
@@ -23,7 +21,6 @@ export const ResearchPublicPage = ({
       aria-labelledby="public-page-title"
     >
       <header className="vx-page-heading">
-        <p className="vx-eyebrow">{eyebrow}</p>
         <h1 id="public-page-title">{title}</h1>
         <p>{introduction}</p>
       </header>
@@ -36,10 +33,9 @@ export const ResearchPublicPage = ({
           <PublicLink href="/sign-in">Enter the workspace</PublicLink>
         </div>
         <dl className="vx-principle-list">
-          {sections.map((section, index) => (
+          {sections.map((section) => (
             <div key={section.title}>
               <dt>
-                <span className="vx-index">0{index + 1}</span>
                 <h2 className="text-xl">{section.title}</h2>
               </dt>
               <dd>
