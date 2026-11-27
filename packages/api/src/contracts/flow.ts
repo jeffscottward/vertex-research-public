@@ -1143,7 +1143,10 @@ export const FlowPutCallRatioPointSchema = z
   })
   .strict();
 
-/** One stored regular options session (09:30 to 16:15 New York) in the multi-day series. */
+/**
+ * One stored options session (09:30 to 16:15 New York, 13:15 on an NYSE early close) in the
+ * multi-day series.
+ */
 export const FlowPutCallRatioDaySchema = z
   .object({
     session: isoDate,

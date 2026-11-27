@@ -1,11 +1,10 @@
 // What: the market_premium source of flow.collect. Each run makes at most one QuantData
 // gainers-losers request: the live capture of today's session (about every 15 minutes while
 // options trade, 09:30-16:15 New York, 13:15 on an early close, on an NYSE trading day), else the
-// gap fill of the oldest
-// weekday of the last 400 days that the session ledger does not hold as complete. A session is
-// complete only when it was fetched on a New York day after the session date, so the gap fill is
-// the one-year backfill, the settle fetch of each partial live session (after midnight) and the
-// repair of missed sessions.
+// gap fill of the oldest weekday of the last 400 days that the session ledger does not hold as
+// complete. A session is complete only when it was fetched on a New York day after the session
+// date, so the gap fill is the one-year backfill, the settle fetch of each partial live session
+// (after midnight) and the repair of missed sessions.
 // Each attempt updates the ledger row of its session (flow_market_premium_sessions).
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
