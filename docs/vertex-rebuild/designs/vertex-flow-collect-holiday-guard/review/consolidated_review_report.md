@@ -43,11 +43,11 @@
 
 | Proposal | Raw findings | Decision |
 | --- | --- | --- |
-| Calendar-disagreement probe read | Inventive IC-1 | DECLINE (new probe path for a risk with no seen case; ZO8-4) |
-| Shared declarative window table | Inventive IC-2, IC-4 | DECLINE; the duplication is recorded as a risk (A16) |
+| Calendar-disagreement probe read | Inventive IC-1 | CONTEST (new probe path for a risk with no seen case; ZO8-4) |
+| Shared declarative window table | Inventive IC-2, IC-4 | CONTEST; the duplication is recorded as a risk (A16) |
 | Back-off on unchanged totals, runtime closure list | Inventive IC-3 | DECLINE |
 | Local rewrite of `collectorCaughtUp` | Design B1 fix step 2 | CONTEST (A1 fixes it at the shared helper) |
-| `NYSE_SPECIAL_EARLY_CLOSES` list, year guard | Design M6 | DECLINE (no one-off early close announced; the parity test of A10 pins 2025-2028) |
+| `NYSE_SPECIAL_EARLY_CLOSES` list, year guard | Design M6 | CONTEST (no one-off early close announced; the parity test of A10 pins 2025-2028) |
 | Full list of every caller with a reason | Design M1 | PROPOSE FIX in reduced form (A12): helpers named, reader tests |
 | CME follow-up card | Design N6 | DECLINE (pre-existing, documented; no seen harm) |
 

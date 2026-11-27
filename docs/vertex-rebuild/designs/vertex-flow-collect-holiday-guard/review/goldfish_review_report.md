@@ -135,14 +135,14 @@ Resolution gate: **Auto accept** (standing owner exception 2026-11-13): every PR
 ### [D1] [`egm-inventive-catalyst IC-1`] - Severity: Major
 
 * **Discrepancy Description:** Calendar-disagreement probe read.
-* ***AI Suggestion:*** DECLINE
-* ***Justification:*** A new probe path and requests for a risk with no seen case; rule-based calendar pinned by the parity test (A10).
+* ***AI Suggestion:*** CONTEST
+* ***Justification:*** The probe adds a new runtime read path and overdue entry for a risk with no seen case. Repository `AGENTS.md` golden rule 12 ("No speculative infrastructure") forbids it, and Stage 8 ZO8-4 rejects it for this bug fix. The rule-based calendar is pinned to the exchange-sourced `infra/quantvps/nyse-calendar.txt` by the parity test (A10), and the common-mode fault is stated in Risks.
 
 ### [D2] [`egm-inventive-catalyst IC-2, IC-4`] - Severity: Major
 
 * **Discrepancy Description:** Shared declarative window table.
-* ***AI Suggestion:*** DECLINE
-* ***Justification:*** Wider refactor than a bug fix; the duplication is recorded in Risks (A16).
+* ***AI Suggestion:*** CONTEST
+* ***Justification:*** A shared window table is a wider refactor than this bug fix (Stage 5 Z2 and Stage 8 ZO8-4 keep it out). The two stock windows differ on purpose (extended hours for the collector, regular session for the alert), and both copies now share the calendar rule (`nyseCloseMinute`). The remaining duplication is recorded in Risks (A16).
 
 ### [D3] [`egm-inventive-catalyst IC-3`] - Severity: Nit
 
@@ -159,8 +159,8 @@ Resolution gate: **Auto accept** (standing owner exception 2026-11-13): every PR
 ### [D5] [`egm-design M6`] - Severity: Major
 
 * **Discrepancy Description:** NYSE_SPECIAL_EARLY_CLOSES list and a year guard.
-* ***AI Suggestion:*** DECLINE
-* ***Justification:*** No one-off early close is announced; the parity test pins 2025-2028 to the exchange-sourced list; the limit is stated in Risks.
+* ***AI Suggestion:*** CONTEST
+* ***Justification:*** No one-off early close is announced, so a special list has no current requirement (`AGENTS.md` golden rule 12; ZO8-4). A year guard is not needed for a rule-based calendar: the parity test checks every day of 2025-2028 against `infra/quantvps/nyse-calendar.txt`, and that file's own guard fails closed outside its years. The limit is stated in Risks.
 
 ### [D6] [`egm-design N6`] - Severity: Nit
 
@@ -171,6 +171,6 @@ Resolution gate: **Auto accept** (standing owner exception 2026-11-13): every PR
 ## Counts
 
 * PROPOSE FIX: 18 (applied)
-* CONTEST: 1
-* DECLINE: 5
+* CONTEST: 4
+* DECLINE: 2
 * ESCALATE: 0
