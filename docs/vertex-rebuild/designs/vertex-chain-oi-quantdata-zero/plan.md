@@ -4,8 +4,8 @@
 
 - Card: vertex-chain-oi-quantdata-zero
 - Kind: bug fix. No new module, endpoint or data format. One enum of the API schema changes the order of its two values.
-- Base commit: 2f2a18186
-- Status: the code change is built and tested on the branch (acceptance checks 1 to 3 pass). The push, the pull request, the deploy and the live check (checks 4 and 5) are open.
+- Base commit: 2f2a18186 (plan authored); branch merged with origin/vertex/rebuild-darkfactory-20260921 at 582623a34
+- Status: the code change is built, tested, and opened in PR #461 (acceptance checks 1 to 3 pass). CI, merge, deploy, and the live check (checks 4 and 5) are open.
 
 ## Terms
 
@@ -127,8 +127,8 @@ In scope: the priority order of one field, the adapter rule, their tests, the ch
 
 Not in scope:
 
-- The stored prints (table `flow_option_prints`, written by `parseOptionPrints` in `packages/api/src/flow-options.ts`). The column `open_interest` keeps the raw value. A search for `openInterest` and `open_interest` in `packages/api/src` and `packages/db/src` found no reader of that column.
-- The flags Opening and Vol > OI on the Flow page. They are Quant Data's own flags (`isOpeningPosition`, `isVolumeGreaterThanOpenInterest`). The second signal above suggests that they are wrong for the same contracts. A change needs proof from the stored prints and a third state of each flag (the provider value is not used) in the API schema and in a table; the repository's status language rule does not allow a vague state name. Follow-up card: vertex-flow-print-flags-oi-zero.
+- The stored prints (table `flow_option_prints`, written by `parseOptionPrints` in `packages/api/src/flow-options.ts`). The column `open_interest` keeps the raw value; since PRs #451 and #453, `oiFlags` reads `openInterest === 0` on stored prints to treat their Opening and Vol > OI flags as not reported.
+- The flags Opening and Vol > OI on the Flow page. They are Quant Data's own flags (`isOpeningPosition`, `isVolumeGreaterThanOpenInterest`). Follow-up card `vertex-flow-print-flags-oi-zero` proved from QuantVPS stored prints that both flags are `true` on every `open_interest = 0` print and shipped the not-reported third state in PRs #451, #453, and #459.
 - Strike profiles, GEX and max pain on `/charts`. They read the open-interest-by-strike endpoint (option E). For SPY strike 700 it returned calls 43,925 and puts 223,749 (all expiries together) in the same check.
 
 ## Acceptance checks
