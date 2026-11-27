@@ -297,7 +297,7 @@ def chain_rows(ctx: Context, symbol: str, payload: Any) -> tuple[list[dict[str, 
     as_of = _as_of(data.get("last_trade_time"), ctx.today)
     contracts, skipped = options_math.parse_contracts(options, as_of)
     if skipped:
-        ctx.warn(f"cboe chain {symbol}: skipped {skipped} rows without a standard OCC symbol")
+        ctx.info(f"cboe chain {symbol}: skipped {skipped} rows without a standard OCC symbol")
     if not contracts:
         ctx.warn(f"cboe chain {symbol}: no unexpired contracts")
         return [], []
