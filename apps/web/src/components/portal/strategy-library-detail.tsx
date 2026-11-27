@@ -91,9 +91,10 @@ export const StrategyLinks = ({
   );
 };
 
-// "High priority", the Vertex result and "Externally pre-validated" beside a strategy name (board
-// rows, cards and the detail header). Text labels on theme tokens; nothing renders when none applies.
-export const StrategyBadges = ({
+// "High priority", the Vertex result and "Externally pre-validated" beside the strategy name in the
+// detail header. The list and the cards print the same facts as plain text (strategy-library-
+// workspace.tsx). Text labels on theme tokens; nothing renders when none applies.
+const StrategyBadges = ({
   strategy,
 }: Readonly<{
   strategy: Pick<

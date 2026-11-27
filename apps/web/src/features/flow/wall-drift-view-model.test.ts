@@ -151,8 +151,10 @@ describe("flowWallDriftView", () => {
         timeZone: "America/New_York",
       }).format(new Date(iso));
     expect(view.inputs).toBe(
-      `levels flow_gex at ${et(minutesAgo(5))} ET · price at ${et(minutesAgo(2))} ET · gex-wall-drift-rules.v1`
+      `levels from the flow snapshot at ${et(minutesAgo(5))} ET · price at ${et(minutesAgo(2))} ET · gex-wall-drift-rules.v1`
     );
+    // The source prints as words; its code (flow_gex) never reaches the page.
+    expect(view.inputs).not.toMatch(/[a-z]_[a-z]/);
   });
 
   it("labels break risk, a wall without a flip and no-read without a wall", () => {
@@ -383,7 +385,8 @@ describe("stockWallDriftView", () => {
       LAB_NOW
     );
     expect(view).toMatchObject({ read: "hold-A", ticker: "SPY" });
-    expect(view.inputs).toContain("levels options_analytics at");
+    expect(view.inputs).toContain("levels from options analytics at");
+    expect(view.inputs).not.toContain("options_analytics");
   });
 
   it("refuses analytics of another symbol", () => {

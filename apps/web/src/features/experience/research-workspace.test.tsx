@@ -129,19 +129,26 @@ describe("ResearchWorkspace", () => {
     );
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     expect(container.querySelector("h1")?.textContent).toBe("Research");
+    // The shell prints the research-only notice; the subtitle does not repeat it.
     expect(container.querySelector("header p")?.textContent).toBe(
-      "Discuss evidence with corpus-based research agents. Research only: nothing here authorizes a trade."
+      "Discuss evidence with corpus-based research agents."
     );
     expect(newRoom(container).disabled).toBe(false);
     expect(newRoom(container).textContent).toBe("New room");
-    // The scope chooser and chat room sit in one bordered panel under the header.
-    const panel = container.querySelector(
-      'section[data-slot="panel"][aria-labelledby="research-rooms-heading"]'
+    // The scope chooser and chat room sit in one plain section under the
+    // header: no bordered panel wraps the bordered notices and the chat.
+    expect(container.querySelector('[data-slot="panel"]')).toBeNull();
+    const group = container.querySelector(
+      'section[aria-labelledby="research-rooms-heading"]'
     );
-    expect(panel?.querySelector("h2")?.textContent).toBe(
+    expect(group?.className).not.toMatch(/\bborder|\bbg-|\bp-\d/);
+    expect(group?.querySelector("h2")?.textContent).toBe(
       "Research conversations"
     );
-    expect(panel?.querySelector("#research-conversations")).not.toBeNull();
+    expect(group?.querySelector("header p")?.textContent).toBe(
+      "Pick a research scope, then open or create a room."
+    );
+    expect(group?.querySelector("#research-conversations")).not.toBeNull();
     // No create-room form is mounted in this stand-in: New room does nothing.
     await act(async () => newRoom(container).click());
     expect(document.activeElement).toBe(document.body);

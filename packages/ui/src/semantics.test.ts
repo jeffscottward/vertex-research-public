@@ -132,6 +132,8 @@ describe("semantic server-safe primitives", () => {
     expect(portalHeader).toContain('data-variant="portal"');
     expect(portalHeader).not.toContain("<p");
     expect(publicHeader).toContain("text-4xl");
+    expect(publicHeader).not.toContain("tracking-");
+    expect(portalHeader).not.toContain("tracking-");
     expect(sectionHeader).toContain("<h3");
     return expect(cardTitle).toContain("<h2");
   });
@@ -150,6 +152,7 @@ describe("semantic server-safe primitives", () => {
     );
 
     expect(status).toContain('data-status="success"');
+    expect(status).not.toContain("data-plain");
     expect(status).toContain("before:shrink-0");
     expect(status).toContain("Status:");
     expect(status).toContain("Ready");
@@ -236,7 +239,6 @@ describe("semantic server-safe primitives", () => {
         createElement(PageHeader, {
           actions: createElement("a", { href: "/start" }, "Start"),
           description: "Public description",
-          eyebrow: "Platform",
           title: "Public architecture",
           variant: "public",
         }),
@@ -248,7 +250,6 @@ describe("semantic server-safe primitives", () => {
     );
 
     for (const text of [
-      "Platform",
       "Public architecture",
       "Public description",
       "Start",

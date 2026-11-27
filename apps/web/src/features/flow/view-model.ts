@@ -100,6 +100,16 @@ export const FRESHNESS_TONE: Readonly<Record<FlowFreshnessState, Tone>> = {
   stale: "warning",
 };
 
+/** The words of a freshness state; the page prints these, never the state code. */
+export const FRESHNESS_LABELS: Readonly<
+  Partial<Record<FlowFreshnessState, string>>
+> = {
+  closed: "Closed",
+  fresh: "Fresh",
+  never: "Never collected",
+  stale: "Stale",
+};
+
 export type FreshnessRow = Readonly<{
   source: FlowSource;
   label: string;
@@ -187,11 +197,18 @@ export const voteTone = (vote: string): Tone =>
     : undefined) ?? "info";
 
 export const VOTE_LABELS: Readonly<Partial<Record<FlowVote, string>>> = {
-  bearish: "bearish",
-  bullish: "bullish",
-  context: "context",
-  neutral: "neutral",
-  no_data: "no data",
+  bearish: "Bearish",
+  bullish: "Bullish",
+  context: "Context",
+  neutral: "Neutral",
+  no_data: "No data",
+};
+
+/** The words of a direction (an event) or a sentiment (an option print). */
+const DIRECTION_LABELS: Readonly<Partial<Record<FlowDirection, string>>> = {
+  bearish: "Bearish",
+  bullish: "Bullish",
+  neutral: "Neutral",
 };
 
 const DIRECTION_TONE: Readonly<Record<FlowDirection, Tone>> = {
@@ -324,12 +341,21 @@ const SIDE_LABELS: Readonly<Partial<Record<FlowOptionPrint["side"], string>>> =
     below_bid: "Below bid",
     bid: "At bid",
     mid: "Mid",
-    not_classified: "not classified",
+    not_classified: "Not classified",
   };
 
 const SIDE_TITLES: Readonly<Partial<Record<string, string>>> = {
   not_classified:
     "QuantData sent no side code for this print, or a code that this version does not map",
+};
+
+const CONSOLIDATION_LABELS: Readonly<
+  Partial<Record<FlowOptionPrint["consolidation"], string>>
+> = {
+  block: "Block",
+  other: "Print",
+  split: "Split",
+  sweep: "Sweep",
 };
 
 export type OptionPrintRow = Readonly<{
@@ -345,9 +371,9 @@ export type OptionPrintRow = Readonly<{
   side: string;
   /** Cause of a side without a direction; null when the side label needs none. */
   sideTitle: string | null;
-  sentiment: FlowOptionPrint["sentiment"];
+  sentiment: string;
   tone: Tone;
-  kind: FlowOptionPrint["consolidation"];
+  kind: string;
   flags: readonly string[];
 }>;
 
@@ -371,11 +397,11 @@ export const optionPrintRows = (
           ]),
     ],
     key: `${print.at}-${print.contract}-${index}`,
-    kind: print.consolidation,
+    kind: enumLabel(CONSOLIDATION_LABELS, print.consolidation),
     premium: formatMoney(print.premium),
     price: formatPrice(print.price, "price not sent"),
     right: print.right === "call" ? "C" : "P",
-    sentiment: print.sentiment,
+    sentiment: enumLabel(DIRECTION_LABELS, print.sentiment),
     side: enumLabel(SIDE_LABELS, print.side),
     sideTitle:
       (Object.hasOwn(SIDE_TITLES, print.side)
@@ -519,7 +545,7 @@ export type EventRow = Readonly<{
   key: string;
   time: string;
   kind: string;
-  direction: FlowDirection;
+  direction: string;
   tone: Tone;
   detail: string;
 }>;
@@ -527,7 +553,7 @@ export type EventRow = Readonly<{
 export const eventRows = (events: readonly FlowEvent[]): readonly EventRow[] =>
   events.map((event, index) => ({
     detail: event.detail,
-    direction: event.direction,
+    direction: enumLabel(DIRECTION_LABELS, event.direction),
     key: `${event.at}-${event.kind}-${index}`,
     kind: EVENT_KIND_LABELS[event.kind],
     time: formatNyTime(event.at),

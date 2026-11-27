@@ -3,7 +3,6 @@
 import {
   Button,
   PageHeader,
-  Panel,
   StatusBadge,
   type StatusBadgeProps,
 } from "@darkfactory/ui";
@@ -76,7 +75,7 @@ export const ResearchWorkspace = ({
             New room
           </Button>
         }
-        description="Discuss evidence with corpus-based research agents. Research only: nothing here authorizes a trade."
+        description="Discuss evidence with corpus-based research agents."
         status={
           <StatusBadge data-research-scope-status="" status={status.status}>
             {status.label}
@@ -84,11 +83,20 @@ export const ResearchWorkspace = ({
         }
         title="Research"
       />
-      <Panel
-        description="Pick a research scope, then open or create a room."
-        headingId="research-rooms-heading"
-        title="Research conversations"
-      >
+      {/* One surface level: a plain section with a heading. The notices and the
+          chat inside draw their own borders, so this group has none. */}
+      <section aria-labelledby="research-rooms-heading" className="space-y-4">
+        <header className="space-y-0.5">
+          <h2
+            className="font-semibold text-base leading-snug"
+            id="research-rooms-heading"
+          >
+            Research conversations
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Pick a research scope, then open or create a room.
+          </p>
+        </header>
         <div className="vx-experience">
           <ResearchScopedWorkspace>
             <section id="research-conversations" tabIndex={-1}>
@@ -139,7 +147,7 @@ export const ResearchWorkspace = ({
             </p>
           </ResearchScopedWorkspace>
         </div>
-      </Panel>
+      </section>
     </div>
   );
 };

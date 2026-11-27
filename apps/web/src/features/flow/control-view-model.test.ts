@@ -1,4 +1,9 @@
-import { type FlowControl, FlowControlSchema } from "@darkfactory/api";
+import {
+  FLOW_AGREEMENT_STATES,
+  FLOW_CONTROL_STATES,
+  type FlowControl,
+  FlowControlSchema,
+} from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import { LAB_NOW } from "../../lab/fixtures/core.ts";
@@ -7,12 +12,14 @@ import {
   absorptionMarks,
   buildDeepTradesChart,
   buildNetDriftChart,
+  CONTROL_STATE_LABELS,
   controlAgeNotice,
   controlFreshnessRows,
   controlLines,
   controlTitle,
   crossCheckLine,
   deepTradeRows,
+  deepTradesAuditLine,
   deepTradesCoverageLine,
   deepTradesLimitLine,
   deepTradesMoreLine,
@@ -174,6 +181,17 @@ describe("control view-model", () => {
     expect(tone("one_sided", "neutral")).toBe("info");
     expect(tone("both_balanced", "neutral")).toBe("info");
     expect(tone("not_comparable", "neutral")).toBe("info");
+  });
+
+  it("has words for every control state and every agreement state", () => {
+    const states = [...FLOW_CONTROL_STATES, ...FLOW_AGREEMENT_STATES];
+    expect(Object.keys(CONTROL_STATE_LABELS).sort()).toEqual(
+      [...new Set<string>(states)].sort()
+    );
+    expect(CONTROL_STATE_LABELS.no_data).toBe("No data");
+    expect(CONTROL_STATE_LABELS.not_comparable).toBe("Not comparable");
+    for (const label of Object.values(CONTROL_STATE_LABELS))
+      expect(label).toMatch(/^[A-Z][a-z]+( [a-z]+)*$/);
   });
 
   it("writes the agreement line without a start time when the sides cannot be compared", () => {
@@ -411,6 +429,24 @@ describe("deep trades view-model", () => {
         coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
       })
     ).toBe("Streamed tape: no covered second in this window yet.");
+  });
+
+  it("states the IBKR history checks of a streamed tape, without a check, and not for a sampled tape", () => {
+    expect(deepTradesAuditLine(deep)).toBe(
+      "IBKR history check: 412 of 415 compared seconds match (99%) in 14 checks this session. Each check compares about 1000 prints, so it does not prove that the session is complete."
+    );
+    expect(
+      deepTradesAuditLine({
+        ...deep,
+        audit: { checks: 1, comparedSeconds: 2400, matchedSeconds: 1200 },
+      })
+    ).toBe(
+      "IBKR history check: 1,200 of 2,400 compared seconds match (50%) in 1 check this session. Each check compares about 1000 prints, so it does not prove that the session is complete."
+    );
+    expect(deepTradesAuditLine({ ...deep, audit: null })).toBe(
+      "IBKR history check: no check in this session yet."
+    );
+    expect(deepTradesAuditLine(sampledDeep(sp500))).toBeNull();
   });
 
   it("states the coverage of a sampled tape as an approximate share and a lower bound, and says so before the first sampled second", () => {

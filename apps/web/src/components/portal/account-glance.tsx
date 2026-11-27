@@ -183,7 +183,7 @@ export const AccountGlance = ({
   return (
     <section
       aria-labelledby="account-glance-title"
-      className="space-y-3 rounded-lg border border-border bg-card p-4 text-card-foreground"
+      className="space-y-3"
       data-account-glance="true"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">

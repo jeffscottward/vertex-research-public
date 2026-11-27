@@ -727,7 +727,7 @@ export const SectorRotationWorkspace = ({
             Refresh
           </Button>
         }
-        description="Our own relative strength ratio and momentum, both centered on 100. Not the RRG® / JdK algorithm. Research only."
+        description="Our own relative strength ratio and momentum, both centered on 100. Not the RRG® / JdK algorithm."
         status={<HeaderStatus state={state} />}
         title="Sector rotation"
       />

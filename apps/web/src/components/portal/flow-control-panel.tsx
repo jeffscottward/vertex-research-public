@@ -25,6 +25,7 @@ import {
   absorptionMarks,
   buildDeepTradesChart,
   buildNetDriftChart,
+  CONTROL_STATE_LABELS,
   controlAgeNotice,
   controlFreshnessRows,
   type ControlLine,
@@ -32,6 +33,7 @@ import {
   controlTitle,
   crossCheckLine,
   deepTradeRows,
+  deepTradesAuditLine,
   deepTradesCoverageLine,
   deepTradesLimitLine,
   deepTradesMoreLine,
@@ -45,7 +47,11 @@ import {
   sessionEventLine,
   studyLine,
 } from "../../features/flow/control-view-model.ts";
-import { formatMoney, formatNyTime } from "../../features/flow/format.ts";
+import {
+  enumLabel,
+  formatMoney,
+  formatNyTime,
+} from "../../features/flow/format.ts";
 
 /** 44 px high native select (shared by the /flow selects). */
 export const FLOW_SELECT_CLASS =
@@ -214,6 +220,7 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
   const deep = control.deepTrades;
   const streamed = deep.capture === "streamed";
   const limit = deepTradesLimitLine(deep);
+  const audit = deepTradesAuditLine(deep);
   const sum = deepTradesSum(deep);
   const chart = buildDeepTradesChart(deep);
   const rows = deepTradeRows(deep);
@@ -226,6 +233,11 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
       <p className="text-muted-foreground text-sm" data-flow-deep-coverage="">
         {deepTradesCoverageLine(deep)}
       </p>
+      {audit === null ? null : (
+        <p className="text-muted-foreground text-sm" data-flow-deep-audit="">
+          {audit}
+        </p>
+      )}
       <dl>
         <div className="min-w-0" data-metric={sum.label}>
           <dt className="text-muted-foreground text-xs">{sum.label}</dt>
@@ -351,9 +363,10 @@ const ControlDocument = ({
             </span>
             <StatusBadge
               data-flow-control-state={line.state}
+              plain
               status={line.tone}
             >
-              {line.state}
+              {enumLabel(CONTROL_STATE_LABELS, line.state)}
             </StatusBadge>
             <span className="text-sm">{line.text}</span>
             {[line.since, line.ratio, line.asOf]
@@ -392,7 +405,9 @@ const ControlDocument = ({
       <ul className="space-y-1">
         {controlFreshnessRows(control).map((row) => (
           <li className="flex items-center gap-2" key={row.key}>
-            <StatusBadge status={row.tone}>{row.text}</StatusBadge>
+            <StatusBadge plain status={row.tone}>
+              {row.text}
+            </StatusBadge>
           </li>
         ))}
       </ul>

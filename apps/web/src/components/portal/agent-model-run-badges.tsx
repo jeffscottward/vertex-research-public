@@ -3,6 +3,7 @@ import { Badge, StatusBadge } from "@darkfactory/ui";
 import { ShieldAlert } from "lucide-react";
 
 import { isAdjustedVersion } from "./agent-model-runs-client.ts";
+import { labelFor, STATUS_LABELS } from "./agent-ops-client.tsx";
 
 const RESEARCH_ONLY_TEXT = "Research only. Agent ratings never place orders.";
 
@@ -48,10 +49,13 @@ const STATUS_TONE = {
   succeeded: "success",
 } as const;
 
+// The status prints as words in plain text; the code stays in data-run-status.
 export const RunStatusBadge = ({
   status,
 }: Pick<AgentModelRunOutput, "status">) => (
-  <StatusBadge status={STATUS_TONE[status]}>{status}</StatusBadge>
+  <StatusBadge data-run-status={status} plain status={STATUS_TONE[status]}>
+    {labelFor(STATUS_LABELS, status)}
+  </StatusBadge>
 );
 
 export const FrameworkLabel = ({

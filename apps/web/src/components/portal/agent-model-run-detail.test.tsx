@@ -266,11 +266,43 @@ describe("AgentModelRunDetail", () => {
       "grid-1",
       "yfinance",
       "parse failed: no rating line",
-      "parse_failed",
+      "Parse failed",
       "This run recorded no events.",
     ])
       expect(container.textContent).toContain(text);
     expect(container.textContent).toContain("Memoryon");
+    // Status, purpose and flags print as words; the codes stay in data attributes.
+    const status = container.querySelector("[data-run-status]");
+    expect(status?.textContent).toBe("Status:Failed");
+    expect(status?.getAttribute("data-run-status")).toBe("failed");
+    expect(status?.getAttribute("data-plain")).toBe("true");
+    expect(container.textContent).toContain("PurposeBenchmark");
+    expect(
+      container
+        .querySelector('[aria-label="Flags"] li')
+        ?.getAttribute("data-run-flag")
+    ).toBe("parse_failed");
+    expect(container.textContent).not.toContain("parse_failed");
+  });
+
+  it("prints the title of a flag event as words and other titles as written", async ({
+    ui,
+  }) => {
+    const events = [
+      event(0, { kind: "flag", title: "research_only" }),
+      event(1, { kind: "tool_call", title: "get_stock_data" }),
+    ];
+    const { container } = await ui.mount(
+      gatewayWith({ get: async () => page(events, true) })
+    );
+    const flag = container.querySelector('li[data-kind="flag"]');
+    expect(flag?.textContent).toContain("Flag:");
+    expect(flag?.textContent).toContain("Research only");
+    expect(flag?.textContent).not.toContain("research_only");
+    // A tool name is an identifier: it prints as written.
+    expect(
+      container.querySelector('li[data-kind="tool_call"]')?.textContent
+    ).toContain("get_stock_data");
   });
 
   it("shows defaults for a sparse run", async ({ ui }) => {

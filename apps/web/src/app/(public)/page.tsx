@@ -3,21 +3,21 @@ import { PublicLink } from "./_components/public-content.tsx";
 
 const principles = [
   {
-    title: "Sources before signals",
-    body: "Inspect the origin, capture time, and limitations of the evidence behind a research claim. A citation is a starting point, not a conclusion.",
+    title: "Each claim shows its source",
+    body: "Inspect the origin, capture time, and limitations of the evidence behind a research claim. A citation is where the check starts.",
   },
   {
-    title: "Context before conclusions",
-    body: "Keep dataset vintages, module requirements, and acceptance status in view. Missing context should be visible, not filled in.",
+    title: "Missing context stays visible",
+    body: "Keep dataset vintages, module requirements, and acceptance status in view. The workspace shows missing context and does not fill it in.",
   },
   {
-    title: "Research before action",
+    title: "Research is separate from execution",
     body: "Separate investigation from execution. Reviewing an artifact never authorizes a trade, changes a portfolio, or activates a module.",
   },
 ] as const;
 
 export const metadata = {
-  title: "Evidence before conviction",
+  title: "Evidence-first research workspace",
   description:
     "Vertex Research brings source provenance, data context, and research constraints into one deliberate workspace.",
 };
@@ -27,16 +27,10 @@ export default function HomePage() {
     <>
       <section className="df-container vx-hero" aria-labelledby="home-title">
         <div className="vx-hero-copy">
-          <p className="vx-eyebrow">
-            Vertex Research / A clearer line of inquiry
-          </p>
-          <h1 id="home-title">
-            {"Evidence before "}
-            <span>conviction.</span>
-          </h1>
+          <h1 id="home-title">See the evidence behind every research claim</h1>
           <p className="vx-lede">
-            Good research is not another signal. It is knowing what supports a
-            claim, what limits it, and what remains unknown.
+            Vertex Research shows what supports a claim, what limits it, and
+            what remains unknown.
           </p>
           <div className="vx-actions">
             <PublicLink href="/sign-in">
@@ -56,29 +50,24 @@ export default function HomePage() {
           className="vx-research-plate"
           aria-labelledby="research-plate-title"
         >
-          <div className="vx-plate-heading">
-            <span>Research discipline</span>
-            <span aria-hidden="true">VR / 01</span>
-          </div>
-          <h2 id="research-plate-title">
-            {"Make the reasoning "}
-            <em>inspectable.</em>
-          </h2>
+          <h2 id="research-plate-title">Three questions for each claim</h2>
           <ol className="vx-plate-sequence">
             <li>
-              <span>01 / Question</span>
+              <span>Question</span>
               <p>What would change your view?</p>
             </li>
             <li>
-              <span>02 / Evidence</span>
+              <span>Evidence</span>
               <p>Where does the claim come from?</p>
             </li>
             <li>
-              <span>03 / Context</span>
+              <span>Context</span>
               <p>What does the source leave out?</p>
             </li>
           </ol>
-          <p className="vx-plate-note">A method, not a performance claim.</p>
+          <p className="vx-plate-note">
+            This is a research method. It makes no claim about performance.
+          </p>
         </aside>
       </section>
       <section
@@ -89,18 +78,12 @@ export default function HomePage() {
       >
         <div className="df-container vx-editorial-grid">
           <div>
-            <p className="vx-eyebrow">The working principle</p>
-            <h2 id="principles-title">
-              More context.
-              <br />
-              Less assumption.
-            </h2>
+            <h2 id="principles-title">How the workspace handles evidence</h2>
           </div>
           <dl className="vx-principle-list">
-            {principles.map((principle, index) => (
+            {principles.map((principle) => (
               <div key={principle.title}>
                 <dt>
-                  <span className="vx-index">0{index + 1}</span>
                   <h3>{principle.title}</h3>
                 </dt>
                 <dd>{principle.body}</dd>
@@ -114,12 +97,7 @@ export default function HomePage() {
         aria-labelledby="workspace-title"
       >
         <div>
-          <p className="vx-eyebrow">Inside the workspace</p>
-          <h2 id="workspace-title">
-            Follow the evidence.
-            <br />
-            See the boundaries.
-          </h2>
+          <h2 id="workspace-title">What you can read in the workspace</h2>
         </div>
         <div className="vx-prose">
           <p>
@@ -129,8 +107,8 @@ export default function HomePage() {
           </p>
           <p>
             Availability comes from the connected source. When a service is
-            unavailable, the workspace says so. No simulated market feed. No
-            invented research results.
+            unavailable, the workspace says so. The workspace does not simulate
+            a market feed and does not invent research results.
           </p>
           <PublicLink href="/features" variant="secondary">
             {"Explore the platform "}
@@ -140,12 +118,7 @@ export default function HomePage() {
       </section>
       <section className="vx-closing" aria-labelledby="home-next-title">
         <div className="df-container">
-          <p className="vx-eyebrow">Keep the question open</p>
-          <h2 id="home-next-title">
-            Build conviction.
-            <br />
-            Keep the evidence.
-          </h2>
+          <h2 id="home-next-title">Open the workspace</h2>
           <PublicLink href="/sign-in">
             {"Sign in to Vertex Research "}
             <ArrowUpRight aria-hidden="true" className="size-4" />

@@ -38,6 +38,8 @@ import {
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
+  flowTapeAudits,
+  flowTapeGaps,
   flowTapeSeconds,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
@@ -46,7 +48,8 @@ import { InvalidRepositoryInputError } from "./repository-errors.ts";
 // Flow pipeline storage (flow.*, docs/vertex-rebuild/flow-pipeline.md). flow.collect records one
 // sample row per source attempt and upserts the derived rows; flow.snapshot reads one symbol's
 // window. Rows are derived and regenerable; prune() removes rows older than each table's retention cutoff.
-// Exception: the per-second counts of flow_tape_seconds cannot be collected again and are not pruned.
+// Exception: the per-second counts of flow_tape_seconds cannot be collected again and are not pruned;
+// neither are the tape checks of flow_tape_audits. The collector deletes flow_tape_gaps rows itself.
 // Research only: no order path.
 
 export type {
@@ -118,6 +121,8 @@ export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
 export type FlowLargeTradeRecord = typeof flowLargeTrades.$inferSelect;
 export type FlowTapeSecondsRecord = typeof flowTapeSeconds.$inferSelect;
+export type FlowTapeGapRecord = typeof flowTapeGaps.$inferSelect;
+export type FlowTapeAuditRecord = typeof flowTapeAudits.$inferSelect;
 export type FlowMarketPremiumRecord = typeof flowMarketPremium.$inferSelect;
 export type FlowMarketPremiumSessionRecord =
   typeof flowMarketPremiumSessions.$inferSelect;
@@ -496,6 +501,27 @@ export type FlowRepository = Readonly<{
     symbol: FlowOptionPrintSymbolValue,
     startTime: Date
   ) => Promise<void>;
+  /** Tape ranges of ES or NQ that the look-back limit cut, oldest start first. */
+  tapeGaps: (symbol: "ES" | "NQ") => Promise<FlowTapeGapRecord[]>;
+  /** Stores a new tape gap; a stored gap with the same symbol and start keeps the later end. */
+  addTapeGap: (gap: FlowTapeGapRecord) => Promise<void>;
+  /**
+   * Moves a stored tape gap's start forward to the end of the part that was read; a stored gap
+   * that already starts there merges with it and keeps the later end. No gap: nothing happens.
+   */
+  moveTapeGapStart: (
+    symbol: "ES" | "NQ",
+    startTime: Date,
+    nextStart: Date
+  ) => Promise<void>;
+  /** Deletes a tape gap that was read to its start (or that the ring can no longer hold). */
+  deleteTapeGap: (symbol: "ES" | "NQ", startTime: Date) => Promise<void>;
+  /** Insert-once by (symbol, from_second); returns 1 when the check is new, else 0. */
+  insertTapeAudit: (row: FlowTapeAuditRecord) => Promise<number>;
+  /** Tape checks of a symbol with from <= from_second < to, ascending by from_second. */
+  readTapeAudits: (
+    query: FlowTapeSecondsQuery
+  ) => Promise<FlowTapeAuditRecord[]>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
   newestDataAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
   /**
@@ -644,6 +670,79 @@ export const createFlowRepository = (
           )
         );
     },
+    addTapeGap: async (gap) => {
+      await database
+        .insert(flowTapeGaps)
+        .values(gap)
+        .onConflictDoUpdate({
+          set: {
+            endTime: sql`greatest(${flowTapeGaps.endTime}, excluded.end_time)`,
+          },
+          target: [flowTapeGaps.symbol, flowTapeGaps.startTime],
+        });
+    },
+    deleteTapeGap: async (symbol, startTime) => {
+      await database
+        .delete(flowTapeGaps)
+        .where(
+          and(
+            eq(flowTapeGaps.symbol, symbol),
+            eq(flowTapeGaps.startTime, startTime)
+          )
+        );
+    },
+    insertTapeAudit: async (row) =>
+      (
+        await database
+          .insert(flowTapeAudits)
+          .values(row)
+          .onConflictDoNothing()
+          .returning({ at: flowTapeAudits.fromSecond })
+      ).length,
+    moveTapeGapStart: async (symbol, startTime, nextStart) => {
+      // Delete and insert in one transaction: a stored gap that already starts at nextStart (a cut
+      // range stored again after a lost sample) merges with the moved one and keeps the later end,
+      // instead of a key conflict that would stop the catch-up.
+      await database.transaction(async (tx) => {
+        const [row] = await tx
+          .delete(flowTapeGaps)
+          .where(
+            and(
+              eq(flowTapeGaps.symbol, symbol),
+              eq(flowTapeGaps.startTime, startTime)
+            )
+          )
+          .returning();
+        if (row === undefined) return;
+        await tx
+          .insert(flowTapeGaps)
+          .values({ ...row, startTime: nextStart })
+          .onConflictDoUpdate({
+            set: {
+              endTime: sql`greatest(${flowTapeGaps.endTime}, excluded.end_time)`,
+            },
+            target: [flowTapeGaps.symbol, flowTapeGaps.startTime],
+          });
+      });
+    },
+    readTapeAudits: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowTapeAudits)
+        .where(
+          and(
+            eq(flowTapeAudits.symbol, symbol),
+            gte(flowTapeAudits.fromSecond, from),
+            lt(flowTapeAudits.fromSecond, to)
+          )
+        )
+        .orderBy(asc(flowTapeAudits.fromSecond)),
+    tapeGaps: (symbol) =>
+      database
+        .select()
+        .from(flowTapeGaps)
+        .where(eq(flowTapeGaps.symbol, symbol))
+        .orderBy(asc(flowTapeGaps.startTime)),
     insertBooks: (rows) =>
       insertOnce(rows, (batch) =>
         database

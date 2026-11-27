@@ -75,7 +75,7 @@ export const ResetPasswordEntry = () => {
           ? "Choose a new password for this account."
           : "The reset link is invalid or expired. Request another link to continue."
       }
-      title={hasToken ? "Set a new password." : "Request a new reset link."}
+      title={hasToken ? "Set a new password" : "Request a new reset link"}
     >
       <SessionRedirect callbackURL="/dashboard">
         <ResetPasswordForm token={token} />

@@ -94,6 +94,9 @@ describe("AcademyGallery", () => {
     const card = container.querySelector(`[data-lesson-card="${first.slug}"]`);
     expect(card?.querySelector("img")?.getAttribute("src")).toBe("/thumb.jpg");
     expect(card?.textContent).toContain("62 s");
+    // The tags print as one line of plain text with separators.
+    expect(card?.textContent).toContain(" · ");
+    expect(card?.querySelector('[data-slot="badge"]')).toBeNull();
     const other = cards(container)[1];
     expect(other?.querySelector("img")).toBeNull();
     expect(other?.textContent).toContain("chart");
@@ -175,9 +178,12 @@ describe("AcademyGallery", () => {
     expect(
       header?.querySelector('button[aria-label^="Switch the Academy"]')
     ).not.toBeNull();
-    const panel = container.querySelector("[data-slot=panel]");
-    expect(panel?.querySelector('[role="search"]')).not.toBeNull();
-    expect(panel?.querySelector("[data-academy-cards]")).not.toBeNull();
+    // The lesson cards sit under a heading with no panel border around them.
+    expect(container.querySelector("[data-slot=panel]")).toBeNull();
+    const section = container.querySelector("section[data-academy-course]");
+    expect(section?.querySelector("h2")?.textContent).toBe("Lessons");
+    expect(section?.querySelector('[role="search"]')).not.toBeNull();
+    expect(section?.querySelector("[data-academy-cards]")).not.toBeNull();
   });
 
   it("pages the grid with Previous and Next, keeping the page in the URL", async () => {

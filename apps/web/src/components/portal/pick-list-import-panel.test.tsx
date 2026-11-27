@@ -153,6 +153,12 @@ describe("PickListImportPanel", () => {
     const input = container.querySelector(
       'input[type="file"]'
     ) as HTMLInputElement;
+    // The label is as wide as its content and can wrap on a narrow screen.
+    const label = input.closest("label");
+    expect(label?.className).toContain("inline-flex");
+    expect(label?.className).toContain("max-w-full");
+    expect(label?.className).toContain("flex-wrap");
+    expect(input.className).toContain("max-w-full");
     const file = new File(["Symbol\nAMD\n"], "list.csv", { type: "text/csv" });
     Object.defineProperty(input, "files", {
       configurable: true,

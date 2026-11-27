@@ -82,8 +82,11 @@ describe("Panel", () => {
     expect(html).toContain("[&amp;_[data-slot=table]_td:first-child]:pl-4");
     expect(html).toContain("body-extra");
     expect(html).not.toContain('class="p-4');
-    // Header labels are small, uppercase and muted; numbers line up.
-    expect(html).toContain("[&amp;_th]:uppercase");
+    // Header labels are small and muted, printed as written; numbers line up.
+    expect(html).toContain("[&amp;_th]:text-xs");
+    expect(html).toContain("[&amp;_th]:text-muted-foreground");
+    expect(html).not.toContain("uppercase");
+    expect(html).not.toContain("tracking-wide");
     expect(html).toContain("tabular-nums");
   });
 });

@@ -498,6 +498,18 @@ describe("Vertex rendered research states", () => {
       if (kind === "not-found" || kind === "invalid")
         expect(html).not.toContain("<button");
     }
+    // The detail of this kind says that a retry cannot succeed, so the panel offers none.
+    const notConfigured = renderToStaticMarkup(
+      <ReadFailure
+        failure={classifyVertexFailure(
+          new VertexReadError("server-not-configured")
+        )}
+        retry={() => undefined}
+        returnTo="/modules"
+      />
+    );
+    expect(notConfigured).toContain("A retry cannot succeed");
+    expect(notConfigured).not.toContain("<button");
     const retry = vi.fn();
     const node = ReadFailure({
       failure: classifyVertexFailure(new Error()),
@@ -513,6 +525,19 @@ describe("Vertex rendered research states", () => {
       renderToStaticMarkup(<ModulesWorkspace gateway={fixture.gateway} />)
     ).toContain("Refresh catalog");
     return expect(fixture.list).not.toHaveBeenCalled();
+  });
+
+  it("prints the module version as plain sentence-case text above the module name", () => {
+    const html = renderToStaticMarkup(
+      <ModuleResults
+        retry={() => undefined}
+        state={{ type: "ready", value: [module] }}
+      />
+    );
+    expect(html).toContain(
+      `<p class="font-medium text-muted-foreground text-sm">Module manifest / ${module.version}</p>`
+    );
+    expect(html).not.toContain("vx-eyebrow");
   });
 
   return it("retains source-first foundations while exposing scope-protected Research Lab", () => {

@@ -22,7 +22,7 @@ export default async function SignInPage({
   return (
     <AuthPanel
       description="Enter the email and password for your account."
-      title="Welcome back."
+      title="Sign in"
     >
       <SessionRedirect callbackURL={callbackURL}>
         {wasReset ? (

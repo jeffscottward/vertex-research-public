@@ -15,7 +15,7 @@ test.describe("DF-076 public contact form", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Talk to the people behind the system.",
+        name: "Contact Vertex Research",
       })
     ).toBeVisible();
 

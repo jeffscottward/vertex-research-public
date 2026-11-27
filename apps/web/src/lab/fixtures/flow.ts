@@ -494,6 +494,9 @@ const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
           },
         ]
       : [],
+    audit: sp500
+      ? { checks: 14, comparedSeconds: 415, matchedSeconds: 412 }
+      : null,
     capture: "streamed",
     coverage: sp500
       ? { seenSeconds: 1746, share: 0.97, windowSeconds: 1800 }

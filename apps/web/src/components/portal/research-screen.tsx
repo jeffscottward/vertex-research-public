@@ -573,7 +573,7 @@ export const ResearchScreenWorkspace = ({
             </Link>
           </nav>
         }
-        description="Scheduled screen of the catalog reports against public price data. Research only; a row does not authorize a trade."
+        description="Scheduled screen of the catalog reports against public price data."
         status={headerStatus(state, view)}
         title="Research screen"
       />

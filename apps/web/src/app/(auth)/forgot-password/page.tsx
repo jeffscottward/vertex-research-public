@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
           Return to sign in
         </Link>
       }
-      title="Reset access without exposing the account."
+      title="Reset your password"
     >
       <SessionRedirect callbackURL="/dashboard">
         <EmailActionForm operation="password-reset" />

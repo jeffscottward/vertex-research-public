@@ -79,7 +79,7 @@ export const PortfolioContinuity = ({
   >
     <h2>Projection continuity</h2>
     <p
-      className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]"
+      className="font-medium text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]"
       role="status"
     >
       {continuityStateLabel(continuity.state)}
@@ -159,7 +159,8 @@ export const PortfolioCollection = <Row,>({
   identity,
 }: {
   readonly title: string;
-  readonly description: string;
+  /** Help text behind the info icon; without it the heading shows no icon. */
+  readonly description?: string;
   readonly notice?: string;
   readonly rows: readonly Row[];
   readonly columns: readonly Column<Row>[];
@@ -190,9 +191,13 @@ export const PortfolioCollection = <Row,>({
       aria-labelledby={headingId}
     >
       <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
-        <ResearchTableHeading id={headingId} title={title}>
-          <p>{description}</p>
-        </ResearchTableHeading>
+        {description === undefined ? (
+          <ResearchTableHeading id={headingId} title={title} />
+        ) : (
+          <ResearchTableHeading id={headingId} title={title}>
+            <p>{description}</p>
+          </ResearchTableHeading>
+        )}
         <span className="text-muted-foreground text-sm leading-relaxed">
           {rows.length} supplied
         </span>
@@ -361,7 +366,7 @@ export const PortfolioObservation = ({
       aria-label="Portfolio source"
     >
       <h2>Source observation</h2>
-      <p className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]">
+      <p className="font-medium text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]">
         {snapshot.environment}
         {" · "}
         {sourceKindLabel(snapshot.sourceKind)}
@@ -484,7 +489,6 @@ export const PortfolioObservation = ({
     />
     <PortfolioCollection
       title="Reservation projections"
-      description="Submission keys and source events identify the supplied reservation observations."
       notice="Nonauthoritative native-owner projections. Reserved, spent, released and unknown states do not grant spending permission. This view cannot reserve, release, reconcile or submit."
       rows={snapshot.reservations}
       columns={reservationColumns}

@@ -36,6 +36,7 @@ import {
   OperatorAccessRequired,
   STAGE_LABELS,
   STATUS_LABELS,
+  TASK_KIND_LABELS,
 } from "./agent-ops-client.tsx";
 import { SectorRotationChanges } from "./sector-rotation-changes.tsx";
 
@@ -188,8 +189,8 @@ const TaskTable = ({
                     </div>
                   )}
                 </TableHead>
-                <TableCell className="align-top font-mono text-xs">
-                  {task.kind}
+                <TableCell className="align-top text-xs">
+                  {labelFor(TASK_KIND_LABELS, task.kind)}
                 </TableCell>
                 <TableCell className="align-top font-mono text-xs">
                   {task.agent}
@@ -335,14 +336,11 @@ export const MissionControl = ({
       <div className="flex items-center justify-between gap-4">
         <dl
           aria-label="Task counters"
-          className="grid flex-1 grid-cols-3 gap-2 md:grid-cols-6"
+          className="grid flex-1 grid-cols-3 gap-2 rounded-md border border-border md:grid-cols-6"
         >
           {counters.map((counter) => {
             return (
-              <div
-                className="rounded-md border border-border px-3 py-2"
-                key={counter.label}
-              >
+              <div className="px-3 py-2" key={counter.label}>
                 <dt className="text-muted-foreground text-xs">
                   {counter.label}
                   <InfoGlyph text={counter.info} />
@@ -377,16 +375,14 @@ export const MissionControl = ({
           </>
         }
       >
-        {/* A grid, not a table: the seven stages wrap at 375 px instead of widening the page. */}
+        {/* A grid, not a table: the seven stages wrap at 375 px instead of widening the page.
+            The panel is the only bordered surface: the stage cells have no border. */}
         <dl
           aria-label="Paper counts by stage"
-          className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7"
+          className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 lg:grid-cols-7"
         >
           {RESEARCH_PAPER_STAGE_VALUES.map((stage) => (
-            <div
-              className="min-w-0 rounded-md border border-border px-3 py-2"
-              key={stage}
-            >
+            <div className="min-w-0" key={stage}>
               <dt className="text-muted-foreground text-xs">
                 {labelFor(STAGE_LABELS, stage)}
               </dt>

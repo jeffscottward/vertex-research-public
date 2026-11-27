@@ -183,6 +183,66 @@ describe("Connections lists gateways instead of a gateway ID form", () => {
     expect(container.textContent).toContain("gateway-test / paper");
   });
 
+  it("offers no retry when a status read says the backend is not configured", async () => {
+    const gateway = vi
+      .fn<ExperienceServices["reads"]["gateway"]>()
+      .mockRejectedValue(new VertexReadError("server-not-configured"));
+    const container = await mount({
+      gateways: () => Promise.resolve([paperGateway]),
+      gateway,
+    });
+    expect(container.textContent).toContain("Server backend not configured");
+    expect(container.textContent).toContain("A retry cannot succeed");
+    expect(
+      buttons(container).some((button) => button.textContent?.includes("Retry"))
+    ).toBe(false);
+  });
+
+  it("shows one plain line and no retry when the server has no gateway list", async () => {
+    const gateways = vi
+      .fn<ExperienceServices["reads"]["gateways"]>()
+      .mockRejectedValue(new VertexReadError("server-not-configured"));
+    const gateway = vi.fn(() => Promise.resolve(status()));
+    const container = await mount({ gateways, gateway });
+    const line = container.querySelector(
+      '[data-connections-state="not-configured"]'
+    );
+    expect(line?.tagName).toBe("P");
+    expect(line?.getAttribute("role")).toBe("status");
+    expect(line?.textContent).toBe(
+      "Connections are not configured on this server. Ask the operator to configure the broker gateways."
+    );
+    // A retry cannot succeed, so the page offers none and shows no error box.
+    expect(container.textContent).not.toContain(
+      "Server backend not configured"
+    );
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(buttons(container)).toEqual([]);
+    expect(gateways).toHaveBeenCalledTimes(1);
+    expect(gateway).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Verify host trust");
+  });
+
+  it("prints the labels above the headings as plain sentence-case text", async () => {
+    const container = await mount({
+      gateways: () => Promise.resolve([paperGateway]),
+      gateway: () => Promise.resolve(status()),
+    });
+    const steps = container.querySelector(
+      "#connection-human-steps"
+    )?.previousElementSibling;
+    expect(steps?.textContent).toBe("Required human actions");
+    expect(steps?.className).toBe("font-medium text-muted-foreground text-sm");
+    const observation = container.querySelector(
+      '[aria-label="Gateway observation"] header p'
+    );
+    expect(observation?.textContent).toBe("Source observation / paper");
+    expect(observation?.className).toBe(
+      "font-medium text-muted-foreground text-sm"
+    );
+    expect(container.querySelector(".vx-eyebrow")).toBeNull();
+  });
+
   it.each([
     status({ gatewayId: "gateway-other" }),
     status({ environment: "live" }),

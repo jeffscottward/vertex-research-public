@@ -90,10 +90,6 @@
 .vx-chat-heading > p {
   max-width: var(--content-reading);
 }
-.vx-chat-eyebrow {
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
 .vx-chat-authority {
   margin-top: var(--space-4);
   font-weight: 600;

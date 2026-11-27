@@ -8,11 +8,8 @@ export default function PublicLoading() {
       className="df-container py-8 md:py-10 lg:py-12"
       role="status"
     >
-      <p className="font-semibold text-primary text-sm tracking-wide">
-        Vertex Research
-      </p>
       <h1
-        className="mt-4 font-heading font-semibold text-4xl text-foreground tracking-tight"
+        className="font-heading font-semibold text-4xl text-foreground"
         id="public-loading-title"
       >
         Loading this page
