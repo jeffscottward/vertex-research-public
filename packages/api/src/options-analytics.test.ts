@@ -990,6 +990,45 @@ describe("quantdata client", () => {
     }
   });
 
+  it("gives a waiter that claims a handed-over turn a full turn, not the 2 s claim", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const finish: Array<(response: Response) => void> = [];
+      const doFetch = vi.fn<QuantDataFetch>(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish.push(resolve);
+          })
+      );
+      const client = createQuantDataClient(config, {
+        fetch: doFetch,
+        minIntervalMs: 0,
+      });
+      const first = client.request("orderFlow", { id: "a" }, 0);
+      const second = client.request("orderFlow", { id: "b" }, 0);
+      const third = client.request("orderFlow", { id: "c" }, 0);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(1);
+      // The first step ends: the second caller claims the turn, and its step runs on.
+      finish[0]?.(json({ data: 1 }));
+      await expect(first).resolves.toMatchObject({ ok: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(2);
+      // Past the 2 s claim the third caller still waits: the claimed turn is a full one.
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(doFetch).toHaveBeenCalledTimes(2);
+      // At the step deadline (0 + 10 000 + 2000) the third caller takes over.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finish[1]?.(json({ data: 1 }));
+      finish[2]?.(json({ data: 1 }));
+      await expect(second).resolves.toMatchObject({ ok: true });
+      return expect(third).resolves.toMatchObject({ ok: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("serves waiting callers in order, also when the caller before them calls again at once", async () => {
     const order: string[] = [];
     const doFetch = vi.fn<QuantDataFetch>(async (_url, init) => {
