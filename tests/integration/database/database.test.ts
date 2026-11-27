@@ -136,7 +136,6 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   openbb_sec_form4_owners: "accession_number,owner_cik",
   openbb_sec_form4_transactions: "accession_number,row_number",
   openbb_sec_ftd: "settlement_date,symbol",
-  openbb_sec_insider_trades: "accession_number,row_number",
   openbb_short_interest: "settlement_date,symbol",
   openbb_short_volume_daily: "date,symbol",
   openbb_vx_curve: "as_of,contract_month",

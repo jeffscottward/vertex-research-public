@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { OPENBB_JOB_METADATA, OPENBB_JOBS } from "./contracts/openbb.ts";
+import {
+  OPENBB_JOB_METADATA,
+  OPENBB_JOBS,
+  OpenbbIngestInputSchema,
+} from "./contracts/openbb.ts";
 import { utcDay } from "./nyse-calendar.ts";
 import {
   diffOverdueIncident,
@@ -182,7 +186,7 @@ describe("evaluateForm4Overdue", () => {
 describe("evaluateOpenbbSources", () => {
   const now = new Date("2026-11-23T16:00:00.000Z"); // Mon 11:00 ET (in session)
 
-  it("marks every monitored source healthy when fresh and keeps retired sec-insider non-overdue", () => {
+  it("marks every monitored source healthy when fresh", () => {
     const evalRes = evaluateOpenbbSources({
       flow: {
         marketPremiumSessions: [
@@ -217,11 +221,6 @@ describe("evaluateOpenbbSources", () => {
     expect(evalRes.monitoredKeys).toEqual(OPENBB_MONITORED_OVERDUE_KEYS);
     expect(evalRes.overdueMonitored).toEqual([]);
     expect(evalRes.sources.every((source) => !source.overdue)).toBe(true);
-    const retired = evalRes.sources.find(
-      (source) => source.source === "sec-insider"
-    );
-    expect(retired?.retired).toBe(true);
-    expect(retired?.maxAgeSeconds).toBeNull();
   });
 
   it("detects overdue calendar, trading-day, blocked_upstream, FINRA 10:00 ET, and flow sources", () => {
@@ -601,7 +600,6 @@ describe("diffOverdueIncident and message formatting", () => {
     overdue: true,
     overdueSince,
     reason: "stale",
-    retired: false,
     smartMoney: true,
     source,
   });
@@ -764,5 +762,16 @@ describe("diffOverdueIncident and message formatting", () => {
     expect(Object.keys(OPENBB_JOB_METADATA).sort()).toEqual(
       [...OPENBB_JOBS].sort()
     );
+
+    // Retired job and table are rejected by the ingest contract
+    expect(
+      OpenbbIngestInputSchema.safeParse({
+        finishedAt: now,
+        job: "sec-insider",
+        startedAt: now,
+        status: "ok",
+        tables: [{ rows: [], table: "sec_insider_trades" }],
+      }).success
+    ).toBe(false);
   });
 });

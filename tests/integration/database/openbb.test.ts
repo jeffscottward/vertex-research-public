@@ -57,6 +57,12 @@ const form4MigrationSql = read(
 const form4RollbackSql = read(
   "../../../packages/db/rollback/0089_sec_form4.down.sql"
 );
+const secInsiderDropMigrationSql = read(
+  "../../../packages/db/migrations/0102_drop_openbb_sec_insider_trades.sql"
+);
+const secInsiderDropRollbackSql = read(
+  "../../../packages/db/rollback/0102_drop_openbb_sec_insider_trades.down.sql"
+);
 const SHA = "e".repeat(64);
 
 let testDatabase: PostgresTestDatabase | undefined;
@@ -1331,10 +1337,13 @@ describe("OpenBB IV provenance and sources (Postgres)", () => {
   });
 
   it("refuses the rollback while rows exist", async () => {
+    // 0102 dropped openbb_sec_insider_trades; restore it first so 0064's rollback reaches its row guard.
+    await postgres().query(secInsiderDropRollbackSql);
     await expect(postgres().query(rollbackSql)).rejects.toThrow(
       /refusing rollback/u
     );
     await postgres().query("ROLLBACK");
+    await postgres().query(secInsiderDropMigrationSql);
     expect(await countRows("openbb_vx_curve")).toBe(2);
   });
 
@@ -1372,6 +1381,7 @@ describe("OpenBB IV provenance and sources (Postgres)", () => {
         "select column_name from information_schema.columns where table_schema = 'public' and table_name = 'openbb_option_iv_daily' and column_name = 'source'"
       )
     ).toEqual([]);
+    await postgres().query(secInsiderDropRollbackSql);
     for (const table of await tables())
       await postgres().query(`delete from ${table}`);
     await postgres().query(rollbackSql);
@@ -1383,5 +1393,7 @@ describe("OpenBB IV provenance and sources (Postgres)", () => {
     await postgres().query(fullBooksMigrationSql);
     await postgres().query(form4MigrationSql);
     expect(await tables()).toHaveLength(24);
+    await postgres().query(secInsiderDropMigrationSql);
+    expect(await tables()).toHaveLength(23);
   });
 });

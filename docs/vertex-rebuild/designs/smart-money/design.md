@@ -146,7 +146,7 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 
 * Rig job `sec-form4` reads each EDGAR daily index (`form.YYYYMMDD.idx`) and fetches each Form 4 and 4/A once. A ledger records each index day (entries listed, entries done, complete) and each accession (status), so a run that hits the 240 s deadline resumes where it stopped. The tick passes the incomplete days and done accessions to the job through a new read procedure.
 * The XML parser reuses OpenBB's pinned `openbb_sec` Form 4 helpers where they expose the needed fields (issuer CIK, owner CIKs, transaction code, acceptance time, 10b5-1 flag), and adds only the missing ones.
-* It replaces `sec-insider`: `openbb.sec` and the `openbb_sec` MCP tool switch to the new tables in PR 3; `openbb_sec_insider_trades` stays frozen (no writer) until the new data covers 30 days, then the old job and table are removed in a follow-up migration.
+* It replaces `sec-insider`: `openbb.sec` and the `openbb_sec` MCP tool switch to the new tables in PR 3; `openbb_sec_insider_trades` stays frozen (no writer) until the new data covers 30 days, then the old job and table are removed in a follow-up migration. Completed in [plan-sec-insider-retire.md](./plan-sec-insider-retire.md) (migration `0102_drop_openbb_sec_insider_trades`).
 * History for backtests: the same job with `--since` (one parser, one key; about 21 hours of runs per year of filings). Older years, if needed, go to a separate research-only table from the SEC quarterly data sets.
 * Cadence: the daily index appears after about 22:00 ET, so Form 4 rows are "previous business day". The plan states the step stage and run math for the real rig cycle (stages run one after another; cycle up to about 41 minutes).
 

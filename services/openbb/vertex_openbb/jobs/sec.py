@@ -1,4 +1,4 @@
-"""SEC EDGAR jobs: filings, Form 4 insider trades, fails-to-deliver and tracked 13F-HR holders.
+"""SEC EDGAR jobs: filings, fails-to-deliver and tracked 13F-HR holders.
 
 All SEC traffic goes through sec_guard (declared User-Agent, <= 8 requests/s).
 """
@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import html
 import re
-from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -131,71 +130,6 @@ async def filings(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             continue
         ctx.take(f"sec filings {symbol}", data, lambda d=data, s=symbol: filing_rows(s, d, start.isoformat()), rows)
     return {"sec_filings": rows}
-
-
-# --- sec-insider -------------------------------------------------------------------------------
-
-
-def _transaction_codes() -> dict[str, str]:
-    from openbb_sec.utils.form4 import transaction_code_map
-
-    return {" ".join(text.split()).lower(): code for code, text in transaction_code_map.items()}
-
-
-def insider_rows(symbol: str, data: list[dict[str, Any]], first: str, codes: dict[str, str]) -> list[dict[str, Any]]:
-    """Form 4 rows; rowNumber is the row's position inside its filing (OpenBB parse order)."""
-    rows = []
-    numbers: dict[str, int] = defaultdict(int)
-    for item in data:
-        url = str(item.get("filing_url") or "")
-        _, accession = accession_from_url(url)
-        filed = iso_date(item.get("filing_date"))
-        if accession is None or filed is None or filed < first:
-            continue
-        numbers[accession] += 1
-        description = " ".join(str(item.get("transaction_type") or "").split()).lower()
-        direction = str(item.get("acquisition_or_disposition") or "").strip().upper()[:1]
-        rows.append(
-            {
-                "accessionNumber": accession,
-                "acquiredDisposed": direction if direction in ("A", "D") else None,
-                "filingDate": filed,
-                "ownerName": label(item.get("owner_name"), 200),
-                "ownerTitle": label(item.get("owner_title"), 200),
-                "price": rounded(item.get("transaction_price"), 6),
-                "rowNumber": numbers[accession],
-                "shares": rounded(item.get("securities_transacted"), 6),
-                "sharesAfter": rounded(item.get("securities_owned"), 6),
-                "symbol": symbol,
-                "transactionCode": codes.get(description) if description else None,
-                "transactionDate": iso_date(item.get("transaction_date")),
-                "url": url if url.startswith("https://") else None,
-            }
-        )
-    return rows
-
-
-async def insider(ctx: Context) -> dict[str, list[dict[str, Any]]]:
-    """`equity/ownership/insider_trading` (sec, Form 4).
-
-    OpenBB's Form 4 URL filter keeps nothing unless both start_date and end_date are given, so both
-    are always passed. use_cache=False: the filing list is otherwise cached for a day.
-    """
-    start = ctx.start(30)
-    codes = _transaction_codes()
-    rows = ctx.table("sec_insider_trades")
-    for symbol in ctx.symbol_list(ctx.stocks):
-        params = {"symbol": symbol, "start_date": start.isoformat(), "end_date": ctx.today.isoformat(), "use_cache": False}
-        try:
-            data = await ctx.up.fetcher("sec", "InsiderTrading", params)
-        except UpstreamError as exc:
-            if exc.kind == "empty":
-                ctx.ok()
-                continue
-            ctx.failed(f"sec insider {symbol}", exc)
-            continue
-        ctx.take(f"sec insider {symbol}", data, lambda d=data, s=symbol: insider_rows(s, d, start.isoformat(), codes), rows)
-    return {"sec_insider_trades": rows}
 
 
 # --- sec-ftd -----------------------------------------------------------------------------------
