@@ -121,6 +121,46 @@ const sources = walk(sourceRoot)
   )
   .map((file) => ({ file, text: readFileSync(file, "utf8") }));
 
+// The shell prints the notice once per page. A page title subtitle (the description of
+// PageHeader) that repeats it, as words or through a notice constant, prints it twice. The check
+// reads the description at the call of PageHeader; it does not follow a value into a wrapper.
+const NOTICE_WORDS = /research[- ]only|authori[sz]e/i;
+const NOTICE_CONSTANT = /\b[A-Z][A-Z0-9_]*NOTICE\b/;
+const repeatsNotice = (description: string): boolean =>
+  NOTICE_WORDS.test(description) || NOTICE_CONSTANT.test(description);
+
+/** The end of the quoted string or the braced expression that starts at `start`. */
+const valueEnd = (text: string, start: number): number => {
+  if (text[start] === '"') return text.indexOf('"', start + 1) + 1;
+  let depth = 0;
+  for (let index = start; index < text.length; index += 1) {
+    if (text[index] === "{") depth += 1;
+    if (text[index] === "}") depth -= 1;
+    if (depth === 0) return index + 1;
+  }
+  return text.length;
+};
+
+/** The source text of the `description` value of every `<PageHeader>` in a file. */
+const pageHeaderDescriptions = (text: string): string[] =>
+  [...text.matchAll(/<PageHeader\b/g)].flatMap((match) => {
+    // Walk the props of the opening tag: a name, then a string or a braced value.
+    const prop = /\s*(?:([A-Za-z-]+)(=)?|(\{))/y;
+    prop.lastIndex = match.index + match[0].length;
+    for (let found = prop.exec(text); found !== null; found = prop.exec(text)) {
+      // A spread: skip the braces.
+      if (found[3] !== undefined)
+        prop.lastIndex = valueEnd(text, found.index + found[0].length - 1);
+      else if (found[2] !== undefined) {
+        const end = valueEnd(text, prop.lastIndex);
+        if (found[1] === "description")
+          return [text.slice(prop.lastIndex, end)];
+        prop.lastIndex = end;
+      }
+    }
+    return [];
+  });
+
 describe("portal research notice", () => {
   it("keeps the reviewed wording", () => {
     expect(PORTAL_RESEARCH_NOTICE).toBe(
@@ -213,5 +253,37 @@ describe("portal research notice", () => {
           .map((file) => path.relative(sourceRoot, file))
       ).toEqual([]);
     }
+  });
+
+  it("repeats the notice in no page title subtitle", () => {
+    expect(
+      pageHeaderDescriptions('<PageHeader {...rest} title="A" />')
+    ).toEqual([]);
+    expect(
+      pageHeaderDescriptions(
+        '<PageHeader description="One. Research only." title="A" />'
+      )
+    ).toEqual(['"One. Research only."']);
+    expect(
+      pageHeaderDescriptions(
+        "<PageHeader\n status={<b>x</b>}\n description={<>One {link}. {A_NOTICE}</>}\n />"
+      )
+    ).toEqual(["{<>One {link}. {A_NOTICE}</>}"]);
+    expect(repeatsNotice("{REPORTS_NOTICE}")).toBe(true);
+    expect(repeatsNotice('"One. Research only; no orders."')).toBe(true);
+    expect(repeatsNotice('"A row does not authorize a trade."')).toBe(true);
+    expect(repeatsNotice('"Tracking only: no orders. See the notice."')).toBe(
+      false
+    );
+    expect(
+      sources.flatMap((source) =>
+        pageHeaderDescriptions(source.text)
+          .filter(repeatsNotice)
+          .map(
+            (description) =>
+              `${path.relative(sourceRoot, source.file)}: ${description}`
+          )
+      )
+    ).toEqual([]);
   });
 });
