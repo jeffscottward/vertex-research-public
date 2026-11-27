@@ -896,6 +896,87 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
                 json.dump(d_neg, f)
             self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0, blk_key + ":neg")
 
+    def test_double_space_ibkr_execution_timestamps_parse_and_sort(self):
+        self.assertEqual(collect.iso("20261021  13:59:00"), "2026-10-21T13:59:00Z")
+        self.assertEqual(collect.iso("20260911  15:30:01 US/Eastern"), "2026-09-11T19:30:01Z")
+        snap = self._base_snapshot()
+        snap["executions"] = [
+            {
+                "execId": "exec-older",
+                "time": "20260911  15:30:01 US/Eastern",
+                "symbol": "ORCL",
+                "side": "BOT",
+                "shares": 10,
+                "price": 100.0,
+                "orderId": 100,
+            },
+            {
+                "execId": "exec-newer",
+                "time": "20260911  19:45:00",
+                "symbol": "AMZN",
+                "side": "SLD",
+                "shares": 5,
+                "price": 210.0,
+                "orderId": 101,
+            },
+        ]
+        doc, leaks = self._run_with_snapshot(snap)
+        self.assertEqual(leaks, [])
+        fills = doc["fills"]["items"]
+        self.assertEqual([f["time"] for f in fills], ["2026-09-11T19:45:00Z", "2026-09-11T19:30:01Z"])
+        self.assertEqual([f["symbol"] for f in fills], ["AMZN", "ORCL"])
+
+    def test_http_incomplete_read_and_snapshot_exception_fail_closed_without_crashing(self):
+        import http.server
+        import threading
+
+        class TruncatedHandler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Transfer-Encoding", "chunked")
+                self.end_headers()
+                # Declare a 500-byte chunk, send only 10 bytes, and close: triggers http.client.IncompleteRead.
+                self.wfile.write(b"1f4\r\n{\"status\":")
+                self.wfile.flush()
+                self.close_connection = True
+
+            def log_message(self, format, *args):
+                pass
+
+        srv = http.server.HTTPServer(("127.0.0.1", 0), TruncatedHandler)
+        port = srv.server_address[1]
+        th = threading.Thread(target=srv.serve_forever, daemon=True)
+        th.start()
+        try:
+            doc, err, is_transport = collect._fetch_ibkr_monitor_json(
+                f"http://127.0.0.1:{port}/api/snapshot"
+            )
+            self.assertIsNone(doc)
+            self.assertEqual(err, "ibkr-monitor request failed")
+            self.assertTrue(is_transport)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        class Exploding(collect.FixtureInputs):
+            def ibkr_monitor_snapshot(self):
+                raise RuntimeError("boom")
+
+        v1_text, v2_text, leaks = collect.build(Exploding(FIXTURE), True, None)
+        self.assertEqual(leaks, [])
+        self.assertEqual(json.loads(v1_text)["schema"], "vertex-deploy-status-v1")
+        v2 = json.loads(v2_text)
+        self.assertFalse(v2["orders"]["available"])
+        self.assertIn("RuntimeError", v2["orders"]["reason"])
+        self.assertNotIn("boom", v2["orders"]["reason"])
+        self.assertFalse(v2["fills"]["available"])
+        self.assertIn("RuntimeError", v2["fills"]["reason"])
+        self.assertNotIn("boom", v2["fills"]["reason"])
+        self.assertTrue(v2["session"]["available"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
