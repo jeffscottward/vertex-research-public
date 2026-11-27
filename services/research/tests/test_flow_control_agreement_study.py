@@ -14,9 +14,7 @@ from strategies.flow_control import agreement_study, data, rules, study
 from strategies.flow_control.control import (
     AGREE,
     BALANCED,
-    BEARISH,
     BOTH_BALANCED,
-    BULLISH,
     BUYERS,
     DIVERGE,
     FUTURES_RULES,
@@ -25,7 +23,6 @@ from strategies.flow_control.control import (
     NO_DATA,
     NOT_COMPARABLE,
     ONE_SIDED,
-    RULES,
     SELLERS,
     SESSION_START,
     DriftMinute,
@@ -592,9 +589,173 @@ def test_verdict_requires_options_for_10_trial_dsr_and_handles_edge_no_edge():
     )[0] == "no-edge"
 
 
-def test_empty_days_and_nautilus_unavailable_fallback():
+def test_empty_days_skips_nautilus_cleanly_even_if_installed():
     empty_loaded = Loaded((), {}, (), 0, 0, ())
     res = agreement_study.run_agreement_study([], {}, empty_loaded, markets=None, nautilus=True)
     assert res["verdict"] == "needs-more-data"
     assert res["usableSessionCount"] == 0
+    assert res["diagnostics"]["nautilus"] == {"status": "not run", "reason": "no sessions"}
+
+
+def test_markets_with_nautilus_true_falls_back_cleanly_when_unavailable(monkeypatch):
+    from nautilus_backtest import engine as nb_engine
+
+    def _unavailable():
+        raise nb_engine.NautilusUnavailable("nautilus-trader not installed")
+
+    monkeypatch.setattr(nb_engine, "require", _unavailable)
+    days = _full_rth_days("2026-11-20", 20)
+    tape, loaded = _synthetic_pair(days)
+    res = agreement_study.run_agreement_study(
+        days, tape, loaded, markets=_markets_for(), nautilus=True
+    )
+    assert res["optionsStatus"] == "ran"
+    assert res["rows"]["C0-O"]["parts"]["whole"]["trades"] > 0
     assert res["diagnostics"]["nautilus"]["status"] == "not run"
+    assert "not installed" in res["diagnostics"]["nautilus"]["reason"]
+
+
+def test_calibrated_futures_window_minutes_preserved_in_c0_and_matches_timelines():
+    # Construct a session where futures is sellers for minutes 0..19 and buyers from minute 20 onward,
+    # while options are always buyers and price rises. With window_minutes=15 (calibrated), the 15-min
+    # window turns purely buyers by minute 34 and enters by minute 38 (within 09:45-11:30). With
+    # window_minutes=30, it enters later; verify C0 uses the calibrated window_minutes=15 (not clobbered to 30).
+    day = "2026-11-20"
+
+    def fut_switch(m: int) -> int:
+        return -1 if m < 20 else 1
+
+    tape, loaded = _synthetic_pair([day], futures_side_fn=lambda *_: fut_switch, options_side_fn=lambda *_: 1)
+    cal_rules = dataclasses.replace(FUTURES_RULES, version="flow-futures-rules.v2-w15", window_minutes=15)
+    tl = agreement_study.build_timelines([day], tape, loaded, futures_rules=cal_rules)[0]
+    first_agree_in_window = next(
+        m for m in range(rules.ENTRY_FIRST, rules.ENTRY_LAST + 1) if tl.effective_agreement_states[m] == BUYERS
+    )
+
+    sess_es = [study.build_session("ES", day, loaded.sessions[day])]
+    c0_cal = agreement_study.trades_for_mode(
+        "ES", [day], sess_es, tape, loaded, study.CONFIGS["C0"], mode="agreement", futures_rules=cal_rules
+    )
+    c0_default = agreement_study.trades_for_mode(
+        "ES", [day], sess_es, tape, loaded, study.CONFIGS["C0"], mode="agreement", futures_rules=FUTURES_RULES
+    )
+    assert len(c0_cal) == 1 and len(c0_default) == 1
+    assert c0_cal[0].entry_bar == first_agree_in_window + 1
+    assert c0_cal[0].entry_bar < c0_default[0].entry_bar
+
+
+def test_short_entry_hard_stop_and_futures_only_and_v1_v2_v3_variants():
+    day = "2026-11-20"
+    # Short entry + hard stop (>0.40% adverse spike at bar 30) under both agreement and futures_only.
+    bases = {"SPX": 5000.0, "SPY": 500.0, "QQQ": 450.0, "NDX": 20000.0}
+    tape = {
+        (day, "ES"): _session_tape(day, "ES", -1, base=5000.0),
+        (day, "NQ"): _session_tape(day, "NQ", -1, base=20000.0),
+    }
+    # Falling price until bar 29, then +1% jump against short at bar 30 -> triggers 0.40% hard stop.
+    spx_prices = tuple(5000.0 * (1.0 - 0.0001 * b) if b < 30 else 5050.0 for b in range(BARS))
+    spx_min = tuple(DriftMinute(m, 0.0, 100.0) for m in range(390))
+    sessions_map = {
+        day: {
+            "SPX": TickerSession("SPX", day, spx_min, spx_prices, False, ()),
+            "SPY": _ticker_session("SPY", day, -1, bases["SPY"]),
+            "QQQ": _ticker_session("QQQ", day, -1, bases["QQQ"]),
+            "NDX": _ticker_session("NDX", day, -1, bases["NDX"]),
+        }
+    }
+    loaded = Loaded((day,), sessions_map, (), 0, 0, ())
+    sess_es = [study.build_session("ES", day, loaded.sessions[day])]
+    for mode in ("agreement", "futures_only"):
+        ts = agreement_study.trades_for_mode("ES", [day], sess_es, tape, loaded, Params(), mode=mode)
+        assert len(ts) == 1
+        assert ts[0].side == -1
+        assert ts[0].exit_reason == "stop"
+        assert ts[0].exit_bar == 31
+
+    # futures_only enters independently when options are balanced, while agreement skips.
+    tape_fo, loaded_fo = _synthetic_pair([day], futures_side_fn=lambda *_: 1, options_side_fn=lambda *_: 0)
+    sess_fo = [study.build_session("ES", day, loaded_fo.sessions[day])]
+    assert len(agreement_study.trades_for_mode("ES", [day], sess_fo, tape_fo, loaded_fo, Params(), mode="futures_only")) == 1
+    assert len(agreement_study.trades_for_mode("ES", [day], sess_fo, tape_fo, loaded_fo, Params(), mode="agreement")) == 0
+
+    # V3 (late entry up to minute 360) captures an entry that only turns bullish at minute 150, while C0 misses it.
+    def late_bull(m: int) -> int:
+        return 0 if m < 150 else 1
+
+    tape_late, loaded_late = _synthetic_pair([day], futures_side_fn=lambda *_: late_bull, options_side_fn=lambda *_: late_bull)
+    sess_late = [study.build_session("ES", day, loaded_late.sessions[day])]
+    assert len(agreement_study.trades_for_mode("ES", [day], sess_late, tape_late, loaded_late, study.CONFIGS["C0"], mode="agreement")) == 0
+    v3_t = agreement_study.trades_for_mode("ES", [day], sess_late, tape_late, loaded_late, study.CONFIGS["V3"], mode="agreement")
+    assert len(v3_t) == 1 and v3_t[0].entry_bar > rules.ENTRY_LAST
+
+    # V1 (window 15) vs V2 (window 60) differ in entry bar when flow flips from sellers to buyers at minute 20.
+    def flip20(m: int) -> int:
+        return -1 if m < 20 else 1
+
+    tape_v, loaded_v = _synthetic_pair([day], futures_side_fn=lambda *_: flip20, options_side_fn=lambda *_: flip20)
+    sess_v = [study.build_session("ES", day, loaded_v.sessions[day])]
+    v1_t = agreement_study.trades_for_mode("ES", [day], sess_v, tape_v, loaded_v, study.CONFIGS["V1"], mode="agreement")
+    v2_t = agreement_study.trades_for_mode("ES", [day], sess_v, tape_v, loaded_v, study.CONFIGS["V2"], mode="agreement")
+    assert len(v1_t) == 1 and len(v2_t) == 1
+    assert v1_t[0].entry_bar < v2_t[0].entry_bar
+
+
+def test_input_validation_and_html_report_variants_and_time_gated_and_bad_out_file(tmp_path, monkeypatch, capsys):
+    days = _full_rth_days("2026-10-01", 35)
+    tape, loaded = _synthetic_pair(days)
+    sess_es = [study.build_session("ES", days[0], loaded.sessions[days[0]])]
+
+    with pytest.raises(ValueError, match="Unsupported instrument"):
+        agreement_study.trades_for_mode("AAPL", [days[0]], sess_es, tape, loaded, Params())
+    with pytest.raises(ValueError, match="does not match"):
+        agreement_study.trades_for_mode("ES", [days[1]], sess_es, tape, loaded, Params())
+    with pytest.raises(ValueError, match="strictly ascending and unique"):
+        agreement_study.run_agreement_study([days[1], days[0]], tape, loaded, markets=None, nautilus=False)
+    with pytest.raises(ValueError, match="strictly ascending and unique"):
+        agreement_study.run_agreement_study([days[0], days[0]], tape, loaded, markets=None, nautilus=False)
+
+    # Full 35-session HTML and Markdown reports include variants, out-of-sample, split, Nautilus, and FOMC.
+    res35 = agreement_study.run_agreement_study(
+        days, tape, loaded, markets=_markets_for("2026-08-01", "2026-12-31"), nautilus=False
+    )
+    html35 = agreement_study.render_html_report(res35)
+    assert "<h2>Agreement variants (1 tick/side)</h2>" in html35
+    assert "<h3>Out-of-sample (validation + test)</h3>" in html35
+    assert "<h2>Walk-forward split</h2>" in html35
+    assert "<h2>NautilusTrader fill check</h2>" in html35
+    assert "<h2>FOMC decision days</h2>" in html35
+    md35 = agreement_study.format_markdown_report(res35)
+    assert "## Out-of-sample variants" in md35
+    assert "## Diagnostics" in md35
+
+    # Time-gated HTML report omits Deflated Sharpe and shows clean time-gated status without blank rules.
+    aligned = agreement_study.align_sessions(
+        {(days[0], "ES"): tape[(days[0], "ES")], (days[0], "NQ"): tape[(days[0], "NQ")]},
+        loaded,
+        from_day=days[0],
+        to_day=days[0],
+    )
+    gated = agreement_study._time_gated_payload(aligned, min_sessions=15)
+    html_gated = agreement_study.render_html_report(gated)
+    assert "<h2>Deflated Sharpe</h2>" not in html_gated
+    assert "time-gated" in html_gated
+    assert "30 min" in html_gated
+    md_gated = agreement_study.format_markdown_report(gated)
+    assert "15-session time gate" in md_gated
+
+    # CLI catches OSError when --out points to an existing regular file.
+    days20 = _full_rth_days("2026-11-20", 20)
+    raw_min, raw_tr = _make_raw_rows_for_days(days20)
+    _, loaded20 = _synthetic_pair(days20)
+    monkeypatch.setattr(agreement_study, "load_rows_from_psql", lambda **_: (raw_min, raw_tr))
+    monkeypatch.setattr(agreement_study.data, "load_all", lambda *_a, **_kw: loaded20)
+    blocking_file = tmp_path / "not-a-dir"
+    blocking_file.write_text("file")
+    rc = agreement_study.main([
+        "--dsn", "postgresql://ro@localhost/vertex",
+        "--data", str(tmp_path / "nd"),
+        "--out", str(blocking_file),
+        "--no-nautilus",
+    ])
+    assert rc == 1
+    assert "Error:" in capsys.readouterr().err

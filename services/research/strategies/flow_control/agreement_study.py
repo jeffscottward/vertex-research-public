@@ -455,13 +455,18 @@ def trades_for_mode(
     """Generate trades for one instrument across `days` under `agreement`, `futures_only`, or `options_only`."""
     if mode not in MODES:
         raise ValueError(f"Unsupported mode {mode!r}; expected one of {MODES}")
+    if instrument not in INSTRUMENT_GROUP:
+        raise ValueError(f"Unsupported instrument {instrument!r}; expected one of {tuple(INSTRUMENT_GROUP)}")
     group = INSTRUMENT_GROUP[instrument]
     fut_sym = GROUPS[group][0]
-    opt_r = dataclasses.replace(options_rules, window_minutes=params.window_minutes)
-    fut_r = dataclasses.replace(futures_rules, window_minutes=params.window_minutes)
+    override_window = params.window_minutes != RULES.window_minutes
+    opt_r = dataclasses.replace(options_rules, window_minutes=params.window_minutes) if override_window else options_rules
+    fut_r = dataclasses.replace(futures_rules, window_minutes=params.window_minutes) if override_window else futures_rules
 
     out: list[Trade] = []
     for day, session in zip(days, sessions, strict=True):
+        if session.day != day:
+            raise ValueError(f"Session day {session.day!r} does not match expected day {day!r}")
         if params.skip_fomc and fomc.is_fomc_day(day):
             continue
         if mode == "options_only":
@@ -678,11 +683,28 @@ def run_agreement_study(
 ) -> dict[str, object]:
     """Run the Task 2 continuation study with futures state and agreement across `days`."""
     day_list = list(days)
+    if day_list != sorted(set(day_list)):
+        raise ValueError("days must be strictly ascending and unique")
+
+    naut_preflight: dict[str, object] | None = None
+    use_nautilus = False
+    if not nautilus:
+        naut_preflight = {"status": "not run", "reason": "disabled"}
+    elif not day_list:
+        naut_preflight = {"status": "not run", "reason": "no sessions"}
+    else:
+        from nautilus_backtest import engine as nb_engine
+
+        try:
+            nb_engine.require()
+            use_nautilus = True
+        except nb_engine.NautilusUnavailable as exc:
+            naut_preflight = {"status": "not run", "reason": str(exc)[:200]}
+
     timelines = build_timelines(
         day_list, tape_sessions, loaded, options_rules=options_rules, futures_rules=futures_rules
     )
     frequencies = summarize_frequencies(timelines)
-
     if len(day_list) >= study.MIN_SESSIONS:
         split = study.split_sessions(day_list)
         split_status = "full_walk_forward"
@@ -738,7 +760,7 @@ def run_agreement_study(
         c0_spreads: dict[str, list] = {}
         for cfg in study.CONFIGS:
             o_rows, o_pnl, skipped, gaps, spreads_map = _options_rows_for_cfg(
-                cfg, agreement_trades[cfg], day_list, parts, markets, nautilus=nautilus
+                cfg, agreement_trades[cfg], day_list, parts, markets, nautilus=use_nautilus
             )
             rows.update(o_rows)
             if cfg == "C0":
@@ -825,13 +847,12 @@ def run_agreement_study(
         options_status=options_status,
     )
 
-    if nautilus:
+    if use_nautilus:
         naut = study.nautilus_check(sessions, agreement_trades["C0"])
-        if max_gaps:
-            naut["optionsMaxGap"] = max(max_gaps)
+        if naut.get("status") == "ran":
+            naut["optionsMaxGap"] = max(max_gaps) if max_gaps else None
     else:
-        naut = {"status": "not run", "reason": "disabled"}
-
+        naut = naut_preflight if naut_preflight is not None else {"status": "not run", "reason": "disabled"}
     fomc_days = [d for d in day_list if fomc.is_fomc_day(d)]
     split_summary = {
         name: {
@@ -855,14 +876,7 @@ def run_agreement_study(
         "verdictReason": verdict_reason,
         "optionsStatus": options_status,
         "rules": {
-            "options": {
-                "version": options_rules.version,
-                "windowMinutes": options_rules.window_minutes,
-                "enterRatio": options_rules.enter_ratio,
-                "exitRatio": options_rules.exit_ratio,
-                "minMinutes": options_rules.min_minutes,
-                "minBuckets": options_rules.min_buckets,
-            },
+            "options": options_rules.to_json(),
             "futures": futures_rules.to_json(),
             "specSha256": SPEC_SHA256,
         },
@@ -895,7 +909,7 @@ def _time_gated_payload(
         "streamedQualifyingCount": len(aligned.streamed_qualifying_days),
         "usableSessionCount": len(aligned.usable_days),
         "rules": {
-            "options": {"version": options_rules.version},
+            "options": options_rules.to_json(),
             "futures": futures_rules.to_json(),
             "specSha256": SPEC_SHA256,
         },
@@ -936,8 +950,8 @@ def format_markdown_report(result: Mapping[str, object]) -> str:
     lines.append("")
 
     alignment = result.get("alignment")
-    if not ready:
-        lines.append("No returns, trades, or verdict were computed before the 20-session time gate.")
+    if not ready and "rows" not in result:
+        lines.append(f"No returns, trades, or verdict were computed before the {min_sess}-session time gate.")
         if isinstance(alignment, Mapping):
             lines.append(
                 f"- Streamed qualifying tape sessions: {alignment.get('streamedQualifyingCount', 0)}; "
@@ -1040,7 +1054,7 @@ def format_markdown_report(result: Mapping[str, object]) -> str:
             f"{_num(s['profitFactor'])} | {_num(s['sharpe'])} | {study.usd(s['maxDrawdownUsd'])} |"
         )
     if result.get("optionsStatus") == "ran":
-        for cfg in (*study.CONFIGS,):
+        for cfg in study.CONFIGS:
             s = result["rows"][f"{cfg}-O"]["parts"]["whole"]
             lines.append(
                 f"| {cfg}-O | {s['trades']} | {study.usd(s['netUsd'])} | {_pct(s['winRate'])} | "
@@ -1051,6 +1065,56 @@ def format_markdown_report(result: Mapping[str, object]) -> str:
             f"| C0-O-stress | {stress['trades']} | {study.usd(stress['netUsd'])} | {_pct(stress['winRate'])} | "
             f"{_num(stress['profitFactor'])} | {_num(stress['sharpe'])} | {study.usd(stress['maxDrawdownUsd'])} |"
         )
+    if result.get("splitStatus") == "full_walk_forward":
+        lines.extend([
+            "",
+            "## Out-of-sample variants (validation + test, 1 tick/side)",
+            "",
+            "| Row | Trades | Net | Win rate | Profit factor | Sharpe (ann.) | Max DD $ |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ])
+        for cfg in study.CONFIGS:
+            s = result["rows"][f"{cfg}-F"]["ticks"][str(study.BASE_TICKS)]["outOfSample"]
+            lines.append(
+                f"| {cfg}-F | {s['trades']} | {study.usd(s['netUsd'])} | {_pct(s['winRate'])} | "
+                f"{_num(s['profitFactor'])} | {_num(s['sharpe'])} | {study.usd(s['maxDrawdownUsd'])} |"
+            )
+        if result.get("optionsStatus") == "ran":
+            for cfg in study.CONFIGS:
+                s = result["rows"][f"{cfg}-O"]["parts"]["outOfSample"]
+                lines.append(
+                    f"| {cfg}-O | {s['trades']} | {study.usd(s['netUsd'])} | {_pct(s['winRate'])} | "
+                    f"{_num(s['profitFactor'])} | {_num(s['sharpe'])} | {study.usd(s['maxDrawdownUsd'])} |"
+                )
+            stress_oos = result["rows"]["C0-O-stress"]["parts"]["outOfSample"]
+            lines.append(
+                f"| C0-O-stress | {stress_oos['trades']} | {study.usd(stress_oos['netUsd'])} | "
+                f"{_pct(stress_oos['winRate'])} | {_num(stress_oos['profitFactor'])} | "
+                f"{_num(stress_oos['sharpe'])} | {study.usd(stress_oos['maxDrawdownUsd'])} |"
+            )
+    dsr = result.get("deflatedSharpe")
+    diag = result.get("diagnostics")
+    lines.extend(["", "## Diagnostics", ""])
+    if isinstance(dsr, Mapping) and dsr:
+        p = dsr.get("probability")
+        dsr_desc = (
+            f"{float(p):.3f} (per-session Sharpe {float(dsr['sharpe']):.4f}, expected max {float(dsr['expectedMax']):.4f}, N={dsr['trials']})"
+            if p is not None
+            else f"not computable: {dsr.get('error', '')}"
+        )
+        lines.append(f"- **Deflated Sharpe:** {dsr_desc}")
+    if isinstance(diag, Mapping):
+        naut = diag.get("nautilus", {})
+        if isinstance(naut, Mapping):
+            naut_desc = (
+                f"ran ({naut.get('booked', 0)}/{naut.get('trades', 0)} matched, same={naut.get('same')})"
+                if naut.get("status") == "ran"
+                else f"{naut.get('status', 'not run')} ({naut.get('reason', '')})"
+            )
+            lines.append(f"- **NautilusTrader fill check:** {naut_desc}")
+        fomc_info = diag.get("fomc", {})
+        if isinstance(fomc_info, Mapping):
+            lines.append(f"- **FOMC decision days in sample:** {fomc_info.get('count', 0)}")
     per_session = freqs.get("perSession") or []
     if per_session:
         lines.extend([
@@ -1086,11 +1150,32 @@ def format_markdown_report(result: Mapping[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _html_stat_cells(label: str, s: Mapping[str, object]) -> list[str]:
+    return [
+        _e(label),
+        _e(str(s["trades"])),
+        _e(study.usd(s["netUsd"])),
+        _e(_pct(s["winRate"])),
+        _e(_num(s["profitFactor"])),
+        _e(_num(s["sharpe"])),
+        _e(study.usd(s["maxDrawdownUsd"])),
+    ]
+
+
 def render_html_report(result: Mapping[str, object]) -> str:
     """Render a self-contained dark HTML report for the Task 2 agreement study (no scripts, no external calls)."""
     heading = "Flow control continuation study: futures state and agreement (Task 2)"
-    verdict = str(result.get("verdict", "time-gated"))
+    is_time_gated = not bool(result.get("readyForTask2")) and "rows" not in result
+    min_sess = int(result.get("minSessions", TASK2_MIN_SESSIONS))
+    usable_n = int(result.get("usableSessionCount", 0))
+    verdict = "time-gated" if is_time_gated else str(result.get("verdict", "time-gated"))
     verdict_class = "pass" if verdict == "edge" else "fail"
+    reason_text = (
+        f"Time-gated: {usable_n}/{min_sess} qualifying streamed RTH sessions aligned with net drift. "
+        "No returns, trades, or verdict were computed."
+        if is_time_gated
+        else str(result.get("verdictReason", ""))
+    )
     out = [
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'>",
@@ -1099,7 +1184,7 @@ def render_html_report(result: Mapping[str, object]) -> str:
         "<p class='dim'>Research only. Modelled fills; no live or paper orders, no trading authority.</p>",
         "<h2>Verdict</h2>",
         f"<p><span class='{verdict_class}'>{_e(verdict)}</span></p>",
-        f"<p>{_e(str(result.get('verdictReason', '')))}</p>",
+        f"<p>{_e(reason_text)}</p>",
     ]
 
     rules_info = result.get("rules", {})
@@ -1112,24 +1197,54 @@ def render_html_report(result: Mapping[str, object]) -> str:
                 ("Side", "Version", "Window", "Enter / Exit", "Min min", "Extra"),
                 [
                     [
-                        "Options",
+                        _e("Options"),
                         _e(str(opt.get("version", ""))),
-                        f"{opt.get('windowMinutes', '')} min",
-                        f"{opt.get('enterRatio', '')} / {opt.get('exitRatio', '')}",
-                        str(opt.get("minMinutes", "")),
-                        f"minBuckets={opt.get('minBuckets', '')}",
+                        _e(f"{opt.get('windowMinutes', '')} min"),
+                        _e(f"{opt.get('enterRatio', '')} / {opt.get('exitRatio', '')}"),
+                        _e(str(opt.get("minMinutes", ""))),
+                        _e(f"minBuckets={opt.get('minBuckets', '')}"),
                     ],
                     [
-                        "Futures",
+                        _e("Futures"),
                         _e(str(fut.get("version", ""))),
-                        f"{fut.get('windowMinutes', '')} min",
-                        f"{fut.get('enterRatio', '')} / {fut.get('exitRatio', '')}",
-                        str(fut.get("minMinutes", "")),
-                        f"minTrades={fut.get('minTrades', '')}, minCoveredSec={fut.get('minCoveredSeconds', '')}, "
-                        f"maxMissing={fut.get('maxMissingMinutes', '')}",
+                        _e(f"{fut.get('windowMinutes', '')} min"),
+                        _e(f"{fut.get('enterRatio', '')} / {fut.get('exitRatio', '')}"),
+                        _e(str(fut.get("minMinutes", ""))),
+                        _e(
+                            f"minTrades={fut.get('minTrades', '')}, minCoveredSec={fut.get('minCoveredSeconds', '')}, "
+                            f"maxMissing={fut.get('maxMissingMinutes', '')}"
+                        ),
                     ],
                 ],
                 text=True,
+            ),
+        ]
+
+    split_info = result.get("split")
+    if isinstance(split_info, Mapping) and split_info:
+        split_labels = (
+            ("train", "Train"),
+            ("validation", "Validation"),
+            ("test", "Test"),
+            ("outOfSample", "Out-of-sample"),
+            ("windowChoice", "Window-choice"),
+            ("whole", "Whole period"),
+        )
+        out += [
+            "<h2>Walk-forward split</h2>",
+            f"<p>Split status: {_e(str(result.get('splitStatus', '')))}</p>",
+            _table(
+                ("Part", "Sessions", "First", "Last"),
+                [
+                    [
+                        _e(lbl),
+                        _e(str(split_info[k]["sessions"])),
+                        _e(str(split_info[k]["first"] or "-")),
+                        _e(str(split_info[k]["last"] or "-")),
+                    ]
+                    for k, lbl in split_labels
+                    if k in split_info
+                ],
             ),
         ]
 
@@ -1151,15 +1266,15 @@ def render_html_report(result: Mapping[str, object]) -> str:
                 os_ = agg["optionsStates"]
                 rows_html.append([
                     _e(g),
-                    str(agg["sessions"]),
-                    str(agg["totalMinutes"]),
-                    f"{fs[BUYERS]}/{fs[SELLERS]}/{fs[BALANCED]}/{fs[NO_DATA]}",
-                    f"{os_[BUYERS]}/{os_[SELLERS]}/{os_[BALANCED]}/{os_[MIXED]}/{os_[NO_DATA]}",
-                    f"{ag[AGREE]} ({_pct(ags[AGREE])}; +{ag['agreeBullish']}/-{ag['agreeBearish']})",
-                    f"{ag[DIVERGE]} ({_pct(ags[DIVERGE])})",
-                    f"{ag[ONE_SIDED]} ({_pct(ags[ONE_SIDED])})",
-                    f"{ag[BOTH_BALANCED]} ({_pct(ags[BOTH_BALANCED])})",
-                    f"{ag[NOT_COMPARABLE]} ({_pct(ags[NOT_COMPARABLE])})",
+                    _e(str(agg["sessions"])),
+                    _e(str(agg["totalMinutes"])),
+                    _e(f"{fs[BUYERS]}/{fs[SELLERS]}/{fs[BALANCED]}/{fs[NO_DATA]}"),
+                    _e(f"{os_[BUYERS]}/{os_[SELLERS]}/{os_[BALANCED]}/{os_[MIXED]}/{os_[NO_DATA]}"),
+                    _e(f"{ag[AGREE]} ({_pct(ags[AGREE])}; +{ag['agreeBullish']}/-{ag['agreeBearish']})"),
+                    _e(f"{ag[DIVERGE]} ({_pct(ags[DIVERGE])})"),
+                    _e(f"{ag[ONE_SIDED]} ({_pct(ags[ONE_SIDED])})"),
+                    _e(f"{ag[BOTH_BALANCED]} ({_pct(ags[BOTH_BALANCED])})"),
+                    _e(f"{ag[NOT_COMPARABLE]} ({_pct(ags[NOT_COMPARABLE])})"),
                 ])
             out.append(
                 _table(
@@ -1185,28 +1300,10 @@ def render_html_report(result: Mapping[str, object]) -> str:
         mc_rows = []
         for mode in MODES:
             f_stat = mc[mode]["C0-F"]["ticks"][str(study.BASE_TICKS)]["whole"]
-            mc_rows.append([
-                _e(mode),
-                "C0-F (ES+NQ)",
-                str(f_stat["trades"]),
-                _e(study.usd(f_stat["netUsd"])),
-                _pct(f_stat["winRate"]),
-                _num(f_stat["profitFactor"]),
-                _num(f_stat["sharpe"]),
-                _e(study.usd(f_stat["maxDrawdownUsd"])),
-            ])
+            mc_rows.append([_e(mode), _e("C0-F (ES+NQ)"), *_html_stat_cells("C0-F", f_stat)[1:]])
             if "C0-O" in mc[mode]:
                 o_stat = mc[mode]["C0-O"]["parts"]["whole"]
-                mc_rows.append([
-                    _e(mode),
-                    "C0-O (SPY+QQQ)",
-                    str(o_stat["trades"]),
-                    _e(study.usd(o_stat["netUsd"])),
-                    _pct(o_stat["winRate"]),
-                    _num(o_stat["profitFactor"]),
-                    _num(o_stat["sharpe"]),
-                    _e(study.usd(o_stat["maxDrawdownUsd"])),
-                ])
+                mc_rows.append([_e(mode), _e("C0-O (SPY+QQQ)"), *_html_stat_cells("C0-O", o_stat)[1:]])
         out.append(
             _table(
                 ("Mode", "Form", "Trades", "Net", "Win rate", "Profit factor", "Sharpe (ann.)", "Max DD $"),
@@ -1214,8 +1311,42 @@ def render_html_report(result: Mapping[str, object]) -> str:
             )
         )
 
-    dsr = result.get("deflatedSharpe", {})
-    if isinstance(dsr, Mapping):
+    rows_data = result.get("rows")
+    if isinstance(rows_data, Mapping) and rows_data:
+        stat_head = ("Row", "Trades", "Net", "Win rate", "Profit factor", "Sharpe (ann.)", "Max DD $")
+        inst_rows = [
+            _html_stat_cells("C0-F-ES", rows_data["C0-F-ES"]["ticks"][str(study.BASE_TICKS)]["whole"]),
+            _html_stat_cells("C0-F-NQ", rows_data["C0-F-NQ"]["ticks"][str(study.BASE_TICKS)]["whole"]),
+        ]
+        if result.get("optionsStatus") == "ran":
+            inst_rows.append(_html_stat_cells("C0-O-SPY", rows_data["C0-O-SPY"]["parts"]["whole"]))
+            inst_rows.append(_html_stat_cells("C0-O-QQQ", rows_data["C0-O-QQQ"]["parts"]["whole"]))
+        out += ["<h2>Instruments (C0, whole period, 1 tick/side)</h2>", _table(stat_head, inst_rows)]
+
+        def _variant_rows(part: str) -> list[list[str]]:
+            vrows = [
+                _html_stat_cells(f"{cfg}-F", rows_data[f"{cfg}-F"]["ticks"][str(study.BASE_TICKS)][part])
+                for cfg in study.CONFIGS
+            ]
+            if result.get("optionsStatus") == "ran":
+                for cfg in study.CONFIGS:
+                    vrows.append(_html_stat_cells(f"{cfg}-O", rows_data[f"{cfg}-O"]["parts"][part]))
+                vrows.append(_html_stat_cells("C0-O-stress", rows_data["C0-O-stress"]["parts"][part]))
+            return vrows
+
+        out += [
+            "<h2>Agreement variants (1 tick/side)</h2>",
+            "<h3>Whole period</h3>",
+            _table(stat_head, _variant_rows("whole")),
+        ]
+        if result.get("splitStatus") == "full_walk_forward":
+            out += [
+                "<h3>Out-of-sample (validation + test)</h3>",
+                _table(stat_head, _variant_rows("outOfSample")),
+            ]
+
+    dsr = result.get("deflatedSharpe")
+    if isinstance(dsr, Mapping) and dsr:
         p = dsr.get("probability")
         dsr_line = (
             f"{float(p):.3f} (per-session Sharpe {float(dsr['sharpe']):.4f}, expected max "
@@ -1227,6 +1358,58 @@ def render_html_report(result: Mapping[str, object]) -> str:
             "<h2>Deflated Sharpe</h2>",
             f"<p>{_mark(p is not None and float(p) >= study.DSR_PASS)} {_e(dsr_line)}; bar 0.95.</p>",
         ]
+
+    diag = result.get("diagnostics")
+    if isinstance(diag, Mapping):
+        naut = diag.get("nautilus")
+        if isinstance(naut, Mapping):
+            naut_pass = naut.get("same") if naut.get("status") == "ran" else None
+            naut_text = (
+                f"ran on {naut.get('engine', '')}: {naut.get('booked', 0)}/{naut.get('trades', 0)} matched"
+                if naut.get("status") == "ran"
+                else f"{naut.get('status', 'not run')}: {naut.get('reason', '')}"
+            )
+            if naut.get("optionsMaxGap") is not None:
+                naut_text += f"; option ledger max gap {float(naut['optionsMaxGap']):.4f}"
+            out += ["<h2>NautilusTrader fill check</h2>", f"<p>{_mark(naut_pass)} {_e(naut_text)}</p>"]
+        fomc_info = diag.get("fomc")
+        if isinstance(fomc_info, Mapping):
+            fomc_days_list = fomc_info.get("days") or []
+            fomc_desc = ", ".join(str(d) for d in fomc_days_list) if fomc_days_list else "none"
+            out += ["<h2>FOMC decision days</h2>", f"<p>{_e(str(fomc_info.get('count', 0)))} in sample ({_e(fomc_desc)}).</p>"]
+
+    alignment = result.get("alignment")
+    if isinstance(alignment, Mapping):
+        out += [
+            "<h2>Alignment and session qualification</h2>",
+            f"<p>Streamed qualifying tape sessions: {_e(str(alignment.get('streamedQualifyingCount', 0)))}; "
+            f"aligned with net drift: {_e(str(alignment.get('usableSessionCount', usable_n)))}.</p>",
+        ]
+        missing_nd = alignment.get("missingNetDriftDays") or []
+        if missing_nd:
+            out.append(
+                _table(
+                    ("Streamed day missing net drift", "Skip reasons"),
+                    [[_e(str(item["day"])), _e(", ".join(str(r) for r in item["reasons"]))] for item in missing_nd],
+                    text=True,
+                )
+            )
+        disq = alignment.get("disqualifiedTapeDays") or []
+        if disq:
+            out.append(
+                _table(
+                    ("Disqualified tape day", "Reason", "ES covered", "NQ covered"),
+                    [
+                        [
+                            _e(str(d["day"])),
+                            _e(str(d["reason"])),
+                            _e(f"{d['esCoveredMinutes']}/390"),
+                            _e(f"{d['nqCoveredMinutes']}/390"),
+                        ]
+                        for d in disq
+                    ],
+                )
+            )
 
     out.append("</main></body></html>")
     return "\n".join(out)
@@ -1343,10 +1526,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if len(aligned.usable_days) < args.min_sessions:
         gated = _time_gated_payload(aligned, min_sessions=args.min_sessions)
-        if args.format == "json":
-            print(json.dumps(gated, indent=2))
-        else:
-            print(format_markdown_report(gated))
+        try:
+            if args.format == "json":
+                print(json.dumps(gated, indent=2, allow_nan=False))
+            else:
+                print(format_markdown_report(gated))
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
         return EXIT_TIME_GATED
 
     try:
@@ -1373,16 +1560,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    md_text = format_markdown_report(result)
-    if out_dir is not None:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "summary.md").write_text(md_text + "\n")
-        (out_dir / "index.html").write_text(render_html_report(result) + "\n")
-
-    if args.format == "json":
-        print(json.dumps(result, indent=2, allow_nan=False))
-    else:
-        print(md_text)
+    try:
+        md_text = format_markdown_report(result)
+        if out_dir is not None:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "summary.md").write_text(md_text + "\n")
+            (out_dir / "index.html").write_text(render_html_report(result) + "\n")
+        if args.format == "json":
+            print(json.dumps(result, indent=2, allow_nan=False))
+        else:
+            print(md_text)
+    except (OSError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
