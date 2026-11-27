@@ -5,15 +5,18 @@ Writes two sanitized snapshots every timer cycle:
   status.json     vertex-deploy-status-v1 (unchanged; the default document)
   status-v2.json  vertex-deploy-status-v2 (v1 fields + session/positions/orders/fills/equity/risk/logs)
 
-Read-only by construction: `docker inspect`, `docker logs`, file reads/stat, `redis-cli HGETALL`
-and `psql` inside `BEGIN READ ONLY`. Never starts/stops containers, never connects an IBKR API
-client, never calls portfolio-ui, never touches kill-switch files. Account numbers are masked to the
-last 4 characters, log text is filtered to WARNING/ERROR and scrubbed, output is bounded.
+Read-only by construction: `docker inspect`, `docker logs`, file reads/stat, `redis-cli HGETALL`,
+`psql` inside `BEGIN READ ONLY`, and a single read-only `GET /api/snapshot` to the local
+`ibkr-monitor.service` (IBKR client id 195) for live orders and fills. Never starts/stops
+containers, never connects an IBKR API client itself, never calls portfolio-ui, never invokes
+any 2FA/recovery or POST endpoint, never touches kill-switch files. Account numbers are masked
+to the last 4 characters, log text is filtered to WARNING/ERROR and scrubbed, output is bounded.
 Stdlib only; runs on Python 3.8+.
 
 Test mode: collect.py --fixtures DIR --out DIR [--now ISO]  (reads captured inputs, runs nothing).
 """
 import datetime
+import ipaddress
 import json
 import os
 import re
@@ -21,18 +24,30 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
-COLLECTOR_VERSION = "2.2.0"
+COLLECTOR_VERSION = "2.3.0"
 # v2 (session/account blocks) is built only when VERTEX_STATUS_V2=1 (or --v2). Default OFF: the user's
 # condition for publishing account data is token + source-IP allow-list, and no stable source exists yet.
 V2_ENV = "VERTEX_STATUS_V2"
 V2_DIR_ENV = "VERTEX_STATUS_V2_DIR"
+IBKR_MONITOR_URL_ENV = "VERTEX_IBKR_MONITOR_URL"
 # Non-public directory: served only by the tailnet-bound status site (remote_ip = the rig), never by the
 # public vertex-status container (which mounts /opt/vertex-status/public only).
 PRIVATE_V2_DIR = "/opt/vertex-status/private-v2"
 OUT_DIR = "/opt/vertex-status/public"
 STATE_DIR = "/opt/vertex-status/state"
 TOKEN_ENV = "/opt/vertex-status/token.env"
+HOSTS_ENV = "/etc/vertex/hosts.env"
+IBKR_MONITOR_PORT = 3461
+IBKR_MONITOR_SNAPSHOT_PATH = "/api/snapshot"
+IBKR_MONITOR_TIMEOUT_SECONDS = 5
+IBKR_MONITOR_MAX_BYTES = 4 * 1024 * 1024
+IBKR_MONITOR_SOURCE = "ibkr-monitor.service (/api/snapshot)"
+IBKR_UNSET = 1e300
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 PREFIX = "ibkr-nautilus-exec-node-"
 SERVICES = ["nautilus-trader", "ib-gateway", "watchdog", "portfolio-ui", "postgres", "redis", "caddy"]
 ROOT = "/opt/vertex-exec-node"
@@ -43,8 +58,6 @@ LOGS = NAUT + "/logs"
 HEALTH_FILE = NAUT + "/health.json"
 RUNNER_LOG = LOGS + "/prototype-runner.log"
 WATCHDOG_LOG = LOGS + "/watchdog.log"
-OPEN_ORDERS_FILE = REPORTS + "/ibkr-open-orders.json"
-FILLS_FILE = REPORTS + "/ibkr-fills.json"
 SNAPSHOT_PREFIX = "ibkr-account-snapshot-"
 # KILL_SWITCH_PATH resolves to data/KILL_SWITCH for nautilus/watchdog (/app/data) and, through the
 # relative default, to portfolio-ui/data/KILL_SWITCH for portfolio-ui (working dir /app/portfolio-ui).
@@ -138,8 +151,12 @@ LEGACY_ZONE_ALIASES = {"US/Eastern": "America/New_York"}
 
 
 def parse_time(value):
-    if value is None or value == "":
+    if value is None or value == "" or isinstance(value, bool):
         return None
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=datetime.timezone.utc)
+        return value.astimezone(datetime.timezone.utc)
     if isinstance(value, (int, float)):
         try:
             return datetime.datetime.fromtimestamp(float(value), datetime.timezone.utc)
@@ -185,7 +202,21 @@ def iso(value):
     return dt.isoformat(timespec="seconds").replace("+00:00", "Z") if dt else None
 
 
+def parse_epoch_ms(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    f = float(value)
+    if f != f or f in (float("inf"), float("-inf")) or f <= 0:
+        return None
+    try:
+        return datetime.datetime.fromtimestamp(f / 1000.0, datetime.timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def num(value):
+    if isinstance(value, bool):
+        return None
     try:
         f = float(value)
     except (TypeError, ValueError):
@@ -194,6 +225,12 @@ def num(value):
         return None
     return int(f) if f.is_integer() and abs(f) < 2 ** 53 else round(f, 6)
 
+
+def ibkr_num(value):
+    v = num(value)
+    if v is None or abs(v) >= IBKR_UNSET:
+        return None
+    return v
 
 def as_bool(value):
     if isinstance(value, bool):
@@ -219,12 +256,125 @@ def _sh(args, timeout=8, stdin=None):
     return r.returncode, r.stdout, r.stderr
 
 
+class _RedirectRefusedError(Exception):
+    def __init__(self, code):
+        super().__init__("redirect refused")
+        self.code = code
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise _RedirectRefusedError(code)
+
+
+def is_tailnet_ipv4(value):
+    if not isinstance(value, str) or not value or not value.isascii():
+        return False
+    try:
+        octets = ipaddress.IPv4Address(value).packed
+    except ValueError:
+        return False
+    return len(octets) == 4 and octets[0] == 100 and 64 <= octets[1] <= 127
+
+
+def read_host_config_value(name, path=HOSTS_ENV):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return ""
+    value = ""
+    prefix = name + "="
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(prefix):
+            value = line[len(prefix):].strip()
+    return value
+
+
+def validate_ibkr_monitor_base_url(base):
+    if not isinstance(base, str) or not base.strip():
+        raise ValueError("empty ibkr-monitor URL")
+    text = base.strip()
+    if not text.isascii():
+        raise ValueError("non-ASCII ibkr-monitor URL")
+    parsed = urllib.parse.urlsplit(text)
+    if parsed.scheme != "http":
+        raise ValueError("ibkr-monitor URL must use plain http")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("ibkr-monitor URL must not contain credentials")
+    if parsed.query or parsed.fragment or parsed.path not in ("", "/"):
+        raise ValueError("ibkr-monitor URL must be a bare base URL")
+    host = (parsed.hostname or "").lower()
+    if host not in LOOPBACK_HOSTS and not is_tailnet_ipv4(host):
+        raise ValueError("ibkr-monitor URL must target loopback or tailnet IPv4")
+    port = parsed.port
+    if port is not None and not (1 <= port <= 65535):
+        raise ValueError("ibkr-monitor URL port out of range")
+    host_fmt = "[%s]" % host if ":" in host else host
+    netloc = "%s:%d" % (host_fmt, port) if port is not None else host_fmt
+    return "http://%s%s" % (netloc, IBKR_MONITOR_SNAPSHOT_PATH)
+
+
+def ibkr_monitor_candidate_urls(override_url=None, hosts_env=HOSTS_ENV):
+    if override_url is not None and str(override_url).strip():
+        try:
+            return [validate_ibkr_monitor_base_url(str(override_url))], None
+        except ValueError:
+            return [], "invalid ibkr-monitor URL configuration"
+    urls = ["http://127.0.0.1:%d%s" % (IBKR_MONITOR_PORT, IBKR_MONITOR_SNAPSHOT_PATH)]
+    tailnet_ip = read_host_config_value("VERTEX_TAILNET_IPV4", hosts_env)
+    if is_tailnet_ipv4(tailnet_ip):
+        urls.append("http://%s:%d%s" % (tailnet_ip, IBKR_MONITOR_PORT, IBKR_MONITOR_SNAPSHOT_PATH))
+    return urls, None
+
+
+def _fetch_ibkr_monitor_json(url, timeout=IBKR_MONITOR_TIMEOUT_SECONDS, max_bytes=IBKR_MONITOR_MAX_BYTES):
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler())
+    req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            status = int(getattr(resp, "status", resp.getcode()))
+            if status != 200:
+                return None, "ibkr-monitor returned HTTP %d" % status, False
+            ctype = resp.headers.get("Content-Type", "")
+            if not re.match(r"^\s*application/json\b", ctype, re.I):
+                return None, "ibkr-monitor returned unexpected content type", False
+            body = resp.read(max_bytes + 1)
+            if len(body) > max_bytes:
+                return None, "ibkr-monitor response exceeds size cap", False
+    except _RedirectRefusedError as exc:
+        return None, "ibkr-monitor redirect refused (HTTP %d)" % exc.code, False
+    except urllib.error.HTTPError as exc:
+        code = int(exc.code)
+        try:
+            exc.close()
+        except Exception:
+            pass
+        return None, "ibkr-monitor returned HTTP %d" % code, False
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None, "ibkr-monitor request failed", True
+    try:
+        doc = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None, "ibkr-monitor response is not valid JSON", False
+    if not isinstance(doc, dict):
+        return None, "ibkr-monitor response is not a JSON object", False
+    return doc, None, False
+
+
 class LiveInputs:
     fixture = False
 
+    def __init__(self, ibkr_monitor_url=None, hosts_env=HOSTS_ENV):
+        env_url = os.environ.get(IBKR_MONITOR_URL_ENV, "").strip()
+        self._ibkr_monitor_url = ibkr_monitor_url if ibkr_monitor_url is not None else (env_url or None)
+        self._hosts_env = hosts_env
+
     def now(self):
         return datetime.datetime.now(datetime.timezone.utc)
-
     def inspect_status(self, service):
         """-> ("ok", object), ("missing", None) when Docker answers that no such container exists, or
         ("unreadable", None) when the Docker command fails in any other way."""
@@ -310,6 +460,19 @@ class LiveInputs:
         m = re.search(r"^VERTEX_STATUS_TOKEN=(.+)$", text, re.M)
         return m.group(1).strip() if m else None
 
+    def ibkr_monitor_snapshot(self):
+        urls, cfg_err = ibkr_monitor_candidate_urls(self._ibkr_monitor_url, self._hosts_env)
+        if cfg_err:
+            return None, cfg_err
+        last_err = "ibkr-monitor request failed"
+        for url in urls:
+            doc, err, is_transport = _fetch_ibkr_monitor_json(url)
+            if err is None:
+                return doc, None
+            last_err = err
+            if not is_transport:
+                break
+        return None, last_err
 
 class FixtureInputs(LiveInputs):
     """Reads captured, redacted inputs from a fixture directory; never runs commands."""
@@ -383,6 +546,17 @@ class FixtureInputs(LiveInputs):
     def token(self):
         return self.manifest.get("token")
 
+    def ibkr_monitor_snapshot(self):
+        rel = self.manifest.get("ibkr_monitor_snapshot")
+        if not rel:
+            return None, self.manifest.get("ibkr_monitor_error") or "ibkr-monitor snapshot missing in fixture"
+        p = self._file(rel)
+        if not os.path.exists(p):
+            return None, "ibkr-monitor fixture unreadable"
+        doc = load_json_text(LiveInputs.read_text(self, p, IBKR_MONITOR_MAX_BYTES))
+        if not isinstance(doc, dict):
+            return None, "ibkr-monitor fixture is not a JSON object"
+        return doc, None
 
 # ---------------------------------------------------------------------------------------------
 # v1 (unchanged semantics)
@@ -719,47 +893,126 @@ def build_equity(now, snapshot, snapshot_path, positions):
 STOP_TYPES = ("STP", "STP LMT", "TRAIL", "TRAIL LIMIT", "STP PRT")
 
 
-def build_orders(inp, now):
-    payload = load_json_text(inp.read_text(OPEN_ORDERS_FILE))
+def _validate_ibkr_monitor_snapshot(payload, fetch_error):
     if payload is None:
-        return unavailable("data/nautilus/reports/ibkr-open-orders.json", "open-orders report missing or unreadable")
+        return None, None, fetch_error or "ibkr-monitor snapshot unavailable"
+    if not isinstance(payload, dict):
+        return None, None, "ibkr-monitor snapshot is not a JSON object"
+    account = payload.get("account")
+    if isinstance(account, dict) and account.get("modeError") == "mismatch":
+        return None, None, "ibkr-monitor account mode mismatch"
+    status = payload.get("status")
+    if not isinstance(status, dict):
+        return None, None, "ibkr-monitor snapshot missing status object"
+    bridge = status.get("bridge")
+    if bridge != "live":
+        label = scrub(bridge, 24) if isinstance(bridge, str) and bridge.strip() else "unknown"
+        return None, None, "ibkr-monitor bridge is %s" % label
+    return payload, status, None
+
+
+def build_orders(now, ibkr_payload, ibkr_error=None):
+    payload, status, err = _validate_ibkr_monitor_snapshot(ibkr_payload, ibkr_error)
+    if err is not None:
+        return unavailable(IBKR_MONITOR_SOURCE, err)
+    raw_orders = payload.get("orders")
+    if not isinstance(raw_orders, list):
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing orders list")
+    if "ordersAsOf" in payload:
+        as_of_dt = parse_epoch_ms(payload.get("ordersAsOf"))
+        if as_of_dt is None:
+            return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor open-orders snapshot not ready (ordersAsOf missing)")
+    else:
+        as_of_dt = parse_epoch_ms(status.get("dataAsOf"))
+        if as_of_dt is None:
+            return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing dataAsOf timestamp")
     items = []
-    for o in (payload.get("orders") or [])[:MAX_ORDERS]:
-        c = o.get("contract") or {}
-        otype = str(o.get("order_type") or "").upper()
-        aux = num(o.get("aux_price"))
-        lmt = num(o.get("limit_price"))
-        item = {"order_id_masked": mask_id(o.get("order_id")), "client_id": num(o.get("client_id")),
-                "symbol": scrub(o.get("symbol") or c.get("symbol"), 24), "sec_type": scrub(o.get("sec_type") or c.get("sec_type"), 8),
-                "side": scrub(o.get("action"), 8).lower() or None, "type": scrub(otype, 16) or None,
-                "qty": num(o.get("total_quantity")), "filled": num(o.get("filled")), "remaining": num(o.get("remaining")),
-                "price": lmt if lmt else None, "stop": aux if (aux and otype in STOP_TYPES) else None,
-                "aux_price": aux if (aux and otype not in STOP_TYPES) else None,
-                "tif": scrub(o.get("tif"), 8) or None, "status": scrub(o.get("status"), 24) or None,
-                "currency": scrub(o.get("currency") or c.get("currency"), 8) or None}
-        if o.get("warning_text"):
-            item["warning"] = scrub(o.get("warning_text"), 160)
+    for o in raw_orders[:MAX_ORDERS]:
+        if not isinstance(o, dict):
+            return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor orders payload contains invalid entry")
+        otype = str(o.get("orderType") or "").upper()
+        stp = ibkr_num(o.get("stop"))
+        lmt = ibkr_num(o.get("lmt"))
+        raw_oid = o.get("orderId")
+        if raw_oid is None:
+            raw_oid = o.get("permId")
+        item = {
+            "order_id_masked": mask_id(raw_oid),
+            "client_id": ibkr_num(o.get("clientId")),
+            "symbol": scrub(o.get("symbol"), 24),
+            "sec_type": scrub(o.get("secType"), 8) or None,
+            "side": scrub(o.get("action"), 8).lower() or None,
+            "type": scrub(otype, 16) or None,
+            "qty": ibkr_num(o.get("qty")),
+            "filled": ibkr_num(o.get("filledQty")),
+            "remaining": ibkr_num(o.get("remaining")),
+            "price": lmt,
+            "stop": stp if (stp is not None and otype in STOP_TYPES) else None,
+            "aux_price": stp if (stp is not None and otype not in STOP_TYPES) else None,
+            "tif": scrub(o.get("tif"), 8) or None,
+            "status": scrub(o.get("status"), 24) or None,
+            "currency": scrub(o.get("currency"), 8) or None,
+        }
+        warning = o.get("warningText") or o.get("warning")
+        if warning:
+            item["warning"] = scrub(warning, 160)
         items.append(item)
-    return {"available": True, "source": "ibkr_tws_api open orders via data/nautilus/reports/ibkr-open-orders.json (read from disk; no API call)",
-            **freshness(now, payload.get("generated_at") or payload.get("captured_at_epoch"), REPORT_STALE_SECONDS),
-            "count": len(items), "items": items, "truncated": len(payload.get("orders") or []) > MAX_ORDERS}
+    fresh = freshness(now, as_of_dt, REPORT_STALE_SECONDS)
+    if status.get("stale") is True:
+        fresh["stale"] = True
+    return {
+        "available": True,
+        "source": "ibkr_tws_api open orders via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+        **fresh,
+        "count": len(items),
+        "items": items,
+        "truncated": len(raw_orders) > MAX_ORDERS,
+    }
 
 
-def build_fills(inp, now):
-    payload = load_json_text(inp.read_text(FILLS_FILE))
-    if payload is None:
-        return unavailable("data/nautilus/reports/ibkr-fills.json", "fills report missing or unreadable")
+def build_fills(now, ibkr_payload, ibkr_error=None):
+    payload, status, err = _validate_ibkr_monitor_snapshot(ibkr_payload, ibkr_error)
+    if err is not None:
+        return unavailable(IBKR_MONITOR_SOURCE, err)
+    raw_execs = payload.get("executions")
+    if not isinstance(raw_execs, list):
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing executions list")
+    as_of_dt = parse_epoch_ms(status.get("dataAsOf"))
+    if as_of_dt is None:
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing dataAsOf timestamp")
     rows = []
-    for e in payload.get("executions") or []:
+    for e in raw_execs:
+        if not isinstance(e, dict):
+            return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor executions payload contains invalid entry")
         side = str(e.get("side") or "").upper()
-        rows.append({"time": iso(e.get("time")) or scrub(e.get("time"), 32), "symbol": scrub(e.get("symbol"), 24),
-                     "side": {"BOT": "buy", "SLD": "sell", "BUY": "buy", "SELL": "sell"}.get(side, scrub(side, 8).lower() or None),
-                     "qty": num(e.get("shares") if e.get("shares") is not None else e.get("qty")), "price": num(e.get("price")),
-                     "order_id_masked": mask_id(e.get("order_id")), "exec_id_masked": mask_id(e.get("exec_id"))})
+        raw_oid = e.get("orderId")
+        if raw_oid is None:
+            perm_id = e.get("permId")
+            raw_oid = perm_id if (isinstance(perm_id, int) and not isinstance(perm_id, bool) and perm_id > 0) else None
+        price = ibkr_num(e.get("price"))
+        if price is None:
+            price = ibkr_num(e.get("avgPrice"))
+        rows.append({
+            "time": iso(e.get("time")),
+            "symbol": scrub(e.get("symbol"), 24),
+            "side": {"BOT": "buy", "SLD": "sell", "BUY": "buy", "SELL": "sell"}.get(side, scrub(side, 8).lower() or None),
+            "qty": ibkr_num(e.get("shares") if e.get("shares") is not None else e.get("qty")),
+            "price": price,
+            "order_id_masked": mask_id(raw_oid),
+            "exec_id_masked": mask_id(e.get("execId")),
+        })
     rows.sort(key=lambda r: str(r.get("time") or ""), reverse=True)
-    return {"available": True, "source": "ibkr_tws_api executions via data/nautilus/reports/ibkr-fills.json (written by scripts/ibkr_fill_check.py)",
-            **freshness(now, payload.get("generated_at"), REPORT_STALE_SECONDS), "count": len(rows[:MAX_FILLS]),
-            "items": rows[:MAX_FILLS], "truncated": len(rows) > MAX_FILLS}
+    fresh = freshness(now, as_of_dt, REPORT_STALE_SECONDS)
+    if status.get("stale") is True:
+        fresh["stale"] = True
+    return {
+        "available": True,
+        "source": "ibkr_tws_api executions via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+        **fresh,
+        "count": len(rows[:MAX_FILLS]),
+        "items": rows[:MAX_FILLS],
+        "truncated": len(rows) > MAX_FILLS,
+    }
 
 
 def build_risk(inp, now, nautilus_raw, health, wd):
@@ -941,9 +1194,9 @@ def build(inp, v2_enabled=True, previous=None):
     snapshot_path = inp.latest_report(SNAPSHOT_PREFIX)
     snapshot = load_json_text(inp.read_text(snapshot_path)) if snapshot_path else None
     account = mask_account((snapshot or {}).get("account_masked"))
-    orders = safe_block("orders", build_orders, inp, now)
-    if account is None and orders.get("available"):
-        account = mask_account((load_json_text(inp.read_text(OPEN_ORDERS_FILE)) or {}).get("account_masked"))
+    ibkr_payload, ibkr_error = inp.ibkr_monitor_snapshot()
+    orders = safe_block("orders", build_orders, now, ibkr_payload, ibkr_error)
+    fills = safe_block("fills", build_fills, now, ibkr_payload, ibkr_error)
     risk = safe_block("risk", build_risk, inp, now, raws["nautilus-trader"], health, wd)
     kill_engaged = risk.get("kill_switch") == "engaged"
     positions = safe_block("positions", build_positions, inp, now, snapshot, snapshot_path or "")
@@ -954,7 +1207,7 @@ def build(inp, v2_enabled=True, previous=None):
                               reads["nautilus-trader"][0], previous),
         "positions": positions,
         "orders": orders,
-        "fills": safe_block("fills", build_fills, inp, now),
+        "fills": fills,
         "equity": safe_block("equity", build_equity, now, snapshot, snapshot_path or "", positions),
         "risk": risk,
         "logs": safe_block("logs", collect_logs, inp, now, wd_lines, running),
@@ -980,16 +1233,73 @@ def write_atomic(out_dir, name, text):
     os.replace(tmp, os.path.join(out_dir, name))
 
 
+def verify_v2_document(v2_text, pub_dir=None, token=None):
+    if not v2_text:
+        return "empty status-v2 document"
+    if len(v2_text.encode("utf-8")) > HARD_MAX_BYTES:
+        return "status-v2 document exceeds HARD_MAX_BYTES"
+    leaks = find_leaks(v2_text, token)
+    if leaks:
+        return "status-v2 document tripped secret-pattern guard (%d)" % len(leaks)
+    doc = load_json_text(v2_text)
+    if not isinstance(doc, dict):
+        return "status-v2 document is not valid JSON"
+    if doc.get("schema") != "vertex-deploy-status-v2":
+        return "unexpected schema: %r" % (doc.get("schema"),)
+    version = (doc.get("collector") or {}).get("version")
+    if version != COLLECTOR_VERSION:
+        return "unexpected collector.version: %r (expected %s)" % (version, COLLECTOR_VERSION)
+    for key, prefix in (
+        ("orders", "ibkr_tws_api open orders via ibkr-monitor.service"),
+        ("fills", "ibkr_tws_api executions via ibkr-monitor.service"),
+    ):
+        blk = doc.get(key)
+        if not isinstance(blk, dict) or blk.get("available") is not True:
+            reason = blk.get("reason") if isinstance(blk, dict) else "missing block"
+            return "%s unavailable: %s" % (key, reason)
+        if blk.get("stale") is not False:
+            return "%s stale (as_of=%r age_seconds=%r)" % (key, blk.get("as_of"), blk.get("age_seconds"))
+        if not str(blk.get("source") or "").startswith(prefix):
+            return "%s unexpected source: %r" % (key, blk.get("source"))
+    if pub_dir is not None:
+        if not os.path.isfile(os.path.join(pub_dir, "status.json")):
+            return "status.json missing in public dir"
+        if os.path.lexists(os.path.join(pub_dir, "status-v2.json")):
+            return "status-v2.json leaked into public dir"
+    return None
+
+
 def main(argv):
     out_dir, inp = OUT_DIR, None
     args = list(argv)
+    if "--check-v2-dir" in args:
+        v2_check_dir = args[args.index("--check-v2-dir") + 1]
+        pub_check_dir = args[args.index("--check-public-dir") + 1] if "--check-public-dir" in args else None
+        v2_text = LiveInputs().read_text(os.path.join(v2_check_dir, "status-v2.json"), HARD_MAX_BYTES + 1)
+        err = verify_v2_document(v2_text, pub_dir=pub_check_dir, token=LiveInputs().token())
+        if err:
+            sys.stderr.write("v2_check failed: %s\n" % err)
+            return 1
+        doc = load_json_text(v2_text) or {}
+        sys.stdout.write(
+            "v2_check ok: version=%s orders_count=%s orders_age=%s fills_count=%s fills_age=%s\n"
+            % (
+                (doc.get("collector") or {}).get("version"),
+                (doc.get("orders") or {}).get("count"),
+                (doc.get("orders") or {}).get("age_seconds"),
+                (doc.get("fills") or {}).get("count"),
+                (doc.get("fills") or {}).get("age_seconds"),
+            )
+        )
+        return 0
     if "--fixtures" in args:
         i = args.index("--fixtures")
         now = args[args.index("--now") + 1] if "--now" in args else None
         inp = FixtureInputs(args[i + 1], now)
     if "--out" in args:
         out_dir = args[args.index("--out") + 1]
-    inp = inp or LiveInputs()
+    ibkr_url = args[args.index("--ibkr-monitor-url") + 1] if "--ibkr-monitor-url" in args else None
+    inp = inp or LiveInputs(ibkr_monitor_url=ibkr_url)
     v2_enabled = os.environ.get(V2_ENV, "0").strip() == "1" or "--v2" in args
     v2_dir = args[args.index("--v2-out") + 1] if "--v2-out" in args else os.environ.get(V2_DIR_ENV, "").strip() or PRIVATE_V2_DIR
     if v2_enabled and os.path.realpath(v2_dir) == os.path.realpath(OUT_DIR):
@@ -1008,6 +1318,22 @@ def main(argv):
         os.remove(os.path.join(v2_dir, "status-v2.json"))
     if leaks:
         sys.stderr.write("secret-pattern guard tripped (%d patterns); v2 blocks withheld\n" % len(leaks))
+    if "--verify-ibkr-monitor" in args:
+        err = verify_v2_document(v2_text, pub_dir=out_dir, token=inp.token())
+        if err:
+            sys.stderr.write("verify-ibkr-monitor failed: %s\n" % err)
+            return 1
+        doc = load_json_text(v2_text) or {}
+        sys.stdout.write(
+            "dry_run ok: version=%s orders_count=%s orders_age=%s fills_count=%s fills_age=%s\n"
+            % (
+                (doc.get("collector") or {}).get("version"),
+                (doc.get("orders") or {}).get("count"),
+                (doc.get("orders") or {}).get("age_seconds"),
+                (doc.get("fills") or {}).get("count"),
+                (doc.get("fills") or {}).get("age_seconds"),
+            )
+        )
     return 0
 
 

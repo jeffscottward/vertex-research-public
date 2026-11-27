@@ -90,14 +90,26 @@ class CollectorFixtureTest(unittest.TestCase):
         self.assertEqual((e["net_liq"], e["cash"], e["unrealized"], e["realized"], e["currency"]), (150000.25, 90000, 170, 12.5, "USD"))
 
     def test_orders_fills(self):
-        o = self.v2["orders"]["items"]
+        orders = self.v2["orders"]
+        self.assertTrue(orders["available"])
+        self.assertFalse(orders["stale"])
+        self.assertEqual(orders["as_of"], "2026-10-03T11:18:22Z")
+        self.assertEqual(orders["age_seconds"], 8)
+        self.assertIn("ibkr-monitor.service", orders["source"])
+        o = orders["items"]
         self.assertEqual((o[0]["type"], o[0]["stop"], o[0]["price"], o[0]["side"], o[0]["status"]), ("STP", 95, None, "sell", "PreSubmitted"))
         self.assertEqual((o[1]["type"], o[1]["price"], o[1]["order_id_masked"], o[1]["client_id"]), ("LMT", 200.25, "****4567", 31))
         self.assertEqual(o[1]["warning"], "Order held for account ****4321")
-        f = self.v2["fills"]["items"]
+        fills = self.v2["fills"]
+        self.assertTrue(fills["available"])
+        self.assertFalse(fills["stale"])
+        self.assertEqual(fills["as_of"], "2026-10-03T11:18:25Z")
+        self.assertEqual(fills["age_seconds"], 5)
+        self.assertIn("ibkr-monitor.service", fills["source"])
+        f = fills["items"]
         self.assertEqual([x["side"] for x in f], ["sell", "buy"])
         self.assertEqual(f[0]["time"], "2026-09-11T19:45:00Z")
-
+        self.assertEqual(self.v2["collector"]["version"], "2.3.0")
     def test_risk(self):
         r = self.v2["risk"]
         self.assertEqual(r["kill_switch"], "clear")
@@ -360,6 +372,330 @@ class LegacyZoneNameTest(unittest.TestCase):
             finally:
                 zoneinfo.reset_tzpath(old_tzpath)
                 zoneinfo.ZoneInfo.clear_cache()
+
+class IbkrMonitorOrdersFillsTest(unittest.TestCase):
+    def _base_snapshot(self):
+        with open(os.path.join(FIXTURE, "ibkr-monitor-snapshot.json")) as f:
+            return json.load(f)
+
+    def _run_with_snapshot(self, payload, error=None):
+        class Patched(collect.FixtureInputs):
+            def ibkr_monitor_snapshot(self):
+                return payload, error
+        inp = Patched(FIXTURE)
+        _, v2_text, leaks = collect.build(inp, True, None)
+        return json.loads(v2_text), leaks
+
+    def test_live_http_single_get_and_no_disk_fallback(self):
+        import http.server
+        import threading
+
+        snap = self._base_snapshot()
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append((self.command, self.path))
+                body = json.dumps(snap).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):
+                pass
+
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        port = srv.server_address[1]
+        th = threading.Thread(target=srv.serve_forever, daemon=True)
+        th.start()
+        try:
+            live = collect.LiveInputs(ibkr_monitor_url=f"http://127.0.0.1:{port}")
+
+            class HttpBackedFixture(collect.FixtureInputs):
+                def ibkr_monitor_snapshot(self):
+                    return live.ibkr_monitor_snapshot()
+
+            _, v2_text, leaks = collect.build(HttpBackedFixture(FIXTURE), True, None)
+            self.assertEqual(leaks, [])
+            doc = json.loads(v2_text)
+            self.assertEqual(seen, [("GET", "/api/snapshot")])
+            self.assertTrue(doc["orders"]["available"])
+            self.assertEqual(doc["orders"]["count"], 2)
+            self.assertTrue(doc["fills"]["available"])
+            self.assertEqual(doc["fills"]["count"], 2)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        # After server shutdown (connection refused), orders & fills MUST fail closed (never disk fallback).
+        doc_down, _ = self._run_with_snapshot(*live.ibkr_monitor_snapshot())
+        self.assertFalse(doc_down["orders"]["available"])
+        self.assertFalse(doc_down["fills"]["available"])
+        self.assertNotIn(str(port), doc_down["orders"]["reason"])
+
+    def test_http_errors_redirects_content_type_and_size_cap_fail_closed(self):
+        import http.server
+        import threading
+
+        mode = {"kind": "redirect"}
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                k = mode["kind"]
+                if k == "redirect":
+                    self.send_response(302)
+                    self.send_header("Location", "/other")
+                    self.end_headers()
+                elif k == "status503":
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"secret U1234567"}')
+                elif k == "html":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html>nope</html>")
+                elif k == "oversized":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b" " * 256)
+
+            def log_message(self, format, *args):
+                pass
+
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        port = srv.server_address[1]
+        th = threading.Thread(target=srv.serve_forever, daemon=True)
+        th.start()
+        try:
+            url = f"http://127.0.0.1:{port}/api/snapshot"
+            for kind, expected_word in (
+                ("redirect", "redirect"),
+                ("status503", "503"),
+                ("html", "content type"),
+            ):
+                mode["kind"] = kind
+                doc, err, _ = collect._fetch_ibkr_monitor_json(url)
+                self.assertIsNone(doc, kind)
+                self.assertIn(expected_word, (err or "").lower(), kind)
+                self.assertNotIn("U1234567", err or "")
+            mode["kind"] = "oversized"
+            doc, err, _ = collect._fetch_ibkr_monitor_json(url, max_bytes=64)
+            self.assertIsNone(doc)
+            self.assertIn("size cap", (err or "").lower())
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_url_validation_and_host_config_fallback(self):
+        for good, expected in (
+            ("http://127.0.0.1:3461", "http://127.0.0.1:3461/api/snapshot"),
+            ("http://127.0.0.1:3461/", "http://127.0.0.1:3461/api/snapshot"),
+            ("http://localhost:3461", "http://localhost:3461/api/snapshot"),
+            ("http://[::1]:3461", "http://[::1]:3461/api/snapshot"),
+            ("http://100.64.0.10:3461", "http://100.64.0.10:3461/api/snapshot"),
+            ("http://100.127.255.254:3461", "http://100.127.255.254:3461/api/snapshot"),
+        ):
+            self.assertEqual(collect.validate_ibkr_monitor_base_url(good), expected)
+
+        for bad in (
+            "",
+            "https://127.0.0.1:3461",
+            "http://example.com:3461",
+            "http://10.0.0.5:3461",
+            "http://100.63.0.1:3461",
+            "http://100.128.0.1:3461",
+            "http://100.\u0664.0.1:3461",
+            "http://user:pass@127.0.0.1:3461",
+            "http://127.0.0.1:3461/api/ibkr-2fa",
+            "http://127.0.0.1:3461?foo=bar",
+            "http://127.0.0.1:3461#frag",
+        ):
+            with self.assertRaises(ValueError, msg=bad):
+                collect.validate_ibkr_monitor_base_url(bad)
+
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as d:
+            hosts_env = os.path.join(d, "hosts.env")
+            with open(hosts_env, "w") as f:
+                f.write("# comment\nVERTEX_TAILNET_IPV4=100.64.0.10\n")
+            urls, err = collect.ibkr_monitor_candidate_urls(None, hosts_env)
+            self.assertIsNone(err)
+            self.assertEqual(urls, [
+                "http://127.0.0.1:3461/api/snapshot",
+                "http://100.64.0.10:3461/api/snapshot",
+            ])
+            # Malformed tailnet IP is ignored safely (loopback remains).
+            with open(hosts_env, "w") as f:
+                f.write("VERTEX_TAILNET_IPV4=10.0.0.5\n")
+            urls, err = collect.ibkr_monitor_candidate_urls(None, hosts_env)
+            self.assertIsNone(err)
+            self.assertEqual(urls, ["http://127.0.0.1:3461/api/snapshot"])
+
+        # Explicit invalid override never silently falls back to loopback.
+        urls, err = collect.ibkr_monitor_candidate_urls("http://example.com:3461")
+        self.assertEqual(urls, [])
+        self.assertIsNotNone(err)
+
+    def test_fail_closed_on_bridge_down_mode_mismatch_and_missing_timestamps(self):
+        for bridge in ("connecting", "disconnected", "restarting", "", None):
+            snap = self._base_snapshot()
+            snap["status"]["bridge"] = bridge
+            doc, _ = self._run_with_snapshot(snap)
+            self.assertFalse(doc["orders"]["available"], repr(bridge))
+            self.assertFalse(doc["fills"]["available"], repr(bridge))
+
+        snap = self._base_snapshot()
+        snap["account"]["modeError"] = "mismatch"
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertFalse(doc["orders"]["available"])
+        self.assertFalse(doc["fills"]["available"])
+        self.assertIn("mismatch", doc["orders"]["reason"])
+
+        # ordersAsOf explicitly null -> orders fail closed (never fake 0 open orders), fills still work.
+        snap = self._base_snapshot()
+        snap["orders"] = []
+        snap["ordersAsOf"] = None
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertFalse(doc["orders"]["available"])
+        self.assertIn("ordersAsOf", doc["orders"]["reason"])
+        self.assertTrue(doc["fills"]["available"])
+
+        # ordersAsOf key absent (older ibkr-monitor) -> falls back to status.dataAsOf.
+        snap = self._base_snapshot()
+        del snap["ordersAsOf"]
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["orders"]["available"])
+        self.assertEqual(doc["orders"]["as_of"], "2026-10-03T11:18:25Z")
+
+        # status.dataAsOf null -> fills fail closed.
+        snap = self._base_snapshot()
+        snap["status"]["dataAsOf"] = None
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["orders"]["available"])
+        self.assertFalse(doc["fills"]["available"])
+
+        # status.stale true forces stale even with recent timestamps.
+        snap = self._base_snapshot()
+        snap["status"]["stale"] = True
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["orders"]["available"])
+        self.assertTrue(doc["orders"]["stale"])
+        self.assertTrue(doc["fills"]["available"])
+        self.assertTrue(doc["fills"]["stale"])
+
+        # Old ordersAsOf (> REPORT_STALE_SECONDS) marks orders stale even if status.stale is False.
+        snap = self._base_snapshot()
+        snap["ordersAsOf"] = 1791026310000 - (collect.REPORT_STALE_SECONDS + 30) * 1000
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["orders"]["available"])
+        self.assertTrue(doc["orders"]["stale"])
+        self.assertFalse(doc["fills"]["stale"])
+
+    def test_order_and_fill_field_mapping_edge_cases(self):
+        snap = self._base_snapshot()
+        snap["orders"] = [
+            {
+                "orderId": 42,
+                "clientId": 195,
+                "symbol": "SPY",
+                "secType": "OPT",
+                "action": "BUY",
+                "orderType": "LIT",
+                "qty": 2,
+                "filledQty": 0,
+                "remaining": 2,
+                "lmt": 1.7976931348623157e+308,
+                "stop": 520.5,
+                "tif": "DAY",
+                "status": "Submitted",
+            },
+            {
+                "orderId": None,
+                "permId": 9876543,
+                "clientId": 0,
+                "symbol": "QQQ",
+                "secType": "STK",
+                "action": "SELL",
+                "orderType": "TRAIL",
+                "qty": 10,
+                "filledQty": 0,
+                "remaining": 10,
+                "lmt": None,
+                "stop": 450.25,
+                "tif": "GTC",
+                "status": "PreSubmitted",
+            },
+        ]
+        snap["executions"] = [
+            {
+                "execId": "exec99887766",
+                "time": "20261003 11:10:00",
+                "symbol": "SPY",
+                "side": "BUY",
+                "shares": 2,
+                "price": 1.7976931348623157e+308,
+                "avgPrice": 4.25,
+                "permId": 7654321,
+            },
+            {
+                "execId": "exec99887765",
+                "time": "not-a-timestamp",
+                "symbol": "IWM",
+                "side": "SLD",
+                "shares": 1.7976931348623157e+308,
+                "price": 200.0,
+                "orderId": 0,
+            },
+        ]
+        doc, leaks = self._run_with_snapshot(snap)
+        self.assertEqual(leaks, [])
+        o0, o1 = doc["orders"]["items"]
+        self.assertIsNone(o0["price"])
+        self.assertIsNone(o0["stop"])
+        self.assertEqual(o0["aux_price"], 520.5)
+        self.assertIsNone(o0["currency"])
+        self.assertEqual(o1["order_id_masked"], "****6543")
+        self.assertEqual(o1["stop"], 450.25)
+        self.assertIsNone(o1["aux_price"])
+
+        f0, f1 = doc["fills"]["items"]
+        self.assertEqual(f0["time"], "2026-10-03T11:10:00Z")
+        self.assertEqual(f0["side"], "buy")
+        self.assertEqual(f0["price"], 4.25)
+        self.assertEqual(f0["order_id_masked"], "****4321")
+        self.assertEqual(f0["exec_id_masked"], "****7766")
+        self.assertIsNone(f1["time"])
+        self.assertIsNone(f1["qty"])
+        self.assertEqual(f1["order_id_masked"], "0")
+
+    def test_verify_ibkr_monitor_and_check_v2_dir_cli(self):
+        out = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-verify-pub-")
+        priv = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-verify-priv-")
+        rc = collect.main([
+            "--fixtures", FIXTURE, "--out", out, "--v2", "--v2-out", priv, "--verify-ibkr-monitor",
+        ])
+        self.assertEqual(rc, 0)
+        rc_check = collect.main(["--check-v2-dir", priv, "--check-public-dir", out])
+        self.assertEqual(rc_check, 0)
+
+        # Fail if status-v2.json leaks into public dir.
+        with open(os.path.join(out, "status-v2.json"), "w") as f:
+            f.write("{}")
+        self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0)
+        os.remove(os.path.join(out, "status-v2.json"))
+
+        # Fail if orders are stale.
+        v2_path = os.path.join(priv, "status-v2.json")
+        with open(v2_path) as f:
+            d = json.load(f)
+        d["orders"]["stale"] = True
+        with open(v2_path, "w") as f:
+            json.dump(d, f)
+        self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0)
 
 
 if __name__ == "__main__":

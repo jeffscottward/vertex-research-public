@@ -416,11 +416,7 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     "infra/quant-vps/status/Caddyfile.tailnet": ["/status-v2.json"],
     "infra/quant-vps/status/collect.py": [
       "/health.json",
-      "/ibkr-fills.json",
-      "/ibkr-open-orders.json",
       "data/nautilus/health.json",
-      "data/nautilus/reports/ibkr-fills.json",
-      "data/nautilus/reports/ibkr-open-orders.json",
       "health.json",
       "inspect/%s.json",
       "manifest.json",

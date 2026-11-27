@@ -5,10 +5,9 @@
     "/opt/vertex-exec-node/data/nautilus/health.json": "files/health.json",
     "/opt/vertex-exec-node/data/nautilus/logs/watchdog.log": "files/watchdog.jsonl",
     "/opt/vertex-exec-node/data/nautilus/logs/prototype-runner.log": "files/prototype-runner.jsonl",
-    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-account-snapshot-20260918T201550Z.json": "files/reports/ibkr-account-snapshot-20260918T201550Z.json",
-    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-open-orders.json": "files/reports/ibkr-open-orders.json",
-    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-fills.json": "files/reports/ibkr-fills.json"
+    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-account-snapshot-20260918T201550Z.json": "files/reports/ibkr-account-snapshot-20260918T201550Z.json"
   },
+  "ibkr_monitor_snapshot": "ibkr-monitor-snapshot.json",
   "exists": {
     "/opt/vertex-exec-node/data/KILL_SWITCH": false,
     "/opt/vertex-exec-node/portfolio-ui/data/KILL_SWITCH": false

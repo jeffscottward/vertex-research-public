@@ -1,5 +1,7 @@
 # Plan: Run the IBKR open-orders writer on a schedule
 
+> **Status (2026-11-27): Superseded and retired** by card `vertex-status-v2-orders-ibkr-monitor` ([../status-v2-orders-ibkr-monitor/plan.md](../status-v2-orders-ibkr-monitor/plan.md)). `collect.py` (2.3.0) now reads `orders` and `fills` from `ibkr-monitor.service` (`GET /api/snapshot`), and the transitional timer files below have been removed from `infra/quant-vps/status/`.
+
 ![Before and after: on-demand portfolio-ui triggers leave the open-orders report 21 days stale; a 24/7 systemd timer runs the same writer every 60 seconds so status-v2 orders stay fresh during normal IB Gateway availability.](./before-after.svg)
 
 | Field | Value |
@@ -103,11 +105,11 @@ All new files live in `infra/quant-vps/status/` so `infra/quant-vps/exec-node/` 
 
 | Action | Path |
 | --- | --- |
-| Create | `infra/quant-vps/status/test_open_orders_refresh.py` |
+| Create (retired) | `test_open_orders_refresh.py` (formerly under `infra/quant-vps/status/`) |
 | Modify | `infra/quant-vps/status/python-collect.test.ts` |
-| Create | `infra/quant-vps/status/vertex-ibkr-open-orders-refresh.service` |
-| Create | `infra/quant-vps/status/vertex-ibkr-open-orders-refresh.timer` |
-| Create | `infra/quant-vps/status/deploy-open-orders-refresh.sh` |
+| Create (retired) | `vertex-ibkr-open-orders-refresh.service` (formerly under `infra/quant-vps/status/`) |
+| Create (retired) | `vertex-ibkr-open-orders-refresh.timer` (formerly under `infra/quant-vps/status/`) |
+| Create (retired) | `deploy-open-orders-refresh.sh` (formerly under `infra/quant-vps/status/`) |
 | Modify | `infra/quant-vps/status/SCHEMA.md` |
 | Modify | `docs/vertex-rebuild/quantvps-status-endpoint.md` |
 | Create | `docs/vertex-rebuild/designs/open-orders-refresh/plan.md` |
@@ -115,7 +117,7 @@ All new files live in `infra/quant-vps/status/` so `infra/quant-vps/exec-node/` 
 
 ### Step 1: failing tests (first commit)
 
-Create `infra/quant-vps/status/test_open_orders_refresh.py` (standard-library `unittest`, matching `test_status_v2_alert.py`: `sys.path.insert(0, str(HERE))` for `python3 -B -I` isolated mode and `if __name__ == "__main__": unittest.main()`). Add `"test_open_orders_refresh.py"` to `SUITES` in `infra/quant-vps/status/python-collect.test.ts`.
+Create `test_open_orders_refresh.py` under `infra/quant-vps/status/` (retired; standard-library `unittest`, matching `test_status_v2_alert.py`: `sys.path.insert(0, str(HERE))` for `python3 -B -I` isolated mode and `if __name__ == "__main__": unittest.main()`). Add `"test_open_orders_refresh.py"` to `SUITES` in `infra/quant-vps/status/python-collect.test.ts`.
 
 Tests:
 
@@ -130,7 +132,7 @@ Red-phase check before committing Step 1: run `python3 -B -I test_open_orders_re
 
 Rule 13 constraint (`scripts/ci/json-data.ts`): all comments in `.service`, `.timer`, and `.sh` MUST start with `#` followed by a space (not `;`), and no non-comment line may contain a `.json` filename.
 
-`infra/quant-vps/status/vertex-ibkr-open-orders-refresh.service` (with `#`-prefixed header comments naming card `vertex-open-orders-report-stale`, transitional bridge scope, read-only query, and failure behavior):
+`vertex-ibkr-open-orders-refresh.service` (retired; formerly under `infra/quant-vps/status/`, with `#`-prefixed header comments naming card `vertex-open-orders-report-stale`, transitional bridge scope, read-only query, and failure behavior):
 
 ```ini
 # Card: vertex-open-orders-report-stale (transitional bridge).
@@ -148,7 +150,7 @@ TimeoutStartSec=50
 Nice=10
 ```
 
-`infra/quant-vps/status/vertex-ibkr-open-orders-refresh.timer`:
+`vertex-ibkr-open-orders-refresh.timer` (retired; formerly under `infra/quant-vps/status/`):
 
 ```ini
 # Card: vertex-open-orders-report-stale (transitional bridge).
@@ -166,7 +168,7 @@ RandomizedDelaySec=0
 WantedBy=timers.target
 ```
 
-`infra/quant-vps/status/deploy-open-orders-refresh.sh` (mode `0755`, `set -euo pipefail`, `SRC_DIR="${1:-$(cd "$(dirname "$0")" && pwd)}"`, run as root on QuantVPS):
+`deploy-open-orders-refresh.sh` (retired; formerly under `infra/quant-vps/status/`, mode `0755`, `set -euo pipefail`, `SRC_DIR="${1:-$(cd "$(dirname "$0")" && pwd)}"`, run as root on QuantVPS):
 
 1. Verbatim `# market-hours-guard:start` .. `# market-hours-guard:end` block from `deploy-status-v2-alert.sh` (refuses Monday–Friday 08:30–16:00 New York time; exit 3).
 2. Verify both unit files exist in `$SRC_DIR` (exit 2 if missing).
