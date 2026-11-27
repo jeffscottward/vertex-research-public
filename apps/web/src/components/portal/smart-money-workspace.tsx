@@ -71,7 +71,7 @@ import {
 const selectClass =
   "h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm sm:w-44 sm:flex-none";
 const inputClass =
-  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 font-mono text-sm uppercase sm:w-28";
+  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 font-mono text-sm uppercase placeholder:normal-case sm:w-28";
 const linkClass =
   "inline-flex min-h-11 items-center font-mono underline-offset-2 hover:underline";
 const numberCell = "whitespace-nowrap text-right font-mono text-xs";
@@ -630,7 +630,7 @@ export const SmartMoneyWorkspace = ({
             Refresh
           </Button>
         }
-        description="Market-wide lists of where large traders, insiders, Congress members, and 13F filers put their money, each with its own delay. Research only; no blended score and no trade signals."
+        description="Market-wide lists of where large traders, insiders, Congress members, and 13F filers put their money, each with its own delay. No blended score and no trade signals."
         status={<RankingStatus state={state} />}
         title="Smart money"
       />

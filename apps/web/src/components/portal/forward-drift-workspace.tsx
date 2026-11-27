@@ -279,14 +279,14 @@ const AlertList = ({
   alerts.length === 0 ? (
     <p className="text-muted-foreground text-sm">No open drift alerts.</p>
   ) : (
-    <ul className="grid gap-2">
+    <ul className="grid grid-cols-1 gap-2">
       {alerts.map((alert) => (
         <li
           className="flex flex-wrap items-center gap-3 rounded-md border p-3 text-sm"
           key={alert.id}
         >
           <LevelBadge level={alert.level} />
-          <span className="font-medium">
+          <span className="wrap-anywhere min-w-0 font-medium">
             {labels[alert.monitorId] ?? "Monitor"}
           </span>
           <span className="min-w-0 flex-1 break-words">{alert.message}</span>
@@ -315,7 +315,8 @@ const AlertList = ({
 const ChecksTable = ({
   checks,
 }: Readonly<{ checks: readonly ForwardDriftCheckOutput[] }>) => (
-  <div className="overflow-x-auto">
+  // `relative` keeps the sr-only "Status:" labels of the level badges inside the scroll box.
+  <div className="relative overflow-x-auto">
     <Table
       className="w-full text-left text-sm"
       containerClassName="overflow-visible"
@@ -440,14 +441,17 @@ const RecordForm = ({
   }, [gateway, monitor.id, onRecorded, points, trades]);
 
   return (
-    <section aria-label="Record paper results" className="grid gap-3">
+    <section
+      aria-label="Record paper results"
+      className="grid grid-cols-1 gap-3"
+    >
       <h3 className="font-semibold">Record paper results</h3>
       <p className="text-muted-foreground text-sm">
         One line per value: time (ISO date or epoch milliseconds), then the
         value. New lines must be later than the stored ones. Paper data only.
       </p>
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="grid gap-1">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-1">
           <label className="font-medium text-sm" htmlFor={pointsId}>
             Paper equity points (time, equity)
           </label>
@@ -459,7 +463,7 @@ const RecordForm = ({
             value={points}
           />
         </div>
-        <div className="grid gap-1">
+        <div className="grid min-w-0 grid-cols-1 gap-1">
           <label className="font-medium text-sm" htmlFor={tradesId}>
             Closed paper trades (time, pnl)
           </label>
@@ -529,7 +533,10 @@ const PaperRunner = ({
   );
 
   return (
-    <section aria-label="Paper forward runner" className="grid gap-3">
+    <section
+      aria-label="Paper forward runner"
+      className="grid grid-cols-1 gap-3"
+    >
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="font-semibold">Paper forward runner</h3>
         <StatusBadge status={running ? "success" : "neutral"}>
@@ -612,12 +619,14 @@ const DriftPanel = ({
     CHART_HEIGHT
   );
   return (
-    <section aria-label="Drift panel" className="grid gap-4">
+    <section aria-label="Drift panel" className="grid grid-cols-1 gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-semibold text-lg">{monitor.label}</h2>
+        <h2 className="wrap-anywhere min-w-0 font-semibold text-lg">
+          {monitor.label}
+        </h2>
         <LevelBadge level={monitor.level} />
       </div>
-      <p className="text-muted-foreground text-sm">
+      <p className="wrap-anywhere text-muted-foreground text-sm">
         Baseline: {monitor.baseline.label} ({monitor.baseline.engineVersion}
         {monitor.strategyRevision === null
           ? ", no strategy revision"
@@ -630,7 +639,7 @@ const DriftPanel = ({
         </p>
       )}
       <ChecksTable checks={monitor.checks} />
-      <figure className="grid gap-2">
+      <figure className="grid grid-cols-1 gap-2">
         <svg
           aria-label="Baseline and paper equity, each from its own start"
           className="h-auto w-full rounded-md border bg-background"
@@ -667,7 +676,7 @@ const DriftPanel = ({
         monitor={monitor}
         onRecorded={onRecorded}
       />
-      <section aria-label="Monitor alerts" className="grid gap-2">
+      <section aria-label="Monitor alerts" className="grid grid-cols-1 gap-2">
         <h3 className="font-semibold">Alerts for this monitor</h3>
         <AlertList
           alerts={monitor.alerts}
@@ -697,12 +706,12 @@ const NewMonitorForm = ({
   const baseline = runs.find((run) => run.id === baselineId) ?? first;
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <div className="grid gap-1">
+      <div className="grid min-w-0 grid-cols-1 gap-1">
         <label className="font-medium text-sm" htmlFor={baselineFieldId}>
           Baseline backtest run
         </label>
         <select
-          className="min-h-11 max-w-full rounded-md border bg-background px-3 text-sm"
+          className="min-h-11 min-w-0 max-w-full rounded-md border bg-background px-3 text-sm"
           id={baselineFieldId}
           onChange={(event) => setBaselineId(event.target.value)}
           value={baseline.id}
@@ -714,12 +723,12 @@ const NewMonitorForm = ({
           ))}
         </select>
       </div>
-      <div className="grid gap-1">
+      <div className="grid min-w-0 grid-cols-1 gap-1">
         <label className="font-medium text-sm" htmlFor={labelFieldId}>
           Monitor name
         </label>
         <input
-          className="min-h-11 rounded-md border bg-background px-3 text-sm"
+          className="min-h-11 min-w-0 max-w-full rounded-md border bg-background px-3 text-sm"
           id={labelFieldId}
           maxLength={120}
           onChange={(event) => setLabel(event.target.value)}
@@ -849,12 +858,16 @@ export const ForwardDriftWorkspace = ({
   );
 
   return (
-    <div className="grid gap-8">
+    // One column of minmax(0, 1fr): a long run name or a wide table cannot widen the page.
+    <div className="grid grid-cols-1 gap-8">
       <p className="text-muted-foreground text-sm">
         Paper data only. An alert compares paper results with the backtest that
         is the baseline; it does not change, stop or place anything.
       </p>
-      <section aria-label="Open drift alerts" className="grid gap-3">
+      <section
+        aria-label="Open drift alerts"
+        className="grid grid-cols-1 gap-3"
+      >
         <h2 className="font-semibold text-lg">
           Open drift alerts ({state.openAlerts.length})
         </h2>
@@ -870,14 +883,14 @@ export const ForwardDriftWorkspace = ({
           }}
         />
       </section>
-      <section aria-label="Monitors" className="grid gap-3">
+      <section aria-label="Monitors" className="grid grid-cols-1 gap-3">
         <h2 className="font-semibold text-lg">Monitors</h2>
         {state.monitors.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             No drift monitors yet. Create one from a finished backtest run.
           </p>
         ) : (
-          <ul className="grid gap-2" data-click-private="">
+          <ul className="grid grid-cols-1 gap-2" data-click-private="">
             {state.monitors.map((monitor) => (
               <li
                 className="flex flex-wrap items-center gap-3 text-sm"
@@ -888,7 +901,7 @@ export const ForwardDriftWorkspace = ({
                   aria-current={
                     selected?.id === monitor.id ? "true" : undefined
                   }
-                  className="min-h-11 rounded-md border px-4 font-medium"
+                  className="wrap-anywhere min-h-11 max-w-full rounded-md border px-4 font-medium"
                   disabled={busy}
                   onClick={() => {
                     // A recording for the old monitor that ends now must not change this panel.
@@ -914,7 +927,7 @@ export const ForwardDriftWorkspace = ({
           </ul>
         )}
       </section>
-      <section aria-label="New monitor" className="grid gap-3">
+      <section aria-label="New monitor" className="grid grid-cols-1 gap-3">
         <h2 className="font-semibold text-lg">New monitor</h2>
         {state.runs[0] === undefined ? (
           <p className="text-sm">

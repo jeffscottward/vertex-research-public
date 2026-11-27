@@ -117,21 +117,16 @@ export const AcademyLesson = ({
             }
             title={lesson.title}
           />
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="text-muted-foreground text-xs" data-lesson-tags="">
             {[
               ...lesson.tags.regime,
               ...lesson.tags.instruments,
               lesson.tags.timeframe,
               lesson.tags.risk,
-            ].map((tag) => (
-              <span
-                className="rounded border border-border px-1.5 py-0.5 text-muted-foreground text-xs"
-                key={tag}
-              >
-                {labelOf(tag)}
-              </span>
-            ))}
-          </div>
+            ]
+              .map(labelOf)
+              .join(" · ")}
+          </p>
           {course.narrated ? null : (
             <p className="text-sm">
               <a

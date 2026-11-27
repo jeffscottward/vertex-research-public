@@ -284,13 +284,20 @@ describe("Strategies data-first immutable records", () => {
       </ExperienceProvider>
     );
     const visible = withoutHelp(html);
+    // These headings name the table; no help text repeats them, so no info icon.
     for (const title of [
       "Deterministic entry rules",
       "Deterministic exit rules",
       "Required source data",
     ]) {
-      expect(html).toContain(`aria-label="About ${title}"`);
+      expect(visible).toContain(`>${title}</h2>`);
+      expect(html).not.toContain(`aria-label="About ${title}"`);
     }
+    expect(html).not.toContain("<aside");
+    expect(visible).toContain(
+      '<p class="font-medium text-muted-foreground text-sm">Immutable specification / quant</p>'
+    );
+    expect(html).not.toContain("vx-eyebrow");
     expect(visible.match(/<table\b/g)).toHaveLength(3);
     for (const text of [
       "0.000000001",

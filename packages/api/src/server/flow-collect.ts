@@ -49,6 +49,7 @@ import {
   type FlowInstrument,
   type FlowOptionStream,
   isFlowSymbol,
+  type MinuteFeatures,
 } from "../flow-features.ts";
 import {
   bookSnapshotsFailureNote,
@@ -67,9 +68,11 @@ import {
   optionEvents,
   parseOptionPrints,
 } from "../flow-options.ts";
+import { compareTapeWithHistory } from "../flow-tape-audit.ts";
 import {
   countTapeSeconds,
   type TapeSecondsInput,
+  tapeFailureNote,
   tapeSecondsFailureNote,
 } from "../flow-tape-seconds.ts";
 import {
@@ -133,10 +136,22 @@ export const FLOW_TAPE_REREAD_SECONDS = 60;
  * A tape read starts at most this many seconds before the present minute. Without the limit, the
  * first run after a collector or database outage of hours would read the whole ring in one
  * request; when that request fails, no sample is stored and each later run repeats a larger read.
- * The limit bounds the work of one run. Minutes before the limit are not read back: they stay a
- * gap. A catch-up from the newest stored minute is a future improvement.
+ * The limit bounds the work of one run. Minutes before the limit are not read by this run: they
+ * become tape gaps (flow_tape_gaps) that the catch-up reads back from the ring, one chunk per run
+ * (FLOW_TAPE_CATCHUP_SECONDS).
  */
 export const FLOW_TAPE_LOOKBACK_SECONDS = 600;
+/**
+ * A catch-up read (catchUpTape) reads this many seconds of the oldest tape gap per symbol and
+ * run, oldest part first: a gap of 60 minutes that the ring still holds is read back in 6 runs.
+ * In the busiest measured minutes (about 83 prints per second) 10 minutes are about 50,000
+ * prints, 3 answers.
+ */
+const FLOW_TAPE_CATCHUP_SECONDS = 600;
+/** A tape gap whose end is older than this is deleted unread: the ring restarts every night. */
+const FLOW_TAPE_GAP_MAX_AGE_SECONDS = 86_400;
+/** Each streamed symbol checks its tape against IBKR history once per this many minutes. */
+const FLOW_TAPE_AUDIT_EVERY_MINUTES = 5;
 /** No sampled tick fetch (any sampled symbol) within this many seconds of another one. */
 export const FLOW_TICKS_STAGGER_SECONDS = 110;
 /**
@@ -222,6 +237,8 @@ export type FlowCollectDeps = Readonly<{
   ticks: (instrument: FlowInstrument) => Promise<MarketTicksOutput>;
   /** One answer of the streamed tape from the exchange second `since` (no IBKR request). */
   tape: (instrument: FlowInstrument, since: number) => Promise<MarketTape>;
+  /** The newest 1000 IBKR history prints of a streamed future, quotes off (one IBKR request). */
+  tapeHistory: (instrument: FlowInstrument) => Promise<MarketTicksOutput>;
   depth: (instrument: FlowInstrument) => Promise<MarketDepthOutput>;
   /** Streamed L2 depth history snapshots for ES/NQ (optional; falls back to depth when absent). */
   depthHistory?: (
@@ -437,19 +454,22 @@ type TapeRead = Readonly<{
 }>;
 
 /**
- * All answers of one tape read from `since`, joined: while an answer says `more`, the next request
- * starts at `until + 1`. A failed request throws; so does a read that is not complete after
- * FLOW_TAPE_MAX_ANSWERS answers.
+ * All answers of one tape read from `since`, joined: while an answer says `more` and ends before
+ * `stop` (the first second that is not needed; the default reads to the end of the ring), the next
+ * request starts at `until + 1`. A `stop` function gets the first answer. A failed request throws;
+ * so does a read that is not complete after FLOW_TAPE_MAX_ANSWERS answers.
  */
 const readTape = async (
   state: RunState,
   instrument: FlowInstrument,
-  since: number
+  since: number,
+  stop: number | ((first: MarketTape) => number) = Number.POSITIVE_INFINITY
 ): Promise<TapeRead> => {
   const first = await state.deps.tape(instrument, since);
   const answers = [first];
+  const end = typeof stop === "number" ? stop : stop(first);
   let last = first;
-  while (last.more) {
+  while (last.more && last.until + 1 < end) {
     if (answers.length >= FLOW_TAPE_MAX_ANSWERS)
       throw new Error(
         `tape read not complete after ${FLOW_TAPE_MAX_ANSWERS} answers`
@@ -485,14 +505,20 @@ const tapeCoveredSeconds =
 /** The end of a tape sample message when the look-back limit cut the read. */
 const TAPE_SKIPPED_NOTE = `; older minutes skipped (look-back limit ${FLOW_TAPE_LOOKBACK_SECONDS / 60} min)`;
 
+/** The samples table holds messages of at most this many characters. */
+const SAMPLE_MESSAGE_MAX = 300;
+
 /**
- * A tape sample message of at most 300 characters (the limit of the samples table). `note` is the
- * note of a failed per-second write (storeTapeSeconds, at most 90 characters); it stands before
- * the skip note, and the text before both is cut.
+ * A tape sample message of at most 300 characters (the limit of the samples table). `note` holds
+ * the notes of the guarded steps (per-second counts, gap, catch-up, history check); it stands
+ * before the skip note, and the text before both is cut. A suffix longer than the limit is cut too.
  */
 const tapeMessage = (text: string, skipped: boolean, note = ""): string => {
-  const suffix = `${note}${skipped ? TAPE_SKIPPED_NOTE : ""}`;
-  return `${text.slice(0, 300 - suffix.length)}${suffix}`;
+  const suffix = `${note}${skipped ? TAPE_SKIPPED_NOTE : ""}`.slice(
+    0,
+    SAMPLE_MESSAGE_MAX
+  );
+  return `${text.slice(0, SAMPLE_MESSAGE_MAX - suffix.length)}${suffix}`;
 };
 
 /**
@@ -521,12 +547,13 @@ const storeTapeSeconds = async (
  * not before the look-back limit. Without an ok sample the read starts two minutes before the
  * present minute: a read that reaches the service in the first seconds of a minute ends in the
  * minute before, and one complete minute must be in the range, or no ok sample is ever written at
- * that timing. skipped: the limit cut the read, so older minutes are not read.
+ * that timing. skipped: the limit cut the read, so the minutes from `wanted` to `since` are a gap
+ * for the catch-up.
  */
 const tapeCursor = (
   now: Date,
   lastOk: Date | undefined
-): Readonly<{ since: number; skipped: boolean }> => {
+): Readonly<{ since: number; skipped: boolean; wanted: number }> => {
   const minuteOf = (date: Date): number =>
     floorMinute(Math.floor(date.getTime() / 1000));
   const wanted =
@@ -534,29 +561,111 @@ const tapeCursor = (
       ? minuteOf(now) - 2 * FLOW_TAPE_REREAD_SECONDS
       : minuteOf(lastOk) - FLOW_TAPE_REREAD_SECONDS;
   const limit = minuteOf(now) - FLOW_TAPE_LOOKBACK_SECONDS;
-  return { since: Math.max(wanted, limit), skipped: wanted < limit };
+  return { since: Math.max(wanted, limit), skipped: wanted < limit, wanted };
 };
 
+type TapeSymbol = "ES" | "NQ";
+
+type StoredTape = Readonly<{
+  features: MinuteFeatures;
+  /** Deep trades of the range. */
+  deep: number;
+  /** New deep trades and new events. */
+  stored: Readonly<{ events: number; trades: number }>;
+  /** Minute rows written. */
+  items: number;
+  signed: readonly SignedTrade[];
+  /** The note of a failed per-second write, or "". */
+  secondsNote: string;
+}>;
+
 /**
- * One read of the streamed tape (ES and NQ). It reads from one minute before the minute of the last
- * stored ok sample (tapeCursor), keeps complete minutes only (the minute in progress is read by the
- * next run), signs the joined prints once and stores minutes, deep trades and events. It sends no
- * IBKR request: no pacing read, no stagger.
+ * Signs the prints of the complete minutes [since, end) of one tape read and stores their minute
+ * rows (rule "trades"), deep trades (capture streamed), events and per-second counts. The live
+ * read and the catch-up use it. `prints` are the prints of the range, oldest first; the first
+ * answer of the read seeds the tick rule.
  */
-const collectTape = async (
+const storeTapeRange = async (
   state: RunState,
-  instrument: FlowInstrument
-): Promise<Attempt> => {
-  const { now } = state.deps;
-  const key = sampleKey(instrument.symbol, "ticks");
-  const { since, skipped } = tapeCursor(now, state.lastOk.get(key));
-  state.last.set(key, now);
-  let read: TapeRead;
-  try {
-    read = await readTape(state, instrument, since);
-  } catch (error) {
-    return failed(error);
-  }
+  instrument: FlowInstrument,
+  read: TapeRead,
+  range: Readonly<{ since: number; end: number; prints: readonly TapePrint[] }>,
+  /** Runs once the minute rows are built, before any write (the price of the run). */
+  built: (features: MinuteFeatures) => void = () => undefined
+): Promise<StoredTape> => {
+  const { end, prints, since } = range;
+  const covered = tapeCoveredSeconds(read.covered, since, end);
+  const signed = signTape(
+    prints,
+    read.first.previousPrice,
+    read.first.previousDifferentPrice
+  );
+  const features = buildMinuteFeatures(
+    instrument,
+    signed,
+    read.first.minTick ?? instrument.minTick,
+    covered
+  );
+  built(features);
+  // "trades": a second read replaces a minute row when it holds at least as many prints. A late or
+  // out-of-order print lowers the covered seconds of its minute in the service, so the coverage
+  // rule of the sampled ticks would keep the old row without that print.
+  const items = await store(state, features.minutes, (rows) =>
+    state.deps.repository.upsertMinutes(rows, "trades")
+  );
+  // The range is whole seconds from since to end - 1, so no second of it is cut.
+  const deep = deepTradesOf(
+    instrument,
+    features.deepPrints,
+    { first: since - 1, last: end },
+    state.deps.now,
+    "streamed"
+  );
+  const stored = state.dryRun
+    ? { events: features.events.length, trades: deep.rows.length }
+    : await state.deps.repository.insertTickSample({
+        events: features.events,
+        trades: deep.rows,
+      });
+  // Tape speed: the per-second counts of the same read, after the writes above. A failure is a
+  // note in the message and changes nothing else.
+  const secondsNote = await storeTapeSeconds(state, {
+    contract: read.first.contract?.localSymbol ?? instrument.symbol,
+    covered: read.covered,
+    end,
+    prints,
+    since,
+    symbol: instrument.symbol as TapeSymbol,
+  });
+  return {
+    deep: deep.rows.length,
+    features,
+    items,
+    secondsNote,
+    signed,
+    stored,
+  };
+};
+
+type LiveTape = Readonly<{
+  events: number;
+  items: number;
+  status: "ok" | "empty" | "unavailable";
+  text: string;
+  /** The note of a failed per-second write, or "". */
+  note: string;
+}>;
+
+/**
+ * The live part of a tape read: keeps complete minutes only (the minute in progress is read by
+ * the next run) and stores them (storeTapeRange).
+ */
+const storeLiveTape = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  read: TapeRead,
+  since: number
+): Promise<LiveTape> => {
   // The complete minutes end at the start of the minute that holds the first second after the
   // read.
   const end = floorMinute(read.last.until + 1);
@@ -569,95 +678,53 @@ const collectTape = async (
   const { error: cause, state: feed } = read.last.stream;
   /**
    * The sample of a read with no print and no covered second in `where`: empty for a live feed,
-   * unavailable with the cause for a feed that is down or off. storedEvents and storedItems count
-   * the rows of earlier minutes that this run stored. note: the note of a failed per-second write.
+   * unavailable with the cause for a feed that is down or off. events and items count the rows of
+   * earlier minutes that this run stored. note: the note of a failed per-second write.
    */
   const nothingIn = (
     where: string,
-    storedEvents: number,
-    storedItems: number,
+    events: number,
+    items: number,
     note = ""
-  ): Attempt =>
+  ): LiveTape =>
     feed === "live"
       ? {
-          events: storedEvents,
-          items: storedItems,
-          message: tapeMessage(
-            `streamed tape ${contract}: no print and no covered second in ${where}`,
-            skipped,
-            note
-          ),
-          record: true,
+          events,
+          items,
+          note,
           status: "empty",
+          text: `streamed tape ${contract}: no print and no covered second in ${where}`,
         }
       : {
-          events: storedEvents,
-          items: storedItems,
-          message: tapeMessage(
-            `tape stream ${feed}: ${cause ?? "no tick"}`,
-            skipped,
-            note
-          ),
-          record: true,
+          events,
+          items,
+          note,
           status: "unavailable",
+          text: `tape stream ${feed}: ${cause ?? "no tick"}`,
         };
   if (end <= since || (prints.length === 0 && coveredSeconds === 0))
     return nothingIn("the complete minutes", 0, 0);
-  const signed = signTape(
-    prints,
-    read.first.previousPrice,
-    read.first.previousDifferentPrice
-  );
-  const features = buildMinuteFeatures(
-    instrument,
-    signed,
-    read.first.minTick ?? instrument.minTick,
-    covered
-  );
-  // The close of the newest complete minute is at most about two minutes old. A price that this
-  // run already has (the book mid of depth) is newer, so it stays. A minute row before the newest
-  // complete minute gives no price: while a feed is off or halted, its prints can be as old as
-  // the look-back limit.
   const newestMinute = end - 60;
-  const newest = features.minutes.at(-1);
-  if (
-    newest &&
-    newest.minute.getTime() === newestMinute * 1000 &&
-    !state.prices.has(instrument.symbol)
-  )
-    state.prices.set(instrument.symbol, newest.close);
-  // "trades": a second read replaces a minute row when it holds at least as many prints. A late or
-  // out-of-order print lowers the covered seconds of its minute in the service, so the coverage
-  // rule of the sampled ticks would keep the old row without that print.
-  const items = await store(state, features.minutes, (rows) =>
-    state.deps.repository.upsertMinutes(rows, "trades")
-  );
-  // The range is whole seconds from since to end - 1, so no second of it is cut.
-  const deep = deepTradesOf(
+  const stored = await storeTapeRange(
+    state,
     instrument,
-    features.deepPrints,
-    { first: since - 1, last: end },
-    now,
-    "streamed"
+    read,
+    { end, prints, since },
+    (features) => {
+      // The close of the newest complete minute is at most about two minutes old. A price that
+      // this run already has (the book mid of depth) is newer, so it stays. A minute row before
+      // the newest complete minute gives no price: while a feed is off or halted, its prints can
+      // be as old as the look-back limit. The price is set before the writes, so a failed write
+      // does not take it from the later sources of the run.
+      const newest = features.minutes.at(-1);
+      if (
+        newest &&
+        newest.minute.getTime() === newestMinute * 1000 &&
+        !state.prices.has(instrument.symbol)
+      )
+        state.prices.set(instrument.symbol, newest.close);
+    }
   );
-  const stored = state.dryRun
-    ? { events: features.events.length, trades: deep.rows.length }
-    : await state.deps.repository.insertTickSample({
-        events: features.events,
-        trades: deep.rows,
-      });
-  // Tape speed: the per-second counts of the same read, after the writes above. A failure is a
-  // note in the message and changes nothing else.
-  const secondsNote = await storeTapeSeconds(state, {
-    contract,
-    covered: read.covered,
-    end,
-    prints,
-    since,
-    // collectTape runs only for the instruments with a streamed tape: ES and NQ (the flow
-    // registry test pins it).
-    symbol: instrument.symbol as "ES" | "NQ",
-  });
   // A feed that gave nothing in the newest complete minute is reported now, not one run later,
   // whatever state it reports: a feed can say live and deliver no print. The rows above are of
   // the minute that was read again: they are stored, because the second read heals a print that
@@ -665,21 +732,308 @@ const collectTape = async (
   if (covered(newestMinute) === 0 && !prints.some(([t]) => t >= newestMinute))
     return nothingIn(
       "the newest complete minute",
-      stored.events,
-      items,
-      secondsNote
+      stored.stored.events,
+      stored.items,
+      stored.secondsNote
     );
-  const counts = countSigning(signed);
+  const counts = countSigning(stored.signed);
   return {
-    events: stored.events,
-    items,
+    events: stored.stored.events,
+    items: stored.items,
+    note: stored.secondsNote,
+    status: "ok",
+    text: `streamed tape ${contract}: ${stored.signed.length} prints in ${stored.features.minutes.length} complete minutes, ${coveredSeconds} of ${end - since} s covered; ${stored.deep} deep trades, ${stored.stored.trades} new; ${counts.tick} prints signed by the tick rule, ${counts.none} without a side`,
+  };
+};
+
+/** The start of the note when the cut range of a read could not be stored as a gap. */
+const TAPE_GAP_FAILURE_PREFIX = "; tape gap not stored";
+
+/**
+ * The parts of [from, to) in which the Globex session of the symbol is open (flowSessionOpen),
+ * as whole minutes, oldest first. A part never spans the daily break or a weekend: the ring holds
+ * no print there, and a closed range would end the catch-up of the open minutes before it.
+ */
+const openTapeRanges = (
+  symbol: TapeSymbol,
+  from: number,
+  to: number
+): readonly (readonly [number, number])[] => {
+  const ranges: [number, number][] = [];
+  for (let minute = from; minute < to; minute += 60) {
+    if (!flowSessionOpen("ticks", symbol, new Date(minute * 1000))) continue;
+    const last = ranges.at(-1);
+    if (last !== undefined && last[1] === minute) last[1] = minute + 60;
+    else ranges.push([minute, minute + 60]);
+  }
+  return ranges;
+};
+
+/**
+ * Stores the range [wanted, since) that the look-back limit cut from this read as tape gaps, one
+ * per open part of the session (openTapeRanges), before the read, so no failure can lose them.
+ * Minutes older than FLOW_TAPE_GAP_MAX_AGE_SECONDS are left out: the ring cannot hold them. A
+ * failure becomes a note; a dry run stores nothing.
+ */
+const storeTapeGap = async (
+  state: RunState,
+  symbol: TapeSymbol,
+  wanted: number,
+  since: number
+): Promise<string> => {
+  if (state.dryRun) return "";
+  const from = Math.max(wanted, since - FLOW_TAPE_GAP_MAX_AGE_SECONDS);
+  try {
+    for (const [start, end] of openTapeRanges(symbol, from, since))
+      await state.deps.repository.addTapeGap({
+        createdAt: state.deps.now,
+        endTime: new Date(end * 1000),
+        startTime: new Date(start * 1000),
+        symbol,
+      });
+    return "";
+  } catch (error) {
+    return tapeFailureNote(TAPE_GAP_FAILURE_PREFIX, error);
+  }
+};
+
+/**
+ * The first second of the ring's data in an answer: its first print or its first covered second,
+ * whichever is earlier, or null when it holds neither. The ring drops its oldest prints first and
+ * an empty ring (after a restart of vertex-history) holds no print and no covered second before
+ * the restart, so the seconds of a gap before this second are lost.
+ */
+const firstHeldSecond = (answer: MarketTape): number | null => {
+  const seconds = [
+    ...answer.trades.slice(0, 1).map(([t]) => t),
+    ...answer.covered.map(([from]) => from),
+  ];
+  return seconds.length === 0 ? null : Math.min(...seconds);
+};
+
+/**
+ * One chunk of the oldest tape gap of a symbol, read from the ring and stored like the complete
+ * minutes of a live read. The ring drops its oldest prints first, so the oldest part goes first:
+ * the chunk starts at the start of the gap, or at the minute of the first second that the ring
+ * still holds (firstHeldSecond; the minutes before it are reported as not in the ring), and holds
+ * at most FLOW_TAPE_CATCHUP_SECONDS. A chunk read to the end of the gap deletes it; else the start
+ * of the gap moves forward to the end of the chunk. A gap that the ring does not hold at all is
+ * deleted. Gaps whose end is older than FLOW_TAPE_GAP_MAX_AGE_SECONDS are deleted unread:
+ * vertex-history restarts every night, so its ring cannot hold them. Returns the note for the
+ * sample message ("" without a gap); it never throws. A dry run reads but writes nothing.
+ */
+const catchUpTape = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  symbol: TapeSymbol
+): Promise<string> => {
+  const { now, repository } = state.deps;
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const write = async (step: () => Promise<void>): Promise<void> => {
+    if (!state.dryRun) await step();
+  };
+  try {
+    let gap: Readonly<{ startTime: Date; endTime: Date }> | undefined;
+    let dropped = 0;
+    for (const row of await repository.tapeGaps(symbol)) {
+      if (
+        nowSeconds - row.endTime.getTime() / 1000 >
+        FLOW_TAPE_GAP_MAX_AGE_SECONDS
+      ) {
+        await write(() => repository.deleteTapeGap(symbol, row.startTime));
+        dropped += 1;
+      } else gap ??= row;
+    }
+    const droppedNote =
+      dropped === 0
+        ? ""
+        : `; ${dropped} tape ${dropped === 1 ? "gap" : "gaps"} older than 1 day ${state.dryRun ? "to drop" : "dropped"}`;
+    if (gap === undefined) return droppedNote;
+    const { startTime } = gap;
+    const gapStart = startTime.getTime() / 1000;
+    const gapEnd = gap.endTime.getTime() / 1000;
+    let start = gapStart;
+    let end = gapEnd;
+    const read = await readTape(state, instrument, gapStart, (first) => {
+      start = Math.max(gapStart, floorMinute(firstHeldSecond(first) ?? gapEnd));
+      end = Math.min(gapEnd, start + FLOW_TAPE_CATCHUP_SECONDS);
+      return end;
+    });
+    const lostMinutes = (Math.min(start, gapEnd) - gapStart) / 60;
+    const lostNote =
+      lostMinutes > 0 ? `, ${lostMinutes} min not in the ring` : "";
+    if (start >= gapEnd) {
+      await write(() => repository.deleteTapeGap(symbol, startTime));
+      return `${droppedNote}; tape gap of ${lostMinutes} min not in the ring`;
+    }
+    if (read.last.until + 1 < end) return `${droppedNote}; catch-up waits`;
+    const prints = read.prints.filter(([t]) => t >= start && t < end);
+    const { items, secondsNote } = await storeTapeRange(
+      state,
+      instrument,
+      read,
+      {
+        end,
+        prints,
+        since: start,
+      }
+    );
+    const left = (gapEnd - end) / 60;
+    await write(() =>
+      left === 0
+        ? repository.deleteTapeGap(symbol, startTime)
+        : repository.moveTapeGapStart(symbol, startTime, new Date(end * 1000))
+    );
+    return `${droppedNote}; caught up ${(end - start) / 60} min (${prints.length} prints, ${items} rows)${lostNote}${left > 0 ? `, ${left} gap min left` : ""}${secondsNote}`;
+  } catch (error) {
+    return tapeFailureNote("; catch-up failed", error);
+  }
+};
+
+/** The minute of each 5-minute cycle in which a symbol checks its tape against IBKR history. */
+const TAPE_AUDIT_MINUTE: Readonly<Record<TapeSymbol, number>> = {
+  ES: 1,
+  NQ: 3,
+};
+
+/** True in the minutes in which the tape of the symbol is checked against IBKR history. */
+const tapeAuditTurn = (symbol: TapeSymbol, now: Date): boolean =>
+  Math.floor(now.getTime() / 60_000) % FLOW_TAPE_AUDIT_EVERY_MINUTES ===
+  TAPE_AUDIT_MINUTE[symbol];
+
+/**
+ * Checks the tape against IBKR history in the symbol's turn (tapeAuditTurn): the newest 1000
+ * history prints (one IBKR request, only while at most FLOW_IBKR_MAX_RECENT of 6 requests are
+ * recent, so /charts keeps priority), then one tape read from the first history second, compared
+ * second by second (compareTapeWithHistory) and stored in flow_tape_audits. Only history prints
+ * from the minute after the symbol's previous turn, and after the checks already stored in this
+ * turn, count, so two checks never overlap. Returns the note for the sample message ("" when it
+ * is not the turn); it never throws. A dry run checks but stores nothing.
+ */
+const auditTape = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  symbol: TapeSymbol
+): Promise<string> => {
+  const { now } = state.deps;
+  if (!tapeAuditTurn(symbol, now)) return "";
+  const pacing = await historyPacing(state);
+  if (pacing === null) return "; history check skipped (no pacing data)";
+  if (pacing.backoffSeconds > 0)
+    return "; history check skipped (IBKR pacing back-off)";
+  if (pacing.recentRequests > FLOW_IBKR_MAX_RECENT)
+    return `; history check skipped (IBKR window ${pacing.recentRequests}/6)`;
+  // One TRADES request (quotes off) counts against the window for the later symbols of the run.
+  state.pacing = { ...pacing, recentRequests: pacing.recentRequests + 1 };
+  try {
+    const history = await state.deps.tapeHistory(instrument);
+    if (history.cache.stale)
+      return "; history check skipped (stale history copy)";
+    // From the start of the minute after the previous turn: two checks never compare the same
+    // second (in a quiet market 1000 prints span more than 5 minutes).
+    const floor =
+      floorMinute(Math.floor(now.getTime() / 1000)) -
+      (FLOW_TAPE_AUDIT_EVERY_MINUTES - 1) * 60;
+    // A second run in the same turn (an operator run) starts after the checks stored before it.
+    const stored = await state.deps.repository.readTapeAudits({
+      from: new Date(floor * 1000),
+      symbol,
+      to: new Date(now.getTime() + 1000),
+    });
+    const start = Math.max(
+      floor,
+      ...stored.map(({ toSecond }) => toSecond.getTime() / 1000 + 1)
+    );
+    const trades = history.trades.filter(({ t }) => t >= start);
+    if (trades.length === 0)
+      return "; history check skipped (no recent history print)";
+    const tape = await readTape(
+      state,
+      instrument,
+      Math.min(...trades.map(({ t }) => t))
+    );
+    if (tape.first.contract?.conId !== history.contract.conId)
+      return "; history check skipped (contract differs)";
+    const result = compareTapeWithHistory({
+      covered: tape.covered,
+      history: trades,
+      tape: tape.prints,
+      until: tape.last.until,
+    });
+    if (result === null) return "; history check: no covered second to compare";
+    if (!state.dryRun)
+      await state.deps.repository.insertTapeAudit({
+        checkedAt: now,
+        comparedSeconds: result.comparedSeconds,
+        contract: snapshotContractName(history.contract.localSymbol, symbol),
+        fromSecond: new Date(result.fromSecond * 1000),
+        historyContracts: result.historyContracts,
+        historyTrades: result.historyTrades,
+        matchedSeconds: result.matchedSeconds,
+        symbol,
+        tapeContracts: result.tapeContracts,
+        tapeTrades: result.tapeTrades,
+        toSecond: new Date(result.toSecond * 1000),
+      });
+    return `; history check ${result.matchedSeconds} of ${result.comparedSeconds} s match`;
+  } catch (error) {
+    return tapeFailureNote("; history check failed", error);
+  }
+};
+
+/**
+ * One read of the streamed tape (ES and NQ). It reads from one minute before the minute of the last
+ * stored ok sample (tapeCursor) and stores the complete minutes (storeLiveTape). When the look-back
+ * limit cut the read, the cut range is stored as tape gaps first. After an ok live read, the
+ * run reads one chunk of the oldest tape gap (catchUpTape) and, with a live feed in the symbol's
+ * turn, checks the tape against IBKR history (auditTape). Those two steps add notes to the
+ * message; they never change the status, the items, the events or the cursor of the sample. The
+ * live read sends no IBKR request: no pacing read, no stagger.
+ */
+const collectTape = async (
+  state: RunState,
+  instrument: FlowInstrument
+): Promise<Attempt> => {
+  // collectTape runs only for the instruments with a streamed tape: ES and NQ (the flow registry
+  // test pins it).
+  const symbol = instrument.symbol as TapeSymbol;
+  const key = sampleKey(symbol, "ticks");
+  const { since, skipped, wanted } = tapeCursor(
+    state.deps.now,
+    state.lastOk.get(key)
+  );
+  state.last.set(key, state.deps.now);
+  const gapNote = skipped
+    ? await storeTapeGap(state, symbol, wanted, since)
+    : "";
+  let read: TapeRead;
+  try {
+    read = await readTape(state, instrument, since);
+  } catch (error) {
+    return failed(error);
+  }
+  const live = await storeLiveTape(state, instrument, read, since);
+  // The catch-up runs after an ok live read only: while the feed gives nothing, the cursor does not
+  // move, each run cuts the same range again and the ring has nothing new to give. A gap that
+  // could not be stored means that the gap table cannot be used.
+  const catchUp =
+    live.status === "ok" && gapNote === ""
+      ? await catchUpTape(state, instrument, symbol)
+      : "";
+  const audit =
+    read.last.stream.state === "live"
+      ? await auditTape(state, instrument, symbol)
+      : "";
+  return {
+    events: live.events,
+    items: live.items,
     message: tapeMessage(
-      `streamed tape ${contract}: ${signed.length} prints in ${features.minutes.length} complete minutes, ${coveredSeconds} of ${end - since} s covered; ${deep.rows.length} deep trades, ${stored.trades} new; ${counts.tick} prints signed by the tick rule, ${counts.none} without a side`,
+      live.text,
       skipped,
-      secondsNote
+      `${live.note}${gapNote}${catchUp}${audit}`
     ),
     record: true,
-    status: "ok",
+    status: live.status,
   };
 };
 

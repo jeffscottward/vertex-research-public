@@ -1,0 +1,252 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 980 476"
+  role="img"
+  aria-label="Findings of the review by reviewer and severity, and what was done"
+>
+  <rect width="980" height="476" fill="#0f1115" />
+  <g font-family="Manrope, Public Sans, Helvetica, Arial, sans-serif">
+    <text x="40" y="44" font-size="22" font-weight="700" fill="#e8e6df">
+      Review of the plan: 105 findings from 9 reviewers
+    </text>
+    <text x="40" y="70" font-size="13" fill="#8b8f98">
+      <tspan fill="#e5534b">■</tspan>
+      blocker 2
+      <tspan fill="#d4a72c">■</tspan>
+      major 49
+      <tspan fill="#6b778c">■</tspan>
+      nit 54
+    </text>
+    <text x="320" y="110" font-size="13" fill="#e8e6df" text-anchor="end">
+      zoom-out (stage 5)
+    </text>
+    <rect x="330" y="96" width="64" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="362.0"
+      y="109.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      3
+    </text>
+    <rect x="396" y="96" width="86" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="439.0"
+      y="109.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      4
+    </text>
+    <text x="320" y="140" font-size="13" fill="#e8e6df" text-anchor="end">
+      inventive catalyst (stage 5)
+    </text>
+    <rect x="330" y="126" width="42" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="351.0"
+      y="139.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      2
+    </text>
+    <rect x="374" y="126" width="42" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="395.0"
+      y="139.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      2
+    </text>
+    <text x="320" y="170" font-size="13" fill="#e8e6df" text-anchor="end">
+      comprehension (stage 6)
+    </text>
+    <rect x="330" y="156" width="174" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="417.0"
+      y="169.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      8
+    </text>
+    <rect x="506" y="156" width="130" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="571.0"
+      y="169.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      6
+    </text>
+    <text x="320" y="200" font-size="13" fill="#e8e6df" text-anchor="end">
+      design critic (stage 7)
+    </text>
+    <rect x="330" y="186" width="108" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="384.0"
+      y="199.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      5
+    </text>
+    <rect x="440" y="186" width="64" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="472.0"
+      y="199.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      3
+    </text>
+    <text x="320" y="230" font-size="13" fill="#e8e6df" text-anchor="end">
+      structural (stage 7)
+    </text>
+    <rect x="330" y="216" width="42" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="351.0"
+      y="229.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      2
+    </text>
+    <rect x="374" y="216" width="196" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="472.0"
+      y="229.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      9
+    </text>
+    <text x="320" y="260" font-size="13" fill="#e8e6df" text-anchor="end">
+      style (stage 7)
+    </text>
+    <rect x="330" y="246" width="174" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="417.0"
+      y="259.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      8
+    </text>
+    <rect x="506" y="246" width="306" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="659.0"
+      y="259.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      14
+    </text>
+    <text x="320" y="290" font-size="13" fill="#e8e6df" text-anchor="end">
+      implementation readiness (stage 9)
+    </text>
+    <rect x="330" y="276" width="42" height="18" rx="3" fill="#e5534b" />
+    <text
+      x="351.0"
+      y="289.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      2
+    </text>
+    <rect x="374" y="276" width="108" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="428.0"
+      y="289.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      5
+    </text>
+    <rect x="484" y="276" width="20" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="494.0"
+      y="289.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      1
+    </text>
+    <text x="320" y="320" font-size="13" fill="#e8e6df" text-anchor="end">
+      codebase details (stage 9)
+    </text>
+    <rect x="330" y="306" width="174" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="417.0"
+      y="319.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      8
+    </text>
+    <rect x="506" y="306" width="130" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="571.0"
+      y="319.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      6
+    </text>
+    <text x="320" y="350" font-size="13" fill="#e8e6df" text-anchor="end">
+      style (stage 9)
+    </text>
+    <rect x="330" y="336" width="174" height="18" rx="3" fill="#d4a72c" />
+    <text
+      x="417.0"
+      y="349.5"
+      font-size="11"
+      fill="#0f1115"
+      text-anchor="middle"
+    >
+      8
+    </text>
+    <rect x="506" y="336" width="196" height="18" rx="3" fill="#4b5568" />
+    <text
+      x="604.0"
+      y="349.5"
+      font-size="11"
+      fill="#e8e6df"
+      text-anchor="middle"
+    >
+      9
+    </text>
+    <line x1="40" y1="376" x2="940" y2="376" stroke="#2a2f3a" />
+    <text x="40" y="412" font-size="18" font-weight="700" fill="#3fb950">
+      102 fixed in the plan
+    </text>
+    <text x="300" y="412" font-size="18" font-weight="700" fill="#d4a72c">
+      1 contested
+    </text>
+    <text x="470" y="412" font-size="18" font-weight="700" fill="#8b8f98">
+      2 declined
+    </text>
+    <text x="40" y="442" font-size="13" fill="#8b8f98">
+      Largest changes: no test of the tool list in the pre-push gate; every
+      trial stores the prompt format of the bridge; one commit.
+    </text>
+  </g>
+</svg>

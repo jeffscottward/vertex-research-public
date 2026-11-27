@@ -9,8 +9,7 @@ export const metadata = {
 export default function FeaturesPage() {
   return (
     <ResearchPublicPage
-      eyebrow="Vertex Research / Platform"
-      title="A workspace for the evidence behind the idea."
+      title="What the platform does"
       introduction="Read the method, inspect the data context, and examine the claim. Vertex keeps those layers connected without treating them as interchangeable."
       sections={[
         {

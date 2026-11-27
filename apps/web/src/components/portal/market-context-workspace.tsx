@@ -126,6 +126,8 @@ const SeriesCard = ({
 }>) =>
   series === null ? (
     <KpiCard
+      // The Cboe error text can hold a long address: it wraps inside the card.
+      className="wrap-anywhere"
       data-series={label}
       hint={
         sourceError === null
@@ -239,7 +241,7 @@ export const MarketContextWorkspace = ({
   if (state.type === "error")
     return (
       <div className="space-y-3" data-market-state="error">
-        <p className="text-sm" role="alert">
+        <p className="wrap-anywhere text-sm" role="alert">
           Market context unavailable. {state.message}
         </p>
         <Button disabled={busy} onClick={() => void load()} variant="outline">
@@ -260,7 +262,7 @@ export const MarketContextWorkspace = ({
         every minute.
       </p>
       {data.sourceErrors.length > 0 ? (
-        <ul className="space-y-1 text-sm" data-source-errors="">
+        <ul className="wrap-anywhere space-y-1 text-sm" data-source-errors="">
           {data.sourceErrors.map((error) => (
             <li key={error}>{error}</li>
           ))}

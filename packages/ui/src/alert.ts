@@ -19,5 +19,4 @@ export const alertVariants = cva(
 );
 
 /** Title line inside an alert; `alert-title` keeps it out of the muted description rule. */
-export const alertTitleClassName =
-  "alert-title font-medium leading-snug tracking-tight";
+export const alertTitleClassName = "alert-title font-medium leading-snug";

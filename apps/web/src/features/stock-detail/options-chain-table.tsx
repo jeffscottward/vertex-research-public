@@ -187,7 +187,7 @@ const inTheMoney = (
 
 // Tight horizontal padding: 23 columns must fit a laptop-width panel without scrolling.
 const headClass =
-  "h-9 whitespace-nowrap px-1.5 text-right font-medium text-[11px] text-muted-foreground uppercase tracking-wide";
+  "h-9 whitespace-nowrap px-1.5 text-right font-medium text-[11px] text-muted-foreground";
 const cellClass = "h-10 whitespace-nowrap px-1.5 text-right tabular-nums";
 const itmClass = "bg-muted/50";
 const strikeClass =
@@ -253,7 +253,7 @@ const StrikeCell = ({
   >
     {row.strike.toFixed(2)}
     {atm ? (
-      <span className="ml-2 rounded-full border border-border-strong px-1.5 py-0.5 font-medium text-[10px] uppercase">
+      <span className="ml-2 rounded-full border border-border-strong px-1.5 py-0.5 font-medium text-[10px]">
         ATM
       </span>
     ) : null}

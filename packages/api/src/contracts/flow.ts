@@ -786,6 +786,18 @@ export const FlowDeepTradesSchema = z
         share: z.number().min(0).max(1).nullable(),
       })
       .strict(),
+    // The checks of the streamed tape against IBKR history in the session (flow_tape_audits,
+    // 09:30 to 16:00 New York): checks, compared seconds and matching seconds. A check samples
+    // the tape; coverage itself is not checked. Null for a sampled capture, without a stored
+    // check, or when the checks could not be read.
+    audit: z
+      .object({
+        checks: count,
+        comparedSeconds: count,
+        matchedSeconds: count,
+      })
+      .strict()
+      .nullable(),
     sums: z
       .object({
         buyVolume: z.number(),

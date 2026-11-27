@@ -46,6 +46,7 @@ import {
   AGENT_PHASE_LABELS,
   agentCards,
   initRunView,
+  EVENT_KIND_LABELS,
   isFinishedStatus,
   LIVE_POLL_MS,
   REPLAY_SPEEDS,
@@ -57,6 +58,7 @@ import {
 import {
   type AgentModelRunsGateway,
   createBrowserAgentModelRunsGateway,
+  facetValueLabel,
   describeModelRunFailure,
   formatCount,
   formatPrice,
@@ -89,17 +91,6 @@ const KIND_ICONS: Readonly<Record<AgentModelRunEventKindValue, LucideIcon>> = {
   status: Activity,
   tool_call: Wrench,
   tool_result: FileOutput,
-};
-
-const KIND_LABELS: Readonly<Record<AgentModelRunEventKindValue, string>> = {
-  decision: "Decision",
-  flag: "Flag",
-  llm_call: "LLM call",
-  message: "Message",
-  reasoning: "Reasoning",
-  status: "Status",
-  tool_call: "Tool call",
-  tool_result: "Tool result",
 };
 
 const LIVE_POLL_TRIES = 3;
@@ -159,7 +150,7 @@ const RunFields = ({ run }: { readonly run: AgentModelRunOutput }) => {
     ["LLM calls / tool calls", `${run.llmCalls} / ${run.toolCalls}`],
     ["Cost", formatUsd(run.costUsd)],
     ["Analysts", run.analysts.length === 0 ? "none" : run.analysts.join(", ")],
-    ["Purpose", run.purpose],
+    ["Purpose", facetValueLabel("purpose", run.purpose)],
     ["Variant", run.variant ?? "none (default configuration)"],
     ["Batch", run.batch ?? "not part of a batch"],
     ["Memory", run.memory ? "on" : "off"],
@@ -178,10 +169,13 @@ const RunFields = ({ run }: { readonly run: AgentModelRunOutput }) => {
         ))}
       </dl>
       {run.flags.length === 0 ? null : (
-        <ul aria-label="Flags" className="flex flex-wrap gap-1">
+        <ul
+          aria-label="Flags"
+          className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-sm"
+        >
           {run.flags.map((flag) => (
-            <li key={flag}>
-              <Badge variant="secondary">{flag}</Badge>
+            <li data-run-flag={flag} key={flag}>
+              {facetValueLabel("flags", flag)}
             </li>
           ))}
         </ul>
@@ -250,12 +244,17 @@ const TimelineEvent = ({
     >
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Icon aria-hidden="true" className="size-4 shrink-0" />
-        <span className="sr-only">{KIND_LABELS[event.kind]}:</span>
+        <span className="sr-only">{EVENT_KIND_LABELS[event.kind]}:</span>
         <span className="font-mono text-muted-foreground text-xs">
           {formatTimestamp(event.at)}
         </span>
         <span className="font-medium">{event.agent}</span>
-        <span className="min-w-0 [overflow-wrap:anywhere]">{event.title}</span>
+        <span className="min-w-0 [overflow-wrap:anywhere]">
+          {/* The title of a flag event is the flag code: it prints as words. */}
+          {event.kind === "flag"
+            ? facetValueLabel("flags", event.title)
+            : event.title}
+        </span>
         {event.toolName === null ? null : (
           <Badge variant="outline">{event.toolName}</Badge>
         )}

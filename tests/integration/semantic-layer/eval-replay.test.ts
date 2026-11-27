@@ -2,11 +2,17 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { type EvalBackend, replayTrial, startEvalBackend } from "./harness.ts";
+import {
+  type EvalBackend,
+  replayRecording,
+  startEvalBackend,
+  type TrialVerdict,
+} from "./harness.ts";
 import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
 import {
+  RECORDING_MODEL,
   RECORDING_SCHEMA_VERSION,
-  type RecordedTrial,
+  type Recording,
   trialKey,
 } from "./recording.ts";
 import { unexpectedToolFailures } from "./tool-failures.ts";
@@ -14,7 +20,10 @@ import { unexpectedToolFailures } from "./tool-failures.ts";
 // Replays the recorded semantic-layer eval (record.ts) against the built layer:
 // the real Plan-mode assistant turn, the real oRPC handler, Postgres with the synthetic fixture and the
 // synthetic feeds. Each recorded model reply is returned in order; the semantic-layer tool results the
-// model sees must equal the recorded ones (else the recording is stale: re-record). Every final answer is
+// model sees must equal the recorded ones (else the recording is stale: re-record). The tool list is
+// judged by the tool rule (recording.ts): a trial is stale when a tool that it calls changed; a trial
+// that saw an older tool list is valid only while a trial of the same question, recorded with the
+// current list, calls none of the changed tools. Every final answer is
 // graded with the fixed rubric in questions.ts. A tool call that fails in a replayed trial fails the
 // test unless tool-failures.ts lists it as an expected input rejection (a server error never is). A
 // terms_query answer with status unknown also fails the test; no list allows it (tool-failures.ts).
@@ -36,15 +45,19 @@ const recording = JSON.parse(
     new URL("./eval-recording.fixture.json", import.meta.url),
     "utf8"
   )
-) as RecordingHeader & Readonly<{ trials: readonly RecordedTrial[] }>;
+) as RecordingHeader & Recording;
 
 const byId = new Map(EVAL_QUESTIONS.map((question) => [question.id, question]));
 let backend: EvalBackend;
+let verdicts: Map<string, TrialVerdict>;
 
 describe("semantic layer eval replay", () => {
   beforeAll(async () => {
     backend = await startEvalBackend();
-  }, 120_000);
+    // Every trial is replayed here, once: the tool rule needs the result of the other trials of a
+    // question (a witness must replay unchanged).
+    verdicts = await replayRecording(backend, EVAL_QUESTIONS, recording);
+  }, 240_000);
 
   afterAll(async () => {
     await backend.close();
@@ -58,16 +71,32 @@ describe("semantic layer eval replay", () => {
     expect(Number.isNaN(Date.parse(recording.audit.gradedAt))).toBe(false);
   });
 
-  it("stores the model and the date on every trial, not in the header", () => {
+  it("stores the recording model and the date on every trial, not in the header", () => {
     expect(recording.schemaVersion).toBe(RECORDING_SCHEMA_VERSION);
     expect(recording).not.toHaveProperty("model");
     expect(recording).not.toHaveProperty("recordedAt");
     for (const trial of recording.trials) {
-      expect(trial.model, trialKey(trial)).toMatch(/\S/);
+      expect(trial.model, trialKey(trial)).toBe(RECORDING_MODEL);
       expect(Number.isNaN(Date.parse(trial.recordedAt)), trialKey(trial)).toBe(
         false
       );
     }
+  });
+
+  it("holds no bridge fault as an answer", () => {
+    // The bridge before 2026-11-26 answered with this text when it got no model reply. The bridge of
+    // the repository sends a fault and the recorder stores no such trial; this guards an old file.
+    expect(
+      recording.trials
+        .filter((trial) => trial.answer.startsWith("BRIDGE FAILURE"))
+        .map(trialKey)
+    ).toEqual([]);
+  });
+
+  it("holds exactly the tool lists that its trials name", () => {
+    expect(Object.keys(recording.toolLists).sort()).toEqual(
+      [...new Set(recording.trials.map((trial) => trial.toolList))].sort()
+    );
   });
 
   it("covers every question three times", () => {
@@ -81,12 +110,14 @@ describe("semantic layer eval replay", () => {
 
   it.each(recording.trials.map((trial) => [trialKey(trial), trial] as const))(
     "%s replays against the built layer",
-    async (_name, recorded) => {
+    (name, recorded) => {
       const question = byId.get(recorded.question);
       if (question === undefined)
         throw new Error(`unknown question ${recorded.question}`);
-      const replayed = await replayTrial(backend, question, recorded);
-      // stale null: every model call saw the recorded input and the final answer is the recorded one.
+      const replayed = verdicts.get(name);
+      if (replayed === undefined) throw new Error(`no verdict for ${name}`);
+      // stale null: every model call saw the recorded messages, the final answer is the recorded one
+      // and the tool rule accepts the tool list of the trial.
       // A grade counts only when the tools worked: a failed call must be a listed input rejection, and
       // no terms_query answer may have status unknown (the call worked but gave no value). One assertion
       // shows all three, so a stale trial also shows a term that answers unknown since the recording.
@@ -98,8 +129,7 @@ describe("semantic layer eval replay", () => {
       const grade = gradeAnswer(question, recorded.answer);
       expect(grade).toBe(recorded.grade);
       expect(["correct", "wrong", "declined"]).toContain(recorded.audit);
-    },
-    30_000
+    }
   );
 
   it("meets the acceptance bar: main set >= 58/60 correct and no wrong account answer", () => {

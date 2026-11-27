@@ -19,7 +19,7 @@ export const InlineNotice = ({ action, message, title }: InlineNoticeProps) => {
       className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-3 text-card-foreground text-sm"
     >
       <div className="min-w-0">
-        <h2 className="font-medium tracking-tight" id={titleId}>
+        <h2 className="font-medium" id={titleId}>
           {title}
         </h2>
         {message === undefined ? null : (

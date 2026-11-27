@@ -86,8 +86,7 @@ describe("recoverable public error fixture", () => {
     expect(recovered.props).toMatchObject({
       description:
         "The public error boundary reset the failed route without exposing it in production.",
-      eyebrow: "E2E fixture",
-      title: "The error fixture recovered.",
+      title: "The error fixture recovered",
     });
     return expect(setItem).not.toHaveBeenCalled();
   });

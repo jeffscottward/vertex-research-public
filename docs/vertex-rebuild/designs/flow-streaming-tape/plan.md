@@ -346,7 +346,7 @@ Rollback: restore the previous web build with the same script. To remove the str
 
 ## Future Improvements
 
-- A continuous check of the tape against IBKR history, with the IBKR budget that ES and NQ sampling frees, and a stored match rate.
+- A continuous check of the tape against IBKR history, with the IBKR budget that ES and NQ sampling frees, and a stored match rate. (Done as a sampled check every 5 minutes, with a catch-up of long outages: [flow-tape-audit-catchup/plan.md](../flow-tape-audit-catchup/plan.md).)
 - A rule that cancels the subscriptions when the service is late, if the RTH probe shows late prints.
 - Exhaustion events for ES and NQ from stored minute rows.
 - A minimum deep-trade count that depends on the time of day (one knowledge base named a 20-day baseline; it needs 20 streamed days).

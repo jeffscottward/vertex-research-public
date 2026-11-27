@@ -263,6 +263,8 @@ export {
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowSymbolValue,
+  type FlowTapeAuditRecord,
+  type FlowTapeGapRecord,
   type FlowTapeSecondsQuery,
   type FlowTapeSecondsRecord,
   type FlowWindowQuery,

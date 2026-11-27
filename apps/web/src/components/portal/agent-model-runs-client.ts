@@ -18,6 +18,8 @@ import {
   createApiClient,
 } from "@darkfactory/api";
 
+import { labelFor, STATUS_LABELS } from "./agent-ops-client.tsx";
+
 // Operator reads of agent model runs (agentModelRuns.*). Agents write runs through an API key or MCP;
 // the portal only lists, breaks down, exports and shows them. Research only: no order path.
 
@@ -153,13 +155,20 @@ const VALUE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   weeks: "Weeks",
 });
 
+// A status, a flag and a purpose are codes: the page prints their words ("research_only" ->
+// "Research only"). The other facets hold names and identifiers, which print as written.
 export const facetValueLabel = (
   facet: AgentModelRunFacetName,
   value: string
-): string =>
-  (facet === "rating" || facet === "horizonBucket"
-    ? VALUE_LABELS[value]
-    : undefined) ?? value;
+): string => {
+  if (facet === "flags" || facet === "purpose" || facet === "status")
+    return labelFor(STATUS_LABELS, value);
+  return (
+    (facet === "rating" || facet === "horizonBucket"
+      ? VALUE_LABELS[value]
+      : undefined) ?? value
+  );
+};
 
 export type FacetSelection = Readonly<
   Partial<Record<AgentModelRunFacetName, readonly string[]>>

@@ -49,7 +49,7 @@ export const EmptyState = ({
         </span>
       )}
       <div className="flex max-w-sm flex-col items-center gap-2">
-        <Heading className="font-medium text-lg tracking-tight" id={titleId}>
+        <Heading className="font-medium text-lg" id={titleId}>
           {title}
         </Heading>
         <p className="text-muted-foreground text-sm/relaxed">{description}</p>

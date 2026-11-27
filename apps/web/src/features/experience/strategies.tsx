@@ -358,12 +358,7 @@ const Rules = ({
   const headingId = `${useId()}-rules`;
   return (
     <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
-      <ResearchTableHeading id={headingId} title={title}>
-        <p>
-          Rules remain in source order. Operators, thresholds and lookback bars
-          are shown as supplied.
-        </p>
-      </ResearchTableHeading>
+      <ResearchTableHeading id={headingId} title={title} />
       <div
         className={experienceTableScroll}
         role="region"
@@ -444,8 +439,8 @@ export const StrategyDossierView = ({
   return (
     <div className="grid gap-8">
       <header className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
-        <p className="vx-eyebrow">
-          {strategy.sleeve} / immutable specification
+        <p className="font-medium text-muted-foreground text-sm">
+          Immutable specification / {strategy.sleeve}
         </p>
         <h2>
           {strategy.strategyId} · {strategy.version}
@@ -497,12 +492,10 @@ export const StrategyDossierView = ({
         />
       </section>
       <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
-        <ResearchTableHeading id={requirementsId} title="Required source data">
-          <p>
-            Declared input requirements for this immutable specification.
-            Maximum age is in milliseconds.
-          </p>
-        </ResearchTableHeading>
+        <ResearchTableHeading
+          id={requirementsId}
+          title="Required source data"
+        />
         <div
           className={experienceTableScroll}
           role="region"

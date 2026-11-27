@@ -34,10 +34,10 @@ export const TableHeader = ({
   className,
   ...props
 }: ComponentPropsWithRef<"thead">) => (
-  // Reference look: a tinted header row with small uppercase muted labels; row headers in the body keep body text.
+  // Reference look: a tinted header row with small muted labels, printed as written (sentence case); row headers in the body keep body text.
   <thead
     className={cn(
-      "bg-muted/50 [&_th]:h-9 [&_th]:font-medium [&_th]:text-muted-foreground [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_tr]:border-b [&_tr]:hover:bg-transparent",
+      "bg-muted/50 [&_th]:h-9 [&_th]:font-medium [&_th]:text-muted-foreground [&_th]:text-xs [&_tr]:border-b [&_tr]:hover:bg-transparent",
       className
     )}
     data-slot="table-header"

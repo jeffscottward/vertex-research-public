@@ -260,7 +260,7 @@ export const CalendarWorkspace = ({
             Refresh
           </Button>
         }
-        description="Economic releases and earnings filings for your watchlist on one agenda. Research only; no orders."
+        description="Economic releases and earnings filings for your watchlist on one agenda."
         status={
           <StatusBadge
             data-calendar-status={summary.label}

@@ -1,235 +1,217 @@
-// Records the agent semantic-layer eval (docs/vertex-rebuild/agent-semantic-layer.md): every question of
-// tests/integration/semantic-layer/questions.ts, TRIALS times, through the real Plan-mode assistant turn
-// against the eval backend (real Postgres + synthetic feeds). The model is bridged over stdio so the
-// operator's OMP session can answer each call with its completion model (no new provider):
-//   stdout: "@@EVAL " + {"type":"request","key","messages","tools"}
-//   stdin:  {"key","content","toolCalls":[{"name","arguments"}],"model"?}   (one JSON object per line)
-// The recording is written to tests/integration/semantic-layer/eval-recording.fixture.json (synthetic data only);
-// eval-replay.test.ts replays and grades it in CI.
-// Run: bun run eval:semantic:record -- [trials] [concurrency] [stale | ids...]
-//   no ids: every question; the run replaces all trials and keeps the header.
-//   ids:    those questions.
-//   stale:  every recorded trial that no longer replays against the built layer, and every missing trial.
-//           The run first prints "@@EVAL " + {"type":"stale","keys":[...],"reasons":{key: reason}} and
-//           asks the model for those trials only. With no stale trial it writes nothing.
-// A run with ids or `stale` replaces the trials it recorded and keeps everything else of the existing file:
-// the header (the `audit` block) and every other trial with its model, date and audit grade (recording.ts).
-// Each new trial stores its own `model` and `recordedAt` and has no `audit` grade until it is graded; the
-// replay test fails on it until then. The text of the `audit` header is not updated by the recorder.
-// Grade a new trial with the grader of the header (`audit.graderModel`, `audit.instructions`) by the
-// procedure in the note on the grader change of 2026-11-20 in docs/vertex-rebuild/agent-semantic-layer.md
-// (it includes the check of the model). A new grader or new instructions need a new run of the grader
-// self-test first (grader-self-test.test.ts).
-// The last line is "@@EVAL " + {"type":"finished","count": trials in the file,"recorded": trials of this run}.
+// Command line of the recorder of the agent semantic-layer eval (docs/vertex-rebuild/agent-semantic-layer.md):
+// every question of tests/integration/semantic-layer/questions.ts, TRIALS times, through the real
+// Plan-mode assistant turn against the eval backend (real Postgres + synthetic feeds). The model is
+// bridged over stdio so that an OMP session can answer each call with its completion model (no new
+// provider). Start it through the bridge: `bun run eval:semantic:record -- [--expect=<n>] [trials]
+// [concurrency] [stale | ids...]` (record-session.ts starts the OMP session, bridge.ts starts this
+// file). Arguments of this file: [--expect=<n>] [trials] [concurrency] [stale | upgrade | ids...];
+// trials is the number of trials for each question (default 3), concurrency the number of trials
+// that run at the same time (default 6).
+//   stdout: "@@EVAL " + one message, each on one line. This file prints nothing else on stdout.
+//     {"type":"request","key","messages","tools"}   one model call; key = <question>.<trial>#<call>
+//     {"type":"selected","keys","reasons"}          the trials of the run, before the first request
+//     {"type":"done","key"} / {"type":"failed","key","reason"}   one trial stored / not stored
+//     {"type":"finished","count","recorded","failed","notStarted"}   the last line of a recording run
+//     {"type":"upgraded","upgraded","kept"}         the last line of an `upgrade` run
+//   stdin:  one JSON object on each line, for each request one of
+//     {"key","content","toolCalls":[{"name","arguments"}],"model"}   the model reply
+//     {"key","fault"}                                                no model reply: the trial fails
+//   stderr: the turn log of each trial, and errors.
+// Selection (recorder.ts):
+//   no ids:  every question; a run that stores every trial drops all other trials and keeps the header.
+//   ids:     those questions.
+//   stale:   every recorded trial that must be recorded again, every missing trial, and one witness
+//            trial for each question whose trials all saw an older tool list. With nothing to record
+//            it does not write the recording; it writes the master-rules freeze when its replay
+//            froze a search.
+//   upgrade: no model call; writes a version 2 recording in the current format (recorder.ts).
+//   --expect=<n>: the run stops before the first model request when it selects another number of
+//            trials than n. It prints the selection, stores nothing and ends with exit code 1. With
+//            `--expect=0` and no bridge this shows what a `stale` run would record.
+// Each finished trial is written at once to tests/integration/semantic-layer/eval-recording.fixture.json
+// (synthetic data only), so a run that fails or is killed keeps its finished trials: run `stale` again.
+// A new trial has no `audit` grade until it is graded; the replay test fails on it until then. Grade
+// it by the procedure in the note on the grader change of 2026-11-20 in the document above. Do not
+// write grades into the file while a recording runs.
+// A wrong-model stop starts no further trial; a trial that is running then ends as usual and is
+// stored when its own replies come from the recording model.
+// Exit code: 0 every selected trial is stored (or the upgrade left no version 2 trial); 1 a trial
+// failed, the run stopped (a reply from another model, or a selection of another size than
+// --expect), or the upgrade kept a version 2 trial; 2 wrong arguments.
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import type {
-  AssistantCompletion,
-  AssistantCompletionRequest,
-} from "../../../packages/api/src/server/assistant-runtime.ts";
+
+import { startEvalBackend } from "./harness.ts";
+import { EVAL_QUESTIONS } from "./questions.ts";
 import {
-  type EvalBackend,
-  runTrial,
-  staleReason,
-  startEvalBackend,
-} from "./harness.ts";
-import { writeFrozenMasterRules } from "./master-rules-freeze.ts";
-import { EVAL_QUESTIONS, gradeAnswer } from "./questions.ts";
+  type BridgeReply,
+  parseBridgeLine,
+  recordRun,
+  replyToCompletion,
+  type TrialModel,
+  upgradeRecording,
+  writeRecording,
+} from "./recorder.ts";
 import {
-  assertTrialsHaveModelAndDate,
-  mergeRecording,
   parseCount,
   parseSelection,
-  type RecordedTrial,
+  type RecordSelection,
   type Recording,
-  trialKey,
 } from "./recording.ts";
 
-const [trialsArg, concurrencyArg, ...selectors] = process.argv.slice(2);
-const TRIALS = parseCount("trials", trialsArg, 3);
-const CONCURRENCY = parseCount("concurrency", concurrencyArg, 6);
-const OUTPUT = fileURLToPath(
+const RECORDING = fileURLToPath(
   new URL("./eval-recording.fixture.json", import.meta.url)
+);
+const MASTER_RULES = fileURLToPath(
+  new URL("./master-rules.fixture.json", import.meta.url)
 );
 const NOTE =
   "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.";
-const selection = parseSelection(
-  selectors,
-  EVAL_QUESTIONS.map((question) => question.id)
-);
-const readRecording = (): Recording | undefined =>
-  existsSync(OUTPUT)
-    ? (JSON.parse(readFileSync(OUTPUT, "utf8")) as Recording)
-    : undefined;
-// Checked here, before the backend starts and before any model request.
-const atStart = readRecording();
-if (atStart !== undefined && selection.kind !== "all") {
-  assertTrialsHaveModelAndDate(atStart);
+
+const send = (message: object): void => {
+  process.stdout.write(`@@EVAL ${JSON.stringify(message)}\n`);
+};
+
+let trials: number;
+let concurrency: number;
+let selection: RecordSelection;
+let expectSelected: number | undefined;
+try {
+  const argv = process.argv.slice(2);
+  const expect = argv.find((arg) => arg.startsWith("--expect="));
+  if (expect !== undefined) {
+    const value = expect.slice("--expect=".length);
+    if (!/^\d+$/u.test(value)) {
+      throw new Error(`--expect needs a whole number, not "${value}".`);
+    }
+    expectSelected = Number(value);
+  }
+  const [trialsArg, concurrencyArg, ...selectors] = argv.filter(
+    (arg) => arg !== expect
+  );
+  trials = parseCount("trials", trialsArg, 3);
+  concurrency = parseCount("concurrency", concurrencyArg, 6);
+  selection = parseSelection(
+    selectors,
+    EVAL_QUESTIONS.map((question) => question.id)
+  );
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(2);
 }
 
-type Reply = Readonly<{
-  key: string;
-  content: string;
-  toolCalls: readonly Readonly<{ name: string; arguments: unknown }>[];
-  model?: string;
-}>;
+if (selection.kind === "upgrade") {
+  const backend = await startEvalBackend();
+  try {
+    const before = readFileSync(RECORDING, "utf8");
+    const result = await upgradeRecording(
+      backend,
+      EVAL_QUESTIONS,
+      JSON.parse(before) as Recording,
+      NOTE
+    );
+    if (result.changed) writeRecording(RECORDING, result.recording);
+    send({
+      kept: result.kept,
+      type: "upgraded",
+      upgraded: result.upgraded.length,
+    });
+    process.exitCode = Object.keys(result.kept).length === 0 ? 0 : 1;
+  } finally {
+    await backend.close();
+  }
+  process.exit();
+}
 
-const pending = new Map<string, (reply: Reply) => void>();
+type Waiter = Readonly<{
+  resolve: (reply: BridgeReply) => void;
+  reject: (error: Error) => void;
+}>;
+const pending = new Map<string, Waiter>();
+// Set when no further reply can come: the bridge closed stdin or sent a line that cannot be read.
+let closed: Error | null = null;
+const close = (error: Error): void => {
+  closed ??= error;
+  for (const waiter of pending.values()) waiter.reject(closed);
+  pending.clear();
+};
 const lines = createInterface({ input: process.stdin });
 lines.on("line", (line) => {
   if (line.trim() === "") return;
-  const reply = JSON.parse(line) as Reply;
-  pending.get(reply.key)?.(reply);
-  pending.delete(reply.key);
+  try {
+    const reply = parseBridgeLine(line);
+    const waiter = pending.get(reply.key);
+    if (waiter === undefined) {
+      console.error(`reply for a request that is not open: ${reply.key}`);
+      return;
+    }
+    pending.delete(reply.key);
+    if ("fault" in reply) {
+      waiter.reject(new Error(`bridge fault: ${reply.fault}`));
+    } else {
+      waiter.resolve(reply);
+    }
+  } catch (error) {
+    close(error instanceof Error ? error : new Error(String(error)));
+  }
+});
+lines.on("close", () => {
+  close(new Error("the bridge closed stdin before it answered"));
 });
 
-// The model of a trial: every distinct id that the replies of the trial named, joined with " + " (one id
-// in the normal case). A bridge that names none gives the placeholder "omp-completion".
-const models = new Map<string, Set<string>>();
-const bridge =
-  (trial: string) =>
-  async (request: AssistantCompletionRequest): Promise<AssistantCompletion> => {
-    const call = request.messages.filter(
-      (message) => message.role === "assistant"
-    ).length;
-    const key = `${trial}#${call}`;
-    // Executor form: the tests tsconfig targets a lib without Promise.withResolvers.
-    let resolve: (reply: Reply) => void = () => undefined;
-    const promise = new Promise<Reply>((done) => {
-      resolve = done;
+const model: TrialModel = async (key, request) => {
+  if (closed !== null) throw closed;
+  // Executor form: the tests tsconfig targets a lib without Promise.withResolvers.
+  const reply = await new Promise<BridgeReply>((resolve, reject) => {
+    pending.set(key, { reject, resolve });
+    send({
+      key,
+      messages: request.messages,
+      tools: request.tools,
+      type: "request",
     });
-    pending.set(key, resolve);
-    process.stdout.write(
-      `@@EVAL ${JSON.stringify({ key, messages: request.messages, tools: request.tools, type: "request" })}\n`
-    );
-    const reply = await promise;
-    if (typeof reply.model === "string" && reply.model.trim() !== "") {
-      models.set(trial, (models.get(trial) ?? new Set()).add(reply.model));
-    }
-    return {
-      content: reply.content,
-      finishReason: reply.toolCalls.length > 0 ? "tool_calls" : "stop",
-      inputTokens: 0,
-      outputTokens: 0,
-      toolCalls: reply.toolCalls.map((toolCall, index) => ({
-        function: {
-          arguments:
-            typeof toolCall.arguments === "string"
-              ? toolCall.arguments
-              : JSON.stringify(toolCall.arguments ?? {}),
-          name: toolCall.name,
-        },
-        id: `${key}.${index}`.replaceAll("#", "_"),
-        type: "function" as const,
-      })),
-    };
-  };
-
-type Job = Readonly<{
-  question: (typeof EVAL_QUESTIONS)[number];
-  trial: number;
-}>;
-
-/**
- * The trials of this run: all, the named questions, or (stale) every recorded trial that no longer
- * replays plus every missing trial up to the trials argument. A stale run prints its list with the reason
- * per trial before the first model request.
- */
-const selectJobs = async (evalBackend: EvalBackend): Promise<Job[]> => {
-  const all = EVAL_QUESTIONS.flatMap((question) =>
-    Array.from({ length: TRIALS }, (_, trial) => ({
-      question,
-      trial: trial + 1,
-    }))
-  );
-  if (selection.kind === "all") return all;
-  if (selection.kind === "questions") {
-    return all.filter((job) => selection.ids.includes(job.question.id));
-  }
-  const recorded = readRecording()?.trials ?? [];
-  const recordedKeys = new Set(recorded.map(trialKey));
-  const stale: Job[] = [];
-  const reasons: Record<string, string> = {};
-  // One at a time: the replay needs no model, and the order of the printed keys stays fixed.
-  for (const question of EVAL_QUESTIONS) {
-    for (const existing of recorded) {
-      if (existing.question !== question.id) continue;
-      // The replay test also compares the rubric grade, so a changed rubric makes the trial stale too.
-      const reason =
-        (await staleReason(evalBackend, question, existing)) ??
-        (gradeAnswer(question, existing.answer) === existing.grade
-          ? null
-          : "the rubric grade of the recorded answer changed");
-      if (reason === null) continue;
-      stale.push({ question, trial: existing.trial });
-      reasons[trialKey(existing)] = reason;
-    }
-    for (let trial = 1; trial <= TRIALS; trial += 1) {
-      const key = trialKey({ question: question.id, trial });
-      if (recordedKeys.has(key)) continue;
-      stale.push({ question, trial });
-      reasons[key] = "the recording has no such trial";
-    }
-  }
-  process.stdout.write(
-    `@@EVAL ${JSON.stringify({ keys: Object.keys(reasons), reasons, type: "stale" })}\n`
-  );
-  return stale;
+  });
+  return { completion: replyToCompletion(key, reply), model: reply.model };
 };
 
 const backend = await startEvalBackend({ masterRules: "record" });
-const results: RecordedTrial[] = [];
-let jobs: Job[] = [];
-let next = 0;
-const worker = async () => {
-  while (next < jobs.length) {
-    const job = jobs[next++];
-    if (job === undefined) return;
-    const key = trialKey({ question: job.question.id, trial: job.trial });
-    const result = await runTrial(backend, job.question, bridge(key));
-    results.push({
-      answer: result.answer,
-      completions: result.completions,
-      grade: gradeAnswer(job.question, result.answer),
-      model: [...(models.get(key) ?? ["omp-completion"])].join(" + "),
-      question: job.question.id,
-      recordedAt: new Date().toISOString(),
-      tools: result.trace.map(
-        (entry) => `${entry.tool}(${entry.args})${entry.ok ? "" : " failed"}`
-      ),
-      trial: job.trial,
-    });
-    process.stdout.write(`@@EVAL ${JSON.stringify({ key, type: "done" })}\n`);
-  }
-};
 try {
-  jobs = await selectJobs(backend);
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  const finished = await recordRun({
+    backend,
+    concurrency,
+    emit: (message) => {
+      send(message);
+      if (
+        message.type === "selected" &&
+        expectSelected !== undefined &&
+        message.keys.length !== expectSelected
+      ) {
+        console.error(
+          `The run selected ${message.keys.length} trials, expected ${expectSelected}: no trial is recorded.`
+        );
+      }
+    },
+    ...(expectSelected === undefined ? {} : { expectSelected }),
+    files: { masterRules: MASTER_RULES, recording: RECORDING },
+    // stdout carries the protocol and has one writer; the turn log goes to stderr.
+    log: (entry) => {
+      console.error(JSON.stringify(entry));
+    },
+    model,
+    note: NOTE,
+    questions: EVAL_QUESTIONS,
+    selection,
+    trials,
+  });
+  process.exitCode =
+    Object.keys(finished.failed).length === 0 &&
+    finished.notStarted.length === 0
+      ? 0
+      : 1;
 } finally {
-  // Searches first seen in this run are frozen first, so a failed close cannot lose them.
-  writeFrozenMasterRules(backend.masterRules);
   await backend.close();
   lines.close();
 }
-// The file is read again here, not taken from the start of the run: a grading step may have written it
-// while the model answered. A run of every question keeps the header only.
-const existing = readRecording();
-const merged = mergeRecording(
-  existing !== undefined && selection.kind === "all"
-    ? { ...existing, trials: [] }
-    : existing,
-  results,
-  EVAL_QUESTIONS.map((question) => question.id),
-  NOTE
-);
-// A stale run that found nothing leaves the file untouched. Write whole: temporary file, then rename.
-if (results.length > 0) {
-  writeFileSync(`${OUTPUT}.tmp`, `${JSON.stringify(merged, null, 2)}\n`);
-  renameSync(`${OUTPUT}.tmp`, OUTPUT);
-}
-process.stdout.write(
-  `@@EVAL ${JSON.stringify({ count: merged.trials.length, recorded: results.length, type: "finished" })}\n`
-);
-process.exit(0);
+process.exit();

@@ -101,6 +101,12 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
   ({
     addOptionGap: vi.fn(async () => undefined),
     deleteOptionGap: vi.fn(async () => undefined),
+    addTapeGap: vi.fn(async () => undefined),
+    deleteTapeGap: vi.fn(async () => undefined),
+    insertTapeAudit: vi.fn(async () => 1),
+    moveTapeGapStart: vi.fn(async () => undefined),
+    readTapeAudits: vi.fn(async () => []),
+    tapeGaps: vi.fn(async () => []),
     insertBooks: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertEvents: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertGex: vi.fn(async (rows: readonly unknown[]) => rows.length),
@@ -426,6 +432,60 @@ describe("flow.collect", () => {
     expect(urls.some((url) => url.endsWith("/health"))).toBe(true);
     expect(urls.some((url) => url.includes("/tape"))).toBe(false);
     expect(spy.budget.ibkrRecent).toEqual(expect.any(Number));
+  });
+
+  it("reads IBKR history for the tape check with trades only, in the symbol's turn", async () => {
+    // One minute after OPEN is the turn of ES.
+    const turn = new Date(OPEN.getTime() + 60_000);
+    const nowS = turn.getTime() / 1000;
+    setFlowClockForTesting(() => turn);
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.endsWith("/health"))
+          return Response.json({
+            pacing: { backoff_seconds: 0, recent_requests: 0 },
+          });
+        if (url.includes("/tape"))
+          return Response.json({
+            client_id: 77,
+            contract: null,
+            covered: [[nowS - 120, nowS - 3]],
+            fetchedAt: "2026-11-09T15:01:00Z",
+            minTick: null,
+            more: false,
+            previousDifferentPrice: null,
+            previousPrice: null,
+            schema: "vertex-history-tape-v1",
+            since: nowS - 120,
+            source: "ibkr-gateway",
+            stream: { error: null, state: "live" },
+            symbol: "ES",
+            trades: [],
+            until: nowS - 3,
+          });
+        return Response.json({ error: "down" }, { status: 502 });
+      })
+    );
+    const output = await clientFor(fakeRepository(), {
+      marketHistory: {
+        token: "h".repeat(43),
+        url: "https://history.test/vertex-history/v1",
+      },
+      quantData: null,
+    }).collect({ dryRun: true, symbols: ["ES"] });
+    const ticks = urls.filter((url) => url.includes("/ticks"));
+    expect(ticks).toHaveLength(1);
+    expect(ticks[0]).toContain("symbol=ES");
+    expect(ticks[0]).toContain("secType=CONTFUT");
+    expect(ticks[0]).toContain("count=1000");
+    expect(ticks[0]).toContain("quotes=0");
+    expect(output.runs.find((run) => run.source === "ticks")?.message).toMatch(
+      /; history check failed \(MarketDataError UPSTREAM_ERROR\)$/
+    );
   });
 });
 
@@ -1330,6 +1390,58 @@ describe("flow.control", () => {
       to: new Date("2026-11-09T21:00:00.000Z"),
     });
     expect(document.deepTrades).toMatchObject({ limitSize: 10, symbol: "NQ" });
+  });
+
+  it("reads the tape checks of the future for the futures session; a failed read is not fatal", async () => {
+    const flow = fakeRepository({
+      readTapeAudits: vi.fn(async () => [
+        {
+          checkedAt: MON_10_00,
+          comparedSeconds: 20,
+          contract: "NQZ6",
+          fromSecond: MON_10_00,
+          historyContracts: 30,
+          historyTrades: 25,
+          matchedSeconds: 19,
+          symbol: "NQ" as const,
+          tapeContracts: 29,
+          tapeTrades: 24,
+          toSecond: MON_10_00,
+        },
+      ]),
+    });
+    const document = await readFlowControl(
+      { flow, openbb: undefined, researchStudies: undefined },
+      { group: "nasdaq100" },
+      MON_10_00
+    );
+    expect(flow.readTapeAudits).toHaveBeenCalledWith({
+      from: new Date("2026-11-09T14:30:00.000Z"),
+      symbol: "NQ",
+      to: new Date("2026-11-09T21:00:00.000Z"),
+    });
+    expect(document.deepTrades.audit).toEqual({
+      checks: 1,
+      comparedSeconds: 20,
+      matchedSeconds: 19,
+    });
+    const missing = await readFlowControl(
+      {
+        flow: fakeRepository({
+          readTapeAudits: vi.fn(async () => {
+            throw new Error('relation "flow_tape_audits" does not exist');
+          }),
+        }),
+        openbb: undefined,
+        researchStudies: undefined,
+      },
+      { group: "sp500" },
+      MON_10_00
+    );
+    expect(missing.deepTrades.audit).toBeNull();
+    expect(missing.notes).toContain(
+      "The checks of the tape against IBKR history were not read."
+    );
   });
 
   it("passes the tape minutes, the deep trades and the tape samples of the future to the futures side", async () => {

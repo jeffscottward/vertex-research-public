@@ -73,7 +73,10 @@ export const ReadFailure = ({
         {"Verify the workspace session "}
         <ArrowUpRight aria-hidden="true" className="size-4" />
       </a>
-    ) : failure.kind === "invalid" || failure.kind === "not-found" ? null : (
+    ) : failure.kind === "invalid" ||
+      failure.kind === "not-found" ||
+      // The detail of this kind says that a retry cannot succeed.
+      failure.kind === "server-not-configured" ? null : (
       <button className="vx-text-link" onClick={retry} type="button">
         <RotateCcw aria-hidden="true" className="size-4" />
         Retry read
@@ -132,7 +135,9 @@ export const ModuleResults = ({
         >
           <div className="vx-module-heading">
             <div>
-              <p className="vx-eyebrow">Module manifest / {module.version}</p>
+              <p className="font-medium text-muted-foreground text-sm">
+                Module manifest / {module.version}
+              </p>
               <h2 id={`module-${module.moduleId}`}>{module.moduleId}</h2>
             </div>
             <span className="vx-status">

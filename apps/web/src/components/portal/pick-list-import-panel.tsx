@@ -114,7 +114,7 @@ export const PickListImportPanel = ({
             <label className="space-y-1 text-sm" htmlFor={`${id}-source`}>
               <span className="block">Source</span>
               <select
-                className="h-11 rounded-md border bg-background px-3"
+                className="h-11 max-w-full rounded-md border bg-background px-3"
                 id={`${id}-source`}
                 onChange={(event) => setSourceId(event.target.value)}
                 value={sourceId}
@@ -129,7 +129,7 @@ export const PickListImportPanel = ({
             <label className="space-y-1 text-sm" htmlFor={`${id}-name`}>
               <span className="block">List name</span>
               <Input
-                className="w-64"
+                className="w-64 max-w-full"
                 id={`${id}-name`}
                 maxLength={80}
                 onChange={(event) => setName(event.target.value)}
@@ -140,7 +140,7 @@ export const PickListImportPanel = ({
             <label className="space-y-1 text-sm" htmlFor={`${id}-asof`}>
               <span className="block">As of</span>
               <Input
-                className="w-44"
+                className="w-44 max-w-full"
                 id={`${id}-asof`}
                 onChange={(event) => setAsOf(event.target.value)}
                 required
@@ -159,12 +159,13 @@ export const PickListImportPanel = ({
               value={text}
             />
           </label>
-          <label className="inline-flex min-h-11 items-center gap-2 text-sm">
+          <label className="inline-flex min-h-11 min-w-0 max-w-full flex-wrap items-center gap-2 text-sm">
             <Upload aria-hidden="true" className="size-4" />
             <span>CSV file</span>
             <input
               accept=".csv,.txt,text/csv,text/plain"
               aria-label="CSV file"
+              className="min-w-0 max-w-full"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file !== undefined)

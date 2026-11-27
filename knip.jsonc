@@ -4,7 +4,7 @@
   "ignoreExportsUsedInFile": { "interface": true, "type": true },
   // System binaries, not npm packages: mkcert (installed by `mise`/Homebrew) and flock
   // (util-linux; the Nautilus worker checks the web restart lock with it).
-  "ignoreBinaries": ["mkcert", "flock"],
+  "ignoreBinaries": ["mkcert", "flock", "omp"],
   // Frozen exec-node portfolio-ui server (owned copy, byte-pinned); it runs inside the QuantVPS portfolio-ui
   // container beside files that exist only there.
   "ignore": ["infra/quant-vps/exec-node/runtime/portfolio-ui/server.mjs"],
@@ -16,7 +16,10 @@
         "tests/e2e/global-setup.ts",
         "tests/e2e/**/*.spec.ts",
         "scripts/dev.ts",
-        // Semantic-layer eval recorder, run behind `bun scripts/with-test-env.ts` (eval:semantic:record).
+        // Semantic-layer eval: bridge.ts is loaded by the eval kernel of the OMP session that
+        // record-session.ts starts (eval:semantic:record); the bridge starts record.ts behind
+        // `bun scripts/with-test-env.ts`.
+        "tests/integration/semantic-layer/bridge.ts",
         "tests/integration/semantic-layer/record.ts",
         // Public surface of the Quant VPS host-release library (run on the VPS, not imported here).
         "infra/quant-vps/index.ts",

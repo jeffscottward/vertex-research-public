@@ -111,8 +111,9 @@ describe("LessonVideo live preview (no MP4)", () => {
   });
 
   it("names elements, falling back to the raw id", () => {
-    expect(elementName("maxLoss")).toBe("max loss");
-    expect(elementName("custom")).toBe("custom");
+    expect(elementName("maxLoss")).toBe("Max loss");
+    expect(elementName("bars")).toBe("GEX bars");
+    expect(elementName("custom")).toBe("Custom");
   });
 });
 

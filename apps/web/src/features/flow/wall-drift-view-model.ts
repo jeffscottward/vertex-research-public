@@ -21,6 +21,7 @@ import {
 } from "@darkfactory/api";
 
 import { groupOfSymbol } from "./control-view-model.ts";
+import { enumLabel } from "./format.ts";
 
 /** The flow.control answer as the badge sees it. */
 export type WallDriftControlState =
@@ -68,6 +69,14 @@ const LABELS: Readonly<
 const WALL_CONTEXT: Readonly<Record<string, string>> = {
   both_walls_near: "Both walls in band",
   wall_geometry: "Call wall not above put wall",
+};
+
+/** Where the GEX levels of a read come from: the flow snapshot (/flow) or options analytics (/stock). */
+const LEVELS_SOURCE_LABELS: Readonly<
+  Partial<Record<NonNullable<GexWallDriftRead["levelsSource"]>, string>>
+> = {
+  flow_gex: "from the flow snapshot",
+  options_analytics: "from options analytics",
 };
 
 const OPTION_TICKERS: ReadonlySet<string> = new Set(FLOW_INDEX_OPTION_TICKERS);
@@ -155,7 +164,7 @@ const viewOf = (read: GexWallDriftRead, note: string | null): WallDriftView => {
     inputs: [
       read.levelsAt === null
         ? "no GEX levels read"
-        : `levels ${read.levelsSource} at ${clockOf(read.levelsAt)}`,
+        : `levels ${enumLabel(LEVELS_SOURCE_LABELS, String(read.levelsSource))} at ${clockOf(read.levelsAt)}`,
       read.priceAt === null
         ? "no drift price read"
         : `price at ${clockOf(read.priceAt)}`,

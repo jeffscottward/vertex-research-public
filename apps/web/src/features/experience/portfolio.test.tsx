@@ -328,6 +328,62 @@ describe("portfolio source truthfulness", () => {
     return expect(visible).not.toContain("<details");
   });
 
+  it("shows a table heading without an info icon when the table has no help text", () => {
+    const html = markup(
+      <PortfolioCollection
+        title="Reservation projections"
+        rows={snapshot.positions}
+        columns={[{ label: "Instrument", value: (row) => row.instrumentId }]}
+        identity={(row) => row.instrumentId}
+      />
+    );
+    expect(html).toMatch(/<h2 id="[^"]+">Reservation projections<\/h2>/);
+    expect(html).not.toContain("<aside");
+    expect(html).not.toContain("popovertarget");
+    expect(html).not.toContain('aria-label="About Reservation projections"');
+    return expect(html).toContain("1 supplied");
+  });
+
+  it("keeps the boxed source warning and draws no other border inside the two cards", () => {
+    const stale = {
+      ...snapshot,
+      continuity: {
+        ...continuity,
+        state: "stale" as const,
+        freshness: { ...continuity.freshness, status: "stale" as const },
+      },
+    };
+    for (const observation of [
+      stale,
+      { ...snapshot, sourceKind: "source-unavailable" as const },
+    ]) {
+      const html = markup(<PortfolioObservation snapshot={observation} />);
+      // The warning about the portfolio source keeps its box, its text and its status role.
+      const warning =
+        /<div class="([^"]*)" role="status" aria-live="polite" aria-busy="false"><p class="[^"]*">Portfolio source /.exec(
+          html
+        )?.[1] ?? "";
+      expect(warning.split(" ")).toContain("border");
+      for (const label of ["Portfolio source", "Projection continuity"]) {
+        const card =
+          html.match(
+            new RegExp(
+              `<section class="[^"]*"[^>]*aria-label="${label}">[\\s\\S]*?</section>`
+            )
+          )?.[0] ?? "";
+        const [outer, ...inner] = Array.from(
+          card.matchAll(/class="([^"]*)"/g),
+          (match) => match[1] ?? ""
+        );
+        expect((outer ?? "").split(" ")).toContain("border");
+        expect(inner.length).toBeGreaterThan(0);
+        // Only the source warning has a border inside a card.
+        for (const tokens of inner.filter((value) => value !== warning))
+          expect(tokens.split(" ")).not.toContain("border");
+      }
+    }
+  });
+
   it("keeps critical portfolio source, uncertainty and authority states outside help", () => {
     const html = markup(
       <PortfolioObservation
@@ -354,11 +410,12 @@ describe("portfolio source truthfulness", () => {
         }}
       />
     );
+    // Three of the four tables have help text; Reservation projections has none.
     const help = Array.from(
       html.matchAll(/<aside\b[^>]*popover="auto"[^>]*>[\s\S]*?<\/aside>/g),
       (match) => match[0]
     );
-    expect(help).toHaveLength(4);
+    expect(help).toHaveLength(3);
     const visible = help.reduce(
       (remaining, disclosure) => remaining.replace(disclosure, ""),
       html

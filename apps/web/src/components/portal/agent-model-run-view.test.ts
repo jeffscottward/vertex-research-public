@@ -1,11 +1,13 @@
-import type {
-  AgentModelRunEventOutput,
-  AgentModelRunOutput,
+import {
+  AGENT_MODEL_RUN_EVENT_KIND_VALUES,
+  type AgentModelRunEventOutput,
+  type AgentModelRunOutput,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import {
   agentCards,
+  EVENT_KIND_LABELS,
   headLine,
   initRunView,
   isFinishedStatus,
@@ -206,5 +208,15 @@ describe("agent cards", () => {
     expect(headLine(long)).toBe(`${long.slice(0, 200)}…`);
     expect(tailLine("  short\n text ")).toBe("short text");
     expect(headLine("short")).toBe("short");
+  });
+
+  it("has words for every event kind", () => {
+    expect(Object.keys(EVENT_KIND_LABELS).sort()).toEqual(
+      [...AGENT_MODEL_RUN_EVENT_KIND_VALUES].sort()
+    );
+    expect(EVENT_KIND_LABELS.llm_call).toBe("LLM call");
+    expect(EVENT_KIND_LABELS.tool_result).toBe("Tool result");
+    for (const label of Object.values(EVENT_KIND_LABELS))
+      expect(label).not.toContain("_");
   });
 });

@@ -128,6 +128,7 @@ const DOCUMENT = {
   },
   deepTrades: {
     absorptions: [{ at: "t", detail: "d", direction: "bullish", price: 1 }],
+    audit: { checks: 1, comparedSeconds: 18, matchedSeconds: 17 },
     capture: "streamed",
     coverage: { seenSeconds: 10, share: 0.5, windowSeconds: 20 },
     limitSize: 50,

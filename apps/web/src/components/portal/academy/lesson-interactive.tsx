@@ -272,7 +272,7 @@ export const LessonInteractive = ({ lesson }: { readonly lesson: Lesson }) => {
           }}
         >
           <span
-            className="mr-2 font-semibold text-xs uppercase"
+            className="mr-2 font-semibold text-xs"
             style={{
               color: palette.tokens[active.color],
             }}

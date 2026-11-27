@@ -139,8 +139,7 @@ export const PublicFooter = ({
         <div className="max-w-md space-y-3">
           <BrandLink />
           <p className="text-muted-foreground text-sm leading-6">
-            Evidence-first research tooling. Sources before signals. Context
-            before conclusions.
+            Research tooling that shows the source and the limits of each claim.
           </p>
         </div>
         {navigation.showNavigation ? (

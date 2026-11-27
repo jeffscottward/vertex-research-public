@@ -9,9 +9,8 @@ export const metadata = {
 export default function ResourcesPage() {
   return (
     <ResearchPublicPage
-      eyebrow="Vertex Research / Field guide"
-      title="Read the record. Understand the context."
-      introduction="A short guide to the language used in the workspace. These distinctions matter more than a polished result."
+      title="Field guide to workspace terms"
+      introduction="A short guide to the language used in the workspace."
       sections={[
         {
           title: "Identity is not access",

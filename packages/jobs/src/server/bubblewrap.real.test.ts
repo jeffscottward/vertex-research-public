@@ -3,6 +3,7 @@
 // bubblewrap.test.ts and omp.test.ts keep full coverage on every host.
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
+import { realpathSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
@@ -15,7 +16,7 @@ import {
 import { createServer as createHttpServer } from "node:http";
 import { type AddressInfo, createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { basename, delimiter, join } from "node:path";
 import type { Writable } from "node:stream";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -88,6 +89,9 @@ const installedOmp = (process.env["PATH"] ?? "")
   .map((directory) => join(directory, "omp"))
   .find((candidate) => {
     try {
+      // A version-manager shim named "omp" is a link to the manager, and the test below starts the
+      // real path of this file: only a file that is the OMP binary itself counts.
+      if (basename(realpathSync(candidate)) !== "omp") return false;
       execFileSync(candidate, ["--version"], { stdio: "ignore" });
       return true;
     } catch {

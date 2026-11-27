@@ -3,7 +3,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const navigation = vi.hoisted(() => ({ pathname: "/research/thread-1" }));
+const navigation = vi.hoisted((): { pathname: string | null } => ({
+  pathname: "/research/thread-1",
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -22,6 +24,7 @@ vi.mock("@darkfactory/auth/client", () => ({
 }));
 
 import { portalBreadcrumb, portalPageTitle } from "../lib/portal-page-title.ts";
+import { PORTAL_RESEARCH_NOTICE } from "../lib/research-notice.ts";
 import { DEFAULT_ANONYMOUS_THEME } from "../lib/theme.ts";
 import { UiStateProvider } from "../lib/ui-store.tsx";
 import type { AssistantGateway } from "./portal/assistant-client.ts";
@@ -94,6 +97,26 @@ const renderShell = (
 
 const button = (label: string) =>
   document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+
+const researchNotices = () => [
+  ...document.querySelectorAll<HTMLElement>(
+    '[data-slot="portal-research-notice"]'
+  ),
+];
+
+/** The number of research notices that the shell prints on one portal path. */
+const researchNoticeCountAt = (pathname: string | null) => {
+  const previous = navigation.pathname;
+  navigation.pathname = pathname;
+  renderShell();
+  navigation.pathname = previous;
+  const count = researchNotices().length;
+  act(() => root?.unmount());
+  host?.remove();
+  root = undefined;
+  host = undefined;
+  return count;
+};
 
 describe("PortalShell", () => {
   it("titles the page from the most specific navigation entry", () => {
@@ -414,6 +437,58 @@ describe("PortalShell", () => {
 
     renderShell(["/dashboard", "/research"]);
     return expect(lab()).toBeNull();
+  });
+
+  it("prints the research notice once, after the page content", () => {
+    renderShell(undefined, true);
+    const notices = researchNotices();
+    expect(notices).toHaveLength(1);
+    const [notice] = notices;
+    expect(notice?.tagName).toBe("P");
+    expect(notice?.getAttribute("role")).toBe("note");
+    expect(notice?.textContent).toBe(PORTAL_RESEARCH_NOTICE);
+    expect(notice?.textContent).toBe(
+      "Research only: nothing here authorizes a trade."
+    );
+    expect(notice?.className).toBe("mt-2 text-muted-foreground text-xs");
+    expect(notice?.children).toHaveLength(0);
+    // It is the last element of the page content column, directly after the page.
+    expect(notice?.previousElementSibling?.outerHTML).toBe("<p>Body</p>");
+    expect(notice?.nextElementSibling).toBeNull();
+    expect(notice?.closest("#main-content")).not.toBeNull();
+    expect(notice?.closest('[data-slot="sidebar-inset"]')).not.toBeNull();
+    // It is not in the top bar, the sidebar, the mobile drawer or the assistant panel.
+    expect(notice?.closest('[data-slot="portal-topbar"]')).toBeNull();
+    expect(notice?.closest('[data-slot="sidebar"]')).toBeNull();
+    expect(notice?.closest("#portal-navigation")).toBeNull();
+    expect(notice?.closest("nav")).toBeNull();
+    return expect(notice?.closest("aside")).toBeNull();
+  });
+
+  it("keeps the research notice in the page content on a small screen", () => {
+    mobile = true;
+    renderShell();
+    const notices = researchNotices();
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.closest("#main-content")).not.toBeNull();
+    expect(notices[0]?.closest("#portal-navigation")).toBeNull();
+    expect(notices[0]?.closest("[hidden]")).toBeNull();
+    return expect(notices[0]?.className).not.toContain("hidden");
+  });
+
+  it("prints no research notice on a page with an order, arming or approval control", () => {
+    expect(researchNoticeCountAt("/research")).toBe(1);
+    expect(researchNoticeCountAt("/portfolio-combos")).toBe(1);
+    expect(researchNoticeCountAt("/connections")).toBe(1);
+    expect(researchNoticeCountAt("/dashboard")).toBe(0);
+    expect(researchNoticeCountAt("/portfolio")).toBe(0);
+    expect(researchNoticeCountAt("/portfolio/positions")).toBe(0);
+    expect(researchNoticeCountAt("/drafts")).toBe(0);
+    return expect(researchNoticeCountAt("/deployments")).toBe(0);
+  });
+
+  it("prints no research notice when the router has no pathname yet", () => {
+    expect(researchNoticeCountAt(null)).toBe(0);
   });
 
   it("docks the assistant panel beside the page with a topbar toggle next to the palette", () => {

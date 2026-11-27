@@ -26,7 +26,7 @@ test("home page exposes its foundation identity and journey", async ({
   await page.goto("/");
 
   await expect(page).toHaveTitle(
-    "Evidence before conviction | Vertex Research"
+    "Evidence-first research workspace | Vertex Research"
   );
   await expect(
     page
@@ -36,7 +36,7 @@ test("home page exposes its foundation identity and journey", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Evidence before conviction.",
+      name: "See the evidence behind every research claim",
     })
   ).toBeVisible();
 
@@ -47,7 +47,7 @@ test("home page exposes its foundation identity and journey", async ({
   await approachLink.click();
 
   const principles = page.getByRole("region", {
-    name: "More context. Less assumption.",
+    name: "How the workspace handles evidence",
   });
   await expect(page).toHaveURL(new URL("/#research-principles", baseURL).href);
   await expect(principles).toBeVisible();

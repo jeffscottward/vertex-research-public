@@ -10,7 +10,6 @@ import {
   type AgentModelRunSearchOutput,
 } from "@darkfactory/api";
 import {
-  Badge,
   Button,
   Input,
   SectionHeader,
@@ -32,6 +31,7 @@ import {
   ResearchOnlyNote,
   RunStatusBadge,
 } from "./agent-model-run-badges.tsx";
+import { EVENT_KIND_LABELS } from "./agent-model-run-view.ts";
 import {
   type AgentModelRunsGateway,
   activeFilterCount,
@@ -361,14 +361,13 @@ const RunsTable = ({ runs }: { readonly runs: AgentModelRunOutput[] }) => (
               <TableCell className="whitespace-normal px-2 py-3">
                 <RunStatusBadge status={run.status} />
               </TableCell>
-              <TableCell className="whitespace-normal px-2 py-3">
-                <span className="flex flex-wrap gap-1">
-                  {run.flags.map((flag) => (
-                    <Badge key={flag} variant="secondary">
-                      {flag}
-                    </Badge>
-                  ))}
-                </span>
+              <TableCell
+                className="whitespace-normal px-2 py-3 text-muted-foreground text-xs"
+                data-run-flags={run.flags.join(" ")}
+              >
+                {run.flags
+                  .map((flag) => facetValueLabel("flags", flag))
+                  .join(", ")}
               </TableCell>
             </TableRow>
           );
@@ -428,7 +427,7 @@ const SearchResults = ({
                 key={snippet.seq}
               >
                 <span className="text-muted-foreground text-xs">
-                  {snippet.agent} · {snippet.kind}:{" "}
+                  {snippet.agent} · {EVENT_KIND_LABELS[snippet.kind]}:{" "}
                 </span>
                 {snippet.segments.map((segment, index) =>
                   segment.match ? (

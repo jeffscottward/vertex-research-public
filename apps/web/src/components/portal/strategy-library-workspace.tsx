@@ -25,6 +25,7 @@ import {
 import { LayoutGrid, Plus, Rows3, Star } from "lucide-react";
 import {
   type MouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -41,11 +42,7 @@ import {
   type StrategyLibraryGateway,
 } from "./agent-ops-client.tsx";
 import { formatPercent } from "./backtests-workspace.tsx";
-import {
-  StrategyBadges,
-  StrategyDetail,
-  StrategyLinks,
-} from "./strategy-library-detail.tsx";
+import { StrategyDetail, StrategyLinks } from "./strategy-library-detail.tsx";
 import {
   groupBySection,
   isStrategyTab,
@@ -53,7 +50,10 @@ import {
   STRATEGY_KIND_LABELS,
   STRATEGY_SORT_LABELS,
   STRATEGY_STATUS_LABELS,
+  type StrategyBadge,
+  type StrategyBadgeKey,
   type StrategyTab,
+  strategyBadges,
 } from "./strategy-library-model.ts";
 import { selectClass } from "./strategy-param-field.tsx";
 
@@ -242,7 +242,13 @@ const RowsView = ({
             className="py-1 pr-3 font-normal text-muted-foreground"
             scope="col"
           >
-            Tags
+            Vertex result
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 font-normal text-muted-foreground"
+            scope="col"
+          >
+            External claim
           </TableHead>
           <TableHead
             className="py-1 pr-3 text-right font-normal text-muted-foreground"
@@ -301,7 +307,9 @@ const RowsView = ({
               >
                 <span className="flex flex-wrap items-center gap-x-2">
                   <NameLink onOpen={onOpen} row={row} />
-                  <StrategyBadges strategy={row} />
+                  {row.priority === "high"
+                    ? badgeCell(row, "high-priority")
+                    : null}
                 </span>
               </TableHead>
               <TableCell
@@ -313,8 +321,17 @@ const RowsView = ({
               <TableCell className="whitespace-normal py-1 pr-3 text-xs">
                 {STRATEGY_KIND_LABELS[row.kind] ?? row.kind}
               </TableCell>
-              <TableCell className="whitespace-normal py-1 pr-3 text-xs">
-                {row.tags.length === 0 ? "—" : row.tags.join(", ")}
+              <TableCell
+                className="whitespace-normal py-1 pr-3 text-xs"
+                data-col="vertex-result"
+              >
+                {badgeCell(row, "vertex-result")}
+              </TableCell>
+              <TableCell
+                className="whitespace-normal py-1 pr-3 text-xs"
+                data-col="external-claim"
+              >
+                {badgeCell(row, "externally-pre-validated")}
               </TableCell>
               <TableCell
                 className="whitespace-normal py-1 pr-3 text-right font-mono text-xs"
@@ -348,6 +365,37 @@ const RowsView = ({
   </div>
 );
 
+// A row value as plain text, with no pill. The model owns the text, the hint and the data
+// attributes, so the list and the detail header name the same fact in the same words.
+const BadgeText = ({ badge }: { readonly badge: StrategyBadge }) => (
+  <span
+    className="text-muted-foreground text-xs"
+    data-strategy-badge={badge.key}
+    {...badge.dataAttributes}
+    title={badge.hint}
+  >
+    {badge.label}
+    {badge.srText === null ? null : (
+      <span className="sr-only">{badge.srText}</span>
+    )}
+  </span>
+);
+
+const badgeOf = (
+  row: StrategySummaryOutput,
+  key: StrategyBadgeKey
+): StrategyBadge | null =>
+  strategyBadges(row).find((badge) => badge.key === key) ?? null;
+
+// A table cell value: the text of the badge, or a dash when the strategy has none.
+const badgeCell = (
+  row: StrategySummaryOutput,
+  key: StrategyBadgeKey
+): ReactNode => {
+  const badge = badgeOf(row, key);
+  return badge === null ? "—" : <BadgeText badge={badge} />;
+};
+
 const CardsView = ({
   rows,
   busy,
@@ -374,11 +422,19 @@ const CardsView = ({
             <NameLink onOpen={onOpen} row={row} />
             <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
           </div>
-          <StrategyBadges strategy={row} />
+          {strategyBadges(row).length === 0 ? null : (
+            <p
+              className="flex flex-wrap gap-x-3 gap-y-1"
+              data-strategy-badges=""
+            >
+              {strategyBadges(row).map((badge) => (
+                <BadgeText badge={badge} key={badge.key} />
+              ))}
+            </p>
+          )}
           <p className="text-muted-foreground text-xs">
             {STRATEGY_STATUS_LABELS[row.status]} ·{" "}
             {STRATEGY_KIND_LABELS[row.kind] ?? row.kind}
-            {row.tags.length === 0 ? "" : ` · ${row.tags.join(", ")}`}
           </p>
           <p className="font-mono text-xs">
             Sharpe {latestText(row).sharpe} · return{" "}

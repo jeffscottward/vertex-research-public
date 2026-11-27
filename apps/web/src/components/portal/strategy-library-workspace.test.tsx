@@ -478,12 +478,32 @@ describe("strategy library board", () => {
       "High priority",
       "Externally pre-validated (source claim, not validated by Vertex)",
     ]);
-    // Beside the name, inside the row header cell.
+    // Plain text, no pill: priority beside the name, the external claim in its own column.
+    const spike = container.querySelector('[data-strategy-row="s-spike"]');
+    const cellText = (id: string, column: string) =>
+      container.querySelector(
+        `[data-strategy-row="${id}"] [data-col="${column}"]`
+      )?.textContent;
     expect(
-      container
-        .querySelector('[data-strategy-row="s-spike"] th[scope="row"]')
-        ?.querySelectorAll("[data-strategy-badge]")
-    ).toHaveLength(2);
+      spike
+        ?.querySelector('th[scope="row"]')
+        ?.querySelectorAll('[data-strategy-priority="high"]')
+    ).toHaveLength(1);
+    expect(cellText("s-spike", "external-claim")).toBe(
+      "Externally pre-validated (source claim, not validated by Vertex)"
+    );
+    expect(cellText("s-spike", "vertex-result")).toBe("—");
+    expect(spike?.querySelector('[data-slot="badge"]')).toBeNull();
+    // The list has no tag column; the detail Overview tab shows the tags.
+    const headers = [...container.querySelectorAll('th[scope="col"]')].map(
+      (header) => header.textContent
+    );
+    expect(headers).toContain("Vertex result");
+    expect(headers).toContain("External claim");
+    expect(headers).not.toContain("Tags");
+    expect(spike?.textContent).not.toContain("research-only");
+    expect(cellText("s-hmm", "vertex-result")).toBe("—");
+    expect(cellText("s-hmm", "external-claim")).toBe("—");
     expect(badges('[data-strategy-row="s-urgent"]')).toEqual(["High priority"]);
     expect(badges('[data-strategy-row="s-hmm"]')).toEqual([]);
     expect(
@@ -512,6 +532,14 @@ describe("strategy library board", () => {
       "High priority",
     ]);
     expect(badges('[data-strategy-card="s-jump"]')).toEqual([]);
+    expect(
+      container.querySelector(
+        '[data-strategy-card="s-jump"] [data-strategy-badges]'
+      )
+    ).toBeNull();
+    const spikeCard = container.querySelector('[data-strategy-card="s-spike"]');
+    expect(spikeCard?.querySelector('[data-slot="badge"]')).toBeNull();
+    expect(spikeCard?.textContent).not.toContain("research-only");
     expect(
       container.querySelectorAll(
         '[data-strategy-card="s-spike"] [data-strategy-priority="high"], [data-strategy-card="s-spike"] [data-strategy-external-validation]'

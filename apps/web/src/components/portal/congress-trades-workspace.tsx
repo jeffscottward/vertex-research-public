@@ -63,7 +63,7 @@ export const CONGRESS_TRADES_PAGE_SIZE = 50;
 const selectClass =
   "h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm sm:w-40 sm:flex-none";
 const inputClass =
-  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 font-mono text-sm uppercase sm:w-28";
+  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 font-mono text-sm uppercase placeholder:normal-case sm:w-28";
 const linkClass =
   "inline-flex min-h-11 items-center gap-1 underline-offset-2 hover:underline";
 // Shown in a cell when the filing did not report the value.
@@ -583,7 +583,7 @@ export const CongressTradesWorkspace = ({
             Refresh
           </Button>
         }
-        description="House and Senate members' STOCK Act trades (PTRs), newest filing first, with a link to each source filing. Research only."
+        description="House and Senate members' STOCK Act trades (PTRs), newest filing first, with a link to each source filing."
         status={<FeedStatus state={state} />}
         title="Congress trades"
       />

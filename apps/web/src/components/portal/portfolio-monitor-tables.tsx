@@ -67,14 +67,14 @@ import {
 export const SORT_STORAGE_KEY = "vertex.monitor.sort.v1";
 
 const TABLE = "w-full min-w-max border-collapse text-sm tabular-nums";
-// Reference header row: tinted, small uppercase muted labels (the tint is on each th, so the sticky
-// symbol header keeps it while the body scrolls under it).
+// Reference header row: tinted, small muted labels in sentence case (the tint is on each th, so
+// the sticky symbol header keeps it while the body scrolls under it).
 const HEAD_ROW =
-  "border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:bg-muted";
+  "border-b border-border text-left text-xs text-muted-foreground [&>th]:bg-muted";
 const CELL = "px-2 py-2 align-top";
 const STICKY = "sticky left-0 z-[1] bg-card";
-/** Each table block is a card: clear separation between positions, orders and executions. */
-const SECTION = "space-y-3 rounded-xl border bg-card p-4 shadow-xs";
+/** Each table block is a heading with its table. The table region is the only bordered surface. */
+const SECTION = "space-y-3";
 const SIDE_CLASS = (side: string): string => {
   return side === "BUY" || side === "BOT"
     ? "text-success-foreground"
@@ -91,7 +91,7 @@ const ScrollRegion = ({
 }) => (
   <div
     aria-label={label}
-    className="overflow-x-auto rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    className="overflow-x-auto rounded-lg border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     role="region"
     // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
     tabIndex={0}
@@ -526,7 +526,7 @@ const OrdersExplanation = () => (
 );
 
 const OcaBadge = ({ group }: { readonly group: string }) => (
-  <StatusBadge status="neutral" title={`One-cancels-all group ${group}`}>
+  <StatusBadge plain status="neutral" title={`One-cancels-all group ${group}`}>
     OCA
   </StatusBadge>
 );
@@ -549,6 +549,7 @@ const OrderStatus = ({
   return (
     <div className="flex flex-wrap items-center gap-1">
       <StatusBadge
+        plain
         status={orderStatusTone(order.status)}
         title={orderStatusTitle(order.status)}
       >

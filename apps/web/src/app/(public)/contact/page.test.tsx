@@ -12,7 +12,7 @@ describe("ContactPage", () =>
       description:
         "Send Vertex Research a bounded contact request and receive a truthful delivery result.",
     });
-    expect(html).toContain("Talk to the people behind the system.");
+    expect(html).toContain("Contact Vertex Research");
     expect(html).toContain("Delivery is reported exactly as it happens");
     expect(html).toContain('aria-labelledby="contact-expectations-title"');
     expect(html).toContain(
