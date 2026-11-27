@@ -34,7 +34,7 @@ type QuotesFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 // One bridge run spawns an IBKR client and waits up to 30 s for snapshots.
-const GOLIVE_QUOTES_TIMEOUT_MS = 45_000;
+export const GOLIVE_QUOTES_TIMEOUT_MS = 45_000;
 // A spread quote is reused this long, so the queue the owner read and the approve that follows
 // size the same order (the approve compares the order to the cent). Under the 120 s live-quote
 // age limit of the sizing (GOLIVE_QUOTE_MAX_AGE_MS), so a cached quote is still live.
@@ -74,12 +74,38 @@ const usable = (
   leg.bid > 0 &&
   leg.ask >= leg.bid;
 
-// A spread's quote, read or being read: `miss` is set once the read gave no live quote.
+// A spread's quote, read or being read: `result` is null while the bridge run is in flight, then
+// `{ value }` once settled (a null value is a miss, cached briefly so Reload retries soon).
 interface Entry {
   at: number;
-  miss: boolean;
   quote: Promise<GoLiveQuote | null>;
+  result: { value: GoLiveQuote | null } | null;
 }
+
+const TIMED_OUT = Symbol("timed-out");
+
+// Bounds a wait on a shared in-flight promise with a timer owned by the current request. On
+// Workers/workerd, a cancelled request's fetch and AbortSignal.timeout can drop without settling;
+// without a caller-owned timer, a second request awaiting that cached promise hangs indefinitely
+// and holds its DB slot. Executor form: the ES2023 lib has no Promise.withResolvers.
+const waitAtMost = async <T>(
+  promise: Promise<T>,
+  ms: number
+): Promise<T | typeof TIMED_OUT> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<typeof TIMED_OUT>((resolve) => {
+        timer = setTimeout(() => {
+          resolve(TIMED_OUT);
+        }, ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 /**
  * The bridge reader. base: loopback http URL; token: the bridge token (>= 32 chars). Missing or
@@ -88,7 +114,11 @@ interface Entry {
 export const createBridgeQuotesReader = (
   base: string | null,
   token: string | null,
-  options: Readonly<{ fetch?: QuotesFetch; now?: () => Date }> = {}
+  options: Readonly<{
+    fetch?: QuotesFetch;
+    now?: () => Date;
+    timeoutMs?: number;
+  }> = {}
 ): GoLiveQuotesPort => {
   const url = base === null ? null : URL.parse(base);
   const configured =
@@ -102,6 +132,7 @@ export const createBridgeQuotesReader = (
   const fetchImpl: QuotesFetch =
     options.fetch ?? ((input, init) => fetch(input, init));
   const now = options.now ?? (() => new Date());
+  const timeoutMs = options.timeoutMs ?? GOLIVE_QUOTES_TIMEOUT_MS;
   const cache = new Map<string, Entry>();
 
   const spreadQuote = (
@@ -140,7 +171,7 @@ export const createBridgeQuotesReader = (
           "x-vertex-bridge-token": token,
         },
         method: "POST",
-        signal: AbortSignal.timeout(GOLIVE_QUOTES_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       return none;
@@ -167,11 +198,17 @@ export const createBridgeQuotesReader = (
     return quotes;
   };
 
-  // A read in flight counts as fresh: a second caller waits for it instead of a new bridge run.
-  const fresh = (entry: Entry | undefined, time: number): entry is Entry =>
-    entry !== undefined &&
-    time - entry.at <
-      (entry.miss ? GOLIVE_QUOTES_MISS_CACHE_MS : GOLIVE_QUOTES_CACHE_MS);
+  // A read in flight counts as fresh only for its bridge timeout window, so an orphaned read does
+  // not linger for the full cache window. Settled hits/misses keep their respective windows.
+  const fresh = (entry: Entry, time: number): boolean => {
+    const ttl =
+      entry.result === null
+        ? timeoutMs
+        : entry.result.value === null
+          ? GOLIVE_QUOTES_MISS_CACHE_MS
+          : GOLIVE_QUOTES_CACHE_MS;
+    return time - entry.at < ttl;
+  };
 
   return async (spreads) => {
     const time = now().getTime();
@@ -196,18 +233,33 @@ export const createBridgeQuotesReader = (
       for (const [index, [key]] of chunk.entries()) {
         const entry: Entry = {
           at: time,
-          miss: false,
           quote: run.then((batch) => {
             const quote = batch.get(index) ?? null;
-            entry.miss = quote === null;
+            entry.result = { value: quote };
             return quote;
           }),
+          result: null,
         };
         cache.set(key, entry);
       }
     }
+    const entries = pairs.map(
+      ([key]) => [key, cache.get(key) as Entry] as const
+    );
     return await Promise.all(
-      pairs.map(([key]) => (cache.get(key) as Entry).quote)
+      entries.map(async ([key, entry]) => {
+        if (entry.result !== null) return entry.result.value;
+        const remainingMs = Math.max(
+          0,
+          Math.min(timeoutMs, entry.at + timeoutMs - time)
+        );
+        const outcome = await waitAtMost(entry.quote, remainingMs);
+        if (outcome === TIMED_OUT) {
+          if (cache.get(key) === entry) cache.delete(key);
+          return null;
+        }
+        return outcome;
+      })
     );
   };
 };
