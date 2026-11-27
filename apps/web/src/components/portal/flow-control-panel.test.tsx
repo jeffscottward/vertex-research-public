@@ -357,6 +357,9 @@ describe("FlowControlPanel", () => {
     ).toBe(
       "Streamed tape: 97% of seconds covered in the last 30 min (1,746 of 1,800 s); not checked against a second source."
     );
+    expect(section?.querySelector("[data-flow-deep-audit]")?.textContent).toBe(
+      "IBKR history check: 412 of 415 compared seconds match (99%) in 14 checks this session. Each check compares about 1000 prints, so it does not prove that the session is complete."
+    );
     expect(section?.textContent).toContain(
       "Sum of deep trades since 09:30 ET (streamed tape)"
     );
@@ -377,6 +380,7 @@ describe("FlowControlPanel", () => {
       section?.querySelector("[data-flow-deep-coverage]")?.textContent
     ).toContain("Tape seen: about 31% of seconds in the last 30 min");
     expect(section?.textContent).toContain("Every sum is a lower bound.");
+    expect(section?.querySelector("[data-flow-deep-audit]")).toBeNull();
     expect(section?.textContent).toContain(
       "Sum of sampled deep trades since 09:30 ET"
     );

@@ -145,13 +145,17 @@ const codeOf = (error: unknown, pattern: RegExp): string | null => {
 };
 
 /**
- * `; per-second counts not stored (<name>)`, with a code after the name when the error or a cause
- * has one: the SQLSTATE code (42P01: no table; 42501: no grant; 23514: check constraint), else a
- * system code (ECONNREFUSED: no connection). At most 90 characters, with no SQL text and no row
- * data.
+ * `<prefix> (<name>)`, with a code after the name when the error or a cause has one: the SQLSTATE
+ * code (42P01: no table; 42501: no grant; 23514: check constraint), else a system code
+ * (ECONNREFUSED: no connection). The part after the prefix holds at most 60 characters, with no
+ * SQL text and no row data. The notes of the guarded steps of a tape read use it.
  */
-export const tapeSecondsFailureNote = (error: unknown): string => {
+export const tapeFailureNote = (prefix: string, error: unknown): string => {
   const code = codeOf(error, SQLSTATE) ?? codeOf(error, SYSTEM_CODE);
   const name = errorName(error).slice(0, NAME_MAX);
-  return `${TAPE_SECONDS_FAILURE_PREFIX} (${name}${code === null ? "" : ` ${code}`})`;
+  return `${prefix} (${name}${code === null ? "" : ` ${code}`})`;
 };
+
+/** `; per-second counts not stored (<name>)`: at most 90 characters (tapeFailureNote). */
+export const tapeSecondsFailureNote = (error: unknown): string =>
+  tapeFailureNote(TAPE_SECONDS_FAILURE_PREFIX, error);

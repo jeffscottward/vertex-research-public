@@ -19,6 +19,7 @@ import {
   controlTitle,
   crossCheckLine,
   deepTradeRows,
+  deepTradesAuditLine,
   deepTradesCoverageLine,
   deepTradesLimitLine,
   deepTradesMoreLine,
@@ -428,6 +429,24 @@ describe("deep trades view-model", () => {
         coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
       })
     ).toBe("Streamed tape: no covered second in this window yet.");
+  });
+
+  it("states the IBKR history checks of a streamed tape, without a check, and not for a sampled tape", () => {
+    expect(deepTradesAuditLine(deep)).toBe(
+      "IBKR history check: 412 of 415 compared seconds match (99%) in 14 checks this session. Each check compares about 1000 prints, so it does not prove that the session is complete."
+    );
+    expect(
+      deepTradesAuditLine({
+        ...deep,
+        audit: { checks: 1, comparedSeconds: 2400, matchedSeconds: 1200 },
+      })
+    ).toBe(
+      "IBKR history check: 1,200 of 2,400 compared seconds match (50%) in 1 check this session. Each check compares about 1000 prints, so it does not prove that the session is complete."
+    );
+    expect(deepTradesAuditLine({ ...deep, audit: null })).toBe(
+      "IBKR history check: no check in this session yet."
+    );
+    expect(deepTradesAuditLine(sampledDeep(sp500))).toBeNull();
   });
 
   it("states the coverage of a sampled tape as an approximate share and a lower bound, and says so before the first sampled second", () => {

@@ -33,6 +33,7 @@ import {
   controlTitle,
   crossCheckLine,
   deepTradeRows,
+  deepTradesAuditLine,
   deepTradesCoverageLine,
   deepTradesLimitLine,
   deepTradesMoreLine,
@@ -219,6 +220,7 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
   const deep = control.deepTrades;
   const streamed = deep.capture === "streamed";
   const limit = deepTradesLimitLine(deep);
+  const audit = deepTradesAuditLine(deep);
   const sum = deepTradesSum(deep);
   const chart = buildDeepTradesChart(deep);
   const rows = deepTradeRows(deep);
@@ -231,6 +233,11 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
       <p className="text-muted-foreground text-sm" data-flow-deep-coverage="">
         {deepTradesCoverageLine(deep)}
       </p>
+      {audit === null ? null : (
+        <p className="text-muted-foreground text-sm" data-flow-deep-audit="">
+          {audit}
+        </p>
+      )}
       <dl>
         <div className="min-w-0" data-metric={sum.label}>
           <dt className="text-muted-foreground text-xs">{sum.label}</dt>

@@ -14,6 +14,8 @@ import {
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
+  flowTapeAudits,
+  flowTapeGaps,
   flowTapeSeconds,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
@@ -667,6 +669,151 @@ describe("createFlowRepository option gaps", () => {
       params: ["ES", FROM.toISOString()],
       sql: '("flow_option_gaps"."symbol" = $1 and "flow_option_gaps"."start_time" = $2)',
     });
+  });
+});
+
+describe("createFlowRepository tape gaps and checks", () => {
+  const gap = {
+    createdAt: FROM,
+    endTime: TO,
+    startTime: FROM,
+    symbol: "ES" as const,
+  };
+  const audit = {
+    checkedAt: TO,
+    comparedSeconds: 18,
+    contract: "ESZ6",
+    fromSecond: FROM,
+    historyContracts: 40,
+    historyTrades: 30,
+    matchedSeconds: 17,
+    symbol: "NQ" as const,
+    tapeContracts: 39,
+    tapeTrades: 29,
+    toSecond: TO,
+  };
+
+  it("reads one symbol's tape gaps, oldest start first", async () => {
+    const double = createDouble([[gap]]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.tapeGaps("ES")).resolves.toEqual([gap]);
+    const [operation] = double.operations;
+    expect(operation?.table).toBe(flowTapeGaps);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["ES"],
+      sql: '"flow_tape_gaps"."symbol" = $1',
+    });
+    expect(
+      operation?.orderBy?.map((order) => dialect.sqlToQuery(order as SQL).sql)
+    ).toEqual(['"flow_tape_gaps"."start_time" asc']);
+  });
+
+  it("adds a tape gap; a stored gap with the same start keeps the later end", async () => {
+    const double = createDouble([[]]);
+    const repository = createFlowRepository(double.database);
+    await repository.addTapeGap(gap);
+    const [operation] = double.operations;
+    expect(operation).toMatchObject({
+      kind: "insert",
+      table: flowTapeGaps,
+      values: gap,
+    });
+    const conflict = operation?.conflict as {
+      set: Record<string, SQL>;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      flowTapeGaps.symbol,
+      flowTapeGaps.startTime,
+    ]);
+    expect(dialect.sqlToQuery(conflict.set["endTime"] as SQL).sql).toBe(
+      'greatest("flow_tape_gaps"."end_time", excluded.end_time)'
+    );
+  });
+
+  it("moves a tape gap's start in one transaction, merging with a gap stored there", async () => {
+    const double = createDouble([[gap], [], []]);
+    let opened = 0;
+    const database = Object.assign(Object.create(null), double.database, {
+      transaction: async (
+        run: (tx: DatabaseExecutor) => Promise<unknown>
+      ): Promise<unknown> => {
+        opened += 1;
+        return run(double.database);
+      },
+    }) as DatabaseExecutor;
+    const repository = createFlowRepository(database);
+    await repository.moveTapeGapStart("ES", FROM, TO);
+    // No stored gap: the insert is left out.
+    await repository.moveTapeGapStart("NQ", FROM, TO);
+    expect(opened).toBe(2);
+    const [remove, insert, missing] = double.operations;
+    expect(remove).toMatchObject({ kind: "delete", table: flowTapeGaps });
+    expect(whereOf(remove)).toMatchObject({
+      params: ["ES", FROM.toISOString()],
+      sql: '("flow_tape_gaps"."symbol" = $1 and "flow_tape_gaps"."start_time" = $2)',
+    });
+    expect(insert).toMatchObject({
+      kind: "insert",
+      table: flowTapeGaps,
+      values: { ...gap, startTime: TO },
+    });
+    const conflict = insert?.conflict as {
+      set: Record<string, SQL>;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      flowTapeGaps.symbol,
+      flowTapeGaps.startTime,
+    ]);
+    expect(dialect.sqlToQuery(conflict.set["endTime"] as SQL).sql).toBe(
+      'greatest("flow_tape_gaps"."end_time", excluded.end_time)'
+    );
+    expect(missing).toMatchObject({ kind: "delete", table: flowTapeGaps });
+    expect(double.operations).toHaveLength(3);
+  });
+
+  it("deletes one tape gap by symbol and start", async () => {
+    const double = createDouble([[]]);
+    const repository = createFlowRepository(double.database);
+    await repository.deleteTapeGap("ES", FROM);
+    const [remove] = double.operations;
+    expect(remove).toMatchObject({ kind: "delete", table: flowTapeGaps });
+    expect(whereOf(remove)).toMatchObject({
+      params: ["ES", FROM.toISOString()],
+      sql: '("flow_tape_gaps"."symbol" = $1 and "flow_tape_gaps"."start_time" = $2)',
+    });
+  });
+
+  it("inserts a check once and says whether it was new", async () => {
+    const double = createDouble([[{ at: FROM }], []]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.insertTapeAudit(audit)).resolves.toBe(1);
+    await expect(repository.insertTapeAudit(audit)).resolves.toBe(0);
+    const [operation] = double.operations;
+    expect(operation).toMatchObject({
+      conflict: "nothing",
+      kind: "insert",
+      table: flowTapeAudits,
+      values: audit,
+    });
+  });
+
+  it("reads the checks of one symbol in a range, oldest first", async () => {
+    const double = createDouble([[audit]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readTapeAudits({ from: FROM, symbol: "NQ", to: TO })
+    ).resolves.toEqual([audit]);
+    const [operation] = double.operations;
+    expect(operation?.table).toBe(flowTapeAudits);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["NQ", FROM.toISOString(), TO.toISOString()],
+      sql: '("flow_tape_audits"."symbol" = $1 and "flow_tape_audits"."from_second" >= $2 and "flow_tape_audits"."from_second" < $3)',
+    });
+    expect(dialect.sqlToQuery(operation?.orderBy?.[0] as SQL).sql).toBe(
+      '"flow_tape_audits"."from_second" asc'
+    );
   });
 });
 

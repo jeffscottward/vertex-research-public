@@ -16,7 +16,8 @@ import {
 // Flow pipeline (docs/vertex-rebuild/flow-pipeline.md): flow.collect writes, flow.snapshot reads.
 // The collector prunes each table with its own retention (FLOW_RETENTION_DAYS in
 // packages/api/src/server/flow-collect.ts): 730 days for flow_net_drift and flow_large_trades,
-// 14 days for the others. flow_market_premium and flow_tape_seconds are never pruned.
+// 14 days for the others. flow_market_premium, flow_tape_seconds and flow_tape_audits are never
+// pruned; the collector deletes flow_tape_gaps rows itself.
 
 export const FLOW_SYMBOL_VALUES = ["SPY", "ES", "QQQ", "NQ"] as const;
 export const FLOW_INDEX_OPTION_TICKER_VALUES = [
@@ -369,6 +370,61 @@ export const flowTapeSeconds = pgTable(
     check(
       "flow_tape_seconds_check",
       sql`${table.symbol} in ('ES', 'NQ') and cardinality(${table.trades}) = 60 and cardinality(${table.contracts}) = 60 and array_position(${table.trades}, NULL) is null and array_position(${table.contracts}, NULL) is null and 0 <= all(${table.trades}) and 0 <= all(${table.contracts}) and ${table.covered} ~ '^[01]{60}$' and ${table.totalTrades} >= 0 and length(${table.contract}) between 1 and 20`
+    ),
+  ]
+);
+
+/**
+ * Ranges of the streamed tape (ES, NQ) that the look-back limit cut from a read (migration 0101):
+ * [start_time, end_time), whole minutes of an open Globex session. Later runs read each range
+ * back from the ring of vertex-history, oldest part first (the ring drops its oldest prints
+ * first), move `start_time` forward to the end of the part they read and delete the row once the
+ * range is read to its end. The collector deletes a row whose end is
+ * older than one day: the ring cannot hold it. Not in the hourly prune.
+ */
+export const flowTapeGaps = pgTable(
+  "flow_tape_gaps",
+  {
+    createdAt: utc("created_at").notNull(),
+    endTime: utc("end_time").notNull(),
+    startTime: utc("start_time").notNull(),
+    symbol: text("symbol").$type<"ES" | "NQ">().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.startTime] }),
+    check(
+      "flow_tape_gaps_check",
+      sql`${table.symbol} in ('ES', 'NQ') and ${table.endTime} > ${table.startTime}`
+    ),
+  ]
+);
+
+/**
+ * Checks of the streamed tape (ES, NQ) against IBKR history (migration 0101): one row per check,
+ * over the compared exchange seconds [from_second, to_second]. A second matches when the print
+ * count and the contracts of both sources are equal. The counts are sums over the compared
+ * seconds. Never pruned (about 580 rows per day); a later study sets the cutoff.
+ */
+export const flowTapeAudits = pgTable(
+  "flow_tape_audits",
+  {
+    checkedAt: utc("checked_at").notNull(),
+    comparedSeconds: integer("compared_seconds").notNull(),
+    contract: text("contract").notNull(),
+    fromSecond: utc("from_second").notNull(),
+    historyContracts: integer("history_contracts").notNull(),
+    historyTrades: integer("history_trades").notNull(),
+    matchedSeconds: integer("matched_seconds").notNull(),
+    symbol: text("symbol").$type<"ES" | "NQ">().notNull(),
+    tapeContracts: integer("tape_contracts").notNull(),
+    tapeTrades: integer("tape_trades").notNull(),
+    toSecond: utc("to_second").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.fromSecond] }),
+    check(
+      "flow_tape_audits_check",
+      sql`${table.symbol} in ('ES', 'NQ') and ${table.toSecond} >= ${table.fromSecond} and ${table.comparedSeconds} > 0 and ${table.matchedSeconds} between 0 and ${table.comparedSeconds} and ${table.historyTrades} >= 0 and ${table.tapeTrades} >= 0 and ${table.historyContracts} >= 0 and ${table.tapeContracts} >= 0 and length(${table.contract}) between 1 and 20`
     ),
   ]
 );

@@ -108608,6 +108608,39 @@
                           "maxItems": 20,
                           "type": "array"
                         },
+                        "audit": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "checks": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "comparedSeconds": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "matchedSeconds": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "checks",
+                                "comparedSeconds",
+                                "matchedSeconds"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "capture": {
                           "enum": [
                             "sampled",
@@ -108797,6 +108830,7 @@
                         "signing",
                         "capture",
                         "coverage",
+                        "audit",
                         "sums",
                         "trades",
                         "totalTrades",
@@ -164338,8 +164372,8 @@
                                         "anyOf": [
                                           {
                                             "enum": [
-                                              "quantdata",
-                                              "yahoo"
+                                              "yahoo",
+                                              "quantdata"
                                             ],
                                             "type": "string"
                                           },
@@ -164598,8 +164632,8 @@
                                         "anyOf": [
                                           {
                                             "enum": [
-                                              "quantdata",
-                                              "yahoo"
+                                              "yahoo",
+                                              "quantdata"
                                             ],
                                             "type": "string"
                                           },
