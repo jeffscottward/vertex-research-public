@@ -121,6 +121,64 @@ const sources = walk(sourceRoot)
   )
   .map((file) => ({ file, text: readFileSync(file, "utf8") }));
 
+// The shell prints the notice once per page. A page title subtitle (the description of
+// PageHeader) that repeats it, as words or through a notice constant, prints it twice. The check
+// reads the description at the call of PageHeader; it does not follow a value into a wrapper.
+const NOTICE_WORDS = /research[- ]only|authori[sz]e/i;
+const NOTICE_CONSTANT = /\b[A-Z][A-Z0-9_]*NOTICE\b/;
+const repeatsNotice = (description: string): boolean =>
+  NOTICE_WORDS.test(description) || NOTICE_CONSTANT.test(description);
+
+/**
+ * The end of the quoted string or the braced expression that starts at `start`. Another start
+ * (an element without braces) throws: the walk cannot read it, and a skipped prop would hide a
+ * description.
+ */
+const valueEnd = (text: string, start: number): number => {
+  const first = text[start];
+  if (first === '"' || first === "'") {
+    const close = text.indexOf(first, start + 1);
+    return close === -1 ? text.length : close + 1;
+  }
+  if (first !== "{")
+    throw new Error(`prop value not read: ${text.slice(start, start + 40)}`);
+  let depth = 0;
+  for (let index = start; index < text.length; index += 1) {
+    if (text[index] === "{") depth += 1;
+    if (text[index] === "}") depth -= 1;
+    if (depth === 0) return index + 1;
+  }
+  return text.length;
+};
+
+const TAG_END = /\s*\/?>/y;
+
+/** The source text of the `description` value of every `<PageHeader>` in a file. */
+const pageHeaderDescriptions = (text: string): string[] =>
+  [...text.matchAll(/<PageHeader\b/g)].flatMap((match) => {
+    // Walk the props of the opening tag: a name, then a string or a braced value.
+    const prop = /\s*(?:([\w:.-]+)(=)?|(\{))/y;
+    let at = match.index + match[0].length;
+    prop.lastIndex = at;
+    for (let found = prop.exec(text); found !== null; found = prop.exec(text)) {
+      // A spread or a comment: skip the braces.
+      if (found[3] !== undefined)
+        prop.lastIndex = valueEnd(text, found.index + found[0].length - 1);
+      else if (found[2] !== undefined) {
+        const end = valueEnd(text, prop.lastIndex);
+        if (found[1] === "description")
+          return [text.slice(prop.lastIndex, end)];
+        prop.lastIndex = end;
+      }
+      at = prop.lastIndex;
+    }
+    // The walk must stop at the end of the opening tag. Another stop is a prop that it cannot read.
+    TAG_END.lastIndex = at;
+    if (!TAG_END.test(text))
+      throw new Error(`PageHeader props not read: ${text.slice(at, at + 40)}`);
+    return [];
+  });
+
 describe("portal research notice", () => {
   it("keeps the reviewed wording", () => {
     expect(PORTAL_RESEARCH_NOTICE).toBe(
@@ -213,5 +271,51 @@ describe("portal research notice", () => {
           .map((file) => path.relative(sourceRoot, file))
       ).toEqual([]);
     }
+  });
+
+  it("repeats the notice in no page title subtitle", () => {
+    expect(
+      pageHeaderDescriptions('<PageHeader {...rest} title="A" />')
+    ).toEqual([]);
+    expect(
+      pageHeaderDescriptions(
+        '<PageHeader description="One. Research only." title="A" />'
+      )
+    ).toEqual(['"One. Research only."']);
+    expect(
+      pageHeaderDescriptions(
+        "<PageHeader\n status={<b>x</b>}\n description={<>One {link}. {A_NOTICE}</>}\n />"
+      )
+    ).toEqual(["{<>One {link}. {A_NOTICE}</>}"]);
+    expect(
+      pageHeaderDescriptions(
+        "<PageHeader data-x1=\"a\" description='One. Research only.' />"
+      )
+    ).toEqual(["'One. Research only.'"]);
+    // A prop that the walk cannot read fails the test; it never hides a description.
+    expect(() =>
+      pageHeaderDescriptions(
+        '<PageHeader icon=<b /> description="Research only." />'
+      )
+    ).toThrow("prop value not read");
+    expect(() =>
+      pageHeaderDescriptions('<PageHeader title="A" ? description="B" />')
+    ).toThrow("PageHeader props not read");
+    expect(repeatsNotice("{REPORTS_NOTICE}")).toBe(true);
+    expect(repeatsNotice('"One. Research only; no orders."')).toBe(true);
+    expect(repeatsNotice('"A row does not authorize a trade."')).toBe(true);
+    expect(repeatsNotice('"Tracking only: no orders. See the notice."')).toBe(
+      false
+    );
+    expect(
+      sources.flatMap((source) =>
+        pageHeaderDescriptions(source.text)
+          .filter(repeatsNotice)
+          .map(
+            (description) =>
+              `${path.relative(sourceRoot, source.file)}: ${description}`
+          )
+      )
+    ).toEqual([]);
   });
 });

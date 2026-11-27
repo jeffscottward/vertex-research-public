@@ -22,3 +22,14 @@
 - Header and risks: the two baseline commits, the file count, one rollback statement in place of two.
 
 A second check after the review fixes is in the pull request description.
+
+## Live check of 2026-11-27
+
+The live check of build `18db0bda` (58 portal pages, 11 public and sign-in pages, 4 not-found addresses, at 1440 and 375 px) found 2 differences between the plan and the site. A follow-up pull request corrects both.
+
+| Plan item | Difference | Resolution |
+| --- | --- | --- |
+| Goal 4, table "Subtitles" | The subtitles of Research dossiers and of one dossier still repeated the notice ("Research only; a recommendation does not authorize a trade."). The table did not list them. | Code: both subtitles lose the sentence. Plan: the table has the 2 rows. Test: a guard reads every `PageHeader` description. |
+| D5 (words in place of raw codes on Flow) | The collector message of the net drift feed printed the provider part name `zero_dte` in the Wall × drift panel. | Code: `packages/api/src/server/flow-collect.ts` writes `0DTE` in the message. |
+
+Agent runs prints the agent name `inthemoneyadam_desk` as written. That is a name, and D5 keeps names and identifiers as written.
