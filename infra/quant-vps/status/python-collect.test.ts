@@ -13,7 +13,11 @@ import { describe, expect, it } from "vitest";
 // deletes the TMPDIR also after a failed or killed run.
 const here = fileURLToPath(new URL(".", import.meta.url));
 const PYTHON_TIMEOUT_MS = 120_000;
-const SUITES = ["test_collect.py", "test_status_v2_alert.py"] as const;
+const SUITES = [
+  "test_collect.py",
+  "test_status_v2_alert.py",
+  "test_open_orders_refresh.py",
+] as const;
 
 describe.each(SUITES)("%s", (suite) => {
   it("passes under python3 and leaves no temp folders", {

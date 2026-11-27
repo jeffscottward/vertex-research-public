@@ -484,10 +484,6 @@ export const PickListsWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground text-sm">
-        Research only — not an order. A pick, a gate or a quadrant never
-        authorizes a trade.
-      </p>
       {listError === null ? null : (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-destructive text-sm" role="alert">

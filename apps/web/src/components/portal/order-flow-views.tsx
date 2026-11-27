@@ -573,7 +573,7 @@ const storedMarkLinesForBucket = (
       event.price === null ? "" : ` at ${formatPrice(event.price, digits)}`;
     return {
       key: `stored-${bucketStart}-${event.kind}-${idx}`,
-      text: `${clock} · Stored IBKR flow_events · ${kindLabel}: ${event.detail}${priceSuffix}`,
+      text: `${clock} · Stored IBKR flow events · ${kindLabel}: ${event.detail}${priceSuffix}`,
       tone: event.direction,
     };
   });

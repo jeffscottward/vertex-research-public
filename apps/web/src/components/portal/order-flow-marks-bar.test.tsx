@@ -85,7 +85,7 @@ describe("OrderFlowMarksBar", () => {
       [
         { secType: "STK", symbol: "NVDA", type: "unsupported" },
         "unsupported",
-        "NVDA STK",
+        "stored IBKR flow events cover SPY and QQQ equities and ES and NQ futures only (NVDA STK",
       ],
       [
         { secType: "CASH", symbol: "EUR", type: "unsupported" },
@@ -125,6 +125,10 @@ describe("OrderFlowMarksBar", () => {
         summary={empty}
       />
     );
+    expect(host1.textContent).toContain(
+      "Order-flow marks (stored IBKR flow events)"
+    );
+    expect(host1.textContent).not.toContain("flow_events");
     expect(host1.textContent).toContain("none in loaded bars");
     expect(host1.querySelector("[data-flow-marks-list]")).toBeNull();
 
