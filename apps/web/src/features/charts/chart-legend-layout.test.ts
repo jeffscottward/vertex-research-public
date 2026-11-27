@@ -2,25 +2,37 @@ import { describe, expect, it } from "vitest";
 import {
   COMPACT_CANDLE_TOOLTIP,
   COMPACT_CHART_WIDTH_PX,
+  COMPACT_PLOT_WIDTH_PX,
   candlePaneGap,
   chartFontFamily,
   chartLegendStyles,
   DEFAULT_CHART_FONT_FAMILY,
   isCompactChartWidth,
+  isCompactPlotWidth,
   legendClearancePx,
   subPaneGap,
   WIDE_CANDLE_TOOLTIP,
 } from "./chart-legend-layout.ts";
 
 describe("chart-legend-layout", () => {
-  it("detects narrow chart containers while treating unmeasured widths as wide", () => {
+  it("detects narrow and mid-width chart containers and plot widths while treating unmeasured widths as wide", () => {
     expect(isCompactChartWidth(309)).toBe(true);
+    expect(isCompactChartWidth(520)).toBe(true);
     expect(isCompactChartWidth(COMPACT_CHART_WIDTH_PX - 1)).toBe(true);
     expect(isCompactChartWidth(COMPACT_CHART_WIDTH_PX)).toBe(false);
     expect(isCompactChartWidth(800)).toBe(false);
     expect(isCompactChartWidth(0)).toBe(false);
     expect(isCompactChartWidth(-10)).toBe(false);
     expect(isCompactChartWidth(Number.NaN)).toBe(false);
+
+    expect(isCompactPlotWidth(309)).toBe(true);
+    expect(isCompactPlotWidth(460)).toBe(true);
+    expect(isCompactPlotWidth(COMPACT_PLOT_WIDTH_PX - 1)).toBe(true);
+    expect(isCompactPlotWidth(COMPACT_PLOT_WIDTH_PX)).toBe(false);
+    expect(isCompactPlotWidth(800)).toBe(false);
+    expect(isCompactPlotWidth(0)).toBe(false);
+    expect(isCompactPlotWidth(-10)).toBe(false);
+    expect(isCompactPlotWidth(Number.NaN)).toBe(false);
   });
 
   it("resolves a sans-serif font family with a Public Sans fallback", () => {

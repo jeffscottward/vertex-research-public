@@ -8,6 +8,7 @@ import {
 import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
 import {
   candlePaneGap,
+  chartFontFamily,
   chartLegendStyles,
   isCompactChartWidth,
   subPaneGap,
@@ -277,6 +278,7 @@ const validChartMarkers = (markers: readonly ChartMarker[]): boolean => {
 type StyledMarkerData = Readonly<{
   background: string;
   color: string;
+  fontFamily: string;
   foreground: string;
   position: "above" | "below";
   shape: "arrow" | "diamond";
@@ -290,6 +292,7 @@ const isStyledMarkerData = (value: unknown): value is StyledMarkerData => {
   return (
     typeof candidate["background"] === "string" &&
     typeof candidate["color"] === "string" &&
+    typeof candidate["fontFamily"] === "string" &&
     typeof candidate["foreground"] === "string" &&
     (candidate["position"] === "above" || candidate["position"] === "below") &&
     (candidate["shape"] === "arrow" || candidate["shape"] === "diamond") &&
@@ -311,6 +314,7 @@ const styledMarkerData = (
         : tone === "bearish"
           ? palette.falling
           : palette.accent,
+    fontFamily: chartFontFamily(palette),
     foreground: palette.foreground,
     position: marker.position ?? (tone === "bearish" ? "above" : "below"),
     shape: marker.shape ?? "arrow",
@@ -376,6 +380,7 @@ export const styledMarkerFigures = (
         borderRadius: 2,
         borderSize: 1,
         color: data.foreground,
+        family: data.fontFamily,
         paddingBottom: 2,
         paddingLeft: 3,
         paddingRight: 3,
@@ -604,19 +609,19 @@ type SignalMark = Readonly<{
   text: string;
   location: "abovebar" | "belowbar";
   color: string;
+  fontFamily: string;
   foreground: string;
   background: string;
 }>;
 const isSignalMark = (value: unknown): value is SignalMark => {
   if (typeof value !== "object" || value === null) return false;
-  const { text, location, color, foreground, background } = value as Record<
-    string,
-    unknown
-  >;
+  const { text, location, color, fontFamily, foreground, background } =
+    value as Record<string, unknown>;
   return (
     typeof text === "string" &&
     (location === "abovebar" || location === "belowbar") &&
     typeof color === "string" &&
+    typeof fontFamily === "string" &&
     typeof foreground === "string" &&
     typeof background === "string"
   );
@@ -642,6 +647,7 @@ export const signalMark = (
         : signal.kind === "short"
           ? palette.falling
           : palette.accent,
+    fontFamily: chartFontFamily(palette),
     foreground: palette.foreground,
     location: signal.location,
     text: `${above ? "\u25BC" : "\u25B2"} ${text}`,
@@ -690,6 +696,7 @@ export const scriptSignalFigures = (
         borderRadius: 2,
         borderSize: 1,
         color: data.foreground,
+        family: data.fontFamily,
         paddingBottom: 2,
         paddingLeft: 3,
         paddingRight: 3,
@@ -789,6 +796,10 @@ export const createKLineRenderer: CandleRendererFactory = async (
           custom: [...initialLegend.candleTooltip.custom],
         },
         type: library.CandleType.CandleUpStroke,
+      },
+      crosshair: {
+        horizontal: { text: { family: initialLegend.fontFamily } },
+        vertical: { text: { family: initialLegend.fontFamily } },
       },
       grid: {
         horizontal: { color: palette.grid },

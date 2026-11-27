@@ -4,7 +4,8 @@ import type { ChartPalette } from "./types.ts";
 // Keeps price, MA and MACD legends compact and separated from plotted data at 375 px without
 // crowding wide viewports.
 
-export const COMPACT_CHART_WIDTH_PX = 480;
+export const COMPACT_CHART_WIDTH_PX = 640;
+export const COMPACT_PLOT_WIDTH_PX = 580;
 export const DEFAULT_CHART_FONT_FAMILY =
   '"Public Sans", system-ui, -apple-system, sans-serif';
 
@@ -86,9 +87,13 @@ export const COMPACT_CANDLE_TOOLTIP: readonly TooltipLegendEntry[] =
     { title: "V ", value: "{volume}" },
   ]);
 
-/** True when the chart container is narrow (e.g. 375 px mobile viewport). Unmeasured 0 stays wide. */
+/** True when the chart container is narrow (mobile or mid-width host < 640 px). Unmeasured 0 stays wide. */
 export const isCompactChartWidth = (width: number): boolean =>
   Number.isFinite(width) && width > 0 && width < COMPACT_CHART_WIDTH_PX;
+
+/** True when the inner plot canvas is narrower than the wide one-row legend threshold (< 580 px). */
+export const isCompactPlotWidth = (width: number): boolean =>
+  Number.isFinite(width) && width > 0 && width < COMPACT_PLOT_WIDTH_PX;
 
 /** Resolved sans-serif font for canvas text so KLineCharts never falls back to serif on Linux. */
 export const chartFontFamily = (

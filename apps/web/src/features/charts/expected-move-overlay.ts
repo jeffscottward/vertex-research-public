@@ -7,7 +7,11 @@ import {
   type ExpectedMoveBasis,
   type OptionsExpectedMoveOutput,
 } from "@darkfactory/api";
-
+import {
+  chartFontFamily,
+  isCompactPlotWidth,
+  legendClearancePx,
+} from "./chart-legend-layout.ts";
 import type { ChartPalette, ExpectedMoveCone } from "./types.ts";
 
 const DAY_MS = 86_400_000;
@@ -52,6 +56,7 @@ export type OverlayBounding = Readonly<{ width: number; height: number }>;
 export type ExpectedMoveOverlayData = Readonly<{
   background: string;
   expiryLabel: string;
+  fontFamily: string;
   foreground: string;
   grid: string;
   hasStraddle: boolean;
@@ -255,6 +260,7 @@ export const expectedMoveOverlayData = (
     background: palette.background,
     expiryLabel: `${cone.expiry.slice(5)} (${cone.dte}d)`,
     fill: withAlpha(stroke, 0.16),
+    fontFamily: chartFontFamily(palette),
     foreground: palette.foreground,
     grid: palette.grid,
     hasStraddle: cone.straddlePrice !== null,
@@ -271,6 +277,7 @@ const isOverlayData = (value: unknown): value is ExpectedMoveOverlayData => {
     typeof candidate["background"] === "string" &&
     typeof candidate["expiryLabel"] === "string" &&
     typeof candidate["fill"] === "string" &&
+    typeof candidate["fontFamily"] === "string" &&
     typeof candidate["foreground"] === "string" &&
     typeof candidate["grid"] === "string" &&
     typeof candidate["hasStraddle"] === "boolean" &&
@@ -286,15 +293,23 @@ const finiteCoord = (
   coord !== undefined && Number.isFinite(coord.x) && Number.isFinite(coord.y);
 
 const LABEL_EDGE_MARGIN = 20;
+const PILL_TEXT_HEIGHT_PX = 16;
 
 const clampLabelY = (
   y: number,
   label: string,
-  bounding: OverlayBounding | undefined
+  bounding: OverlayBounding | undefined,
+  topOffset: number
 ): Readonly<{ y: number; text: string }> => {
   if (bounding === undefined) return { text: label, y };
-  if (y < LABEL_EDGE_MARGIN)
-    return { text: `↑ ${label}`, y: LABEL_EDGE_MARGIN };
+  const topMargin =
+    legendClearancePx(isCompactPlotWidth(bounding.width), 1) + topOffset;
+  const minTop = Math.min(
+    topMargin,
+    Math.max(LABEL_EDGE_MARGIN, bounding.height - LABEL_EDGE_MARGIN)
+  );
+  if (y < LABEL_EDGE_MARGIN) return { text: `↑ ${label}`, y: minTop };
+  if (y < minTop) return { text: label, y: minTop };
   if (y > bounding.height - LABEL_EDGE_MARGIN)
     return { text: `↓ ${label}`, y: bounding.height - LABEL_EDGE_MARGIN };
   return { text: label, y };
@@ -418,14 +433,20 @@ export const expectedMoveConeFigures = (
       bounding !== undefined && upper.x > bounding.width - 64;
     const pillAlign = nearRightEdge ? "right" : "center";
     const pillX = nearRightEdge ? upper.x - 4 : upper.x;
-    const upperPill = clampLabelY(upper.y - 4, data.upperLabel, bounding);
-    const lowerPill = clampLabelY(lower.y + 4, data.lowerLabel, bounding);
+    const upperPill = clampLabelY(
+      upper.y - 4,
+      data.upperLabel,
+      bounding,
+      PILL_TEXT_HEIGHT_PX
+    );
+    const lowerPill = clampLabelY(lower.y + 4, data.lowerLabel, bounding, 0);
     const pillStyle = {
       backgroundColor: data.background,
       borderColor: data.stroke,
       borderRadius: 3,
       borderSize: 1,
       color: data.foreground,
+      family: data.fontFamily,
       paddingBottom: 2,
       paddingLeft: 4,
       paddingRight: 4,
@@ -482,6 +503,7 @@ export const expectedMoveConeFigures = (
         borderRadius: 0,
         borderSize: 0,
         color: data.foreground,
+        family: data.fontFamily,
         paddingBottom: 0,
         paddingLeft: 0,
         paddingRight: 0,

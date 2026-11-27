@@ -881,6 +881,9 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(diamondFigs).toHaveLength(2);
     expect(bearishFigs).toHaveLength(2);
     const slot0LabelY = (arrowFigs[1] as { attrs: { y: number } }).attrs.y;
+    expect(arrowFigs[1]).toMatchObject({
+      styles: { family: expect.stringContaining("Public Sans") },
+    });
     const slot1TopY = (
       diamondFigs[0] as { attrs: { coordinates: { y: number }[] } }
     ).attrs.coordinates[0]!.y;
@@ -1137,10 +1140,18 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         candle: {
           tooltip: { custom: { title: string }[]; text: { size: number } };
         };
+        crosshair: {
+          horizontal: { text: { family: string } };
+          vertical: { text: { family: string } };
+        };
         indicator: { tooltip: { showParams: boolean; text: { size: number } } };
       };
     };
     expect(init.styles.candle.tooltip.text.size).toBe(10);
+    expect(init.styles.crosshair.horizontal.text.family).toContain(
+      "Public Sans"
+    );
+    expect(init.styles.crosshair.vertical.text.family).toContain("Public Sans");
     expect(
       init.styles.candle.tooltip.custom.map((entry) => entry.title)
     ).toEqual(["O ", "H ", "L ", "C ", "V "]);

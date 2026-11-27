@@ -217,7 +217,7 @@ describe("expectedMoveConeFigures", () => {
       (CONE_CURVE_STEPS + 1) * 2
     );
 
-    // Off-scale Y clamping adds ↑ and ↓ prefixes
+    // Off-scale Y clamping adds ↑ and ↓ prefixes and keeps the upper pill below the legend.
     const clamped = expectedMoveConeFigures(
       [
         { x: 200, y: 150 },
@@ -229,12 +229,30 @@ describe("expectedMoveConeFigures", () => {
       data,
       { height: 300, width: 400 }
     );
-    const texts = clamped
-      .filter((fig) => fig.type === "text")
-      .map((fig) => fig.attrs["text"]);
+    const clampedTextFigs = clamped.filter((fig) => fig.type === "text");
+    const texts = clampedTextFigs.map((fig) => fig.attrs["text"]);
     expect(texts[0]).toBe("↑ +1σ $625.60");
+    expect(clampedTextFigs[0]?.attrs["y"]).toBe(70);
     expect(texts[1]).toBe("↓ -1σ $574.40");
+    expect(
+      clampedTextFigs.every((fig) => fig.styles["family"] === data.fontFamily)
+    ).toBe(true);
 
+    // In-bounds upper pill inside the top legend band shifts below the legend without ↑ prefix.
+    const legendClear = expectedMoveConeFigures(
+      [
+        { x: 200, y: 150 },
+        { x: 320, y: 36 },
+        { x: 320, y: 220 },
+        { x: 320, y: 95 },
+        { x: 320, y: 205 },
+      ],
+      data,
+      { height: 300, width: 800 }
+    );
+    const legendClearTexts = legendClear.filter((fig) => fig.type === "text");
+    expect(legendClearTexts[0]?.attrs["text"]).toBe("+1σ $625.60");
+    expect(legendClearTexts[0]?.attrs["y"]).toBe(64);
     // Target panned off-canvas horizontally hides labels
     const hiddenX = expectedMoveConeFigures(coords, data, {
       height: 300,
