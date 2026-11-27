@@ -25,17 +25,27 @@ export const SEMANTIC_ATTRIBUTE_GRAINS = [
   "candidate",
   "request",
   "monitor",
+  "ticker",
+  "filing_trade",
+  "issuer_cluster",
+  "filer_position",
+  "ticker_session",
 ] as const;
 /** How the assistant answer and the operator page name the rows of one grain. */
 export const SEMANTIC_GRAIN_LABELS: Readonly<
   Record<(typeof SEMANTIC_ATTRIBUTE_GRAINS)[number], string>
 > = {
   candidate: "per gate candidate",
+  filer_position: "per 13F filer and position",
+  filing_trade: "per reported congressional trade",
+  issuer_cluster: "per issuer insider-buy cluster",
   monitor: "per drift monitor",
   request: "per deployment request",
   run_spec:
     "per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy",
   strategy: "per strategy (engine runs linked to a strategy)",
+  ticker: "per ticker (large-trade options premium)",
+  ticker_session: "per ticker and trading session",
 };
 // not_run: certified but not run (the term is not certified, or another attribute failed).
 const SEMANTIC_GROUPING_STATUSES = [

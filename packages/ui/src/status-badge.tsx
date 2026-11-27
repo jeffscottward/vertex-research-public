@@ -5,7 +5,7 @@ import type { ComponentPropsWithRef } from "react";
 import { cn } from "./utilities.ts";
 
 export const statusBadgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 font-medium text-xs before:size-1.5 before:rounded-full before:bg-current",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 font-medium text-xs before:size-1.5 before:shrink-0 before:rounded-full before:bg-current",
   {
     variants: {
       status: {

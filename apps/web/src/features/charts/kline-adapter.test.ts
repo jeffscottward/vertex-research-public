@@ -24,6 +24,10 @@ import {
   EXPECTED_MOVE_OVERLAY,
 } from "./expected-move-overlay.ts";
 import {
+  GAMMA_LEVELS_GROUP_ID,
+  GAMMA_LEVELS_OVERLAY,
+} from "./gamma-levels-overlay.ts";
+import {
   createKLineRenderer,
   DRAWING_GROUP_ID,
   drawingFromOverlay,
@@ -1019,5 +1023,99 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     );
     renderer.dispose();
     renderer.setExpectedMove!(cone);
+  });
+
+  it("renders, updates, re-applies, and clears gamma levels overlay", async () => {
+    stubBrowser();
+    const fake = studyChart();
+    mocks.init.mockReturnValue(fake);
+    const renderer = await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    const levels = {
+      asOf: "2026-11-25T15:30:00Z",
+      basis: 0,
+      callWall: 615,
+      flip: 602.5,
+      kingNode: 615,
+      maxPain: 600,
+      putWall: 590,
+      regime: "positive" as const,
+      source: "optionsAnalytics" as const,
+      spot: 605,
+      symbol: "SPY",
+      underlyingTicker: "SPY",
+    };
+    // Before bars arrive, setGammaLevels stores the levels without drawing yet.
+    renderer.setGammaLevels!(levels);
+    expect(fake.createOverlay).not.toHaveBeenCalled();
+
+    // Once bars arrive, the stored gamma levels draw automatically.
+    const day = 86_400_000;
+    const t0 = Date.parse("2026-11-10T00:00:00.000Z");
+    renderer.replace([
+      { ...bar, id: "b0", timestamp: t0 },
+      { ...bar, id: "b1", timestamp: t0 + day },
+    ]);
+    expect(fake.createOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupId: GAMMA_LEVELS_GROUP_ID,
+        lock: true,
+        name: GAMMA_LEVELS_OVERLAY,
+      })
+    );
+    const templateCall = mocks.registerOverlay.mock.calls.find((call) => {
+      const first: unknown = call[0];
+      return (
+        typeof first === "object" &&
+        first !== null &&
+        "name" in first &&
+        first.name === GAMMA_LEVELS_OVERLAY
+      );
+    });
+    const template = templateCall?.[0] as {
+      totalStep: number;
+      createPointFigures: (args: {
+        bounding: { width: number; height: number };
+        coordinates: { x: number; y: number }[];
+        overlay: { extendData: unknown };
+      }) => unknown[];
+    };
+    expect(template.totalStep).toBe(2);
+    const created = (fake.createOverlay.mock.calls as unknown[][]).at(
+      -1
+    )?.[0] as { extendData: unknown };
+    expect(
+      template.createPointFigures({
+        bounding: { height: 300, width: 500 },
+        coordinates: [
+          { x: 100, y: 50 },
+          { x: 100, y: 120 },
+          { x: 100, y: 180 },
+          { x: 100, y: 240 },
+        ],
+        overlay: { extendData: created.extendData },
+      }).length
+    ).toBeGreaterThanOrEqual(8);
+
+    // Identical levels value is a no-op.
+    fake.createOverlay.mockClear();
+    renderer.setGammaLevels!({ ...levels });
+    expect(fake.createOverlay).not.toHaveBeenCalled();
+
+    // Clearing bars clears the gamma levels overlay.
+    renderer.replace([]);
+    expect(fake.removeOverlay).toHaveBeenCalledWith({
+      groupId: GAMMA_LEVELS_GROUP_ID,
+    });
+
+    // Null clears; invalid throws TypeError; disposed is a no-op.
+    renderer.setGammaLevels!(null);
+    expect(() => renderer.setGammaLevels!({ ...levels, flip: -5 })).toThrow(
+      TypeError
+    );
+    renderer.dispose();
+    renderer.setGammaLevels!(levels);
   });
 });

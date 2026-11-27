@@ -200,6 +200,16 @@ describe("flow view model", () => {
     expect(metricValue(metrics, "Sweeps")).toBe("11 · $2.6M");
     expect(metricValue(metrics, "Blocks")).toBe("3 · $1.2M");
     expect(metricValue(metrics, "0DTE share")).toBe("44%");
+    expect(metricValue(metrics, "Vol > OI")).toBe("4");
+    expect(metricValue(metrics, "Opening share")).toBe("47%");
+    const mixed = optionsMetrics({
+      ...spy.optionsFlow,
+      oiFlagsNotReported: 23,
+      openingPremiumShare: 0.25,
+      volumeOverOi: 1,
+    });
+    expect(metricValue(mixed, "Vol > OI")).toBe("1 · 23 not reported");
+    expect(metricValue(mixed, "Opening share")).toBe("25% · 23 not reported");
     const empty = optionsMetrics({
       ...spy.optionsFlow,
       openingPremiumShare: null,
@@ -233,6 +243,13 @@ describe("flow view model", () => {
       call,
       put,
       { ...put, moneyness: "not_reported" },
+      { ...call, opening: null, volumeOverOi: null },
+      {
+        ...put,
+        moneyness: "not_reported",
+        opening: null,
+        volumeOverOi: null,
+      },
     ]);
     expect(rows[0]).toMatchObject({
       flags: ["OTM", "golden sweep", "unusual", "vol>OI", "opening"],
@@ -248,7 +265,14 @@ describe("flow view model", () => {
       tone: "destructive",
     });
     expect(rows[2]?.flags).toEqual([]);
-    expect(new Set(rows.map((row) => row.key)).size).toBe(3);
+    expect(rows[3]?.flags).toEqual([
+      "OTM",
+      "golden sweep",
+      "unusual",
+      "no OI flags",
+    ]);
+    expect(rows[4]?.flags).toEqual(["no OI flags"]);
+    expect(new Set(rows.map((row) => row.key)).size).toBe(5);
   });
 
   it("names a print without a classified side, a side without a label and a price that was not sent", () => {
@@ -300,6 +324,7 @@ describe("flow view model", () => {
       "Call wall",
       "Put wall",
       "Max pain",
+      "King node",
     ]);
     expect(rows[0]).toMatchObject({
       symbolPrice: "6,858.50",
@@ -308,6 +333,7 @@ describe("flow view model", () => {
     expect(
       gexLevelRows({ ...gex, symbolLevels: null }).map((row) => row.symbolPrice)
     ).toEqual([
+      "basis not computed",
       "basis not computed",
       "basis not computed",
       "basis not computed",

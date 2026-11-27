@@ -265,12 +265,9 @@ describe("0058_semantic_unlinked_runs migration", () => {
     expect(migration).toContain(
       `ALTER TABLE "semantic_sql_attributes" ADD COLUMN "grain" text DEFAULT 'strategy' NOT NULL;`
     );
-    const grainCheck = config.checks.find(
-      (check) => check.name === "semantic_sql_attributes_grain_check"
-    );
-    expect(grainCheck).toBeDefined();
+    // 0058 added the initial five grains; 0100 widened the check constraint to ten grains.
     expect(migration).toContain(
-      `ADD CONSTRAINT "semantic_sql_attributes_grain_check" CHECK (${grainCheck ? dialect.sqlToQuery(grainCheck.value).sql : ""})`
+      `ADD CONSTRAINT "semantic_sql_attributes_grain_check" CHECK ("semantic_sql_attributes"."grain" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor'))`
     );
     expect(config.indexes).toHaveLength(1);
     const [index] = config.indexes;
@@ -353,6 +350,148 @@ describe("0058_semantic_unlinked_runs migration", () => {
     );
     expect(rollback).toContain(
       `CREATE UNIQUE INDEX "semantic_sql_attributes_term_idx" ON "public"."semantic_sql_attributes" USING btree ("term_id");`
+    );
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DROP TABLE|DROP ROLE/u);
+  });
+});
+
+describe("0100_semantic_terms_smart_money migration", () => {
+  const migration = readFileSync(
+    new URL(
+      "../../migrations/0100_semantic_terms_smart_money.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL(
+      "../../rollback/0100_semantic_terms_smart_money.down.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const journal = JSON.parse(
+    readFileSync(
+      new URL("../../migrations/meta/_journal.json", import.meta.url),
+      "utf8"
+    )
+  ) as { entries: { idx: number; tag: string; when: number }[] };
+
+  const SMART_MONEY_READER_TABLES = [
+    "flow_market_premium",
+    "flow_market_premium_sessions",
+    "openbb_congress_trades",
+    "openbb_congress_filings",
+    "openbb_sec_form4_filings",
+    "openbb_sec_form4_transactions",
+    "openbb_sec_form4_owners",
+    "openbb_sec_13f_filings",
+    "openbb_sec_13f_holdings",
+    "openbb_cusip_symbols",
+    "openbb_short_volume_daily",
+  ];
+
+  const SMART_MONEY_TERMS: readonly Readonly<{
+    id: string;
+    grain: string;
+    params: number;
+  }>[] = [
+    { grain: "ticker", id: "large_options_premium_ranking", params: 2 },
+    { grain: "filing_trade", id: "congress_trades", params: 3 },
+    { grain: "issuer_cluster", id: "insider_cluster_buys", params: 2 },
+    { grain: "filer_position", id: "institutional_13f_changes", params: 2 },
+    { grain: "ticker_session", id: "short_volume", params: 2 },
+  ];
+
+  it("widens the drizzle grain check constraint to all ten grains", () => {
+    const config = getTableConfig(semanticSqlAttributes);
+    const grainCheck = config.checks.find(
+      (check) => check.name === "semantic_sql_attributes_grain_check"
+    );
+    expect(grainCheck).toBeDefined();
+    expect(migration).toContain(
+      'ALTER TABLE "semantic_sql_attributes" DROP CONSTRAINT "semantic_sql_attributes_grain_check";'
+    );
+    expect(migration).toContain(
+      `ADD CONSTRAINT "semantic_sql_attributes_grain_check" CHECK (${grainCheck ? dialect.sqlToQuery(grainCheck.value).sql : ""})`
+    );
+  });
+
+  it("grants SELECT only on the 11 smart-money tables to vertex_semantic_reader with the plain-role guard", () => {
+    expect(migration).toContain(
+      "RAISE EXCEPTION 'role vertex_semantic_reader must be a plain login: no superuser, bypassrls, createrole, createdb or replication attribute and no membership in another role';"
+    );
+    const grants = [
+      ...migration.matchAll(
+        /GRANT ([A-Z, ]+) ON TABLE ([^;]+) TO "vertex_semantic_reader";/g
+      ),
+    ];
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.[1]).toBe("SELECT");
+    expect(grants[0]?.[2]).toBe(
+      SMART_MONEY_READER_TABLES.map((table) => `"${table}"`).join(", ")
+    );
+    expect(migration).not.toMatch(
+      /GRANT (INSERT|UPDATE|DELETE|ALL)[^;]*TO "vertex_semantic_reader"/u
+    );
+  });
+
+  it("seeds 5 certified smart-money terms, 5 SQL attributes without stray $N literals, and 5 relationships", () => {
+    const sqlBodies = [...migration.matchAll(/\$sql\$([\s\S]*?)\$sql\$/g)].map(
+      (match) => match[1] ?? ""
+    );
+    expect(sqlBodies).toHaveLength(SMART_MONEY_TERMS.length);
+    for (const [index, term] of SMART_MONEY_TERMS.entries()) {
+      const body = sqlBodies[index] ?? "";
+      expect(migration).toContain(
+        `('${term.id}', '${term.id}', '${term.grain}'`
+      );
+      // certifiedStatement() rewrites every /\$(\d+)/g even inside SQL literals/comments.
+      const placeholders = [...body.matchAll(/\$(\d+)/g)].map((m) =>
+        Number(m[1])
+      );
+      expect(placeholders.length, term.id).toBeGreaterThan(0);
+      for (const n of placeholders) {
+        expect(n, `${term.id} placeholder $${n}`).toBeGreaterThanOrEqual(1);
+        expect(n, `${term.id} placeholder $${n}`).toBeLessThanOrEqual(
+          term.params
+        );
+      }
+      expect(body, `${term.id} source column`).toContain(" as source");
+      expect(body, `${term.id} as_of column`).toContain(" as as_of");
+      expect(body, `${term.id} data_delay column`).toContain(" as data_delay");
+    }
+    expect(migration.split("'migration 0100'").length - 1).toBe(15);
+  });
+
+  it("is journaled as idx 100 right after 0099 with a newer timestamp", () => {
+    const index = journal.entries.findIndex(
+      (entry) => entry.tag === "0100_semantic_terms_smart_money"
+    );
+    expect(journal.entries[index]).toMatchObject({ idx: 100 });
+    expect(journal.entries[index - 1]).toMatchObject({
+      idx: 99,
+      tag: "0099_flow_option_prints_oi_flags",
+    });
+    expect(journal.entries[index]?.when).toBeGreaterThan(
+      journal.entries[index - 1]?.when ?? 0
+    );
+  });
+
+  it("has a guarded rollback with BEGIN/COMMIT, certification_note check, grain check and REVOKE SELECT", () => {
+    expect(rollback).toContain("BEGIN;");
+    expect(rollback).toContain("COMMIT;");
+    expect(rollback).toContain(
+      "smart-money semantic terms have operator edits or unknown grain rows; refusing rollback"
+    );
+    expect(rollback).toContain(
+      '"certification_note" IS DISTINCT FROM seed_note'
+    );
+    expect(rollback).toContain(
+      `REVOKE SELECT ON TABLE ${SMART_MONEY_READER_TABLES.map((table) => `"public"."${table}"`).join(", ")} FROM "vertex_semantic_reader";`
+    );
+    expect(rollback).toContain(
+      `CHECK ("semantic_sql_attributes"."grain" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor'))`
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DROP TABLE|DROP ROLE/u);
   });

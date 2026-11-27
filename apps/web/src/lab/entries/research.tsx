@@ -55,6 +55,7 @@ import {
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
   labFlowLiveDomStream,
+  labFlowOffExchangeLevels,
   labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowSnapshot,
@@ -203,6 +204,8 @@ const labFlowGateway: FlowGateway = {
         options?.signal
       )
     ),
+  offExchangeLevels: ({ range }) =>
+    Promise.resolve(labFlowOffExchangeLevels(range)),
   optionBubbles: ({ minPremiumUsd, symbol }) =>
     Promise.resolve(labFlowOptionBubbles(symbol, minPremiumUsd)),
   putCallRatio: ({ symbol }) => Promise.resolve(labFlowPutCallRatio(symbol)),

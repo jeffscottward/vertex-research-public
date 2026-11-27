@@ -182,6 +182,7 @@ interface AnalyticsShape {
       callWall: number | null;
       flip: number | null;
       putWall: number | null;
+      kingNode: number | null;
     };
     iv: { regime: string };
     greeks: { netDex: number | null };
@@ -209,7 +210,7 @@ const analyticsOutput = (
       flow: { zeroDteShare: 0.4 },
       greeks: { netDex: 1000 },
       iv: { regime: overrides.ivRegime ?? "contango" },
-      levels: { callWall: 6100, flip: 5950, putWall: 5900 },
+      levels: { callWall: 6100, flip: 5950, kingNode: 6100, putWall: 5900 },
       regime: overrides.regime ?? "positive",
     },
     exposure: {
@@ -359,6 +360,7 @@ const fakeRepository = (
     moveOptionGapEnd: gaps.moveOptionGapEnd,
     netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
+    newestMinuteAt: vi.fn(async () => null),
     newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
@@ -1885,6 +1887,7 @@ describe("runFlowCollect GEX", () => {
     });
     expect(deps.repository.insertGex.mock.calls[0]?.[0][0]).toMatchObject({
       basis: 0,
+      kingNode: 6100,
       symbol: "SPY",
       ticker: "SPY",
     });

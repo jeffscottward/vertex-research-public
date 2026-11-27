@@ -1,3 +1,4 @@
+import type { SemanticEvent } from "@darkfactory/observability/port";
 import { implement } from "@orpc/server";
 import type { z } from "zod";
 import { appContract } from "../contract.ts";
@@ -529,6 +530,47 @@ const mapFailure = (
   return failures.UPSTREAM_ERROR({ message: fallback });
 };
 
+// Unexpected and gateway failures are reported as a semantic event with the
+// request context, so a 502/503 from a lens is never silent. Reporting never
+// fails the request.
+const reportLensFailure = async (
+  context: ApiContext,
+  procedure: "rotationMatrix" | "deepValue" | "deepValueScore",
+  error: unknown,
+  attributes: Readonly<Record<string, string>> = {}
+): Promise<void> => {
+  if (context.semanticEvents === undefined) return;
+  const code = error instanceof ResearchLensError ? error.code : null;
+  // NOT_FOUND and NOT_CONFIGURED are typed answers, not failures.
+  if (code === "NOT_FOUND" || code === "NOT_CONFIGURED") return;
+  const event: SemanticEvent = {
+    action: procedure,
+    attributes,
+    correlation: {
+      ...(context.span?.correlation ?? {}),
+      procedure: `researchLenses.${procedure}`,
+      requestId: context.requestId,
+    },
+    entityType: "research-lens",
+    errorCategory:
+      code === "UNAVAILABLE"
+        ? "source-down"
+        : code === "UPSTREAM_ERROR"
+          ? "upstream"
+          : "unexpected",
+    eventId: crypto.randomUUID(),
+    name: `vertex.researchLenses.${procedure}`,
+    occurredAt: new Date().toISOString(),
+    outcome: "failure",
+    source: "api",
+  };
+  try {
+    await context.semanticEvents.emit(event);
+  } catch {
+    // Reporting never fails the request.
+  }
+};
+
 const rotationMatrix = api.researchLenses.rotationMatrix
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -539,6 +581,7 @@ const rotationMatrix = api.researchLenses.rotationMatrix
         researchLensOptions
       );
     } catch (error) {
+      await reportLensFailure(context, "rotationMatrix", error);
       throw mapFailure(errors, error, "Rotation matrix request failed");
     }
   });
@@ -552,6 +595,7 @@ const deepValue = api.researchLenses.deepValue
         researchLensOptions
       );
     } catch (error) {
+      await reportLensFailure(context, "deepValue", error);
       throw mapFailure(errors, error, "Deep value request failed");
     }
   });
@@ -566,6 +610,9 @@ const deepValueScore = api.researchLenses.deepValueScore
         { ...researchLensOptions, marketHistory: context.marketHistory ?? null }
       );
     } catch (error) {
+      await reportLensFailure(context, "deepValueScore", error, {
+        symbol: input.symbol,
+      });
       throw mapFailure(errors, error, "Scoring failed");
     }
   });

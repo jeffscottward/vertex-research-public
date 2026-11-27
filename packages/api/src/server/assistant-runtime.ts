@@ -53,7 +53,7 @@ const ASSISTANT_RESPONSE_MAX_BYTES = 2 * 1024 * 1024;
 export const ASSISTANT_MAX_STEPS = 8;
 const ASSISTANT_MAX_OUTPUT_TOKENS = 1500;
 export const ASSISTANT_MAX_TOOL_CALLS_PER_STEP = 6;
-const ASSISTANT_TOOL_RESULT_MAX_CHARS = 16_000;
+export const ASSISTANT_TOOL_RESULT_MAX_CHARS = 16_000;
 const ASSISTANT_HISTORY_MESSAGES = 20;
 const ASSISTANT_HISTORY_MESSAGE_MAX_CHARS = 4000;
 export const ASSISTANT_DAILY_REQUEST_LIMIT = 200;
@@ -96,17 +96,37 @@ const isForbidden = (tool: CatalogueTool): boolean => {
 };
 
 /**
- * MCP tools the in-app assistant does not get yet. The OpenBB read tools (card vertex-openbb) and
- * the owner market notes tool (market_notes_list) reach research agents over /api/mcp; the
- * assistant catalogue gains them when the semantic-layer eval (tests/integration/semantic-layer)
- * is recorded with them: every recorded trial names the tool list it saw, and a new tool that no
- * trial calls needs one new trial for each question (the tool rule in
- * tests/integration/semantic-layer/recording.ts). The assistant reads active market notes from its
- * system prompt instead (marketNotes on the turn input).
+ * Smart-money read-only MCP tools exposed to the in-app assistant (Plan and Act modes; card
+ * vertex-smart-money-assistant-terms). All other openbb_* tools remain deferred below so adding a
+ * new openbb_* tool on /api/mcp never silently invalidates the semantic-layer eval recording.
  */
-export const ASSISTANT_DEFERRED_TOOL_PATTERN =
-  /^(?:openbb_|market_notes_|flow_option_prints$)/u;
+export const ASSISTANT_SMART_MONEY_TOOLS: readonly string[] = Object.freeze([
+  "openbb_status",
+  "openbb_shorts",
+  "openbb_sec",
+  "openbb_congress_trades",
+  "openbb_smart_money_ranking",
+  "openbb_insider_clusters",
+  "openbb_13f_changes",
+]);
 
+const SMART_MONEY_OPENBB_SUFFIXES = ASSISTANT_SMART_MONEY_TOOLS.map((name) =>
+  name.replace(/^openbb_/u, "")
+).join("|");
+
+/**
+ * MCP tools the in-app assistant does not get yet. Non-smart-money OpenBB read tools (vol, IV
+ * history, COT, macro, events, factors), any future openbb_* tool, flow_option_prints, and
+ * market_notes_list reach research agents over /api/mcp. The assistant catalogue gains them when
+ * the semantic-layer eval (tests/integration/semantic-layer) is recorded with them: every recorded
+ * trial names the tool list it saw, and a new tool that no trial calls needs one new trial for each
+ * question (the tool rule in tests/integration/semantic-layer/recording.ts). The assistant reads
+ * active market notes from its system prompt instead (marketNotes on the turn input).
+ */
+export const ASSISTANT_DEFERRED_TOOL_PATTERN = new RegExp(
+  `^(?:openbb_(?!(?:${SMART_MONEY_OPENBB_SUFFIXES})$)|market_notes_|flow_option_prints$)`,
+  "u"
+);
 const isConfirmTool = (name: string): boolean =>
   ASSISTANT_CONFIRM_TOOLS.includes(name);
 
@@ -1026,6 +1046,7 @@ const assistantSystemPrompt = (
     "- Certified terms first: for the owner's account (net liquidation or account value, P&L, positions, open options risk) and for certified research measures (backtest Sharpe and max drawdown, autopilot gate outcomes, paper deployment requests and the owner's approvals of them, drift levels), call terms_query with the matching term from terms_list and name the term and its source in the answer. The owner's account is the live IBKR account in the vertex-portfolio feed; the equity, positions and P&L in deployment_status belong to the paper exec node and never answer an account question. If terms_query says unknown or not_available, or no certified term covers the measure (for example buying power or Crown copy legs), say it is not available and give no number from another source or estimate.",
     "- Backtest Sharpe and max drawdown rows come in groupings: per strategy for engine runs linked to a strategy, and per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy. Say which grouping each row uses (its grain cell). A grouping that waits for certification gives no value; say so.",
     "- Trader master rules: for what the tracked traders or their knowledge bases say about a market rule or setup, call master_rules_search (kb filters one knowledge base, such as jay-medrow). Name the knowledge bases of each rule you use and give the source URLs from its sources; say when a source has no URL. These rules are advisory research input and never authorize a trade.",
+    "- Smart-money research: for large options buying, Congress trades, insider cluster buys, 13F quarter-over-quarter changes or daily short volume, call the certified smart-money terms (terms_query) or the matching openbb_* smart-money read tools (and openbb_status for source freshness/overdue state). Always state the data source, the as-of date/time and the data delay in the answer; say when a source is overdue or has no matching rows. These feeds are research input only and never authorize a trade.",
     "- Prefer few, targeted tool calls (use limit arguments). Answer briefly in plain text: no Markdown emphasis, headings or tables (the transcript shows raw text); short '-' lists are fine.",
     ...pageContextLine(page),
     ...chartContextLine(page),

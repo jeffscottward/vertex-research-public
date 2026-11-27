@@ -368,5 +368,13 @@ describe("research lab entries", () => {
     expect(
       host.querySelector("[data-flow-option-bubbles-table]")
     ).not.toBeNull();
+    // Off-exchange print levels panel of SPY: price chart, level table, and FINRA weekly strip.
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector("[data-flow-off-exchange-chart]")
+      ).not.toBeNull()
+    );
+    expect(host.querySelector("[data-flow-off-exchange-table]")).not.toBeNull();
+    expect(host.querySelector("[data-flow-off-exchange-finra]")).not.toBeNull();
   });
 });

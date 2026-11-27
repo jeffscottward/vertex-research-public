@@ -1,0 +1,156 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="960"
+  height="420"
+  viewBox="0 0 960 420"
+  font-family="Manrope, Public Sans, sans-serif"
+>
+  <title>
+    Before vs after: weekly janitor busy-file list now covers local worktrees
+  </title>
+  <rect width="960" height="420" fill="#0f1115" />
+  <text
+    x="480"
+    y="38"
+    fill="#e8e6e1"
+    font-size="22"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    Weekly janitor: busy-file list
+  </text>
+  <!-- Before -->
+  <rect
+    x="24"
+    y="60"
+    width="444"
+    height="336"
+    rx="14"
+    fill="#171a21"
+    stroke="#3a3f4b"
+  />
+  <text
+    x="246"
+    y="92"
+    fill="#f0a35e"
+    font-size="18"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    BEFORE
+  </text>
+  <g font-size="14" fill="#cfd3dc">
+    <circle cx="70" cy="132" r="14" fill="#2e7d4f" />
+    <text x="64" y="137" fill="#fff">✓</text>
+    <text x="96" y="137">origin/ws/* branches</text>
+    <circle cx="70" cy="172" r="14" fill="#2e7d4f" />
+    <text x="64" y="177" fill="#fff">✓</text>
+    <text x="96" y="177">open PRs</text>
+    <circle cx="70" cy="212" r="14" fill="#a33a3a" />
+    <text x="65" y="217" fill="#fff">✗</text>
+    <text x="96" y="217">job worktree: untracked file</text>
+    <circle cx="70" cy="252" r="14" fill="#a33a3a" />
+    <text x="65" y="257" fill="#fff">✗</text>
+    <text x="96" y="257">job worktree: uncommitted edit</text>
+    <circle cx="70" cy="292" r="14" fill="#a33a3a" />
+    <text x="65" y="297" fill="#fff">✗</text>
+    <text x="96" y="297">job worktree: unpushed commit</text>
+  </g>
+  <path
+    d="M90 340 h120"
+    stroke="#a33a3a"
+    stroke-width="3"
+    marker-end="url(#red)"
+  />
+  <rect
+    x="222"
+    y="322"
+    width="214"
+    height="36"
+    rx="8"
+    fill="#2a1717"
+    stroke="#a33a3a"
+  />
+  <text x="329" y="345" fill="#f2b8b8" font-size="13" text-anchor="middle">
+    janitor may move a live file
+  </text>
+  <!-- After -->
+  <rect
+    x="492"
+    y="60"
+    width="444"
+    height="336"
+    rx="14"
+    fill="#171a21"
+    stroke="#c9a54b"
+  />
+  <text
+    x="714"
+    y="92"
+    fill="#c9a54b"
+    font-size="18"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    AFTER
+  </text>
+  <g font-size="14" fill="#cfd3dc">
+    <circle cx="538" cy="132" r="14" fill="#2e7d4f" />
+    <text x="532" y="137" fill="#fff">✓</text>
+    <text x="564" y="137">origin/ws/* branches</text>
+    <circle cx="538" cy="172" r="14" fill="#2e7d4f" />
+    <text x="532" y="177" fill="#fff">✓</text>
+    <text x="564" y="177">open PRs</text>
+    <circle cx="538" cy="212" r="14" fill="#2e7d4f" />
+    <text x="532" y="217" fill="#fff">✓</text>
+    <text x="564" y="217">ls-files --others (untracked)</text>
+    <circle cx="538" cy="252" r="14" fill="#2e7d4f" />
+    <text x="532" y="257" fill="#fff">✓</text>
+    <text x="564" y="257">diff-index HEAD (no index write)</text>
+    <circle cx="538" cy="292" r="14" fill="#2e7d4f" />
+    <text x="532" y="297" fill="#fff">✓</text>
+    <text x="564" y="297">origin/base...HEAD (unpushed)</text>
+  </g>
+  <path
+    d="M558 340 h120"
+    stroke="#2e7d4f"
+    stroke-width="3"
+    marker-end="url(#green)"
+  />
+  <rect
+    x="690"
+    y="322"
+    width="214"
+    height="36"
+    rx="8"
+    fill="#142619"
+    stroke="#2e7d4f"
+  />
+  <text x="797" y="345" fill="#b8f2c8" font-size="13" text-anchor="middle">
+    busy · unreadable = fail closed
+  </text>
+  <defs>
+    <marker
+      id="red"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#a33a3a" />
+    </marker>
+    <marker
+      id="green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#2e7d4f" />
+    </marker>
+  </defs>
+</svg>

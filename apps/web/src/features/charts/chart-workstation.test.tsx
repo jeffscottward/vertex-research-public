@@ -16,6 +16,7 @@ import type {
   CandleRendererFactory,
   DisplayCandle,
   ExpectedMoveCone,
+  GammaLevelsOverlay,
   SeriesPane,
 } from "./types.ts";
 import type { Drawing } from "./workstation.ts";
@@ -541,12 +542,14 @@ describe("chart workstation series pane", () => {
   };
   const seriesRenderer = (
     setSeriesPane = vi.fn(),
-    setExpectedMove = vi.fn()
+    setExpectedMove = vi.fn(),
+    setGammaLevels = vi.fn()
   ) => ({
     dispose: vi.fn(),
     replace: vi.fn(),
     resize: vi.fn(),
     setExpectedMove,
+    setGammaLevels,
     setSeriesPane,
   });
   // Each factory call takes the next renderer; the last one is used again.
@@ -566,6 +569,7 @@ describe("chart workstation series pane", () => {
     roots.push(root);
     const render = async (props: {
       expectedMove?: ExpectedMoveCone | null;
+      gammaLevels?: GammaLevelsOverlay | null;
       seriesPane?: SeriesPane | null;
     }) => {
       await act(async () =>
@@ -684,6 +688,41 @@ describe("chart workstation series pane", () => {
     await renderErr({ expectedMove: cone });
     expect(errHost.textContent).toContain(
       "Expected move cone could not be drawn on the chart."
+    );
+  });
+
+  it("applies gamma levels, lists them in the object tree, and handles renderer errors", async () => {
+    const levels: GammaLevelsOverlay = {
+      asOf: "2026-11-25T15:30:00Z",
+      basis: 0,
+      callWall: 615,
+      flip: 602.5,
+      kingNode: 615,
+      maxPain: 600,
+      putWall: 590,
+      regime: "positive",
+      source: "optionsAnalytics",
+      spot: 605,
+      symbol: "SPY",
+      underlyingTicker: "SPY",
+    };
+    const ok = seriesRenderer();
+    const { host, render } = await mountSeries([ok]);
+    await render({ gammaLevels: levels });
+    expect(ok.setGammaLevels).toHaveBeenLastCalledWith(levels);
+    expect(host.textContent).toContain("Gamma levels (5)");
+
+    const failing = seriesRenderer(
+      vi.fn(),
+      vi.fn(),
+      vi.fn((next: GammaLevelsOverlay | null) => {
+        if (next !== null) throw new TypeError("Bad levels");
+      })
+    );
+    const { host: errHost, render: renderErr } = await mountSeries([failing]);
+    await renderErr({ gammaLevels: levels });
+    expect(errHost.textContent).toContain(
+      "Gamma levels could not be drawn on the chart."
     );
   });
 });

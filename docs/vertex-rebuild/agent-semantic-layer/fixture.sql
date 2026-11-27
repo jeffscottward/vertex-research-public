@@ -231,4 +231,65 @@ insert into agent_model_run_events(id, run_id, seq, at, agent, kind, title, body
   ('mre_nvda_1', 'mr_nvda_1', 0, '2026-10-02T10:00Z', 'market_analyst', 'decision', 'Hold NVDA near support', 'Price holds above the 50-day support level.');
 insert into optimization_runs(id, task_id, strategy_id, method, objectives, validation, markets, trial_count, stop_reason, created_at) values
   ('opt_orb_1', 't_opt_1', 's_orb', 'grid', '[{"metric":"sharpe","direction":"maximize"}]', '{"mode":"single","params":{}}', '["SPY"]', 0, 'completed', '2026-10-03T10:00Z');
+-- Synthetic smart-money rows (card vertex-smart-money-assistant-terms): purely fictional names and
+-- dates before EVAL_NOW (2026-11-01T15:30:00Z), exercising all five certified smart-money terms
+-- and the seven smart-money assistant read tools without touching any existing eval table.
+insert into flow_market_premium_sessions(session_date, status, tickers, attempts, captured_at, last_attempt_at, last_message) values
+  ('2026-10-31', 'complete', 1, 1, '2026-10-31T20:20:00Z', '2026-10-31T20:20:00Z', 'Synthetic holiday session (< 50 tickers; excluded from ranking)'),
+  ('2026-10-30', 'complete', 120, 1, '2026-10-30T20:20:00Z', '2026-10-30T20:20:00Z', 'Synthetic complete session'),
+  ('2026-10-29', 'complete', 115, 1, '2026-10-29T20:20:00Z', '2026-10-29T20:20:00Z', 'Synthetic complete session');
+insert into flow_market_premium(session_date, ticker, filter_profile, bullish_premium, bearish_premium, premium, trade_count, volume, captured_at) values
+  ('2026-10-31', 'AAPL', 'premium-gte-100k.v1', 9000000, 100000, 9100000, 12, 4000, '2026-10-31T20:20:00Z'),
+  ('2026-10-30', 'NVDA', 'premium-gte-100k.v1', 4200000, 1000000, 5200000, 18, 9500, '2026-10-30T20:20:00Z'),
+  ('2026-10-30', 'SPY', 'premium-gte-100k.v1', 2600000, 1200000, 3800000, 14, 7200, '2026-10-30T20:20:00Z'),
+  ('2026-10-30', 'QQQ', 'premium-gte-100k.v1', 700000, 1200000, 1900000, 9, 4100, '2026-10-30T20:20:00Z'),
+  ('2026-10-29', 'NVDA', 'premium-gte-100k.v1', 1900000, 800000, 2700000, 10, 5100, '2026-10-29T20:20:00Z'),
+  ('2026-10-29', 'SPY', 'premium-gte-100k.v1', 1500000, 700000, 2200000, 8, 4300, '2026-10-29T20:20:00Z');
+insert into openbb_congress_filings(chamber, doc_id, member, state_district, filed_on, amends, status, reason, row_count, parser_version, url, first_seen_at) values
+  ('house', '90000101', 'Fictional Rep. A. Rivera', 'EX-01', '2026-10-30', false, 'parsed', null, 1, 'v1', 'https://disclosures.example.test/90000101.pdf', '2026-10-30T21:00:00Z'),
+  ('senate', '11111111-2222-4333-8444-555555555555', 'Fictional Sen. B. Chen', 'EX', '2026-10-28', false, 'parsed', null, 1, 'v1', 'https://efd.example.test/11111111', '2026-10-28T21:00:00Z');
+insert into openbb_congress_trades(chamber, doc_id, row_number, member, holder, ticker, asset, asset_type, transaction_type, transaction_date, filed_on, amount_label, amount_low, amount_high, first_seen_at) values
+  ('house', '90000101', 1, 'Fictional Rep. A. Rivera', 'self', 'NVDA', 'NVIDIA Corp Common Stock', 'Stock', 'purchase', '2026-10-20', '2026-10-30', '$15,001 - $50,000', 15001, 50000, '2026-10-30T21:00:00Z'),
+  ('house', '90000101', 2, 'Fictional Rep. A. Rivera', 'self', 'STALE', 'Stale Reparse Row', 'Stock', 'purchase', '2026-10-19', '2026-10-30', '$1,001 - $15,000', 1001, 15000, '2026-10-30T21:00:00Z'),
+  ('senate', '11111111-2222-4333-8444-555555555555', 1, 'Fictional Sen. B. Chen', 'spouse', 'MSFT', 'Microsoft Corp Common Stock', 'Stock', 'sale', '2026-10-15', '2026-10-28', '$50,001 - $100,000', 50001, 100000, '2026-10-28T21:00:00Z');
+insert into openbb_sec_form4_index_days(index_day, entries_listed, entries_done, complete, updated_at) values
+  ('2026-10-30', 4, 4, true, '2026-10-31T04:00:00Z');
+insert into openbb_sec_form4_filings(accession_number, index_day, form_type, accepted_at, period_of_report, issuer_cik, issuer_symbol, issuer_name, plan_10b5_1, status, reason, row_count, parser_version, url, first_seen_at) values
+  ('0009000001-26-000001', '2026-10-28', '4', '2026-10-28T18:00:00Z', '2026-10-27', '9000001', 'EXMP', 'Example Systems Corp', false, 'parsed', null, 1, 'v1', 'https://edgar.example.test/0009000001-26-000001', '2026-10-29T04:00:00Z'),
+  ('0009000001-26-000002', '2026-10-29', '4', '2026-10-29T18:00:00Z', '2026-10-28', '9000001', 'EXMP', 'Example Systems Corp', false, 'parsed', null, 1, 'v1', 'https://edgar.example.test/0009000001-26-000002', '2026-10-30T04:00:00Z'),
+  ('0009000001-26-000003', '2026-10-30', '4', '2026-10-30T18:00:00Z', '2026-10-29', '9000001', 'EXMP', 'Example Systems Corp', false, 'parsed', null, 1, 'v1', 'https://edgar.example.test/0009000001-26-000003', '2026-10-31T04:00:00Z'),
+  ('0009000001-26-000004', '2026-10-30', '4/A', '2026-10-30T19:00:00Z', '2026-10-29', '9000001', 'EXMP', 'Example Systems Corp', false, 'parsed', null, 1, 'v1', 'https://edgar.example.test/0009000001-26-000004', '2026-10-31T04:00:00Z');
+insert into openbb_sec_form4_owners(accession_number, owner_cik, owner_name, is_director, is_officer, is_ten_percent_owner, is_other, officer_title, first_seen_at) values
+  ('0009000001-26-000001', '1000001', 'Fictional CEO A. Reed', true, true, false, false, 'CEO', '2026-10-29T04:00:00Z'),
+  ('0009000001-26-000002', '1000002', 'Fictional CFO B. Park', false, true, false, false, 'CFO', '2026-10-30T04:00:00Z'),
+  ('0009000001-26-000002', '1000003', 'Park Family Trust', false, false, false, true, null, '2026-10-30T04:00:00Z'),
+  ('0009000001-26-000003', '1000004', 'Fictional Dir C. Diaz', true, false, false, false, null, '2026-10-31T04:00:00Z'),
+  ('0009000001-26-000004', '1000005', 'Fictional Amend D. West', true, false, false, false, null, '2026-10-31T04:00:00Z');
+insert into openbb_sec_form4_transactions(accession_number, row_number, derivative, security_title, transaction_date, transaction_code, acquired_disposed, shares, price, shares_after, direct_indirect, first_seen_at) values
+  ('0009000001-26-000001', 1, false, 'Common Stock', '2026-10-27', 'P', 'A', 1000, 50.0, 5000, 'D', '2026-10-29T04:00:00Z'),
+  ('0009000001-26-000002', 1, false, 'Common Stock', '2026-10-28', 'P', 'A', 500, 52.0, 2500, 'I', '2026-10-30T04:00:00Z'),
+  ('0009000001-26-000003', 1, false, 'Common Stock', '2026-10-29', 'P', 'A', 800, 51.0, 3800, 'D', '2026-10-31T04:00:00Z'),
+  ('0009000001-26-000003', 2, false, 'Common Stock', '2026-10-29', 'P', 'A', 9999, 51.0, 13799, 'D', '2026-10-31T04:00:00Z'),
+  ('0009000001-26-000004', 1, false, 'Common Stock', '2026-10-29', 'P', 'A', 400, 51.0, 1400, 'D', '2026-10-31T04:00:00Z');
+insert into openbb_cusip_symbols(cusip, symbol, last_seen) values
+  ('67066G104', 'NVDA', '2026-10-30'),
+  ('594918104', 'MSFT', '2026-10-30');
+insert into openbb_sec_13f_filings(accession_number, filer_cik, filer_name, period_ending, filed_on, rows) values
+  ('0008000001-26-000001', '8000001', 'Example Capital LP', '2026-06-30', '2026-08-10', 2),
+  ('0008000001-26-000002', '8000001', 'Example Capital LP', '2026-09-30', '2026-10-29', 2);
+insert into openbb_sec_13f_holdings(filer_cik, filer_name, period_ending, cusip, symbol, issuer, asset_class, option_type, shares, value, weight, accession_number, filed_on) values
+  ('8000001', 'Example Capital LP', '2026-06-30', '67066G104', null, 'NVIDIA CORP', 'COM', '', 10000, 1250000, 0.38, '0008000001-26-000001', '2026-08-10'),
+  ('8000001', 'Example Capital LP', '2026-06-30', '594918104', 'MSFT', 'MICROSOFT CORP', 'COM', '', 5000, 2000000, 0.62, '0008000001-26-000001', '2026-08-10'),
+  ('8000001', 'Example Capital LP', '2026-09-30', '67066G104', null, 'NVIDIA CORP', 'COM', '', 15000, 2100000, 0.51, '0008000001-26-000002', '2026-10-29'),
+  ('8000001', 'Example Capital LP', '2026-09-30', '594918104', 'MSFT', 'MICROSOFT CORP', 'COM', '', 5000, 2000000, 0.49, '0008000001-26-000002', '2026-10-29');
+insert into openbb_short_volume_daily(symbol, date, short_volume, short_exempt_volume, total_volume) values
+  ('NVDA', '2026-10-30', 12000000, 150000, 25000000),
+  ('NVDA', '2026-10-29', 10500000, 100000, 21000000),
+  ('ZERO', '2026-10-30', 0, 0, 0);
+insert into openbb_ingest_runs(job, status, started_at, finished_at, rows_received, rows_written, warnings, error) values
+  ('congress-house', 'ok', '2026-10-31T14:00:00Z', '2026-10-31T14:01:00Z', 1, 1, '{}', null),
+  ('congress-senate', 'ok', '2026-10-31T14:00:00Z', '2026-10-31T14:01:00Z', 1, 1, '{}', null),
+  ('sec-form4', 'ok', '2026-10-31T14:00:00Z', '2026-10-31T14:02:00Z', 4, 4, '{}', null),
+  ('sec-13f', 'ok', '2026-10-31T14:00:00Z', '2026-10-31T14:01:00Z', 2, 2, '{}', null),
+  ('finra-short-volume', 'ok', '2026-10-31T14:00:00Z', '2026-10-31T14:01:00Z', 3, 3, '{}', null);
 commit;

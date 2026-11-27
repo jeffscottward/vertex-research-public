@@ -37,20 +37,20 @@ export const EXPECTED_REJECTIONS: readonly ExpectedRejection[] = [
     why: "The model guessed a parameter name. The layer names the valid parameter and the model asks again with it.",
   },
   {
-    args: '{"term":"pnl","params":{"kind":"unrealized"}}',
+    args: '{"term":"pnl","params":{"kind":"realized"}}',
     error:
       "BAD_REQUEST (400): Unknown parameter kind. This term takes window (text: daily|unrealized|realized).",
-    question: "Q6",
+    question: "H3",
     tool: "terms_query",
     why: "The model guessed a parameter name. The layer names the valid parameter and the model asks again with it.",
   },
   {
-    args: '{"term":"open_risk","params":{"symbol":"NVDA"}}',
+    args: '{"term":"pnl","params":{"type":"realized"}}',
     error:
-      "BAD_REQUEST (400): Unknown parameter symbol. This term takes no parameters.",
-    question: "H2",
+      "BAD_REQUEST (400): Unknown parameter type. This term takes window (text: daily|unrealized|realized).",
+    question: "H3",
     tool: "terms_query",
-    why: "The term has no per-symbol form. The layer says so and the model reads the NVDA row from the term position instead.",
+    why: "The model guessed a parameter name. The layer names the valid parameter and the model asks again with it.",
   },
 ];
 

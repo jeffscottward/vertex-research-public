@@ -17,7 +17,7 @@ side with the options side (section "Control document").
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
 | Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
-| GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
+| GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, king node, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
 | Tape speed counts (ES, NQ) | the streamed tape of the ticks row | `flow_tape_seconds` (per minute: the prints and the contracts of each of its 60 seconds, and which seconds were covered) | with each tape read |
 
@@ -217,11 +217,20 @@ check of the tape against IBKR history is a future improvement.
 - **Options:** premium by right, sentiment, aggressor side (QuantData `tradeSideCode`), sweep/block,
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or
   $1M (SPX), and every golden sweep. A print that reports open interest 0 has QuantData's Opening
-  and Vol > OI flags set on every print (card `vertex-flow-print-flags-oi-zero`), so readers treat
-  them as not known (`oiFlags` in `packages/api/src/flow-options.ts`): the print views, bubbles
-  and options summary never show or count those flags, and the opening premium share leaves their
-  premium out. The stored print row keeps the values as sent. Option event text is written at
-  collect time, so only events stored after this change leave out ", vol > OI" for such prints.
+  and Vol > OI flags set on every print (cards `vertex-flow-print-flags-oi-zero` and
+  `vertex-flow-print-flags-oi-zero-third-state`). Migration `0099_flow_option_prints_oi_flags`
+  makes `flow_option_prints.opening` and `volume_over_oi` nullable and extends
+  `flow_option_prints_check` so both flags are `NULL` together and only when `open_interest = 0`.
+  `parseOptionPrints` stores `NULL` ("not reported") for both flags when `openInterest === 0`,
+  while rows stored before migration keep QuantData's raw booleans until the 14-day retention prune
+  removes them. `oiFlags` and `oiFlagsKnown` (`packages/api/src/flow-options.ts`) read both legacy
+  OI-0 rows and stored `NULL` rows as `{ opening: null, volumeOverOi: null }`. Print views and
+  bubbles return `null` flags, `FlowOptionsSummary.oiFlagsNotReported` counts them, `volumeOverOi`
+  and `openingPremiumShare` exclude them, `/flow` discloses the gap on the `Vol > OI` and `Opening
+  share` tiles, top-prints `Flags` column (`no OI flags`), and bubble inspector (`Opening and Vol >
+  OI not reported`), and option event text leaves out ", vol > OI" for such prints. See
+  `docs/vertex-rebuild/designs/vertex-flow-oi-flags-not-reported/plan.md` for the read-only
+  QuantVPS SQL verification query and rollback rules.
 - **GEX:** estimate (dealers assumed long calls, short puts). ES uses SPX levels shifted by the
   ES − SPX basis (ES book mid or last price minus the SPX spot at the snapshot).
 
@@ -698,6 +707,59 @@ ES only):
   `Home`/`End`/`Escape`), a pinned inspector strip, and a synced accessible top-prints table.
 - **Fixtures.** `/lab/flow` renders deterministic SPY (mixed sides, golden sweeps, open collector
   gap, one unplotted print) and ES (SPX options, no gap) responses across all four premium floors.
+
+## Off-exchange print levels (SPY)
+
+Design: [vertex-viz-offexchange-levels/design.md](designs/vertex-viz-offexchange-levels/design.md).
+Research only: shows horizontal off-exchange (FINRA TRF) print levels overlaid on the SPY price and
+VWAP chart alongside sampled FINRA TRF volume share and lagged FINRA weekly OTC context. It is not
+a trade signal, and no trading engine reads it. Nothing here places, changes, or cancels an order.
+
+Data: stored rows of `flow_minutes`, `flow_events` (`kind = 'off_exchange_print'`, `source = 'ibkr'`),
+and `openbb_finra_otc_weekly` (no new table, no migration, and no vendor call). SPY is the only
+symbol with sampled IBKR FINRA TRF ticks; ES, NQ, and QQQ have no panel.
+
+Rules (`OFF_EXCHANGE_LEVELS_RULES`, version `flow-off-exchange-levels-rules.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `capture` | `sampled` | SPY ticks are sampled (~1000 prints every ~6 min); totals reflect covered seconds only |
+| `minPrintShares` | 10000 | minimum single-print share size stored as `off_exchange_print` |
+| `clusterStep` | 0.25 | price-band width in USD (`$0.25`) used to cluster prints into levels |
+| `maxLevels` | 10 | top levels ranked by total notional returned |
+| `maxPrints` | 500 | newest prints returned for chart dots and level inspection |
+| `readCap` | 2000 | maximum `off_exchange_print` rows read from Postgres per request |
+| `finraMaxWeeks` | 8 | newest FINRA weekly OTC weeks returned (ATS + non-ATS) |
+
+- **Ranges and bar bucketing.** `1d` (1 session, 1-minute bars), `5d` (default; up to 5 sessions,
+  5-minute bars), and `14d` (up to 10 sessions within 14 calendar days, 15-minute bars), aligned to
+  regular US equity hours (`09:30`–`16:00` New York, end-exclusive). Each bar aggregates OHLC,
+  volume-weighted VWAP, total volume, `off_exchange_volume`, `off_exchange_share`, and
+  `coveredSeconds` / `possibleSeconds`.
+- **Clustering and ranking.** `packages/api/src/flow-off-exchange-levels-rules.ts` assigns each
+  valid print to band `floor(price / 0.25) * 0.25`, computes VWAP level price, share/notional
+  totals, buy/sell/neutral split, dominant direction (`bullish`, `bearish`, or `neutral`), and
+  distance from latest stored close (`distanceFromSpot`, `distancePct`), then ranks levels by
+  `totalNotional DESC` (top 10 returned; omitted counts reported in `totals`).
+- **FINRA weekly context.** Reads stored `openbb_finra_otc_weekly` rows for SPY (120-day lookback,
+  newest 8 weeks) and reports ATS (dark pool) shares, non-ATS OTC shares, ATS share of off-exchange
+  volume, and average ATS trade size.
+
+Procedure `flow.offExchangeLevels` (`GET /flow/off-exchange-levels`, input `symbol: "SPY"` and
+optional `range: "1d" | "5d" | "14d"`, default `"5d"`; operator session; no API key; read-only
+viewer account can call it as a GET procedure) returns `flow-off-exchange-levels.v1`.
+
+Panel "Off-exchange print levels (SPY)" on `/flow` (below the Options flow heatmap panel, SPY only):
+
+- **Own call.** Runs in its own `loadOffExchangeLevels` sequence. Switching `1d` / `5d` / `14d` or
+  clicking **Retry** refetches only `flow.offExchangeLevels` without refetching other panels or
+  resetting the 60 s refresh timer.
+- **Chart, table, and context.** Responsive SVG price/VWAP chart with horizontal print levels,
+  notional-scaled bands and right-rail bars, print dots, latest spot line, and aligned sampled TRF
+  volume share sub-panel; keyboard-navigable level table (`TableScroll`) with pinned print
+  inspector; and a FINRA weekly OTC context strip with stacked ATS vs non-ATS weekly bars.
+- **Fixtures.** `/lab/flow` renders deterministic SPY off-exchange levels across `1d`, `5d`, and
+  `14d` with 6 FINRA weekly OTC bars.
 
 ## Net drift
 

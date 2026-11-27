@@ -125,6 +125,7 @@ const context: OptionsAnalyticsOutput["context"] = {
     dailyMove: 3,
     flip: 98.684,
     flipMoves: -0.4,
+    kingNode: 90,
     putWall: 90,
     putWallMoves: -3.3,
   },
@@ -455,6 +456,7 @@ describe("OptionsAnalyticsPanel", () => {
         ...base.context.levels,
         callWall: null,
         flip: null,
+        kingNode: null,
         putWall: null,
       },
     };
@@ -466,6 +468,7 @@ describe("OptionsAnalyticsPanel", () => {
     expect(level(view, "Gamma flip (est.)")).toBe("no zero crossing");
     expect(level(view, "Call wall (largest +GEX)")).toBe("no positive GEX");
     expect(level(view, "Put wall (largest -GEX)")).toBe("no negative GEX");
+    expect(level(view, "King node (largest |GEX|)")).toBe("no non-zero GEX");
     act(() => root?.unmount());
     view = await render({
       snapshot: async () =>
@@ -477,6 +480,7 @@ describe("OptionsAnalyticsPanel", () => {
     expect(level(view, "Gamma flip (est.)")).toBe("not computed");
     expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
     expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
+    expect(level(view, "King node (largest |GEX|)")).toBe("not computed");
     act(() => root?.unmount());
     // Total GEX computed, but no front ATM IV: the server computes no level at all.
     view = await render({
@@ -795,5 +799,51 @@ describe("OptionsAnalyticsPanel", () => {
       )
     ).toBe(true);
     return expect(view.textContent).toContain("Options analytics");
+  });
+
+  it("reports loading, ready, and error states via onReport", async () => {
+    const reports: string[] = [];
+    const onReport = (report: { type: string }) => {
+      reports.push(report.type);
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const localRoot = createRoot(host);
+    await act(async () =>
+      localRoot.render(
+        <OptionsAnalyticsPanel
+          gateway={{
+            greekHeatmap: () => new Promise<never>(() => undefined),
+            snapshot: async () => fixture(),
+          }}
+          onReport={onReport}
+          symbol="SPY"
+        />
+      )
+    );
+    await act(async () => Promise.resolve());
+    expect(reports).toEqual(["loading", "ready"]);
+    act(() => localRoot.unmount());
+
+    const errorReports: string[] = [];
+    const errRoot = createRoot(host);
+    await act(async () =>
+      errRoot.render(
+        <OptionsAnalyticsPanel
+          gateway={{
+            greekHeatmap: () => new Promise<never>(() => undefined),
+            snapshot: async () => {
+              throw new Error("down");
+            },
+          }}
+          onReport={(report) => errorReports.push(report.type)}
+          symbol="SPY"
+        />
+      )
+    );
+    await act(async () => Promise.resolve());
+    expect(errorReports).toEqual(["loading", "error"]);
+    act(() => errRoot.unmount());
+    host.remove();
   });
 });

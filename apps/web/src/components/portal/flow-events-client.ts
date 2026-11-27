@@ -7,6 +7,8 @@ import {
   FLOW_SYMBOLS,
   type FlowEventsInput,
   type FlowEventsOutput,
+  type FlowSnapshot,
+  type FlowSnapshotInput,
   type FlowSymbol,
   type MarketSecType,
 } from "@darkfactory/api";
@@ -15,6 +17,9 @@ import {
 // Research input only; no order path.
 export interface FlowEventsGateway {
   readonly events: (input: FlowEventsInput) => Promise<FlowEventsOutput>;
+}
+export interface FlowSnapshotGateway {
+  readonly snapshot: (input: FlowSnapshotInput) => Promise<FlowSnapshot>;
 }
 
 const FLOW_SYMBOL_SET: Readonly<Record<string, true>> = Object.fromEntries(
@@ -45,5 +50,16 @@ export const createBrowserFlowEventsGateway = (): FlowEventsGateway => {
   };
   return Object.freeze({
     events: (input: FlowEventsInput) => api().flow.events(input),
+  });
+};
+
+export const createBrowserFlowSnapshotGateway = (): FlowSnapshotGateway => {
+  let client: ApiClient | undefined;
+  const api = (): ApiClient => {
+    client ??= createApiClient({ baseUrl: window.location.origin });
+    return client;
+  };
+  return Object.freeze({
+    snapshot: (input: FlowSnapshotInput) => api().flow.snapshot(input),
   });
 };

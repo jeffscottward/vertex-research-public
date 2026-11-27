@@ -10,6 +10,7 @@
 "use client";
 
 import type {
+  FlowGex,
   FlowOptionBubbles,
   FlowOptionBubblesItem,
   FlowOptionBubblesMinPremiumUsd,
@@ -37,6 +38,10 @@ import {
   formatPrice,
 } from "../../features/flow/format.ts";
 import {
+  buildFlowPriceOverlayLevels,
+  type SvgGammaLevelLine,
+} from "../../features/flow/gamma-levels-view-model.ts";
+import {
   buildOptionBubblesPlot,
   describeSelectedBubble,
   type FlowOptionBubblesFailure,
@@ -62,12 +67,17 @@ import {
   optionBubblesTotalsLine,
   sortOptionBubblesForTable,
 } from "../../features/flow/option-bubbles-view-model.ts";
+import {
+  FlowGammaLevelsStrip,
+  SvgGammaLevelLines,
+} from "./flow-gamma-levels-chart.tsx";
 
 export type FlowOptionBubblesPanelProps = Readonly<{
   symbol: FlowOptionBubblesSymbol;
   minPremiumUsd: FlowOptionBubblesMinPremiumUsd;
   document: FlowOptionBubbles | null;
   failure: FlowOptionBubblesFailure | null;
+  gex?: FlowGex | null;
   pending: boolean;
   refreshMs: number;
   onMinPremiumChange: (next: FlowOptionBubblesMinPremiumUsd) => void;
@@ -405,6 +415,7 @@ const BubbleInspector = ({
 };
 
 const BubblesSvgChart = ({
+  gammaLines,
   plot,
   response,
   selectedId,
@@ -412,6 +423,7 @@ const BubblesSvgChart = ({
   onFocusSelect,
   onClear,
 }: Readonly<{
+  gammaLines: readonly SvgGammaLevelLine[];
   plot: OptionBubblesPlot;
   response: FlowOptionBubbles;
   selectedId: string | null;
@@ -531,6 +543,13 @@ const BubblesSvgChart = ({
               </text>
             </g>
           )}
+
+          {/* Horizontal dealer gamma levels */}
+          <SvgGammaLevelLines
+            chartWidth={plot.chartWidth}
+            chartX={plot.chartX}
+            lines={gammaLines}
+          />
 
           {/* Intraday underlying price line */}
           {plot.priceSegments.map((points, index) => (
@@ -723,6 +742,7 @@ export const FlowOptionBubblesPanel = ({
   minPremiumUsd,
   document,
   failure,
+  gex = null,
   pending,
   refreshMs,
   onMinPremiumChange,
@@ -731,11 +751,11 @@ export const FlowOptionBubblesPanel = ({
   const [rightFilter, setRightFilter] =
     useState<OptionBubblesRightFilter>("all");
   const [sideFilter, setSideFilter] = useState<OptionBubblesSideFilter>("all");
+  const [showGammaLevels, setShowGammaLevels] = useState(true);
   const [selectedState, setSelectedState] = useState<
     Readonly<{ scope: string; id: string | null }>
   >({ id: null, scope: "" });
   const [showAllRows, setShowAllRows] = useState(false);
-
   const scopeKey =
     document === null
       ? ""
@@ -757,6 +777,22 @@ export const FlowOptionBubblesPanel = ({
         ? null
         : buildOptionBubblesPlot(document, rightFilter, sideFilter),
     [document, rightFilter, sideFilter]
+  );
+
+  const gammaOverlay = useMemo(
+    () =>
+      document === null || plot === null
+        ? null
+        : buildFlowPriceOverlayLevels({
+            chartHeight: plot.chartHeight,
+            chartY: plot.chartY,
+            gex,
+            priceMax: plot.priceMax,
+            priceMin: plot.priceMin,
+            referencePrice: document.totals.latestPrice,
+            symbol: document.ticker,
+          }),
+    [document, gex, plot]
   );
 
   const activeSelectedId =
@@ -889,6 +925,19 @@ export const FlowOptionBubblesPanel = ({
                   </Button>
                 ))}
               </fieldset>
+              {gammaOverlay === null ? null : (
+                <Button
+                  aria-pressed={showGammaLevels}
+                  className="min-h-11"
+                  data-flow-option-bubbles-gamma-toggle=""
+                  onClick={() => setShowGammaLevels((prev) => !prev)}
+                  size="sm"
+                  type="button"
+                  variant={showGammaLevels ? "secondary" : "outline"}
+                >
+                  Gamma levels
+                </Button>
+              )}
             </div>
 
             {plot === null ? (
@@ -916,6 +965,9 @@ export const FlowOptionBubblesPanel = ({
               <>
                 <BubblesLegend plot={plot} />
                 <BubblesSvgChart
+                  gammaLines={
+                    showGammaLevels ? (gammaOverlay?.visibleLines ?? []) : []
+                  }
                   onClear={handleClearSelection}
                   onFocusSelect={handleFocusSelectBubble}
                   onToggleSelect={handleToggleSelectBubble}
@@ -923,6 +975,9 @@ export const FlowOptionBubblesPanel = ({
                   response={document}
                   selectedId={activeSelectedId}
                 />
+                {showGammaLevels && gammaOverlay !== null ? (
+                  <FlowGammaLevelsStrip levels={gammaOverlay} />
+                ) : null}
                 {tableBubbles.length === 0 ? (
                   <p
                     className="text-muted-foreground text-sm"

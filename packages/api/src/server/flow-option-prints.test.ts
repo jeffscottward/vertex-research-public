@@ -173,6 +173,45 @@ describe("buildFlowOptionPrints and readFlowOptionPrintsRows", () => {
     expect(out.prints[0]?.contract).toBe("IWM 2026-12-04 230C");
   });
 
+  it("returns null opening and volumeOverOi flags on OI-0 and stored-null prints", () => {
+    const okSample = sampleRow(
+      "SPY",
+      new Date(OPEN_ET_1500.getTime() - 60_000)
+    );
+    const out = buildFlowOptionPrints({
+      gaps: [],
+      latest: [okSample],
+      latestOk: [okSample],
+      now: OPEN_ET_1500,
+      prints: [
+        samplePrint({
+          id: "legacy-oi-0",
+          openInterest: 0,
+          opening: true,
+          symbol: "SPY",
+          ticker: "SPY",
+          volumeOverOi: true,
+        }),
+        samplePrint({
+          id: "stored-null",
+          openInterest: 0,
+          opening: null,
+          symbol: "SPY",
+          ticker: "SPY",
+          volumeOverOi: null,
+        }),
+      ],
+      stream: flowOptionStreamForSymbol("SPY"),
+      summary: emptySummary,
+      windowEnd: OPEN_ET_1500,
+      windowMinutes: 60,
+      windowStart: new Date(OPEN_ET_1500.getTime() - 3_600_000),
+    });
+    expect(FlowOptionPrintsSchema.parse(out)).toEqual(out);
+    expect(out.prints[0]).toMatchObject({ opening: null, volumeOverOi: null });
+    expect(out.prints[1]).toMatchObject({ opening: null, volumeOverOi: null });
+  });
+
   it("reports stale, closed and never freshness states accurately", () => {
     const oldSample = sampleRow(
       "NVDA",

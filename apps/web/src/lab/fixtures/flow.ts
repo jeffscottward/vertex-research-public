@@ -18,6 +18,8 @@ import {
   type FlowLiveDom,
   type FlowLiveDomStreamEvent,
   type FlowLiveDomWindowSeconds,
+  type FlowOffExchangeLevels,
+  type FlowOffExchangeRange,
   type FlowOptionBubbles,
   type FlowOptionBubblesMinPremiumUsd,
   type FlowOptionBubblesSymbol,
@@ -30,10 +32,15 @@ import {
   type FlowTapeSpeed,
   type FlowTapeSymbol,
   type FlowTradeBubbles,
+  foldOffExchangeLevels,
   foldOptionBubbles,
   foldPutCallDays,
   foldPutCallSession,
   foldStrikeHeatmap,
+  OFF_EXCHANGE_LEVELS_RULES,
+  type OffExchangeEventRow,
+  type OffExchangeFinraRow,
+  type OffExchangeMinuteRow,
   OPTION_BUBBLES_RULES,
   type OptionBubblesGapRow,
   type OptionBubblesMinuteRow,
@@ -150,6 +157,7 @@ export const labFlowSnapshot = (
   const gexLevels = {
     callWall: instrument.strike + 25,
     flip: instrument.strike - 10,
+    kingNode: instrument.strike + 25,
     maxPain: instrument.strike,
     putWall: instrument.strike - 40,
   };
@@ -262,6 +270,7 @@ export const labFlowSnapshot = (
       symbolLevels: {
         callWall: shift(gexLevels.callWall),
         flip: shift(gexLevels.flip),
+        kingNode: shift(gexLevels.kingNode),
         maxPain: shift(gexLevels.maxPain),
         putWall: shift(gexLevels.putWall),
       },
@@ -281,6 +290,7 @@ export const labFlowSnapshot = (
       blocks: 3,
       bullishPremium: 4_200_000,
       callPremium: 5_600_000,
+      oiFlagsNotReported: 0,
       openingPremiumShare: 0.47,
       otmPremiumShare: 0.62,
       putCallPremiumRatio: 0.66,
@@ -1927,5 +1937,149 @@ export const labFlowOptionBubbles = (
     totals: fold.totals,
     truncated: fold.truncated,
     unread: fold.unread,
+  };
+};
+
+const LAB_OFF_EXCHANGE_SESSIONS = [
+  "2026-10-26",
+  "2026-10-27",
+  "2026-10-28",
+  "2026-10-29",
+  "2026-10-30",
+] as const;
+
+const LAB_OFF_EXCHANGE_WEEKS = [
+  "2026-09-21",
+  "2026-09-28",
+  "2026-10-05",
+  "2026-10-12",
+  "2026-10-19",
+  "2026-10-26",
+] as const;
+
+export const labFlowOffExchangeLevels = (
+  range: FlowOffExchangeRange = "5d"
+): FlowOffExchangeLevels => {
+  const sessions =
+    range === "1d"
+      ? LAB_OFF_EXCHANGE_SESSIONS.slice(-1)
+      : LAB_OFF_EXCHANGE_SESSIONS;
+  const minutes: OffExchangeMinuteRow[] = [];
+  const events: OffExchangeEventRow[] = [];
+  const random = createSeededRandom("flow-off-exchange-levels");
+  let price = 578.5;
+
+  sessions.forEach((day, dayIdx) => {
+    // EDT in late October: 09:30 ET = 13:30 UTC
+    const openMs = Date.parse(`${day}T13:30:00.000Z`);
+    for (let offset = 0; offset < 360; offset += 5) {
+      if (dayIdx === sessions.length - 1 && offset >= 180 && offset < 205) {
+        continue;
+      }
+      const delta = roundTo((random() - 0.46) * 0.45, 2);
+      const open = price;
+      const close = roundTo(open + delta, 2);
+      const high = roundTo(Math.max(open, close) + 0.14, 2);
+      const low = roundTo(Math.min(open, close) - 0.12, 2);
+      const vwap = roundTo((open + high + low + close) / 4, 2);
+      const volume = 42_000 + Math.round(random() * 28_000);
+      const trfShare = 0.34 + random() * 0.22;
+      const offExchangeVolume = Math.round(volume * trfShare);
+      minutes.push({
+        close,
+        coveredSeconds: 50,
+        high,
+        low,
+        minute: new Date(openMs + offset * 60_000),
+        offExchangeVolume,
+        open,
+        volume,
+        vwap,
+      });
+      price = close;
+    }
+    const anchors: readonly Readonly<{
+      offsetMin: number;
+      price: number;
+      size: number;
+      direction: "bullish" | "bearish" | "neutral";
+    }>[] = [
+      { direction: "bullish", offsetMin: 40, price: 579.28, size: 32_000 },
+      { direction: "bearish", offsetMin: 110, price: 581.52, size: 28_500 },
+      { direction: "bullish", offsetMin: 195, price: 579.31, size: 19_000 },
+      { direction: "neutral", offsetMin: 265, price: 580.4, size: 15_500 },
+      { direction: "bearish", offsetMin: 320, price: 582.05, size: 22_000 },
+    ];
+    anchors.forEach((anchor, idx) => {
+      const at = new Date(openMs + anchor.offsetMin * 60_000);
+      const printPrice = roundTo(anchor.price + (dayIdx % 2) * 0.04, 2);
+      const size = anchor.size + dayIdx * 1500;
+      events.push({
+        at,
+        direction: anchor.direction,
+        key: `print:${Math.floor(at.getTime() / 1000)}:${printPrice}:${size}:FINRA:${idx}`,
+        price: printPrice,
+        size,
+      });
+    });
+  });
+
+  const finraRows: OffExchangeFinraRow[] = LAB_OFF_EXCHANGE_WEEKS.flatMap(
+    (weekStart, idx) => [
+      {
+        lastUpdated: "2026-10-30",
+        shares: 34_000_000 + idx * 1_800_000,
+        tier: "T1",
+        trades: 62_000 + idx * 2100,
+        venue: "ats" as const,
+        weekStart,
+      },
+      {
+        lastUpdated: "2026-10-30",
+        shares: 61_000_000 + idx * 1_400_000,
+        tier: "T1",
+        trades: 118_000 + idx * 3000,
+        venue: "non_ats" as const,
+        weekStart,
+      },
+    ]
+  );
+
+  const fold = foldOffExchangeLevels({
+    events,
+    finraRows,
+    minutes,
+    range,
+    truncated: false,
+  });
+  const firstMinute = (minutes[0] as OffExchangeMinuteRow).minute;
+  const lastMinute = (minutes.at(-1) as OffExchangeMinuteRow).minute;
+
+  return {
+    anchorSession: fold.sessions.at(-1) as string,
+    bars: fold.bars,
+    bucketMinutes: fold.bucketMinutes,
+    finraWeekly: fold.finraWeekly,
+    latestPrice: fold.latestPrice,
+    latestPriceAt: fold.latestPriceAt,
+    levels: fold.levels,
+    prints: fold.prints,
+    range,
+    rules: { ...OFF_EXCHANGE_LEVELS_RULES },
+    schemaVersion: "flow-off-exchange-levels.v1",
+    sessions: fold.sessions,
+    symbol: "SPY",
+    ticks: {
+      ageSeconds: 40,
+      lastOkAt: new Date(LAB_NOW.getTime() - 40_000).toISOString(),
+      lastStatus: "ok",
+      message: "ibkr sampled ticks SPY: 1000 prints",
+      sessionOpen: true,
+      source: "ticks",
+      state: "fresh",
+    },
+    totals: fold.totals,
+    windowEnd: lastMinute.toISOString(),
+    windowStart: firstMinute.toISOString(),
   };
 };

@@ -39,6 +39,8 @@ export interface BusyFiles {
   prs: number;
   /** origin/ws/* branches that share no history with the default branch. */
   unrelated: string[];
+  /** Local worktrees of the main checkout that were read for local edits. */
+  worktrees: number;
 }
 
 type Mode = "full" | "no-pr" | "dry-run";
@@ -90,7 +92,98 @@ export const resolveDefaultBranch = (run: Run, cwd: string): string => {
   throw new Error("cannot resolve the default branch of origin");
 };
 
-/** Files changed by open PRs to `base` and by origin/ws/* branches. */
+/**
+ * Paths of the usable worktrees in `git worktree list --porcelain -z` output
+ * (NUL after each field, one more after each entry, so a path may hold a
+ * newline). A bare entry has no files and a prunable one has no directory.
+ */
+export const parseWorktrees = (stdout: string): string[] =>
+  stdout
+    .split("\0\0")
+    .map((entry) => entry.split("\0"))
+    .filter(
+      (fields) =>
+        !fields.some(
+          (field) => field === "bare" || field.startsWith("prunable")
+        )
+    )
+    .map((fields) =>
+      fields.find((field) => field.startsWith("worktree "))?.slice(9)
+    )
+    .filter((path): path is string => path !== undefined && path.length > 0);
+
+const gitPaths = (run: Run, cwd: string, args: readonly string[]): RunResult =>
+  run("git", ["-c", "core.quotePath=false", ...args], { cwd });
+
+/**
+ * Files a local worktree is still working on and that no origin ref shows:
+ * uncommitted edits (staged or not), untracked files and commits not on
+ * `baseRef`. A live job edits in its worktree long before it pushes, so the
+ * remote refs alone miss its new and changed files.
+ */
+const localWork = (
+  run: Run,
+  wt: string,
+  baseRef: string
+): { files: string[]; unrelated: boolean } => {
+  // diff-index compares without refreshing the index, so the janitor never
+  // takes index.lock in a live job's worktree; a file that is only touched
+  // shows as changed, which errs on the busy side.
+  const changed = gitPaths(run, wt, [
+    "diff-index",
+    "--name-only",
+    "--no-renames",
+    "HEAD",
+  ]);
+  if (changed.status !== 0)
+    throw new Error(`cannot list local changes in ${wt}`);
+  const untracked = gitPaths(run, wt, [
+    "ls-files",
+    "--others",
+    "--exclude-standard",
+  ]);
+  if (untracked.status !== 0)
+    throw new Error(`cannot list untracked files in ${wt}`);
+  const files = [...lines(changed.stdout), ...lines(untracked.stdout)];
+  const mergeBase = run("git", ["merge-base", baseRef, "HEAD"], { cwd: wt });
+  if (mergeBase.status === 1) return { files, unrelated: true };
+  const ahead =
+    mergeBase.status === 0
+      ? gitPaths(run, wt, [
+          "diff",
+          "--name-only",
+          "--no-renames",
+          `${baseRef}...HEAD`,
+        ])
+      : undefined;
+  if (ahead?.status !== 0)
+    throw new Error(`cannot list local commits in ${wt}`);
+  return { files: [...files, ...lines(ahead.stdout)], unrelated: false };
+};
+
+/** Local work of every usable worktree of `cwd`, the main checkout included. */
+const collectLocalWork = (
+  run: Run,
+  cwd: string,
+  baseRef: string
+): { files: string[]; unrelated: string[]; worktrees: number } => {
+  const listed = run("git", ["worktree", "list", "--porcelain", "-z"], { cwd });
+  if (listed.status !== 0) throw new Error("cannot list local worktrees");
+  const worktrees = parseWorktrees(listed.stdout);
+  const files: string[] = [];
+  const unrelated: string[] = [];
+  for (const wt of worktrees) {
+    const local = localWork(run, wt, baseRef);
+    if (local.unrelated) unrelated.push(wt);
+    files.push(...local.files);
+  }
+  return { files, unrelated, worktrees: worktrees.length };
+};
+
+/**
+ * Files changed by open PRs to `base`, by origin/ws/* branches and by the
+ * local worktrees of `cwd` (uncommitted, untracked and unpushed files).
+ */
 export const collectBusyFiles = (
   run: Run,
   cwd: string,
@@ -166,11 +259,13 @@ export const collectBusyFiles = (
     if (diff.status !== 0) throw new Error(`cannot list files of PR #${pr}`);
     for (const file of lines(diff.stdout)) files.add(file);
   }
+  const local = collectLocalWork(run, cwd, baseRef);
   return {
     branches: branches.length,
-    files: [...files].sort(),
+    files: [...new Set([...files, ...local.files])].sort(),
     prs: prs.length,
-    unrelated,
+    unrelated: [...unrelated, ...local.unrelated],
+    worktrees: local.worktrees,
   };
 };
 
@@ -243,9 +338,9 @@ const summary = (base: string, busy: BusyFiles): string => {
   const skipped =
     busy.unrelated.length === 0
       ? ""
-      : `janitor: skipped ${busy.unrelated.length} ws branch(es) with no history shared with ${base}: ${busy.unrelated.join(", ")}\n`;
+      : `janitor: skipped ${busy.unrelated.length} ws branch(es) or worktree commit(s) with no history shared with ${base}: ${busy.unrelated.join(", ")}\n`;
   return (
-    `janitor: base ${base}; ${busy.files.length} busy file(s) from ${busy.branches} ws branch(es) and ${busy.prs} open PR(s)\n` +
+    `janitor: base ${base}; ${busy.files.length} busy file(s) from ${busy.branches} ws branch(es), ${busy.prs} open PR(s) and ${busy.worktrees} local worktree(s)\n` +
     skipped
   );
 };

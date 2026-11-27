@@ -150,6 +150,7 @@ describe("semantic server-safe primitives", () => {
     );
 
     expect(status).toContain('data-status="success"');
+    expect(status).toContain("before:shrink-0");
     expect(status).toContain("Status:");
     expect(status).toContain("Ready");
     expect(skeletons.match(/role="status"/g)).toHaveLength(1);

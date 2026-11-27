@@ -1,0 +1,843 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1280 680"
+  width="1280"
+  height="680"
+  role="img"
+  aria-label="Before and after mock of the SPY Off-exchange print levels panel on /flow"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111724" />
+    </linearGradient>
+    <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4af37" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#d4af37" stop-opacity="0.01" />
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="680" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="36"
+    y="42"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    Off-Exchange (Dark Pool) Print Levels on the Price Chart — /flow (SPY)
+  </text>
+  <text
+    x="36"
+    y="66"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    Card vertex-viz-offexchange-levels (O14) · Sampled IBKR FINRA TRF prints ≥
+    10k shares + FINRA weekly OTC context · Research only
+  </text>
+  <rect
+    x="1152"
+    y="22"
+    width="92"
+    height="28"
+    rx="6"
+    fill="#7c2d12"
+    stroke="#f59e0b"
+    stroke-width="1.5"
+  />
+  <text
+    x="1198"
+    y="41"
+    fill="#fef3c7"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    MOCK
+  </text>
+
+  <!-- BEFORE panel -->
+  <rect
+    x="36"
+    y="92"
+    width="380"
+    height="552"
+    rx="12"
+    fill="#141b29"
+    stroke="#263248"
+    stroke-width="1.5"
+  />
+  <rect
+    x="52"
+    y="108"
+    width="84"
+    height="24"
+    rx="4"
+    fill="#1e293b"
+    stroke="#475569"
+  />
+  <text
+    x="94"
+    y="124"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    BEFORE
+  </text>
+  <text
+    x="148"
+    y="125"
+    fill="#e2e8f0"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    Scattered numbers, no price levels
+  </text>
+
+  <!-- Before card 1: Order flow scalar -->
+  <rect
+    x="54"
+    y="148"
+    width="344"
+    height="96"
+    rx="8"
+    fill="#0f1522"
+    stroke="#253047"
+  />
+  <text
+    x="70"
+    y="172"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="600"
+  >
+    Order flow (SPY) — single percentage
+  </text>
+  <text
+    x="70"
+    y="206"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="24"
+    font-weight="700"
+  >
+    Off-exchange: 34%
+  </text>
+  <text
+    x="70"
+    y="228"
+    fill="#64748b"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    Window average only — no price levels or timeline
+  </text>
+
+  <!-- Before card 2: Events flat list -->
+  <rect
+    x="54"
+    y="260"
+    width="344"
+    height="170"
+    rx="8"
+    fill="#0f1522"
+    stroke="#253047"
+  />
+  <text
+    x="70"
+    y="284"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="600"
+  >
+    Events — unclustered flat log
+  </text>
+  <line x1="70" y1="296" x2="382" y2="296" stroke="#1e293b" />
+  <text
+    x="70"
+    y="318"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    14:22 off_exchange 25,000 @ 592.42
+  </text>
+  <text
+    x="70"
+    y="340"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    13:40 off_exchange 18,500 @ 592.38
+  </text>
+  <text
+    x="70"
+    y="362"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    11:15 off_exchange 40,000 @ 589.85
+  </text>
+  <text
+    x="70"
+    y="384"
+    fill="#64748b"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    10:08 off_exchange 14,000 @ 594.10
+  </text>
+  <text
+    x="70"
+    y="414"
+    fill="#f87171"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    × Hard to see where volume clusters vs spot price
+  </text>
+
+  <!-- Before card 3: Separate FINRA table -->
+  <rect
+    x="54"
+    y="446"
+    width="344"
+    height="178"
+    rx="8"
+    fill="#0f1522"
+    stroke="#253047"
+  />
+  <text
+    x="70"
+    y="470"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="600"
+  >
+    FINRA weekly table (far below on page)
+  </text>
+  <rect x="70" y="486" width="312" height="24" rx="4" fill="#172033" />
+  <text
+    x="82"
+    y="502"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    Week ATS Non-ATS
+  </text>
+  <text
+    x="82"
+    y="528"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    2026-10-19 38.4M 92.1M
+  </text>
+  <text
+    x="82"
+    y="550"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    2026-10-12 41.2M 88.7M
+  </text>
+  <text
+    x="82"
+    y="572"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    2026-10-05 35.9M 84.3M
+  </text>
+  <text
+    x="70"
+    y="606"
+    fill="#f87171"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    × Disconnected from intraday SPY price &amp; TRF prints
+  </text>
+
+  <!-- Transition arrow -->
+  <line x1="422" y1="368" x2="452" y2="368" stroke="#d4af37" stroke-width="3" />
+  <polygon points="452,360 466,368 452,376" fill="#d4af37" />
+
+  <!-- AFTER panel -->
+  <rect
+    x="472"
+    y="92"
+    width="772"
+    height="552"
+    rx="12"
+    fill="#141b29"
+    stroke="#d4af37"
+    stroke-opacity="0.65"
+    stroke-width="1.5"
+  />
+  <rect
+    x="490"
+    y="108"
+    width="76"
+    height="24"
+    rx="4"
+    fill="#422006"
+    stroke="#d4af37"
+  />
+  <text
+    x="528"
+    y="124"
+    fill="#fde68a"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    AFTER
+  </text>
+  <text
+    x="578"
+    y="125"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="15"
+    font-weight="700"
+  >
+    Off-exchange print levels (SPY)
+  </text>
+
+  <!-- Range pills -->
+  <rect
+    x="1082"
+    y="106"
+    width="144"
+    height="28"
+    rx="6"
+    fill="#0f1522"
+    stroke="#2d3b55"
+  />
+  <text
+    x="1108"
+    y="124"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    1d
+  </text>
+  <rect x="1132" y="109" width="44" height="22" rx="4" fill="#d4af37" />
+  <text
+    x="1154"
+    y="124"
+    fill="#0b0f17"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    5d
+  </text>
+  <text
+    x="1202"
+    y="124"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    14d
+  </text>
+
+  <!-- Main Price Chart + Horizontal Dark Pool Levels -->
+  <rect
+    x="490"
+    y="148"
+    width="736"
+    height="252"
+    rx="8"
+    fill="#0c111c"
+    stroke="#243045"
+  />
+
+  <!-- Horizontal gridlines -->
+  <g stroke="#1e293b" stroke-width="1">
+    <line x1="504" y1="184" x2="1096" y2="184" />
+    <line x1="504" y1="234" x2="1096" y2="234" />
+    <line x1="504" y1="284" x2="1096" y2="284" />
+    <line x1="504" y1="334" x2="1096" y2="334" />
+    <line x1="504" y1="376" x2="1096" y2="376" />
+  </g>
+  <!-- Day dividers -->
+  <g stroke="#293548" stroke-width="1" stroke-dasharray="3 4">
+    <line x1="652" y1="156" x2="652" y2="386" />
+    <line x1="800" y1="156" x2="800" y2="386" />
+    <line x1="948" y1="156" x2="948" y2="386" />
+  </g>
+
+  <!-- Horizontal Dark Pool Level #1 ($592.40 - largest, bullish solid green) -->
+  <rect
+    x="610"
+    y="218"
+    width="486"
+    height="16"
+    fill="#22c55e"
+    fill-opacity="0.14"
+  />
+  <line
+    x1="610"
+    y1="226"
+    x2="1096"
+    y2="226"
+    stroke="#22c55e"
+    stroke-width="3"
+  />
+  <!-- Right-rail bar #1 -->
+  <rect
+    x="1102"
+    y="218"
+    width="112"
+    height="16"
+    rx="3"
+    fill="#22c55e"
+    fill-opacity="0.28"
+    stroke="#22c55e"
+    stroke-width="1"
+  />
+  <text
+    x="1108"
+    y="230"
+    fill="#dcfce7"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    font-weight="700"
+  >
+    $592.40 · $47M
+  </text>
+
+  <!-- Horizontal Dark Pool Level #2 ($594.15 - bearish dashed red) -->
+  <rect
+    x="740"
+    y="176"
+    width="356"
+    height="12"
+    fill="#ef4444"
+    fill-opacity="0.12"
+  />
+  <line
+    x1="740"
+    y1="182"
+    x2="1096"
+    y2="182"
+    stroke="#ef4444"
+    stroke-width="2.2"
+    stroke-dasharray="6 3"
+  />
+  <rect
+    x="1102"
+    y="175"
+    width="84"
+    height="15"
+    rx="3"
+    fill="#ef4444"
+    fill-opacity="0.25"
+    stroke="#ef4444"
+    stroke-width="1"
+  />
+  <text
+    x="1108"
+    y="186"
+    fill="#fee2e2"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    $594.15 · $29M
+  </text>
+
+  <!-- Horizontal Dark Pool Level #3 ($589.85 - neutral dot-dash amber) -->
+  <rect
+    x="540"
+    y="318"
+    width="556"
+    height="12"
+    fill="#f59e0b"
+    fill-opacity="0.12"
+  />
+  <line
+    x1="540"
+    y1="324"
+    x2="1096"
+    y2="324"
+    stroke="#f59e0b"
+    stroke-width="2"
+    stroke-dasharray="8 3 2 3"
+  />
+  <rect
+    x="1102"
+    y="317"
+    width="76"
+    height="15"
+    rx="3"
+    fill="#f59e0b"
+    fill-opacity="0.24"
+    stroke="#f59e0b"
+    stroke-width="1"
+  />
+  <text
+    x="1108"
+    y="328"
+    fill="#fef3c7"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    $589.85 · $24M
+  </text>
+
+  <!-- Price line + area -->
+  <path
+    d="M512,340 L548,325 L584,308 L618,228 L650,248 L688,236 L724,205 L756,184 L794,212 L836,240 L876,224 L914,255 L954,230 L996,214 L1038,226 L1088,218"
+    fill="none"
+    stroke="#e2e8f0"
+    stroke-width="2.2"
+  />
+  <path
+    d="M512,340 L548,325 L584,308 L618,228 L650,248 L688,236 L724,205 L756,184 L794,212 L836,240 L876,224 L914,255 L954,230 L996,214 L1038,226 L1088,218 L1088,376 L512,376 Z"
+    fill="url(#priceFill)"
+  />
+
+  <!-- Latest spot dashed line -->
+  <line
+    x1="504"
+    y1="218"
+    x2="1096"
+    y2="218"
+    stroke="#d4af37"
+    stroke-width="1.2"
+    stroke-dasharray="2 3"
+  />
+  <circle cx="1088" cy="218" r="4" fill="#d4af37" />
+
+  <!-- Off-exchange print markers (circle = buy, diamond = sell, square = neutral) -->
+  <circle
+    cx="618"
+    cy="226"
+    r="8"
+    fill="#22c55e"
+    fill-opacity="0.88"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+  <circle
+    cx="876"
+    cy="225"
+    r="7"
+    fill="#22c55e"
+    fill-opacity="0.88"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+  <circle
+    cx="1038"
+    cy="226"
+    r="6"
+    fill="#22c55e"
+    fill-opacity="0.88"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+  <polygon
+    points="756,174 764,182 756,190 748,182"
+    fill="#ef4444"
+    fill-opacity="0.9"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+  <polygon
+    points="996,180 1002,186 996,192 990,186"
+    fill="#ef4444"
+    fill-opacity="0.85"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+  <rect
+    x="542"
+    y="318"
+    width="12"
+    height="12"
+    rx="1.5"
+    fill="#f59e0b"
+    fill-opacity="0.88"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+  <rect
+    x="910"
+    y="250"
+    width="10"
+    height="10"
+    rx="1.5"
+    fill="#f59e0b"
+    fill-opacity="0.85"
+    stroke="#0b0f17"
+    stroke-width="1.5"
+  />
+
+  <!-- X-axis day labels -->
+  <text
+    x="576"
+    y="394"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    text-anchor="middle"
+  >
+    11-17
+  </text>
+  <text
+    x="726"
+    y="394"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    text-anchor="middle"
+  >
+    11-18
+  </text>
+  <text
+    x="874"
+    y="394"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    text-anchor="middle"
+  >
+    11-19
+  </text>
+  <text
+    x="1022"
+    y="394"
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    11-20 (latest)
+  </text>
+
+  <!-- Sub-strip: Per-bar FINRA TRF off-exchange share (%) -->
+  <rect
+    x="490"
+    y="408"
+    width="736"
+    height="62"
+    rx="8"
+    fill="#0c111c"
+    stroke="#243045"
+  />
+  <text
+    x="504"
+    y="424"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+    font-weight="600"
+  >
+    FINRA TRF share of sampled volume (%)
+  </text>
+  <line
+    x1="504"
+    y1="444"
+    x2="1096"
+    y2="444"
+    stroke="#334155"
+    stroke-dasharray="3 3"
+  />
+  <text
+    x="1104"
+    y="448"
+    fill="#64748b"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    50%
+  </text>
+  <g fill="#38bdf8" fill-opacity="0.72">
+    <rect x="514" y="446" width="14" height="16" rx="1" />
+    <rect x="546" y="438" width="14" height="24" rx="1" />
+    <rect x="578" y="450" width="14" height="12" rx="1" />
+    <rect x="612" y="430" width="14" height="32" rx="1" />
+    <rect x="646" y="444" width="14" height="18" rx="1" />
+    <rect x="684" y="448" width="14" height="14" rx="1" />
+    <rect x="720" y="440" width="14" height="22" rx="1" />
+    <rect x="750" y="428" width="14" height="34" rx="1" />
+    <rect x="790" y="446" width="14" height="16" rx="1" />
+    <rect x="832" y="442" width="14" height="20" rx="1" />
+    <rect x="870" y="432" width="14" height="30" rx="1" />
+    <rect x="910" y="444" width="14" height="18" rx="1" />
+    <rect x="950" y="446" width="14" height="16" rx="1" />
+    <rect x="990" y="436" width="14" height="26" rx="1" />
+    <rect x="1032" y="434" width="14" height="28" rx="1" />
+    <rect x="1074" y="440" width="14" height="22" rx="1" />
+  </g>
+
+  <!-- Bottom Row: Level Inspector + FINRA Weekly Context -->
+  <rect
+    x="490"
+    y="480"
+    width="414"
+    height="146"
+    rx="8"
+    fill="#0f1522"
+    stroke="#253047"
+  />
+  <text
+    x="506"
+    y="502"
+    fill="#fde68a"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    Selected Level #1 · $592.40 ($592.25–$592.50)
+  </text>
+  <text
+    x="506"
+    y="522"
+    fill="#cbd5e1"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    $47.4M notional · 80,000 shares · 3 prints · -0.10% below spot
+  </text>
+  <text
+    x="506"
+    y="544"
+    fill="#22c55e"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    ● Buy 65k (81%) ◆ Sell 15k (19%) ■ Neutral 0
+  </text>
+  <line x1="506" y1="556" x2="888" y2="556" stroke="#1e293b" />
+  <text
+    x="506"
+    y="576"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    11-20 14:22 ET 25,000 @ $592.42 ($14.8M) bullish
+  </text>
+  <text
+    x="506"
+    y="594"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    11-19 11:48 ET 35,000 @ $592.39 ($20.7M) bullish
+  </text>
+  <text
+    x="506"
+    y="612"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    11-17 13:10 ET 20,000 @ $592.40 ($11.8M) bullish
+  </text>
+
+  <!-- FINRA Weekly Context Mini-Card -->
+  <rect
+    x="916"
+    y="480"
+    width="310"
+    height="146"
+    rx="8"
+    fill="#0f1522"
+    stroke="#253047"
+  />
+  <text
+    x="932"
+    y="502"
+    fill="#e2e8f0"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    FINRA Weekly OTC Context (SPY)
+  </text>
+  <text
+    x="932"
+    y="520"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="10"
+  >
+    Week of 2026-10-19 (lagged public report)
+  </text>
+  <text
+    x="932"
+    y="542"
+    fill="#38bdf8"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    font-weight="600"
+  >
+    ATS: 38.4M (29.4%) · Non-ATS: 92.1M
+  </text>
+  <!-- Stacked weekly bars -->
+  <g transform="translate(932,554)">
+    <rect x="0" y="18" width="28" height="24" rx="2" fill="#475569" />
+    <rect x="0" y="30" width="28" height="12" rx="2" fill="#38bdf8" />
+    <rect x="40" y="12" width="28" height="30" rx="2" fill="#475569" />
+    <rect x="40" y="28" width="28" height="14" rx="2" fill="#38bdf8" />
+    <rect x="80" y="16" width="28" height="26" rx="2" fill="#475569" />
+    <rect x="80" y="31" width="28" height="11" rx="2" fill="#38bdf8" />
+    <rect x="120" y="8" width="28" height="34" rx="2" fill="#475569" />
+    <rect x="120" y="25" width="28" height="17" rx="2" fill="#38bdf8" />
+    <rect x="160" y="10" width="28" height="32" rx="2" fill="#475569" />
+    <rect x="160" y="27" width="28" height="15" rx="2" fill="#38bdf8" />
+    <rect x="200" y="6" width="28" height="36" rx="2" fill="#475569" />
+    <rect x="200" y="24" width="28" height="18" rx="2" fill="#38bdf8" />
+    <text
+      x="0"
+      y="56"
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+    >
+      6w ago
+    </text>
+    <text
+      x="200"
+      y="56"
+      fill="#cbd5e1"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+    >
+      Latest
+    </text>
+  </g>
+</svg>
