@@ -106,6 +106,7 @@ const rowsOf = (overrides: Partial<FlowControlRows> = {}): FlowControlRows => ({
   sessionEvent: { calendar: "read", event: null },
   study: { rulesVersion: null, status: "not_tested", testedOn: null },
   tape: [],
+  tapeAudits: [],
   tapeEvents: [],
   ...overrides,
 });
@@ -1254,7 +1255,7 @@ describe("buildFlowControl", () => {
 
   it("returns the notes and null for session.event", () => {
     const control = buildFlowControl(rowsOf());
-    expect(control.notes).toHaveLength(8);
+    expect(control.notes).toHaveLength(9);
     expect(control.notes[0]).toContain("otm-clean.v1");
     expect(control.notes).toContain(
       "Deep trades are single prints of at least 40 contracts on ES, from the streamed tape."
@@ -1489,6 +1490,51 @@ describe("buildFlowControl", () => {
         "Tape coverage counts the seconds between received trades of a live stream; it is not checked against a second source.",
       ]);
       expect(control.notes.join(" ")).not.toContain("sampled");
+    });
+
+    it("sums the checks of the streamed tape against IBKR history and names them in the notes", () => {
+      const streamedTrades = [trade(1, "buy", 40), trade(2, "sell", 40)].map(
+        (row) => ({ ...row, capture: "streamed" as const })
+      );
+      const checked = buildFlowControl(
+        rowsOf({
+          largeTrades: streamedTrades,
+          tapeAudits: [
+            { comparedSeconds: 18, matchedSeconds: 18 },
+            { comparedSeconds: 12, matchedSeconds: 10 },
+          ],
+        })
+      );
+      expect(checked.deepTrades.audit).toEqual({
+        checks: 2,
+        comparedSeconds: 30,
+        matchedSeconds: 28,
+      });
+      expect(checked.notes).toContain(
+        "Every 5 minutes the collector compares the newest IBKR history prints with the tape, second by second (print count and contracts); a check samples the tape, so it does not prove that the whole session is complete."
+      );
+      // No stored check: null.
+      expect(
+        buildFlowControl(rowsOf({ largeTrades: streamedTrades })).deepTrades
+          .audit
+      ).toBeNull();
+      // The checks could not be read: null, and a note says so.
+      const unread = buildFlowControl(
+        rowsOf({ largeTrades: streamedTrades, tapeAudits: null })
+      );
+      expect(unread.deepTrades.audit).toBeNull();
+      expect(unread.notes).toContain(
+        "The checks of the tape against IBKR history were not read."
+      );
+      // A sampled capture has no check.
+      expect(
+        buildFlowControl(
+          rowsOf({
+            largeTrades: [trade(1, "buy", 40)],
+            tapeAudits: [{ comparedSeconds: 18, matchedSeconds: 18 }],
+          })
+        ).deepTrades.audit
+      ).toBeNull();
     });
 
     it("the sampled notes stay for a session with a sampled deep trade", () => {
