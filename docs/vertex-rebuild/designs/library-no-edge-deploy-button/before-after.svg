@@ -1,0 +1,270 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 640"
+  width="1200"
+  height="640"
+  role="img"
+  aria-labelledby="t d"
+  font-family="Public Sans, Manrope, Helvetica, Arial, sans-serif"
+>
+  <title id="t">
+    Before and after: paper deployment request for a no-edge strategy
+  </title>
+  <desc id="d">
+    Before, the library page of a no-edge strategy shows a Request paper
+    deployment link and the API saves a draft. After, the page shows a reason
+    line and the API refuses with 409. MOCK drawing of the page header. Of 103
+    strategies, 80 are unchanged, 20 research-only strategies are now also
+    refused by the API, and 3 lose the link.
+  </desc>
+  <rect width="1200" height="640" fill="#0d0f12" />
+  <text x="40" y="52" fill="#f2f2f0" font-size="26" font-weight="700">
+    No paper deployment request for a no-edge strategy
+  </text>
+  <text x="40" y="80" fill="#9aa0a6" font-size="15">
+    Strategy library detail header and deploymentRequests API. Page drawings are
+    MOCK; numbers are from the live survey of 2026-11-26.
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    x="40"
+    y="110"
+    width="540"
+    height="330"
+    rx="14"
+    fill="#15181d"
+    stroke="#3a2a2a"
+    stroke-width="2"
+  />
+  <text x="64" y="146" fill="#e0685f" font-size="18" font-weight="700">
+    BEFORE
+  </text>
+  <text x="500" y="146" fill="#6b7178" font-size="12" font-weight="700">
+    MOCK
+  </text>
+  <rect
+    x="64"
+    y="166"
+    width="492"
+    height="96"
+    rx="8"
+    fill="#0f1216"
+    stroke="#2a2f36"
+  />
+  <text x="80" y="196" fill="#f2f2f0" font-size="16" font-weight="600">
+    Insider Purchase Confirmation
+  </text>
+  <rect
+    x="80"
+    y="208"
+    width="150"
+    height="24"
+    rx="12"
+    fill="none"
+    stroke="#5a6068"
+  />
+  <text x="92" y="225" fill="#d7dade" font-size="12">
+    Vertex study: No edge
+  </text>
+  <rect
+    x="352"
+    y="186"
+    width="188"
+    height="40"
+    rx="6"
+    fill="none"
+    stroke="#c9a227"
+    stroke-width="2"
+  />
+  <text x="366" y="211" fill="#f2f2f0" font-size="13">
+    Request paper deployment
+  </text>
+  <!-- cursor -->
+  <path
+    d="M520 232 l0 26 l7 -6 l5 12 l5 -2 l-5 -12 l9 0 z"
+    fill="#f2f2f0"
+    stroke="#0d0f12"
+  />
+  <!-- flow to API -->
+  <path
+    d="M446 262 L446 318"
+    stroke="#e0685f"
+    stroke-width="3"
+    fill="none"
+    marker-end="url(#ar)"
+  />
+  <rect
+    x="64"
+    y="326"
+    width="492"
+    height="92"
+    rx="8"
+    fill="#0f1216"
+    stroke="#2a2f36"
+  />
+  <text x="80" y="356" fill="#9aa0a6" font-size="13">
+    deploymentRequests.create
+  </text>
+  <!-- open door icon -->
+  <g transform="translate(96,366)">
+    <rect
+      x="0"
+      y="0"
+      width="26"
+      height="38"
+      fill="none"
+      stroke="#e0685f"
+      stroke-width="2"
+    />
+    <path d="M0 0 L16 8 L16 46 L0 38 Z" fill="#e0685f" opacity="0.75" />
+  </g>
+  <text x="140" y="392" fill="#f2f2f0" font-size="18" font-weight="700">
+    200: draft saved
+  </text>
+  <text x="330" y="392" fill="#9aa0a6" font-size="13">
+    research-only tag: also saved
+  </text>
+
+  <!-- AFTER -->
+  <rect
+    x="620"
+    y="110"
+    width="540"
+    height="330"
+    rx="14"
+    fill="#15181d"
+    stroke="#243a2c"
+    stroke-width="2"
+  />
+  <text x="644" y="146" fill="#5fbf7f" font-size="18" font-weight="700">
+    AFTER
+  </text>
+  <text x="1080" y="146" fill="#6b7178" font-size="12" font-weight="700">
+    MOCK
+  </text>
+  <rect
+    x="644"
+    y="166"
+    width="492"
+    height="96"
+    rx="8"
+    fill="#0f1216"
+    stroke="#2a2f36"
+  />
+  <text x="660" y="196" fill="#f2f2f0" font-size="16" font-weight="600">
+    Insider Purchase Confirmation
+  </text>
+  <rect
+    x="660"
+    y="208"
+    width="150"
+    height="24"
+    rx="12"
+    fill="none"
+    stroke="#5a6068"
+  />
+  <text x="672" y="225" fill="#d7dade" font-size="12">
+    Vertex study: No edge
+  </text>
+  <text x="916" y="211" fill="#9aa0a6" font-size="13">
+    No edge: no paper deployment
+  </text>
+  <path
+    d="M1026 262 L1026 318"
+    stroke="#5a6068"
+    stroke-width="3"
+    stroke-dasharray="6 6"
+    fill="none"
+  />
+  <rect
+    x="644"
+    y="326"
+    width="492"
+    height="92"
+    rx="8"
+    fill="#0f1216"
+    stroke="#2a2f36"
+  />
+  <text x="660" y="356" fill="#9aa0a6" font-size="13">
+    create, createGroup, update, submit, approve
+  </text>
+  <!-- closed door with lock -->
+  <g transform="translate(676,366)">
+    <rect
+      x="0"
+      y="0"
+      width="26"
+      height="38"
+      fill="#5fbf7f"
+      opacity="0.25"
+      stroke="#5fbf7f"
+      stroke-width="2"
+    />
+    <rect x="7" y="18" width="12" height="10" rx="2" fill="#5fbf7f" />
+    <path
+      d="M9 18 v-4 a4 4 0 0 1 8 0 v4"
+      fill="none"
+      stroke="#5fbf7f"
+      stroke-width="2"
+    />
+  </g>
+  <text x="720" y="392" fill="#f2f2f0" font-size="18" font-weight="700">
+    409: refused, reason text
+  </text>
+  <text x="978" y="392" fill="#9aa0a6" font-size="13">nothing written</text>
+
+  <!-- numbers strip: 80 unchanged, 20 research-only, 3 with a negative badge and a link -->
+  <text x="40" y="482" fill="#f2f2f0" font-size="16" font-weight="700">
+    Live library, 103 strategies
+  </text>
+  <g transform="translate(40,500)">
+    <rect x="0" y="0" width="870" height="26" rx="4" fill="#23272e" />
+    <rect x="870" y="0" width="217" height="26" fill="#5a6068" />
+    <rect x="1087" y="0" width="33" height="26" fill="#e0685f" />
+    <text x="8" y="18" fill="#d7dade" font-size="12">80 unchanged</text>
+    <text x="878" y="18" fill="#0d0f12" font-size="12" font-weight="700">
+      20 research-only: API now refuses
+    </text>
+    <text
+      x="1103"
+      y="18"
+      text-anchor="middle"
+      fill="#0d0f12"
+      font-size="12"
+      font-weight="700"
+    >
+      3
+    </text>
+  </g>
+  <path d="M1143 532 L1143 552" stroke="#e0685f" stroke-width="2" />
+  <text
+    x="1160"
+    y="572"
+    text-anchor="end"
+    fill="#e0685f"
+    font-size="13"
+    font-weight="700"
+  >
+    3 showed a negative badge next to the request link: 1 No edge, 2 Tested,
+    failed
+  </text>
+  <text x="40" y="572" fill="#9aa0a6" font-size="13">
+    After: 23 of 103 have no request path. Requests on record: 0.
+  </text>
+  <text x="40" y="612" fill="#6b7178" font-size="12">
+    Stored records only. No order, arming, sizing or risk setting changes.
+  </text>
+  <defs>
+    <marker
+      id="ar"
+      markerWidth="10"
+      markerHeight="10"
+      refX="6"
+      refY="5"
+      orient="auto"
+    >
+      <path d="M0 0 L8 5 L0 10 z" fill="#e0685f" />
+    </marker>
+  </defs>
+</svg>

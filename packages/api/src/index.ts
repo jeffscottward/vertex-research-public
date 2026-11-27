@@ -262,5 +262,6 @@ export {
 export * from "./pick-list-sources.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
 export * from "./signal-alerts.ts";
+export * from "./strategy-deployment-eligibility.ts";
 export * from "./strategy-dsl.ts";
 export * from "./strategy-study-tags.ts";

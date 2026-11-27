@@ -307,11 +307,14 @@ describe("StrategyDetail", () => {
       "This is the source's claim. Vertex shows its own test result on the Backtests tab. A strategy counts as validated by Vertex only after the Vertex replication and gates pass."
     );
     // Research only: the notice stays and no deployment, order or arm control exists anywhere.
-    expect(
-      container.querySelector(
-        '[data-strategy-research-only="strategy-seed-volume-spike-breakout"]'
-      )?.textContent
-    ).toBe("Research only: no deployment");
+    const researchOnly = container.querySelector(
+      '[data-strategy-research-only="strategy-seed-volume-spike-breakout"]'
+    );
+    expect(researchOnly?.textContent).toBe("Research only: no deployment");
+    // The tag is named before the study verdict.
+    expect(researchOnly?.getAttribute("data-strategy-deployment-blocked")).toBe(
+      "research-only"
+    );
     expect(
       container.querySelector("[data-strategy-request-deployment]")
     ).toBeNull();
@@ -395,6 +398,107 @@ describe("StrategyDetail", () => {
       parameters.querySelector("[data-strategy-external-claim]")
     ).toBeNull();
     return expect(badgeKeys(parameters)).toHaveLength(1);
+  });
+
+  it("offers no paper deployment for a no-edge or failed study and names the reason", async () => {
+    const blockedLine = async (
+      overrides: Parameters<typeof strategy>[0]
+    ): Promise<Element> => {
+      const container = await mount(
+        detailOf({
+          detail: { backtests: [], presets: [], strategy: strategy(overrides) },
+        })
+      );
+      expect(
+        container.querySelector("[data-strategy-request-deployment]")
+      ).toBeNull();
+      expect(
+        container.querySelector("[data-strategy-academy-lesson]")
+      ).toBeNull();
+      expect(container.textContent).not.toContain("Request paper deployment");
+      // Not the research-only tag: only the verdict blocks these strategies.
+      expect(
+        container.querySelector("[data-strategy-research-only]")
+      ).toBeNull();
+      const lines = container.querySelectorAll(
+        "[data-strategy-deployment-blocked]"
+      );
+      expect(lines).toHaveLength(1);
+      return lines[0] as Element;
+    };
+    const noEdge = await blockedLine({
+      id: "strategy-seed-insider-purchase-confirmation",
+      slug: "insider-purchase-confirmation",
+      status: "backtested",
+      tags: ["insider", "smart-money", "backtest-study", "failed"],
+      vertexStudy: { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+    expect(noEdge.getAttribute("data-strategy-deployment-blocked")).toBe(
+      "study-no-edge"
+    );
+    expect(noEdge.textContent).toBe("No edge: no paper deployment");
+    expect(noEdge.getAttribute("title")).toBe(
+      "The Vertex study of this strategy found no edge; a paper deployment cannot be requested for it."
+    );
+    // A line of text, not a control: nothing to press.
+    expect(noEdge.tagName).toBe("SPAN");
+    const failed = await blockedLine({
+      slug: "qc-opex-week",
+      tags: ["quantconnect-idea"],
+      vertexStudy: { kind: "qc-port", verdict: "FAIL" },
+    });
+    expect(failed.getAttribute("data-strategy-deployment-blocked")).toBe(
+      "study-failed"
+    );
+    expect(failed.textContent).toBe("Failed backtest: no paper deployment");
+    // The tag failed with no stored study: the badge says "Tested, failed", and so does the line.
+    const tagged = await blockedLine({
+      slug: "sma30-market-timing",
+      tags: ["failed"],
+      vertexStudy: null,
+    });
+    expect(tagged.getAttribute("data-strategy-deployment-blocked")).toBe(
+      "tagged-failed"
+    );
+    expect(tagged.textContent).toBe("Tested, failed: no paper deployment");
+    // The verdict also closes the Academy lesson path of an Academy strategy.
+    const academy = await blockedLine({
+      slug: "dyr-wheel",
+      tags: ["dyr", "backtest-study"],
+      vertexStudy: { kind: "strategy-backtest", verdict: "no-edge" },
+    });
+    return expect(academy.textContent).toBe("No edge: no paper deployment");
+  });
+
+  it("keeps the paper deployment request for edge, PASS and needs-more-data verdicts", async () => {
+    const verdicts = [
+      { kind: "strategy-backtest", verdict: "edge" },
+      { kind: "strategy-backtest", verdict: "needs-more-data" },
+      { kind: "qc-port", verdict: "PASS" },
+    ] as const;
+    for (const vertexStudy of verdicts) {
+      const container = await mount(
+        detailOf({
+          detail: {
+            backtests: [],
+            presets: [],
+            // A stored study wins over a stale failed tag.
+            strategy: strategy({
+              tags: ["backtest-study", "failed"],
+              vertexStudy,
+            }),
+          },
+        })
+      );
+      expect(
+        container.querySelectorAll("[data-strategy-request-deployment]"),
+        vertexStudy.verdict
+      ).toHaveLength(1);
+      expect(
+        container.querySelector("[data-strategy-deployment-blocked]"),
+        vertexStudy.verdict
+      ).toBeNull();
+    }
   });
 
   it("moves between tabs with the arrow, Home and End keys and by click", async () => {
