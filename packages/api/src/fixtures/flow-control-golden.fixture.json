@@ -254,77 +254,77 @@
         },
         {
           "minute": 9,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 10,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 11,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 12,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 13,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 14,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 15,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 16,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 17,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 18,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 19,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
@@ -809,7 +809,7 @@
         },
         {
           "minute": 24,
-          "ratio": 0.0,
+          "ratio": 0,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
@@ -1464,7 +1464,7 @@
         },
         {
           "minute": 24,
-          "ratio": 0.0,
+          "ratio": 0,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
@@ -2166,77 +2166,77 @@
         },
         {
           "minute": 9,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 10,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 11,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 12,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
         },
         {
           "minute": 13,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 14,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 15,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 16,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 17,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 18,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 19,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
@@ -2481,42 +2481,42 @@
         },
         {
           "minute": 54,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 55,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 56,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 57,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 58,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
         },
         {
           "minute": 59,
-          "ratio": 1.0,
+          "ratio": 1,
           "state": "buyers",
           "noDataReason": null,
           "sinceMinute": 9
@@ -4008,42 +4008,42 @@
         },
         {
           "minute": 64,
-          "ratio": -1.0,
+          "ratio": -1,
           "state": "sellers",
           "noDataReason": null,
           "sinceMinute": 60
         },
         {
           "minute": 65,
-          "ratio": -1.0,
+          "ratio": -1,
           "state": "sellers",
           "noDataReason": null,
           "sinceMinute": 60
         },
         {
           "minute": 66,
-          "ratio": -1.0,
+          "ratio": -1,
           "state": "sellers",
           "noDataReason": null,
           "sinceMinute": 60
         },
         {
           "minute": 67,
-          "ratio": -1.0,
+          "ratio": -1,
           "state": "sellers",
           "noDataReason": null,
           "sinceMinute": 60
         },
         {
           "minute": 68,
-          "ratio": -1.0,
+          "ratio": -1,
           "state": "sellers",
           "noDataReason": null,
           "sinceMinute": 60
         },
         {
           "minute": 69,
-          "ratio": -1.0,
+          "ratio": -1,
           "state": "sellers",
           "noDataReason": null,
           "sinceMinute": 60
@@ -4543,7 +4543,7 @@
         },
         {
           "minute": 19,
-          "ratio": 0.0,
+          "ratio": 0,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
@@ -5393,7 +5393,7 @@
         },
         {
           "minute": 19,
-          "ratio": 0.0,
+          "ratio": 0,
           "state": "balanced",
           "noDataReason": null,
           "sinceMinute": null
@@ -5781,6 +5781,3941 @@
       "primary": "balanced",
       "check": "balanced",
       "expected": "balanced"
+    }
+  ],
+  "futuresRules": {
+    "enterRatio": 0.3,
+    "exitRatio": 0.1,
+    "maxMissingMinutes": 5,
+    "minBuckets": 10,
+    "minCoveredSeconds": 55,
+    "minMinutes": 5,
+    "minTrades": 10,
+    "version": "flow-futures-rules.v1",
+    "windowMinutes": 30
+  },
+  "futuresCases": [
+    {
+      "name": "empty input with through yields session_start then gap",
+      "through": 12,
+      "minutes": [],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 0
+        }
+      ]
+    },
+    {
+      "name": "buyers entry after 5 covered minutes and exit below exitRatio",
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 11,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 12,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 13,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 14,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 15,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 16,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 17,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 18,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 19,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 20,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 21,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 22,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 23,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 24,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 25,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 26,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 27,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 28,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        },
+        {
+          "minute": 29,
+          "deepBuy": 0,
+          "deepSell": 100,
+          "deepTrades": 2,
+          "delta": -40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4998
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 22
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 24
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 26
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 28
+        },
+        {
+          "hold": null,
+          "minute": 14,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 15,
+          "noDataReason": null,
+          "ratio": 0.5,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 16,
+          "noDataReason": null,
+          "ratio": 0.4117647058823529,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 34
+        },
+        {
+          "hold": null,
+          "minute": 17,
+          "noDataReason": null,
+          "ratio": 0.3333333333333333,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 36
+        },
+        {
+          "hold": null,
+          "minute": 18,
+          "noDataReason": null,
+          "ratio": 0.2631578947368421,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 38
+        },
+        {
+          "hold": null,
+          "minute": 19,
+          "noDataReason": null,
+          "ratio": 0.2,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 40
+        },
+        {
+          "hold": null,
+          "minute": 20,
+          "noDataReason": null,
+          "ratio": 0.14285714285714285,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 42
+        },
+        {
+          "hold": null,
+          "minute": 21,
+          "noDataReason": null,
+          "ratio": 0.09090909090909091,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 44
+        },
+        {
+          "hold": null,
+          "minute": 22,
+          "noDataReason": null,
+          "ratio": 0.043478260869565216,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 46
+        },
+        {
+          "hold": null,
+          "minute": 23,
+          "noDataReason": null,
+          "ratio": 0,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 48
+        },
+        {
+          "hold": null,
+          "minute": 24,
+          "noDataReason": null,
+          "ratio": -0.04,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 50
+        },
+        {
+          "hold": null,
+          "minute": 25,
+          "noDataReason": null,
+          "ratio": -0.07692307692307693,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 52
+        },
+        {
+          "hold": null,
+          "minute": 26,
+          "noDataReason": null,
+          "ratio": -0.1111111111111111,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 54
+        },
+        {
+          "hold": null,
+          "minute": 27,
+          "noDataReason": null,
+          "ratio": -0.14285714285714285,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 56
+        },
+        {
+          "hold": null,
+          "minute": 28,
+          "noDataReason": null,
+          "ratio": -0.1724137931034483,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 58
+        },
+        {
+          "hold": null,
+          "minute": 29,
+          "noDataReason": null,
+          "ratio": -0.2,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 60
+        }
+      ]
+    },
+    {
+      "name": "sellers mirror entry and exit",
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 1,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 2,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 3,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 4,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 5,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 6,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 7,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 8,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 9,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 10,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 11,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 12,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 13,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 14,
+          "deepBuy": 20,
+          "deepSell": 80,
+          "deepTrades": 2,
+          "delta": -30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 15,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 16,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 17,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 18,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 19,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 20,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 21,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 22,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 23,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 24,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 25,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 26,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 27,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 28,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        },
+        {
+          "minute": 29,
+          "deepBuy": 100,
+          "deepSell": 0,
+          "deepTrades": 2,
+          "delta": 40,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5002
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": -0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": -0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 22
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": -0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 24
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": -0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 26
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": -0.6,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 28
+        },
+        {
+          "hold": null,
+          "minute": 14,
+          "noDataReason": null,
+          "ratio": -0.6,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 15,
+          "noDataReason": null,
+          "ratio": -0.5,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 16,
+          "noDataReason": null,
+          "ratio": -0.4117647058823529,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 34
+        },
+        {
+          "hold": null,
+          "minute": 17,
+          "noDataReason": null,
+          "ratio": -0.3333333333333333,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 36
+        },
+        {
+          "hold": null,
+          "minute": 18,
+          "noDataReason": null,
+          "ratio": -0.2631578947368421,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 38
+        },
+        {
+          "hold": null,
+          "minute": 19,
+          "noDataReason": null,
+          "ratio": -0.2,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 40
+        },
+        {
+          "hold": null,
+          "minute": 20,
+          "noDataReason": null,
+          "ratio": -0.14285714285714285,
+          "sinceMinute": 9,
+          "state": "sellers",
+          "trades": 42
+        },
+        {
+          "hold": null,
+          "minute": 21,
+          "noDataReason": null,
+          "ratio": -0.09090909090909091,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 44
+        },
+        {
+          "hold": null,
+          "minute": 22,
+          "noDataReason": null,
+          "ratio": -0.043478260869565216,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 46
+        },
+        {
+          "hold": null,
+          "minute": 23,
+          "noDataReason": null,
+          "ratio": 0,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 48
+        },
+        {
+          "hold": null,
+          "minute": 24,
+          "noDataReason": null,
+          "ratio": 0.04,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 50
+        },
+        {
+          "hold": null,
+          "minute": 25,
+          "noDataReason": null,
+          "ratio": 0.07692307692307693,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 52
+        },
+        {
+          "hold": null,
+          "minute": 26,
+          "noDataReason": null,
+          "ratio": 0.1111111111111111,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 54
+        },
+        {
+          "hold": null,
+          "minute": 27,
+          "noDataReason": null,
+          "ratio": 0.14285714285714285,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 56
+        },
+        {
+          "hold": null,
+          "minute": 28,
+          "noDataReason": null,
+          "ratio": 0.1724137931034483,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 58
+        },
+        {
+          "hold": null,
+          "minute": 29,
+          "noDataReason": null,
+          "ratio": 0.2,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 60
+        }
+      ]
+    },
+    {
+      "name": "hold precedence: few_trades, delta_against, price_against",
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 0,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": -500,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 11,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 600,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4999
+        },
+        {
+          "minute": 12,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 13,
+          "deepBuy": 0,
+          "deepSell": 1000,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 1
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 3
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 5
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 7
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 9
+        },
+        {
+          "hold": "few_trades",
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 9
+        },
+        {
+          "hold": "delta_against",
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 11
+        },
+        {
+          "hold": "price_against",
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 13
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 15
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": -0.09565217391304348,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 17
+        }
+      ]
+    },
+    {
+      "name": "zero volume window has no VWAP and fails price_against",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 10,
+          "volume": 0,
+          "vwap": 5000,
+          "close": 5005
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": "price_against",
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": "price_against",
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        }
+      ]
+    },
+    {
+      "name": "failed checks do not end an active state and hold is null while in control",
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 11,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 12,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 13,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 14,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": -2000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 15,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 1,
+          "delta": -2000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 22
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 24
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 26
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 28
+        },
+        {
+          "hold": null,
+          "minute": 14,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 29
+        },
+        {
+          "hold": null,
+          "minute": 15,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        }
+      ]
+    },
+    {
+      "name": "uncovered minute breaks an entry run but carries an active state until maxMissingMinutes gap",
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 12,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 13,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 14,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 15,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 16,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 23,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 24,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 22
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 22
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 24
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 26
+        },
+        {
+          "hold": null,
+          "minute": 14,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 28
+        },
+        {
+          "hold": null,
+          "minute": 15,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 16,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 12,
+          "state": "buyers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 17,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 12,
+          "state": "buyers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 18,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 12,
+          "state": "buyers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 19,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 12,
+          "state": "buyers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 20,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 12,
+          "state": "buyers",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 21,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 22,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 23,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 34
+        },
+        {
+          "hold": null,
+          "minute": 24,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 36
+        }
+      ]
+    },
+    {
+      "name": "trailing gap via through ends an active state",
+      "through": 25,
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 11,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 12,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 13,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 14,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 22
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 24
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 26
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 28
+        },
+        {
+          "hold": null,
+          "minute": 14,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 15,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 16,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 17,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 18,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 19,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 20,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 21,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 22,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 23,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 24,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 30
+        },
+        {
+          "hold": null,
+          "minute": 25,
+          "noDataReason": "gap",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 30
+        }
+      ]
+    },
+    {
+      "name": "exit directly into an opposite entry run",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 11,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 12,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 13,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 14,
+          "deepBuy": 0,
+          "deepSell": 1500,
+          "deepTrades": 5,
+          "delta": -1000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 15,
+          "deepBuy": 0,
+          "deepSell": 1500,
+          "deepTrades": 5,
+          "delta": -1000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 16,
+          "deepBuy": 0,
+          "deepSell": 1500,
+          "deepTrades": 5,
+          "delta": -1000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 17,
+          "deepBuy": 0,
+          "deepSell": 1500,
+          "deepTrades": 5,
+          "delta": -1000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 18,
+          "deepBuy": 0,
+          "deepSell": 1500,
+          "deepTrades": 5,
+          "delta": -1000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 19,
+          "deepBuy": 0,
+          "deepSell": 1500,
+          "deepTrades": 5,
+          "delta": -1000,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 4990
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 11,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 12,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 13,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 14,
+          "noDataReason": null,
+          "ratio": -0.4,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 23
+        },
+        {
+          "hold": null,
+          "minute": 15,
+          "noDataReason": null,
+          "ratio": -0.6631578947368421,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 26
+        },
+        {
+          "hold": null,
+          "minute": 16,
+          "noDataReason": null,
+          "ratio": -0.7846153846153846,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 29
+        },
+        {
+          "hold": null,
+          "minute": 17,
+          "noDataReason": null,
+          "ratio": -0.8545454545454545,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 32
+        },
+        {
+          "hold": null,
+          "minute": 18,
+          "noDataReason": null,
+          "ratio": -0.9,
+          "sinceMinute": 14,
+          "state": "sellers",
+          "trades": 35
+        },
+        {
+          "hold": null,
+          "minute": 19,
+          "noDataReason": null,
+          "ratio": -0.9319148936170213,
+          "sinceMinute": 14,
+          "state": "sellers",
+          "trades": 38
+        }
+      ]
+    },
+    {
+      "name": "unsorted input uses newest minute close and volume-weighted VWAP",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 1000,
+          "vwap": 5010,
+          "close": 5009
+        },
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 100,
+          "vwap": 5000,
+          "close": 4990
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": null,
+          "state": "balanced",
+          "trades": 20
+        }
+      ]
+    },
+    {
+      "name": "minMinutes=1 allows a direct buyers-to-sellers flip on one bar",
+      "rules": {
+        "windowMinutes": 10,
+        "minMinutes": 1
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 1,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 2,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 3,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 4,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 5,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 6,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 7,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 8,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 9,
+          "deepBuy": 80,
+          "deepSell": 20,
+          "deepTrades": 2,
+          "delta": 30,
+          "volume": 200,
+          "vwap": 5000,
+          "close": 5001
+        },
+        {
+          "minute": 10,
+          "deepBuy": 0,
+          "deepSell": 5000,
+          "deepTrades": 20,
+          "delta": -5000,
+          "volume": 500,
+          "vwap": 5000,
+          "close": 4990
+        }
+      ],
+      "expected": [
+        {
+          "hold": null,
+          "minute": 0,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 2
+        },
+        {
+          "hold": null,
+          "minute": 1,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 4
+        },
+        {
+          "hold": null,
+          "minute": 2,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 6
+        },
+        {
+          "hold": null,
+          "minute": 3,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 8
+        },
+        {
+          "hold": null,
+          "minute": 4,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 10
+        },
+        {
+          "hold": null,
+          "minute": 5,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 12
+        },
+        {
+          "hold": null,
+          "minute": 6,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 14
+        },
+        {
+          "hold": null,
+          "minute": 7,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 16
+        },
+        {
+          "hold": null,
+          "minute": 8,
+          "noDataReason": "session_start",
+          "ratio": null,
+          "sinceMinute": null,
+          "state": "no_data",
+          "trades": 18
+        },
+        {
+          "hold": null,
+          "minute": 9,
+          "noDataReason": null,
+          "ratio": 0.6,
+          "sinceMinute": 9,
+          "state": "buyers",
+          "trades": 20
+        },
+        {
+          "hold": null,
+          "minute": 10,
+          "noDataReason": null,
+          "ratio": -0.7559322033898305,
+          "sinceMinute": 10,
+          "state": "sellers",
+          "trades": 38
+        }
+      ]
+    }
+  ],
+  "agreementCases": [
+    {
+      "name": "futures buyers with options buyers",
+      "futures": "buyers",
+      "options": "buyers",
+      "expected": {
+        "direction": "bullish",
+        "state": "agree"
+      }
+    },
+    {
+      "name": "futures buyers with options sellers",
+      "futures": "buyers",
+      "options": "sellers",
+      "expected": {
+        "direction": "neutral",
+        "state": "diverge"
+      }
+    },
+    {
+      "name": "futures buyers with options balanced",
+      "futures": "buyers",
+      "options": "balanced",
+      "expected": {
+        "direction": "neutral",
+        "state": "one_sided"
+      }
+    },
+    {
+      "name": "futures buyers with options no_data",
+      "futures": "buyers",
+      "options": "no_data",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures buyers with options mixed",
+      "futures": "buyers",
+      "options": "mixed",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures sellers with options buyers",
+      "futures": "sellers",
+      "options": "buyers",
+      "expected": {
+        "direction": "neutral",
+        "state": "diverge"
+      }
+    },
+    {
+      "name": "futures sellers with options sellers",
+      "futures": "sellers",
+      "options": "sellers",
+      "expected": {
+        "direction": "bearish",
+        "state": "agree"
+      }
+    },
+    {
+      "name": "futures sellers with options balanced",
+      "futures": "sellers",
+      "options": "balanced",
+      "expected": {
+        "direction": "neutral",
+        "state": "one_sided"
+      }
+    },
+    {
+      "name": "futures sellers with options no_data",
+      "futures": "sellers",
+      "options": "no_data",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures sellers with options mixed",
+      "futures": "sellers",
+      "options": "mixed",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures balanced with options buyers",
+      "futures": "balanced",
+      "options": "buyers",
+      "expected": {
+        "direction": "neutral",
+        "state": "one_sided"
+      }
+    },
+    {
+      "name": "futures balanced with options sellers",
+      "futures": "balanced",
+      "options": "sellers",
+      "expected": {
+        "direction": "neutral",
+        "state": "one_sided"
+      }
+    },
+    {
+      "name": "futures balanced with options balanced",
+      "futures": "balanced",
+      "options": "balanced",
+      "expected": {
+        "direction": "neutral",
+        "state": "both_balanced"
+      }
+    },
+    {
+      "name": "futures balanced with options no_data",
+      "futures": "balanced",
+      "options": "no_data",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures balanced with options mixed",
+      "futures": "balanced",
+      "options": "mixed",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures no_data with options buyers",
+      "futures": "no_data",
+      "options": "buyers",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures no_data with options sellers",
+      "futures": "no_data",
+      "options": "sellers",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures no_data with options balanced",
+      "futures": "no_data",
+      "options": "balanced",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures no_data with options no_data",
+      "futures": "no_data",
+      "options": "no_data",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures no_data with options mixed",
+      "futures": "no_data",
+      "options": "mixed",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures mixed with options buyers",
+      "futures": "mixed",
+      "options": "buyers",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures mixed with options sellers",
+      "futures": "mixed",
+      "options": "sellers",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures mixed with options balanced",
+      "futures": "mixed",
+      "options": "balanced",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures mixed with options no_data",
+      "futures": "mixed",
+      "options": "no_data",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
+    },
+    {
+      "name": "futures mixed with options mixed",
+      "futures": "mixed",
+      "options": "mixed",
+      "expected": {
+        "direction": "neutral",
+        "state": "not_comparable"
+      }
     }
   ]
 }

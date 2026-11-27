@@ -9,6 +9,8 @@ import { z } from "zod";
 export const OPENBB_BATCH_SCHEMA_VERSION = "openbb-batch.v1";
 /** Rows one openbb.ingest call may carry. */
 export const OPENBB_MAX_INGEST_ROWS = 2000;
+/** Maximum warnings (or info notes) one batch document or run record may carry. */
+export const OPENBB_MAX_WARNINGS = 500;
 /** Stored sessions a 1-year IV percentile or IV rank basis needs before it is reported. */
 export const OPENBB_IV_PERCENTILE_MIN_SESSIONS = 252;
 export const OPENBB_IV_PERCENTILE_SESSIONS = 252;
@@ -1007,11 +1009,15 @@ export const OpenbbBatchDocumentSchema = z
   .strictObject({
     // Set when every source of the job was blocked upstream (the tables are then empty).
     blocked: OpenbbBlockedSourceSchema.nullable().optional(),
+    // Informational notes emitted by the fetcher (for example expected skipped non-standard OCC
+    // rows in cboe-option-iv). Recorded in openbb_ingest_runs.warnings for observability without
+    // marking the run partial.
+    info: z.array(utf16Text(2000)).max(OPENBB_MAX_WARNINGS).optional(),
     job: z.enum(OPENBB_JOBS),
     openbbVersion: label(40).nullable(),
     schemaVersion: z.literal(OPENBB_BATCH_SCHEMA_VERSION),
     tables: z.array(tableRows(undefined)),
-    warnings: z.array(utf16Text(2000)).max(500),
+    warnings: z.array(utf16Text(2000)).max(OPENBB_MAX_WARNINGS),
   })
   .refine(
     (document) =>
@@ -1053,7 +1059,7 @@ export const OpenbbRecordRunInputSchema = z
     rowsWritten: count,
     startedAt: z.iso.datetime({ offset: true }),
     status: z.enum(OPENBB_RUN_STATUSES),
-    warnings: z.array(utf16Text(2000)).max(500),
+    warnings: z.array(utf16Text(2000)).max(OPENBB_MAX_WARNINGS),
   })
   .refine((run) => Date.parse(run.finishedAt) >= Date.parse(run.startedAt), {
     message: "finishedAt must not be before startedAt",

@@ -342,6 +342,79 @@ describe("createQuantDataOptionsSource", () => {
     ).toBe(charts.reduce((sum, event) => sum + event.size, 0));
   });
 
+  it("reads a print open interest of 0 as not reported", async () => {
+    // Quant Data sends 0 on the prints of some contracts that have open interest (check of
+    // 2026-11-26: 16 of 58 contracts with a print value carried 0, and Yahoo and Nasdaq both
+    // had 1,434 to 35,063 for 15 of them).
+    const early = Date.parse("2026-11-04T15:00:00Z");
+    const late = Date.parse("2026-11-04T19:00:00Z");
+    const put = (strike: number, overrides: Record<string, unknown>) =>
+      print({
+        contractType: "PUT",
+        size: 100,
+        strikePrice: strike,
+        ...overrides,
+      });
+    const snapshot = await createQuantDataOptionsSource(
+      fakeClient({
+        orderFlow: ok({
+          data: [
+            // Every print carries 0, as a number and as a string.
+            put(90, { openInterest: 0, tradeTime: early }),
+            put(90, { openInterest: "0", tradeTime: late }),
+            // The newest print carries 0: an older value does not come back in either array order.
+            put(91, { openInterest: 1554, tradeTime: early }),
+            put(91, { openInterest: 0, tradeTime: late }),
+            put(91, { openInterest: 999, tradeTime: early }),
+            // The newest print carries a value: an older 0 changes nothing.
+            put(92, { openInterest: 0, tradeTime: early }),
+            put(92, { openInterest: 785, tradeTime: late }),
+            // Less than one contract is a count of 0.
+            put(93, { openInterest: 0.4, tradeTime: late }),
+          ],
+        }),
+        termStructure: ok({ data: {} }),
+      }),
+      () => NOW
+    ).read("DEMO");
+    expect(byContract(snapshot.rows)).toEqual(
+      ofExpiry({
+        "90put": {
+          delta: null,
+          flow: { premium: 200_000, trades: 2, volume: 200 },
+          iv: null,
+          openInterest: null,
+          right: "put",
+          strike: 90,
+        },
+        "91put": {
+          delta: null,
+          flow: { premium: 300_000, trades: 3, volume: 300 },
+          iv: null,
+          openInterest: null,
+          right: "put",
+          strike: 91,
+        },
+        "92put": {
+          delta: null,
+          flow: { premium: 200_000, trades: 2, volume: 200 },
+          iv: null,
+          openInterest: 785,
+          right: "put",
+          strike: 92,
+        },
+        "93put": {
+          delta: null,
+          flow: { premium: 100_000, trades: 1, volume: 100 },
+          iv: null,
+          openInterest: null,
+          right: "put",
+          strike: 93,
+        },
+      })
+    );
+  });
+
   it("one failed request does not hide the other", async () => {
     const noFlow = await createQuantDataOptionsSource(
       fakeClient({

@@ -1,11 +1,13 @@
 // Quant Data adapter of the options chain (OptionsAnalyticsSource), the first source of the
 // chain: per contract of every listed expiry, IV and delta from term-structure (with the
-// underlying price), and open interest and flow from the order-flow prints of the last 24 hours
-// (the first provider page; more pages are reported, not read). It has no live bid and ask: a
-// print carries the bid and ask at the time of a past trade, and that is never shown as a quote.
-// Both requests are built by quantDataRequests (options-analytics.ts), so the chain and the
-// /charts analytics share the cached answers and the provider quota. One failed request does
-// not hide the other. Read-only.
+// underlying price), and flow from the order-flow prints of the last 24 hours (the first
+// provider page; more pages are reported, not read). The open interest on the newest print of
+// a contract is also read, but the chain takes Yahoo's open interest first, and a print value
+// of 0 is read as not reported (OPTIONS_CHAIN_PRIORITY.openInterest in options-chain-merge.ts).
+// It has no live bid and ask: a print carries the bid and ask at the time of a past trade, and
+// that is never shown as a quote. Both requests are built by quantDataRequests
+// (options-analytics.ts), so the chain and the /charts analytics share the cached answers and
+// the provider quota. One failed request does not hide the other. Read-only.
 
 import { z } from "zod";
 import type { OptionRight } from "../options-chain-greeks.ts";
@@ -88,9 +90,14 @@ const flowByContract = (
     tally.flow.volume += print.size;
     const openInterest = PrintOpenInterestSchema.safeParse(raw);
     const at = Date.parse(print.time);
-    // The newest print that carries an open interest wins.
+    // The newest print that carries an open interest wins. A count of 0 is read as not
+    // reported: Quant Data sends 0 on the prints of contracts that have open interest (numbers
+    // in docs/data-sources-and-platform-roles.md, "Options chain on /stock/<SYMBOL>"). When
+    // the newest value is 0, an older print's value does not come back: it can be the number
+    // of the day before.
     if (openInterest.success && at >= tally.openInterestAt) {
-      tally.openInterest = Math.trunc(openInterest.data.openInterest);
+      const count = Math.trunc(openInterest.data.openInterest);
+      tally.openInterest = count === 0 ? null : count;
       tally.openInterestAt = at;
     }
     tallies.set(key, tally);
