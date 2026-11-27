@@ -122,6 +122,17 @@ export type FlowControlRows = Readonly<{
   /** Last one-minute close of the primary ticker before the session, or null. */
   previousClose: number | null;
   sessionEvent: FlowSessionEventRead;
+  /**
+   * Checks of the future's streamed tape against IBKR history over the futures session
+   * (flow_tape_audits), or null when they could not be read.
+   */
+  tapeAudits: readonly FlowTapeAuditRow[] | null;
+}>;
+
+/** The counts of one check of the streamed tape against IBKR history. */
+export type FlowTapeAuditRow = Readonly<{
+  comparedSeconds: number;
+  matchedSeconds: number;
 }>;
 
 /** The FOMC mark of the session date and whether the event calendar was read. */
@@ -801,6 +812,8 @@ const buildDeepTrades = (
   for (const row of trades)
     if (row.side === "buy") buyVolume += row.size;
     else sellVolume += row.size;
+  const capture = flowCaptureOf(group.future, trades);
+  const audits = capture === "streamed" ? (rows.tapeAudits ?? []) : [];
   return {
     absorptions: rows.tapeEvents
       .filter(
@@ -817,7 +830,21 @@ const buildDeepTrades = (
         direction: event.direction,
         price: event.price,
       })),
-    capture: flowCaptureOf(group.future, trades),
+    audit:
+      audits.length === 0
+        ? null
+        : {
+            checks: audits.length,
+            comparedSeconds: audits.reduce(
+              (sum, row) => sum + row.comparedSeconds,
+              0
+            ),
+            matchedSeconds: audits.reduce(
+              (sum, row) => sum + row.matchedSeconds,
+              0
+            ),
+          },
+    capture,
     coverage,
     limitSize: FLOW_INSTRUMENTS[group.future].deepTradeLimit,
     minutes: tape.slice(0, FLOW_CONTROL_MAX_MINUTES).map((row) => {
@@ -902,6 +929,9 @@ const deepTradeNotes = (
           `Each side comes from the quote rule against the quotes of the same contract; the tick rule signed ${tickSigned} of ${deep.totalTrades} deep trades of this session.`,
           levels,
           "Tape coverage counts the seconds between received trades of a live stream; it is not checked against a second source.",
+          rows.tapeAudits === null
+            ? "The checks of the tape against IBKR history were not read."
+            : "Every 5 minutes the collector compares the newest IBKR history prints with the tape, second by second (print count and contracts); a check samples the tape, so it does not prove that the whole session is complete.",
         ]
       : [
           `Deep trades are single prints of at least ${limit} contracts on ${group.future}, from a sampled tape; sums are lower bounds.`,

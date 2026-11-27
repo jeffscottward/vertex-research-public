@@ -320,6 +320,22 @@ export const deepTradesCoverageLine = (deep: DeepTrades): string => {
   return `Tape seen: about ${Math.round(coverage.share * 100)}% of seconds in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s). Busy periods are seen least: each fetch holds the newest 1000 prints, which span less time when trading is busy. The figure is approximate: it counts the first and last second of each sample, which deep-trade detection leaves out. Every sum is a lower bound.`;
 };
 
+/**
+ * The checks of the streamed tape against IBKR history in the session: the compared seconds that
+ * match (print count and contracts). Null for a sampled tape.
+ */
+export const deepTradesAuditLine = (deep: DeepTrades): string | null => {
+  if (deep.capture !== "streamed") return null;
+  const { audit } = deep;
+  if (audit === null)
+    return "IBKR history check: no check in this session yet.";
+  // Rounded down, so a check with one mismatch never reads 100%.
+  const share = Math.floor(
+    (audit.matchedSeconds / Math.max(1, audit.comparedSeconds)) * 100
+  );
+  return `IBKR history check: ${wholeNumber.format(audit.matchedSeconds)} of ${wholeNumber.format(audit.comparedSeconds)} compared seconds match (${share}%) in ${wholeNumber.format(audit.checks)} ${audit.checks === 1 ? "check" : "checks"} this session. Each check compares about 1000 prints, so it does not prove that the session is complete.`;
+};
+
 const signedContracts = (value: number): string => {
   const magnitude = wholeNumber.format(Math.abs(value));
   return value > 0 ? `+${magnitude}` : value < 0 ? `−${magnitude}` : "0";

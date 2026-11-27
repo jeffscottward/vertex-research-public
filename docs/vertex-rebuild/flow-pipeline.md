@@ -164,9 +164,37 @@ change):
 - **Start of a read.** Each run reads from one minute before the minute of the last stored `ok`
   sample of the symbol (two minutes before the present minute when no such sample exists, so the
   first read always holds one complete minute), but never from more
-  than 10 minutes before the present minute (`FLOW_TAPE_LOOKBACK_SECONDS`): after a longer outage
-  of the collector the older minutes are not read back. It follows `more` until the answer is
-  complete.
+  than 10 minutes before the present minute (`FLOW_TAPE_LOOKBACK_SECONDS`). It follows `more`
+  until the answer is complete. The minutes that the limit cuts become tape gaps (next bullet).
+- **Catch-up (migration 0101).** When the look-back limit cuts a read, the run first stores the
+  cut range as rows of `flow_tape_gaps` ([start, end), whole minutes), one row per open part of the
+  Globex session (no row spans the daily break or a weekend) and none older than one day. After an
+  `ok` live read, the run reads one chunk of the oldest gap of the symbol from the ring: at most 10
+  minutes (`FLOW_TAPE_CATCHUP_SECONDS`), oldest first, because the ring drops its oldest prints
+  first. The chunk starts at the gap start, or at the minute of the first print or covered second
+  that the ring still holds; the minutes before it are not in the ring (a full ring dropped them,
+  or a restart of `vertex-history` emptied it). The chunk is stored like the complete minutes of a
+  live read (minute rows with the rule "trades", deep trades `streamed`, events, per-second
+  counts). A chunk read to the end of the gap deletes the row; else the gap start moves to the end
+  of the chunk (a gap stored again at that start merges with it). A gap the ring does not hold, and a gap whose end is older than one day, is
+  deleted. The note in the sample message: `; caught up 10 min (2031 prints, 10 rows), 20 gap min
+  left`, `; tape gap of 30 min not in the ring` or `; catch-up failed (<error>)`. The catch-up never
+  changes the status, the items, the cursor or the price of the run.
+- **Check against IBKR history (migration 0101).** Every 5 minutes per symbol (ES in the minutes
+  :01, :06, :11 … of each hour, NQ in :03, :08, :13 …: `tapeAuditTurn`), after a live read whose feed
+  is `live`, the collector reads the newest 1000 IBKR history prints (`/ticks`, `quotes=0`: one
+  IBKR request) and then the tape from the first of them. It compares the seconds strictly between
+  the first and the last history second (the 1000-print cut splits the first, the last can still
+  grow), up to the tape's `until`, that the tape covers, and only from the minute after the
+  symbol's previous turn and after the checks already stored in this turn (two checks never
+  compare the same second). A second matches when the
+  print count and the contracts are equal; a second without a print in both sources matches. One
+  row per check goes to `flow_tape_audits`. The check runs only while the IBKR history window holds
+  at most 2 of 6 requests (the limit of the sampled ticks, so `/charts` keeps priority) and counts
+  1 request for the later symbols of the run; a stale copy, another contract or old history skip
+  it. The note: `; history check 18 of 18 s match`, `; history check skipped (<reason>)` or
+  `; history check failed (<error>)`. In the regular session 1000 prints span about 12 to 22 s, so
+  a check samples the tape.
 - **Complete minutes.** The run processes complete minutes only; the next run reads the minute in
   progress. The minute that is read again heals a minute that a print reached late.
 - **Signing.** The collector signs the prints with the existing quote rule and the existing tick
@@ -188,8 +216,9 @@ change):
   futures side of the control document reports the outage.
 
 Coverage is the share of covered seconds in a time range. It says that the stream was live. It does
-not prove that no print was lost: the coverage is not checked against a second source. A continuous
-check of the tape against IBKR history is a future improvement.
+not prove that no print was lost: the coverage is not checked against a second source. The check
+against IBKR history (above) samples the tape every 5 minutes; the control document sums the
+checks of the session (`deepTrades.audit`).
 
 ## Features and events
 
@@ -1001,6 +1030,10 @@ within 14 days a rollback to it deletes no row; after that it deletes the older 
 study needs. A build from before net drift does not prune `flow_net_drift`, so a rollback to it
 deletes no net drift row.
 
+`flow_tape_audits` (the checks against IBKR history, about 580 rows per trading day) is not pruned
+either. `flow_tape_gaps` is not in the prune: the collector deletes a gap when it is read, when the
+ring does not hold it, and when its end is older than one day.
+
 `flow_tape_seconds` is not pruned: single prints exist only in the memory of `vertex-history`, so
 its counts cannot be collected again, and a later burst study sets the cutoff. Estimate: about
 0.65 kB per row and 2,760 rows per trading day (two symbols), so about 0.45 GB per year without
@@ -1076,8 +1109,9 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
 - The GEX snapshot shown is the newest one up to now, even when the order-flow window ended at a
   closed market's last print (GEX uses previous-session open interest).
 - Tape coverage says that the stream was live. It is not checked against a second source: IBKR
-  sends no sequence number, so the service does not see a print that is lost without a sign. A
-  continuous check of the tape against IBKR history is a future improvement.
+  sends no sequence number, so the service does not see a print that is lost without a sign. The
+  check against IBKR history compares only the newest 1000 prints every 5 minutes per symbol (about
+  12 to 22 s in the regular session); the seconds between checks are not compared.
 - A stall of both trade streams in the regular session without an IBKR notice lasts up to 30
   minutes and shows as a gap. The service has no market calendar, so it requests new subscriptions
   for two silent tape feeds only after 30 minutes without a print.
@@ -1087,14 +1121,13 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
 - The tape of a gap cannot be read later: the ring is in memory only, and the collector does not
   fall back to sampled ticks.
 - Exhaustion events are not produced for ES and NQ (section "Features and events").
-- After an outage of the collector of more than 10 minutes, the minutes before the look-back limit
-  are not read back, although the ring can still hold them. A catch-up from the newest stored
-  minute is a future improvement.
-- The tape is read while the Globex session is open. The last minute before the daily break
-  (16:59 New York) is not stored, and the minute before it is read once only: no read happens in
-  the break, and the first read after it starts at the look-back limit (its sample carries the
-  note "older minutes skipped"). These minutes are outside the regular session, so the futures
-  state does not use them.
+- After an outage of the collector of more than 10 minutes, the catch-up reads the cut minutes back
+  only while the ring holds them: about 40 minutes of the busiest regular-session tape (200,000
+  prints at about 83 prints per second), and nothing from before a restart of `vertex-history`.
+  It reads 10 minutes per run, so a long gap lags the live read.
+- The tape is read while the Globex session is open. The last minutes before the daily break
+  (16:58 and 16:59 New York) are stored by the catch-up of the first ok run after the break (the
+  gap of that run ends at 17:00), when the ring still holds them.
 - SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
 - A failed per-second write of the tape speed counts is not caught up: the collector does not read
   back minutes that lack a `flow_tape_seconds` row, although the ring can still hold them.
@@ -1295,6 +1328,49 @@ locks no existing table. The tick script and `vertex-history` do not change.
    `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not a rollback path: it drops the
    stored counts, which cannot be collected again. It runs only on an owner decision, after
    `systemctl stop vertex-flow.timer`.
+
+### Tape check and catch-up (migration 0101)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The migration adds two tables
+and locks no existing table. The tick script and `vertex-history` do not change.
+
+1. Apply `packages/db/migrations/0101_flow_tape_audit_catchup.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+2. Write probe (as the app role; it must end without an error and print `1` and then `0`):
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE vertex_research;
+   INSERT INTO flow_tape_gaps (created_at, end_time, start_time, symbol)
+   VALUES (now(), '2000-01-03 00:10:00+00', '2000-01-03 00:00:00+00', 'ES');
+   UPDATE flow_tape_gaps SET start_time = '2000-01-03 00:05:00+00'
+   WHERE symbol = 'ES' AND start_time = '2000-01-03 00:00:00+00';
+   INSERT INTO flow_tape_audits (checked_at, compared_seconds, contract, from_second,
+     history_contracts, history_trades, matched_seconds, symbol, tape_contracts, tape_trades,
+     to_second)
+   VALUES (now(), 1, 'PROBE', '2000-01-03 00:00:00+00', 0, 0, 1, 'ES', 0, 0,
+     '2000-01-03 00:00:00+00');
+   SELECT count(*) FROM flow_tape_audits WHERE from_second = '2000-01-03 00:00:00+00';
+   DELETE FROM flow_tape_audits WHERE from_second = '2000-01-03 00:00:00+00';
+   DELETE FROM flow_tape_gaps WHERE start_time = '2000-01-03 00:05:00+00';
+   SELECT count(*) FROM flow_tape_audits WHERE from_second = '2000-01-03 00:00:00+00';
+   ROLLBACK;
+   ```
+
+3. Deploy the app with `infra/quantvps/restart-when-idle.sh`. It restarts `vertex-web` only.
+4. Checks with a live tape (after the first collector runs of a session):
+   - The journal: `journalctl -u vertex-flow.service -n 60 --no-pager`. ES and NQ tape messages
+     hold `history check N of M s match` in their turns, and never `tape gap not stored`,
+     `catch-up failed` or `history check failed`.
+   - The newest checks: `select symbol, count(*), sum(matched_seconds), sum(compared_seconds) from
+     flow_tape_audits where checked_at > now() - interval '1 hour' group by 1`.
+   - The gaps: `select * from flow_tape_gaps`. A row older than one day must not stay.
+   - `/flow` shows the line "IBKR history check: …" under the coverage sentence of the deep
+     trades block (headless Chrome and the viewer account).
+5. Rollback: deploy the previous app; it runs on the migrated database and ignores both tables.
+   `packages/db/rollback/0101_flow_tape_audit_catchup.down.sql` drops the stored checks; it runs
+   only on an owner decision, after `systemctl stop vertex-flow.timer`.
 
 ### Liquidity heatmap (service 1.7.0, migration 0094)
 

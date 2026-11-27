@@ -274,6 +274,13 @@ const collect = api.flow.collect
         repository,
         tape: (instrument, since) =>
           fetchMarketTape(history, { since, symbol: instrument.symbol }),
+        tapeHistory: (instrument) =>
+          fetchMarketTicks(history, {
+            ...instrumentInput(instrument),
+            count: FLOW_TICKS_COUNT,
+            quotes: false,
+            useRTH: false,
+          }),
         ticks: (instrument) =>
           fetchMarketTicks(history, {
             ...instrumentInput(instrument),
@@ -703,6 +710,22 @@ const readSessionEvent = async (
   }
 };
 
+/**
+ * The checks of the future's streamed tape against IBKR history over the futures session; a
+ * failed read (for example before migration 0101) never fails the document.
+ */
+const readTapeAudits = async (
+  flow: FlowRepository,
+  symbol: "ES" | "NQ",
+  range: Readonly<{ from: Date; to: Date }>
+): Promise<FlowControlRows["tapeAudits"]> => {
+  try {
+    return await flow.readTapeAudits({ ...range, symbol });
+  } catch {
+    return null;
+  }
+};
+
 type FlowControlRepositories = Readonly<{
   flow: FlowRepository;
   researchStudies: ResearchStudyRepository | undefined;
@@ -768,6 +791,11 @@ const readFlowControlRows = async (
     sessionEvent: await readSessionEvent(openbb, sessionDate),
     study: await readFlowStudy(researchStudies),
     tape: window.minutes,
+    tapeAudits: await readTapeAudits(
+      flow,
+      group.future as "ES" | "NQ",
+      futures
+    ),
     tapeEvents: window.events,
   };
 };
