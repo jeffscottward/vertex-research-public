@@ -399,8 +399,8 @@ const tapeSpeed = api.flow.tapeSpeed
 
 /**
  * Reads the option prints of the newest stored options session of one symbol: the session of the
- * newest print (a weekend or a pre-open print maps to the weekday before), its prints from 09:30
- * to 16:15 New York up to the read cap plus one (so the assembly can see a cut), the open gaps of
+ * newest print (a weekend, holiday or pre-open print maps to the NYSE trading day before), its
+ * prints from 09:30 to 16:15 New York (13:15 on an NYSE early close) up to the read cap plus one (so the assembly can see a cut), the open gaps of
  * the collector and the options sample.
  */
 const readFlowHedgingPressureRows = async (

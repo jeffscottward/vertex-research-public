@@ -67,7 +67,7 @@ const unreadOf = (
 
 /**
  * flow-put-call-ratio.v1 of one symbol. Without a session: no points, no days and zero totals.
- * With a session: minutes inside [09:30, 16:15) ET fold into running ratios, and daily rows
+ * With a session: minutes inside [09:30, 16:15) ET (13:15 on an NYSE early close) fold into running ratios, and daily rows
  * (bounded to the newest FLOW_PUT_CALL_RATIO_MAX_DAYS) fold with per-session gap flags.
  */
 export const buildFlowPutCallRatio = (

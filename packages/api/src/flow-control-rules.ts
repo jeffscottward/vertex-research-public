@@ -422,6 +422,8 @@ export type FlowSideFacts = Readonly<{
   newestBucketEt: string | null;
   staleMinutes: number;
   sessionDate: string;
+  /** Close of that session as "HH:MM ET" (16:15 ET, 13:15 ET after an NYSE early close). */
+  sessionEndEt: string;
   closeState: FlowControlState | null;
 }>;
 
@@ -438,7 +440,7 @@ const sideWord = (state: FlowControlState): string =>
   state === "sellers" ? "bearish" : "bullish";
 
 const closedDetail = (facts: FlowSideFacts): string => {
-  const head = `Last session ended 16:15 ET on ${facts.sessionDate}; at the close the ${facts.instrument} options side`;
+  const head = `Last session ended ${facts.sessionEndEt} on ${facts.sessionDate}; at the close the ${facts.instrument} options side`;
   switch (facts.closeState) {
     case null:
       return "No net drift session is stored yet";
