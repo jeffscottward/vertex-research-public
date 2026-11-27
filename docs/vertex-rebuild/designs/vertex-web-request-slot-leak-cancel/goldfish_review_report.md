@@ -10,7 +10,7 @@
 
 ## Prioritized findings and suggestions
 
-Findings are grouped where several reviewers raised the same issue. Reviewer keys refer to the files in [review/](review/).
+Findings are grouped where several reviewers raised the same issue. Reviewer keys name the stage reports (for example `Design7` = Stage 7 design critic), kept in the job's private evidence folder.
 
 ### [Issue 1] Fix D used an idle-under-pressure reclaim, a URL-prefix order exemption and a cross-request socket destroy — Blocker
 

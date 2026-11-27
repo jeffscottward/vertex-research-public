@@ -4,7 +4,7 @@
 
 - **Target:** `docs/vertex-rebuild/designs/vertex-web-request-slot-leak-cancel/plan.md` (first draft, 125 lines; FeatureRange 1-109, DetailedRange 110-125)
 - **Mode:** Consolidated report with all review rubrics (uninterrupted full flow), chosen by the job under the owner's standing rule of 2026-11-15/2026-11-18.
-- **Reviewers (fresh context, all completed):** Stage 5 `egm-zoom-out` + `egm-inventive-catalyst`; Stage 6 `egm-comprehension`; Stage 7 `egm-design` + `egm-structural` + `egm-style`; Stage 8 `egm-zoom-out`; Stage 9 `egm-implementation-readiness` + `egm-codebase-details` + `egm-style`. Full reports: [review/](review/).
+- **Reviewers (fresh context, all completed):** Stage 5 `egm-zoom-out` + `egm-inventive-catalyst`; Stage 6 `egm-comprehension`; Stage 7 `egm-design` + `egm-structural` + `egm-style`; Stage 8 `egm-zoom-out`; Stage 9 `egm-implementation-readiness` + `egm-codebase-details` + `egm-style`. Full reports are kept in the job's private evidence folder (outside the repository).
 - **Resolution:** `egm-resolve` with Auto accept (owner rule 2026-11-13). Dispositions: [goldfish_review_report.md](goldfish_review_report.md).
 
 ## Priority list (deduplicated)
