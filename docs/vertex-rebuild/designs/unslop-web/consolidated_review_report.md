@@ -70,7 +70,7 @@
 | F17 | | 18 | Design N1 | Readiness M11, Codebase M8 | Fixed: Test Plan, step 7 |
 | F18 | Zoom Out 7, Catalyst 4 | | Design M6 | Readiness M12, Codebase M11 | Fixed in part; contested in part |
 | F19 | Catalyst 3 | 15 | Design N3 | Codebase M9 | Contested in part: D2, Alternative 6 |
-| F20 | Zoom Out 8 | | Design M5 | | Fixed: D9, Alternative 12 |
+| F20 | Zoom Out 8 | | Design M5 | | Fixed: D9, Alternative 14 |
 | F21 | Catalyst 7, Zoom Out 8 | | | Readiness B3, Codebase B4 | Fixed: D11 |
 | F22 | Zoom Out 10 | 15 | Design N4 | Readiness M5, Codebase M5 | Fixed: D6 |
 | F23 | Zoom Out 9 | 12 to 14 | Style N1 to N16, Structural N1 to N7 | Style-9 17 to 20 | Fixed, except section order |

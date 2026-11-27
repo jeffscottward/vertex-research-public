@@ -21,7 +21,7 @@ The cause was read from the server code and is now in "The Problem": the gateway
 
 ### F4 (Blocker): `PROPOSE FIX` (applied)
 
-"Target Files to Modify" now lists the files with a behavior or text change for each part, with the change in each, including the files the reviewers found (`reset-password-entry.tsx`, the smoke fixtures, the contact form, the Flow panel files, `panel.test.ts` through the Test Plan). The list of every touched test file is the pull request diff.
+"Target Files to Modify" now lists the files with a behavior or text change for each part, with the change in each, including the files the reviewers found (`reset-password-entry.tsx`, the smoke fixtures, the contact form, the Flow panel files). The failing assertion in `packages/ui/src/panel.test.ts` is updated in the code. The list of every touched test file is the pull request diff.
 
 ### F5 (Blocker): `PROPOSE FIX` (applied)
 
@@ -77,7 +77,7 @@ New section "Test Plan" with named cases. Verification step 7 defines each selec
 
 ### F18 (Major): `PROPOSE FIX` (commit order, partial rollback), `CONTEST` (more than one pull request)
 
-Applied: the commit order with part 5 first, the dependency of part 4 on part 2, and a revert of one part in Rollback. Contested: two or three pull requests. Each push costs one pre-push gate of about 25 minutes and one serialized merge of the base; Alternatives 1 and 2 record the reason.
+Applied at first: a commit order with part 5 first and a revert of one part in Rollback. Stage 8 (S8-1) showed that the parts share files and types, so the final plan has commits by file group as review units and a revert of the whole merge. Contested: two or three pull requests. Each push costs one pre-push gate of about 25 minutes and one serialized merge of the base; Alternatives 1 and 2 record the reason.
 
 ### F19 (Major): `PROPOSE FIX` (definition, insertion point), `CONTEST` (pinned line)
 
@@ -85,7 +85,7 @@ Applied: D2 names the element, its place (last element of the page content colum
 
 ### F20 (Major): `PROPOSE FIX` (applied)
 
-D9 and Alternative 12 say which page serves an unknown URL and which serves `notFound()` calls.
+D9 and Alternative 14 say which page serves an unknown URL and which serves `notFound()` calls.
 
 ### F21 (Nit): `PROPOSE FIX` (applied)
 
@@ -107,3 +107,14 @@ The stage 8 reviewer read the plan after the resolutions above. Each of its 12 f
 - **S8-4 (Major): `PROPOSE FIX` (applied), `CONTEST` (reuse of the navigation manifest).** Evidence for the contest: the test found the 4 routes from the route folders alone and passes; a page outside the manifest would be invisible to a manifest-based test.
 - **S8-6 to S8-11 (Nit): `PROPOSE FIX` (applied).**
 - **S8-12 (Nit): `CONTEST`.** The decisions keep the mechanism that stages 7 and 9 asked for.
+
+## Code review and drift report (flow steps 5 and 6)
+
+Three fresh-context reviewers read the full diff at `3f39f927a`, and a fourth agent ran the drift report of the plan against the same head. Result: 0 Blocker, 2 Major, 15 Nit, and 18 differences between the plan and the code. All are resolved in the last commit of the branch.
+
+- **Major, notice test:** a new file that calls an order or approval procedure could get the notice without a failing test. Fixed: the test now scans every source file for these calls and for the approval export of the shared client file, walks layouts and other route files, and fails on an import that does not resolve.
+- **Major, not-found:** the app-root page put a second main landmark inside the portal shell for portal routes that call `notFound()`. Fixed: a portal not-found page without a main landmark.
+- **Portfolio warning:** the warning about a portfolio source that does not respond had lost its box on a page with an order screen. Fixed: the box is back; the `plain` option of the read notice is removed.
+- **Other fixes:** no Retry for the not-configured kind in the module failure panel; the file label on Pick lists keeps its size; Academy tags have separators; metric values that are names print as stored; metric pairs keep two keys with the same label; Mission control prints the task kind as words; the Flow freshness rows are plain text; tighter title assertions in the sign-in page tests.
+- **Answered with a reason:** 4 Flow badges keep their shape (goal 7 of the plan names them and says why). The Baskets subtitle "Tracking only: no orders." stays (Non-Goal 2).
+- **Plan text:** the 14 wording differences of the drift report are corrected in `plan.md`.
