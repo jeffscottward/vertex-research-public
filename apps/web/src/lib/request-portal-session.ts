@@ -16,6 +16,15 @@ export const portalOperatorEmails = (
   ...(parseOperatorEmails(source["VERTEX_AGENT_VIEWER_EMAILS"]) ?? []),
 ];
 
+/**
+ * Read-only agent viewers (`VERTEX_AGENT_VIEWER_EMAILS`): admitted to operator views, never owner
+ * or admin actions. An invalid list fails closed (empty).
+ */
+export const portalAgentViewerEmails = (
+  source: Readonly<Record<string, string | undefined>> = process.env
+): readonly string[] =>
+  parseOperatorEmails(source["VERTEX_AGENT_VIEWER_EMAILS"]) ?? [];
+
 /*
  * vinext calls each layout twice per request: a probe pass and then the render
  * (same cause as server-theme.ts#loadTrustedThemeOncePerRequest). React
@@ -43,6 +52,7 @@ export const getRequestPortalSession = async (
   const pending = checks.get(inputKey);
   if (pending !== undefined) return pending;
   const started = getPortalSession({
+    agentViewerEmails: portalAgentViewerEmails(),
     cookieHeader,
     cfConnectingIp,
     fetch: dispatchInternalAuthRequest,

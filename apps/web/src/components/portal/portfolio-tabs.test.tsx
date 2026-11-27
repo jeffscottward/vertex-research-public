@@ -199,6 +199,7 @@ describe("Portfolio tab", () => {
           <PortfolioTabs
             gateway={{ snapshot: vi.fn(async () => fixtureSnapshot()) }}
             operator
+            owner
             projection={<p>projection-marker</p>}
           />
         );
@@ -328,6 +329,7 @@ describe("Portfolio tab", () => {
             gateway={{ snapshot: vi.fn(async () => fixtureSnapshot()) }}
             operator
             ordersGateway={ordersGateway}
+            owner
             projection={<p>projection-marker</p>}
           />
         );
@@ -370,6 +372,89 @@ describe("Portfolio tab", () => {
       if (previous === undefined) delete testGlobal.IS_REACT_ACT_ENVIRONMENT;
       else testGlobal.IS_REACT_ACT_ENVIRONMENT = previous;
     }
+  });
+
+  it("never calls vertexOrders.status for a non-admin operator and keeps IBKR monitor read-only", async () => {
+    const queue = vi.fn(async () => ({ drafts: [] }));
+    const ordersStatus = vi.fn(async () => {
+      throw new Error("forbidden-orders-status-must-not-run");
+    });
+    runtime.client = {
+      goLiveDrafts: { queue },
+      vertexOrders: { status: ordersStatus },
+    } as unknown as ApiClient;
+    window.localStorage.setItem(PORTFOLIO_VIEW_STORAGE_KEY, '"orders"');
+    await withRoot(async (container, root) => {
+      await act(async () => {
+        root.render(
+          <PortfolioTabs
+            gateway={{ snapshot: vi.fn(async () => fixtureSnapshot()) }}
+            initialTab="orders"
+            operator
+            ordersGateway={
+              { status: ordersStatus } as unknown as VertexOrdersGateway
+            }
+            projection={<p>projection-marker</p>}
+          />
+        );
+      });
+      expect(ordersStatus).not.toHaveBeenCalled();
+      expect(queue).toHaveBeenCalledTimes(1);
+      expect(container.textContent).toContain(
+        "No drafts. IBKR orders: only the owner can read them."
+      );
+      expect(container.textContent).toContain(
+        "Read-only view of IBKR. Orders cannot be placed, changed or cancelled here."
+      );
+      expect(
+        [...container.querySelectorAll('[role="tab"]')].map(
+          (tab) => tab.textContent
+        )
+      ).toEqual([
+        "Positions",
+        "Orders & stops",
+        "P&L",
+        "Allocation",
+        "Options",
+        "Projection",
+      ]);
+      expect(
+        tabNamed(container, "Positions").getAttribute("aria-selected")
+      ).toBe("true");
+    });
+  });
+
+  it("reads vertexOrders.status in DraftsAndOrders and shows order actions for an owner", async () => {
+    const queue = vi.fn(async () => ({ drafts: [] }));
+    const ordersStatus = vi.fn(async () => ({
+      gates: { killSwitch: false, mode: "live", ordersEnabled: true },
+      netLiquidation: 100_000,
+      openOrders: [],
+    }));
+    runtime.client = {
+      goLiveDrafts: { queue },
+      vertexOrders: { status: ordersStatus },
+    } as unknown as ApiClient;
+    await withRoot(async (container, root) => {
+      await act(async () => {
+        root.render(
+          <PortfolioTabs
+            gateway={{ snapshot: vi.fn(async () => fixtureSnapshot()) }}
+            operator
+            owner
+            projection={<p>projection-marker</p>}
+          />
+        );
+      });
+      expect(queue).toHaveBeenCalledTimes(1);
+      expect(ordersStatus).toHaveBeenCalled();
+      expect(container.textContent).toContain(
+        "No drafts. No working orders at IBKR."
+      );
+      expect(container.textContent).toContain(
+        "Close, Buy and Sell open a confirm dialog."
+      );
+    });
   });
   it("opens the view named in ?tab= and keeps the saved view on a plain load", async () => {
     window.localStorage.setItem(PORTFOLIO_VIEW_STORAGE_KEY, '"allocation"');

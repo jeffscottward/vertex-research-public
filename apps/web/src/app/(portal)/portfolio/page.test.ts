@@ -28,14 +28,18 @@ import PortfolioPage, { metadata } from "./page.tsx";
 describe("PortfolioPage", () => {
   beforeEach(() => mocks.getRequestPortalSession.mockReset());
 
-  it("gives operators the ibkr-monitor tabs from the cached request session", async () => {
-    mocks.getRequestPortalSession.mockResolvedValueOnce({ isOperator: true });
+  it("gives owner operators the ibkr-monitor and owner order tabs from the cached request session", async () => {
+    mocks.getRequestPortalSession.mockResolvedValueOnce({
+      isOperator: true,
+      isOwner: true,
+    });
     const page = await PortfolioPage({
       searchParams: Promise.resolve({ tab: "pnl" }),
     });
     expect(metadata).toEqual({ title: "Portfolio" });
     expect(page.type).toBe("portfolio-tabs");
     expect(page.props.operator).toBe(true);
+    expect(page.props.owner).toBe(true);
     expect(page.props.initialTab).toBe("pnl");
     expect(
       isValidElement(page.props.projection) &&
@@ -47,7 +51,19 @@ describe("PortfolioPage", () => {
     );
   });
 
-  return it.each([[{ isOperator: false }], [null]])(
+  it("gives non-admin operators the read-only monitor without owner order access", async () => {
+    mocks.getRequestPortalSession.mockResolvedValueOnce({
+      isOperator: true,
+      isOwner: false,
+    });
+    const page = await PortfolioPage({
+      searchParams: Promise.resolve({ tab: "positions" }),
+    });
+    expect(page.props.operator).toBe(true);
+    return expect(page.props.owner).toBe(false);
+  });
+
+  return it.each([[{ isOperator: false, isOwner: false }], [null]])(
     "gives a non-operator (or no session) the projection only: %o",
     async (session) => {
       mocks.getRequestPortalSession.mockResolvedValueOnce(session);
@@ -55,7 +71,8 @@ describe("PortfolioPage", () => {
         searchParams: Promise.resolve({ tab: ["pnl", "orders"] }),
       });
       expect(page.props.initialTab).toBeUndefined();
-      return expect(page.props.operator).toBe(false);
+      expect(page.props.operator).toBe(false);
+      return expect(page.props.owner).toBe(false);
     }
   );
 });

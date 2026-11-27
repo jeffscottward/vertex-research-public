@@ -16,6 +16,7 @@ vi.mock("./server-session.ts", () => ({
 
 import {
   getRequestPortalSession,
+  portalAgentViewerEmails,
   portalOperatorEmails,
 } from "./request-portal-session.ts";
 
@@ -101,6 +102,7 @@ describe("getRequestPortalSession", () => {
         getRequestPortalSession(cookieHeader, cfConnectingIp)
       ).resolves.toBeNull();
       return expect(mocks.getPortalSession).toHaveBeenCalledWith({
+        agentViewerEmails: [],
         cookieHeader,
         cfConnectingIp,
         fetch: mocks.dispatchInternalAuthRequest,
@@ -129,5 +131,15 @@ describe("portalOperatorEmails", () =>
     expect(
       portalOperatorEmails({ VERTEX_AGENT_VIEWER_EMAILS: "not-an-email" })
     ).toEqual([]);
-    return expect(portalOperatorEmails()).toEqual(expect.any(Array));
+    expect(portalOperatorEmails()).toEqual(expect.any(Array));
+    expect(
+      portalAgentViewerEmails({
+        VERTEX_AGENT_VIEWER_EMAILS: " Viewer@Example.test ",
+      })
+    ).toEqual(["viewer@example.test"]);
+    expect(portalAgentViewerEmails({})).toEqual([]);
+    expect(
+      portalAgentViewerEmails({ VERTEX_AGENT_VIEWER_EMAILS: "not-an-email" })
+    ).toEqual([]);
+    return expect(portalAgentViewerEmails()).toEqual(expect.any(Array));
   }));
