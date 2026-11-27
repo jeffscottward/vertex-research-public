@@ -1204,7 +1204,7 @@ describe("database client factories", () => {
       );
     });
 
-    it("names an unknown route and keeps admitting when the reclaim report throws", async () => {
+    it("names a request without a route and keeps admitting when the reclaim report throws", async () => {
       const resources = await withoutOwnTimers(async () => [
         await createRequestDatabase({
           connectionString: CONNECTION_STRING,
@@ -1234,7 +1234,7 @@ describe("database client factories", () => {
       expect(diagnosticSink).toHaveBeenCalledWith({
         ageSeconds: REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS / 1000,
         code: "REQUEST_DATABASE_SLOT_RECLAIMED",
-        route: "unknown",
+        route: "route-not-given",
       });
       expect(diagnosticSink).toHaveBeenCalledWith(
         expect.objectContaining({ route: "/named" })

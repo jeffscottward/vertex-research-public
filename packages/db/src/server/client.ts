@@ -137,8 +137,8 @@ const DEFAULT_REQUEST_CONNECTION_TIMEOUT_MILLISECONDS = 10_000;
 const REQUEST_QUERY_TIMEOUT_MILLISECONDS = 10_000;
 export const REQUEST_DATABASE_CLOSE_TIMEOUT_MILLISECONDS = 5000;
 const UNSAFE_REQUEST_CONNECTION_STRING_PATTERN = /[\u0000-\u001f]|\u0020$/u;
-// Reported for a request that names no route.
-const UNKNOWN_REQUEST_ROUTE = "unknown";
+// Reported for a request that names no route (the operator app, direct callers).
+const ROUTE_NOT_GIVEN = "route-not-given";
 
 export type RequestDatabaseDiagnostic =
   | Readonly<{
@@ -302,7 +302,7 @@ export const createRequestDatabase = async (
         code: "REQUEST_DATABASE_SLOT_RECLAIMED",
         route,
       }),
-    route: options.route ?? UNKNOWN_REQUEST_ROUTE,
+    route: options.route ?? ROUTE_NOT_GIVEN,
   });
   if (lease === null) {
     throw new RequestDatabaseCapacityError();
