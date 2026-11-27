@@ -1,5 +1,9 @@
 # Consolidated review report: stopping-premium backtests method
 
+![EGM review findings and what was done](findings.png)
+
+![Data flow of the study](data-flow.png)
+
 Mode: "Consolidated report with all review rubrics" (standing owner choice 2026-11-15). Target:
 `research/backtests/stoploss-premium/design.md`. Stages and files:
 

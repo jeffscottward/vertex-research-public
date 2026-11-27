@@ -1,5 +1,9 @@
 # Stopping-premium backtests of our exit rules (tests A-H): method
 
+![Data flow of the study](review/data-flow.png)
+
+![EGM review findings and what was done](review/findings.png)
+
 Card: `stoploss-stopping-premium-backtests`. Research only. This document describes the method implemented in
 `services/research/strategies/stoploss_premium/` and `research/backtests/stoploss-premium/run.py`. It went through
 the 🐘🐟 EGM consolidated review (stage reports and the resolution in `review/`, summary in

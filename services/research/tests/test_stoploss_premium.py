@@ -414,8 +414,11 @@ class TestBooks:
 
     def test_rotation_selector_ranks_relative_strength(self):
         names, al = self._al()
-        pick = books.rotation_selector(hold=1)(al, 300)
-        assert list(pick) == ["XLK"]
+        select = books.rotation_selector(hold=1)
+        assert list(select(al, 300)) == ["XLK"]
+        names2 = {"SPY": names["SPY"], "XLK": names["SPY"]}  # a second book: the cache is rebuilt for it
+        al2 = books.align(names2, al.calendar)
+        assert select(al2, 300) and select(al, 300) == books.rotation_selector(hold=1)(al, 300)
 
     def test_ten_month_rule_exits_a_falling_etf(self):
         names, _ = self._al()
@@ -452,6 +455,7 @@ def test_comparison_rows_cannot_pass_adds_return():
     s = {"stopEvents": 200, "premium": 0.01, "interval": [0.001, 0.02], "halves": [0.01, 0.01],
          "mddWith": -0.2, "mddWithout": -0.2}
     assert premium.verdict(s, None) == premium.INCONCLUSIVE
+    assert premium.verdict(s, []) == premium.INCONCLUSIVE
     assert premium.verdict(s, [0.01, 0.02]) == premium.ADDS_RETURN
 
 

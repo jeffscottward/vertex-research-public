@@ -206,11 +206,11 @@ def drawdown_cut(s: dict) -> float:
 
 def verdict(s: dict, threshold_premiums: Sequence[float] | None) -> str:
     """Apply the fixed tests to one summary and the premiums of the -25% / +25% threshold variants.
-    None = the variant has no threshold check (a comparison row): it can never pass "adds return"."""
+    None or an empty list = no threshold check (a comparison row): it can never pass "adds return"."""
     if s["stopEvents"] < MIN_STOP_EVENTS:
         return NOT_ENOUGH
     dmu, (lo, hi) = s["premium"], s["interval"]
-    robust = threshold_premiums is not None and all(t > 0 for t in threshold_premiums)
+    robust = bool(threshold_premiums) and all(t > 0 for t in threshold_premiums or [])
     if dmu > 0 and lo > 0 and all(h > 0 for h in s["halves"]) and robust:
         return ADDS_RETURN
     cut = drawdown_cut(s)

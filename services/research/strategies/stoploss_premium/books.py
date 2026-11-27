@@ -93,9 +93,12 @@ def _rank(values: dict[str, float]) -> dict[str, float]:
 
 def rotation_selector(benchmark: str = "SPY", hold: int = ROTATION_HOLD) -> Selector:
     ma200: dict[str, list[float | None]] = {}
+    built_for: list[int] = []  # id of the Aligned the cache was built from
 
     def select(al: Aligned, k: int) -> dict[str, tuple[float, float]]:
-        if not ma200:
+        if built_for != [id(al)]:
+            ma200.clear()
+            built_for[:] = [id(al)]
             for sym, c in al.close.items():
                 filled = [x if x is not None else 0.0 for x in c]
                 m = rolling_mean(filled, 200)
