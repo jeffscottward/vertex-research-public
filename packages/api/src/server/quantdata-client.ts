@@ -1,6 +1,12 @@
 // Read-only QuantData HTTP client (port of Gamma Forge QuantDataProvider).
 // - POST JSON with a bearer key; the key and URL never appear in messages.
-// - One request start per `minIntervalMs` (default 1 s) per client, serialized.
+// - One request start per `minIntervalMs` (default 1 s) per client, one step at a time. The turn is
+//   a lease, not a promise chain (as `vertex-orders.ts#onePlacementAtATime`): in workerd a step
+//   belongs to the request that runs it, and when that request's context ends the step can stay
+//   pending for good and its own timeout timer never fires. A waiter therefore bounds its wait with
+//   its own timer and takes the turn when the running step is older than `stepDeadlineMs`
+//   (`minIntervalMs + timeoutMs + 2 s`). A slow live step past that can overlap the next one; the
+//   per-minute budget still counts every start.
 // - At most `maxRequestsPerMinute` (default 54) request starts in any 60 s window. Measured over
 //   10 trading days (2026-11-10 to 2026-11-23): market-watch-gex peaks at 122 req / 60 s at the
 //   open, leaving 240 - 122 - 60 (25% margin) = 58 req / 60 s; cap 54 keeps 64 req / 60 s (26.7%)
@@ -28,11 +34,13 @@
 //   so repeated ticks and UI loads fail fast instead of hammering QuantData with a rejected key,
 //   while keeping `cooldownSeconds()` dedicated to rate-limit waits.
 // - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`. A read
-//   checks the cache when it is called and again when it reaches the head of the queue, so two
+//   checks the cache when it is called and again when it gets its turn, so two
 //   identical reads that overlap make one request start: the second gets the answer of the first
 //   (a failure is not cached, so a failed first read does not feed the second). `ttlMs` 0 never
 //   gives a cache hit.
 // - Timeout, 2 MiB body cap, redirects never followed.
+
+import { waitAtMost } from "./bounded-wait.ts";
 
 const QUANTDATA_DEFAULT_BASE_URL = "https://api.quantdata.us";
 export const QUANTDATA_ENDPOINTS = {
@@ -54,6 +62,8 @@ const WINDOW_MS = WINDOW_S * 1000;
 export const DEFAULT_MAX_PER_MINUTE = 54;
 const DEFAULT_QUOTA_RESERVE = 60;
 const WHOLE_NUMBER = /^\d+$/u;
+// Added to `minIntervalMs + timeoutMs` (the longest a live step takes) before a waiter takes the turn.
+const STEP_DEADLINE_MARGIN_MS = 2000;
 
 export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;
 
@@ -206,7 +216,35 @@ export const createQuantDataClient = (
   const starts: number[] = [];
   let lastStart: number | null = null;
   let lastRemaining: number | null = null;
-  let queue: Promise<unknown> = Promise.resolve();
+  // The running step: when it started and a promise that settles when it ends (see the header).
+  let running: Readonly<{ startedAt: number; done: Promise<void> }> | null =
+    null;
+  const stepDeadlineMs = minInterval + timeoutMs + STEP_DEADLINE_MARGIN_MS;
+
+  // Waits until no step runs, or the running one is older than `stepDeadlineMs`, then takes the
+  // turn. Wall time (`Date.now`) and the global timer, not the injected `now`/`sleep`: an
+  // injected clock that jumps must not hand the turn to a second step early. Returns the release.
+  const takeTurn = async (): Promise<() => void> => {
+    for (;;) {
+      const current = running;
+      if (current === null) break;
+      const left = current.startedAt + stepDeadlineMs - Date.now();
+      if (left <= 0) break;
+      await waitAtMost(current.done, left);
+    }
+    // Executor form: the ES2023 lib has no Promise.withResolvers.
+    let finish!: () => void;
+    const done = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const turn = Object.freeze({ done, startedAt: Date.now() });
+    running = turn;
+    return () => {
+      // A step that ends after a waiter took over must not end the newer turn.
+      if (running === turn) running = null;
+      finish();
+    };
+  };
 
   const cooldownSeconds = (): number =>
     Math.max(0, (Math.max(cooldownUntil, yieldUntil) - now()) / 1000);
@@ -450,20 +488,20 @@ export const createQuantDataClient = (
     const held = blocked(endpoint);
     if (held !== null) return held;
     const kept = Math.min(Math.max(0, keepFree), maxPerMinute - 1);
-    // At the head of the queue, check the cache again: an identical read queued ahead of this
-    // one may have filled it while this one waited. Its entry keeps its expiry time. The queued
-    // step fills the cache itself, so the next queued read sees the answer.
-    const run = queue.then(async () => {
+    const release = await takeTurn();
+    try {
+      // With the turn, check the cache again: an identical read ahead of this one may have
+      // filled it while this one waited. Its entry keeps its expiry time. Each step fills the
+      // cache itself, so the next read sees the answer.
       const filled = cached(key);
       if (filled !== null) return filled;
       const result = await send(endpoint, payload, kept);
       if (result.ok) store(key, result.body, ttlMs);
       return result;
-    });
-    // Keep the queue alive even if the queued step throws unexpectedly (for example an injected
-    // clock).
-    queue = run.catch(() => undefined);
-    return await run;
+    } finally {
+      // Also when the step throws unexpectedly (for example an injected clock).
+      release();
+    }
   };
 
   return Object.freeze({ cooldownSeconds, freeStarts, request });

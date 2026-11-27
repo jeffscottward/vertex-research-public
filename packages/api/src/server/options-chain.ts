@@ -13,6 +13,7 @@ import {
 } from "../options-chain-merge.ts";
 import { computeOptionsExpectedMove } from "../options-expected-move.ts";
 import { STRATEGY_IV_INDEX } from "../strategy-dsl.ts";
+import { waitAtMost } from "./bounded-wait.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { quantDataClientFor } from "./options-analytics.ts";
@@ -39,6 +40,9 @@ import { buildOptionsSpread, type StoredCloses } from "./options-spread.ts";
 // ask). Operator-only. Nothing here can place, change or cancel orders.
 
 const CACHE_TTL_MS = 60_000;
+// The longest a request waits for a chain read that another request started: above the slowest
+// live read (Yahoo session 22 s + options fetch 10 s, QuantData two steps of up to 13 s each).
+const SHARED_READ_WAIT_MS = 45_000;
 const CACHE_MAX_ENTRIES = 200;
 
 type Failed = Readonly<{
@@ -261,6 +265,23 @@ const load = async (
   };
 };
 
+// A cached read can still run for the request that started it. In workerd it can stay pending
+// for good when that request's context ends (bounded-wait.ts), so another request waits for it
+// at most SHARED_READ_WAIT_MS, then drops the entry and fails with UNAVAILABLE: its request ends
+// (and frees its database slot), and the next read starts fresh.
+const waitForShared = async (
+  key: string,
+  entry: CacheEntry
+): Promise<ChainRead> => {
+  const waited = await waitAtMost(entry.value, SHARED_READ_WAIT_MS);
+  if (!waited.timedOut) return waited.value;
+  if (cache.get(key) === entry) cache.delete(key);
+  throw new OptionsChainSourceError(
+    "UNAVAILABLE",
+    "Options chain read did not finish in time; retry"
+  );
+};
+
 const readChain = (
   context: ApiContext,
   symbol: string,
@@ -277,7 +298,7 @@ const readChain = (
   ].join("|");
   const hit = cache.get(key);
   if (hit !== undefined && now.getTime() - hit.at < CACHE_TTL_MS)
-    return hit.value;
+    return waitForShared(key, hit);
   const value = load(context, symbol, expiry, now);
   cache.delete(key);
   cache.set(key, { at: now.getTime(), value });

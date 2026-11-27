@@ -932,6 +932,49 @@ describe("quantdata client", () => {
     ]);
     return expect(client.freeStarts()).toBe(54 - 5);
   });
+
+  it("lets later requests run when a step never settles (its request context ended)", async () => {
+    // In workerd a step whose request context ended stays pending, and its own 10 s abort timer
+    // never fires. The fetch below ignores its abort signal to model that step.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let finishStuck: (response: Response) => void = () => undefined;
+      const doFetch = vi
+        .fn<QuantDataFetch>()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishStuck = resolve;
+            })
+        )
+        .mockImplementation(async () => json({ data: 2 }));
+      const client = createQuantDataClient(config, {
+        fetch: doFetch,
+        minIntervalMs: 0,
+      });
+      void client.request("orderFlow", { stuck: 1 }, 1000);
+      const later = client.request("orderFlow", { later: 1 }, 1000);
+      let settled = false;
+      void later.then(() => {
+        settled = true;
+      });
+      // The step deadline: minIntervalMs 0 + timeoutMs 10 000 + 2000 margin.
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(settled).toBe(false);
+      expect(doFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(later).resolves.toMatchObject({ data: 2, ok: true });
+      // A newer step runs; the stuck step ends late and must not end the newer turn.
+      const newer = client.request("orderFlow", { next: 1 }, 1000);
+      const behind = client.request("orderFlow", { behind: 1 }, 1000);
+      finishStuck(json({ data: 1 }));
+      await expect(newer).resolves.toMatchObject({ data: 2, ok: true });
+      await expect(behind).resolves.toMatchObject({ data: 2, ok: true });
+      return expect(doFetch).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("options analytics engine", () => {

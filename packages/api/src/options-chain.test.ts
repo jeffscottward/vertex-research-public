@@ -265,6 +265,53 @@ describe("createYahooOptionsSource", () => {
     });
   });
 
+  it("starts one new session when a shared session start never settles", async () => {
+    // A session start of a request whose workerd context ended stays pending, and its own
+    // abort timers never fire. The first cookie fetch below ignores its signal to model it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let cookieCalls = 0;
+      let failStuck: (error: Error) => void = () => undefined;
+      const doFetch = vi.fn<YahooFetch>(async (url) => {
+        if (url.startsWith("https://fc.yahoo.com")) {
+          cookieCalls += 1;
+          return cookieCalls === 1
+            ? await new Promise<Response>((_resolve, reject) => {
+                failStuck = reject;
+              })
+            : sessionResponse();
+        }
+        if (url.includes("/getcrumb"))
+          return new Response("dummyCrumb2", { status: 200 });
+        return json(fixture);
+      });
+      const source = createYahooOptionsSource({ fetch: doFetch });
+      const reads = [source.read("DEMO"), source.read("DEMO")];
+      let settled = false;
+      void Promise.all(reads).then(() => {
+        settled = true;
+      });
+      // Two fetch timeouts (10 s each) plus the 2 s margin.
+      await vi.advanceTimersByTimeAsync(21_999);
+      expect(settled).toBe(false);
+      expect(cookieCalls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(Promise.all(reads)).resolves.toMatchObject([
+        { symbol: "DEMO" },
+        { symbol: "DEMO" },
+      ]);
+      // Both reads timed out together, and only one started a new session.
+      expect(cookieCalls).toBe(2);
+      // A late failure of the replaced start keeps the new session.
+      failStuck(new TypeError("socket closed"));
+      await vi.advanceTimersByTimeAsync(0);
+      await source.read("DEMO");
+      return expect(cookieCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses global fetch by default", async () => {
     const spy = vi
       .spyOn(globalThis, "fetch")
@@ -612,6 +659,59 @@ describe("optionsChain procedures", () => {
       "UNAVAILABLE"
     );
     expect(spy).toHaveBeenCalled();
+  });
+
+  it("stops waiting for another request's chain read that never settles", async () => {
+    // The first read models a read whose workerd request context ended: it stays pending.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let calls = 0;
+      const source = yahooFake(async () => {
+        calls += 1;
+        return calls === 1
+          ? await new Promise<OptionsChainSnapshot>(() => undefined)
+          : snapshot;
+      });
+      setOptionsChainForTesting({ now: () => NOW, yahoo: source });
+      const api = operator();
+      void api.optionsChain.chain({ symbol: "DEMO" });
+      await vi.advanceTimersByTimeAsync(0);
+      const waiting = api.optionsChain.chain({ symbol: "DEMO" });
+      const outcome = waiting.then(
+        () => "answered",
+        (error: unknown) => error
+      );
+      await vi.advanceTimersByTimeAsync(1);
+      const second = api.optionsChain.chain({ symbol: "DEMO" });
+      const secondOutcome = second.then(
+        () => "answered",
+        (error: unknown) => error
+      );
+      await vi.advanceTimersByTimeAsync(44_998);
+      let settled = false;
+      void outcome.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(outcome).resolves.toMatchObject({
+        code: "UNAVAILABLE",
+        message: "Options chain read did not finish in time; retry",
+      });
+      // A second waiter on the same read finds the entry already dropped.
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(secondOutcome).resolves.toMatchObject({
+        code: "UNAVAILABLE",
+      });
+      // The next read starts fresh.
+      await expect(
+        api.optionsChain.chain({ symbol: "DEMO" })
+      ).resolves.toMatchObject({ expiry: "2026-11-06" });
+      return expect(source.read).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

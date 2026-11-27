@@ -30,6 +30,7 @@ import {
   type InstantRunResult,
   runInstantBacktest,
 } from "../instant-backtest-engine.ts";
+import { waitAtMost } from "./bounded-wait.ts";
 import type { ApiContext } from "./context.ts";
 import { comparisonQueueFor } from "./engine-comparison.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -40,6 +41,9 @@ import { requireOperator } from "./operator-access.ts";
 // Bounded by series count and by bytes (5 Float64 columns per bar). A load in flight is shared, so
 // concurrent misses for one series read the bars once.
 const CACHE_MAX_SERIES = 4;
+// The longest a request waits for a column load that another request started (one bars query of
+// at most the 10 s request query timeout, plus decoding).
+const SHARED_LOAD_WAIT_MS = 30_000;
 const CACHE_MAX_BYTES = 256 * 1024 * 1024;
 const BYTES_PER_BAR = 6 * Float64Array.BYTES_PER_ELEMENT;
 
@@ -94,7 +98,12 @@ export const columnsFor = async (
   columnCache.delete(series.id);
   if (cached?.version === version) {
     columnCache.set(series.id, cached);
-    return { columns: await cached.columns, hit: true };
+    // The load may run on another request's connection. In workerd it can stay pending for good
+    // when that request's context ends (bounded-wait.ts): wait at most SHARED_LOAD_WAIT_MS, then
+    // drop the entry and load with this request's repository.
+    const waited = await waitAtMost(cached.columns, SHARED_LOAD_WAIT_MS);
+    if (!waited.timedOut) return { columns: waited.value, hit: true };
+    if (columnCache.get(series.id) === cached) columnCache.delete(series.id);
   }
   const entry: CachedColumns = {
     bytes: series.barCount * BYTES_PER_BAR,
