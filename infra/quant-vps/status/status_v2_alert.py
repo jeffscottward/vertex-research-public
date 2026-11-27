@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Alert #omp-alerts when the QuantVPS /vertex-status/v2 tailnet snapshot fails or bypasses auth.
+"""Alert #omp-alerts when QuantVPS /vertex-status/v2 fails, bypasses auth, or serves stale broker blocks.
 
 Run every 2 minutes by ``vertex-status-v2-alert.timer`` on QuantVPS. Read-only probe: never
 starts, stops, reloads, or reconfigures any service or trading unit. Python 3.10+ stdlib only.
@@ -10,12 +10,21 @@ Probes:
   2. Guard GETs without a token and with an invalid bearer token must return HTTP 401 or 403
      whenever the authorized probe did not fail with a transport/timeout error. Any 2xx from
      either guard probe triggers an immediate auth-bypass incident.
+  3. Freshness inspection of the authorized ``status-v2`` payload: checks top-level
+     ``generatedAt`` and the monitored broker blocks (default: ``orders``, ``fills``,
+     ``positions``, ``equity``). Fails closed when any monitored block is missing, reports
+     ``available != True``, reports ``stale != False``, lacks a valid UTC ``as_of``, or
+     exceeds ``--stale-max-age`` seconds (default 360 s) by wall-clock or reported age.
 
-Two independent incident state machines persist atomically in plain-text ``key=value`` form:
+Three independent incident state machines persist atomically in plain-text ``key=value`` form:
   - ``avail_*``: alerts once after ``--threshold`` (default 3) consecutive failed ticks, plus
     one recovery message when healthy again.
   - ``bypass_*``: alerts immediately on tick 1 regardless of ``avail_alert_open``, plus one
     recovery message when both guard probes reject unauthorized callers again.
+  - ``stale_*``: alerts once after ``--stale-threshold`` (default: inherits ``--threshold``, 3)
+    consecutive degraded ticks, plus one recovery message when all monitored blocks and
+    ``generatedAt`` are available and fresh again. Pauses when the authorized probe fails so
+    HTTP outages neither raise spurious stale alerts nor falsely clear an open stale incident.
 """
 
 from __future__ import annotations
@@ -43,6 +52,11 @@ DEFAULT_POST_URL = "http://127.0.0.1:47821/post"
 DEFAULT_CHANNEL = "omp-alerts"
 DEFAULT_TIMEOUT_SECONDS = 8.0
 DEFAULT_FAILURE_THRESHOLD = 3
+DEFAULT_STALE_BLOCKS: tuple[str, ...] = ("orders", "fills", "positions", "equity")
+VALID_STALE_BLOCKS: frozenset[str] = frozenset(DEFAULT_STALE_BLOCKS)
+DEFAULT_STALE_MAX_AGE_SECONDS = 360
+MAX_REASON_CHARS = 120
+MAX_TIMESTAMP_CHARS = 40
 MAX_BODY_BYTES = 262_144
 EXPECTED_SCHEMA = "vertex-deploy-status-v2"
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
@@ -86,6 +100,11 @@ class CheckResult:
     wrong_token_http: int | None
     avail_detail: str
     bypass_detail: str
+    stale_ok: bool = True
+    stale_verified: bool = False
+    stale_blocks: tuple[str, ...] = ()
+    stale_detail: str = "ok"
+    block_ages: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass
@@ -98,12 +117,175 @@ class AlertState:
     bypass_alert_open: bool = False
     bypass_started_at: str = ""
     bypass_reason: str = ""
+    stale_failures: int = 0
+    stale_alert_open: bool = False
+    stale_started_at: str = ""
+    stale_reason: str = ""
+    stale_blocks: str = ""
     last_checked_at: str = ""
     last_ok_at: str = ""
 
 
 def _clean_value(value: str) -> str:
     return value.replace("\r", " ").replace("\n", " ").strip()
+
+
+def _sanitize_text(
+    value: Any,
+    *,
+    max_chars: int = MAX_REASON_CHARS,
+    fallback: str = "no reason given",
+    secret_token: str = "",
+) -> str:
+    if not isinstance(value, str):
+        return fallback
+    cleaned = _clean_value(value)
+    if secret_token and secret_token in cleaned:
+        cleaned = cleaned.replace(secret_token, "[redacted]")
+    if not cleaned:
+        return fallback
+    if len(cleaned) > max_chars:
+        return cleaned[: max_chars - 1].rstrip() + "…"
+    return cleaned
+
+
+def _parse_iso_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    # Python 3.10 datetime.fromisoformat() does not accept trailing "Z".
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        return None
+    return dt.astimezone(UTC)
+
+
+def parse_stale_blocks(raw: str) -> tuple[str, ...]:
+    parts = [p.strip().lower() for p in raw.split(",") if p.strip()]
+    if not parts:
+        raise ValueError("invalid --stale-blocks: require at least one block name")
+    deduped: list[str] = []
+    for name in parts:
+        if name not in VALID_STALE_BLOCKS:
+            allowed = ",".join(DEFAULT_STALE_BLOCKS)
+            raise ValueError(
+                f"invalid --stale-blocks entry {name!r}: expected subset of {allowed}"
+            )
+        if name not in deduped:
+            deduped.append(name)
+    return tuple(deduped)
+
+
+def inspect_stale_blocks(
+    doc: dict[str, Any],
+    now: datetime,
+    blocks: tuple[str, ...] = DEFAULT_STALE_BLOCKS,
+    stale_max_age: int = DEFAULT_STALE_MAX_AGE_SECONDS,
+    secret_token: str = "",
+) -> tuple[bool, tuple[str, ...], str, tuple[tuple[str, int], ...]]:
+    """Inspect top-level generatedAt and monitored status-v2 broker blocks (fail closed)."""
+    degraded: list[str] = []
+    reasons: list[str] = []
+    fresh_ages: list[tuple[str, int]] = []
+
+    gen_raw = doc.get("generatedAt")
+    gen_dt = _parse_iso_utc(gen_raw)
+    if gen_dt is None:
+        degraded.append("snapshot")
+        reasons.append("snapshot: missing/invalid generatedAt")
+    else:
+        gen_age = int((now - gen_dt).total_seconds())
+        if gen_age > stale_max_age:
+            gen_txt = _sanitize_text(
+                gen_raw,
+                max_chars=MAX_TIMESTAMP_CHARS,
+                fallback="unknown",
+                secret_token=secret_token,
+            )
+            degraded.append("snapshot")
+            reasons.append(
+                f"snapshot: stale generatedAt (age={gen_age}s, generatedAt={gen_txt})"
+            )
+
+    for name in blocks:
+        blk = doc.get(name)
+        if not isinstance(blk, dict):
+            degraded.append(name)
+            reasons.append(f"{name}: missing")
+            continue
+
+        if blk.get("available") is not True:
+            reason = _sanitize_text(blk.get("reason"), secret_token=secret_token)
+            degraded.append(name)
+            reasons.append(f"{name}: unavailable ({reason})")
+            continue
+
+        as_of_raw = blk.get("as_of")
+        as_of_dt = _parse_iso_utc(as_of_raw)
+        as_of_txt = _sanitize_text(
+            as_of_raw,
+            max_chars=MAX_TIMESTAMP_CHARS,
+            fallback="null",
+            secret_token=secret_token,
+        )
+        age_raw = blk.get("age_seconds")
+        age_int = (
+            age_raw
+            if isinstance(age_raw, int) and not isinstance(age_raw, bool)
+            else None
+        )
+        wall_age = int((now - as_of_dt).total_seconds()) if as_of_dt is not None else None
+
+        stale_flag = blk.get("stale")
+        if stale_flag is True:
+            degraded.append(name)
+            if age_int is not None and wall_age is not None:
+                reported_age: int | None = max(age_int, wall_age)
+            elif age_int is not None:
+                reported_age = age_int
+            else:
+                reported_age = wall_age
+            age_txt = f"{reported_age}s" if reported_age is not None else "unknown"
+            reasons.append(f"{name}: stale (age={age_txt}, as_of={as_of_txt})")
+            continue
+
+        if stale_flag is not False:
+            degraded.append(name)
+            reasons.append(f"{name}: missing/invalid stale flag")
+            continue
+
+        if as_of_dt is None:
+            degraded.append(name)
+            reasons.append(f"{name}: missing/invalid as_of")
+            continue
+
+        assert wall_age is not None
+        if wall_age > stale_max_age:
+            degraded.append(name)
+            reasons.append(
+                f"{name}: stale by clock (age={wall_age}s, as_of={as_of_txt})"
+            )
+            continue
+
+        if age_int is not None and age_int > stale_max_age:
+            degraded.append(name)
+            reasons.append(
+                f"{name}: stale age_seconds (age={age_int}s, as_of={as_of_txt})"
+            )
+            continue
+
+        fresh_ages.append((name, max(0, wall_age)))
+
+    stale_ok = len(degraded) == 0
+    stale_detail = "; ".join(reasons) if reasons else "ok"
+    return stale_ok, tuple(degraded), stale_detail, tuple(fresh_ages)
 
 
 def _read_env_value(path: Path, key: str) -> str | None:
@@ -192,10 +374,16 @@ def run_probes(
     token: str,
     timeout: float,
     fetcher: Callable[[str, dict[str, str], float], ProbeOutcome] = _http_get,
+    *,
+    now: datetime | None = None,
+    stale_blocks: tuple[str, ...] = DEFAULT_STALE_BLOCKS,
+    stale_max_age: int = DEFAULT_STALE_MAX_AGE_SECONDS,
 ) -> CheckResult:
+    probe_now = now if now is not None else datetime.now(UTC)
     auth = fetcher(url, {"Authorization": f"Bearer {token}"}, timeout)
     avail_ok = False
     avail_detail = "ok"
+    parsed_doc: dict[str, Any] | None = None
 
     if auth.transport_error:
         avail_detail = f"authorized probe failed: {auth.error}"
@@ -209,6 +397,11 @@ def run_probes(
             wrong_token_http=None,
             avail_detail=avail_detail,
             bypass_detail="guard probes skipped after authorized transport error",
+            stale_ok=True,
+            stale_verified=False,
+            stale_blocks=(),
+            stale_detail="stale check skipped (authorized probe failed)",
+            block_ages=(),
         )
 
     if auth.error and auth.http_status is not None and 300 <= auth.http_status < 400:
@@ -242,6 +435,23 @@ def run_probes(
                 )
             else:
                 avail_ok = True
+                parsed_doc = doc
+
+    if parsed_doc is not None:
+        stale_ok, degraded_blocks, stale_detail, block_ages = inspect_stale_blocks(
+            parsed_doc,
+            probe_now,
+            blocks=stale_blocks,
+            stale_max_age=stale_max_age,
+            secret_token=token,
+        )
+        stale_verified = True
+    else:
+        stale_ok = True
+        degraded_blocks = ()
+        stale_detail = "stale check skipped (authorized probe failed)"
+        block_ages = ()
+        stale_verified = False
 
     no_tok = fetcher(url, {}, timeout)
     wrong_tok = fetcher(url, {"Authorization": "Bearer invalid-probe"}, timeout)
@@ -274,8 +484,10 @@ def run_probes(
         no_tok.http_status in (401, 403) and wrong_tok.http_status in (401, 403)
     )
 
+    overall_ok = avail_ok and bypass_ok and (stale_ok if stale_verified else True)
+
     return CheckResult(
-        ok=avail_ok and bypass_ok,
+        ok=overall_ok,
         avail_ok=avail_ok,
         bypass_ok=bypass_ok,
         bypass_verified=bypass_verified,
@@ -284,6 +496,11 @@ def run_probes(
         wrong_token_http=wrong_tok.http_status,
         avail_detail=avail_detail,
         bypass_detail=bypass_detail,
+        stale_ok=stale_ok,
+        stale_verified=stale_verified,
+        stale_blocks=degraded_blocks,
+        stale_detail=stale_detail,
+        block_ages=block_ages,
     )
 
 
@@ -317,6 +534,11 @@ def load_state(path: Path) -> AlertState:
     state.bypass_alert_open = _bool("bypass_alert_open")
     state.bypass_started_at = _clean_value(kv.get("bypass_started_at", ""))
     state.bypass_reason = _clean_value(kv.get("bypass_reason", ""))
+    state.stale_failures = _int("stale_failures")
+    state.stale_alert_open = _bool("stale_alert_open")
+    state.stale_started_at = _clean_value(kv.get("stale_started_at", ""))
+    state.stale_reason = _clean_value(kv.get("stale_reason", ""))
+    state.stale_blocks = _clean_value(kv.get("stale_blocks", ""))
     state.last_checked_at = _clean_value(kv.get("last_checked_at", ""))
     state.last_ok_at = _clean_value(kv.get("last_ok_at", ""))
     return state
@@ -333,6 +555,11 @@ def save_state(path: Path, state: AlertState) -> None:
         f"bypass_alert_open={'true' if state.bypass_alert_open else 'false'}",
         f"bypass_started_at={_clean_value(state.bypass_started_at)}",
         f"bypass_reason={_clean_value(state.bypass_reason)}",
+        f"stale_failures={state.stale_failures}",
+        f"stale_alert_open={'true' if state.stale_alert_open else 'false'}",
+        f"stale_started_at={_clean_value(state.stale_started_at)}",
+        f"stale_reason={_clean_value(state.stale_reason)}",
+        f"stale_blocks={_clean_value(state.stale_blocks)}",
         f"last_checked_at={_clean_value(state.last_checked_at)}",
         f"last_ok_at={_clean_value(state.last_ok_at)}",
     ]
@@ -386,8 +613,11 @@ def step_state(
     now: datetime,
     threshold: int,
     post: Callable[[str], bool],
+    *,
+    stale_threshold: int | None = None,
 ) -> tuple[AlertState, bool, bool]:
     now_iso = now.isoformat().replace("+00:00", "Z")
+    eff_stale_threshold = threshold if stale_threshold is None else stale_threshold
     state.last_checked_at = now_iso
     if result.ok:
         state.last_ok_at = now_iso
@@ -457,12 +687,51 @@ def step_state(
                 state.bypass_alert_open = True
                 alert_sent = True
 
+    # 3. Stale/unavailable broker-block state machine (independent of avail and bypass).
+    # Only evaluate when the authorized status-v2 payload was actually fetched and parsed
+    # (stale_verified=True), so HTTP 403/5xx/transport outages neither raise spurious stale alerts
+    # nor falsely clear an open stale-block incident.
+    if result.stale_verified:
+        if result.stale_ok:
+            if state.stale_alert_open:
+                ages_txt = ", ".join(f"{k}={v}s" for k, v in result.block_ages)
+                suffix = f" ({ages_txt})" if ages_txt else ""
+                msg = (
+                    "✅ QuantVPS `/vertex-status/v2` broker blocks recovered: "
+                    f"snapshot and monitored blocks are available and fresh again{suffix}."
+                )
+                if post(msg):
+                    state.stale_alert_open = False
+                    state.stale_started_at = ""
+                    state.stale_reason = ""
+                    state.stale_blocks = ""
+                    recovery_sent = True
+            state.stale_failures = 0
+        else:
+            state.stale_failures += 1
+            if not state.stale_started_at:
+                state.stale_started_at = now_iso
+            state.stale_reason = result.stale_detail
+            state.stale_blocks = ",".join(result.stale_blocks)
+            if state.stale_failures >= eff_stale_threshold and not state.stale_alert_open:
+                msg = (
+                    "⚠️ QuantVPS `/vertex-status/v2` stale/unavailable broker blocks "
+                    f"({state.stale_failures} consecutive ticks): {result.stale_detail}. "
+                    "Check `ibkr-monitor.service` and `vertex-status-collect.timer`."
+                )
+                if post(msg):
+                    state.stale_alert_open = True
+                    alert_sent = True
+
     return state, alert_sent, recovery_sent
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Probe QuantVPS /vertex-status/v2 and alert #omp-alerts on 403/failures/auth bypass."
+        description=(
+            "Probe QuantVPS /vertex-status/v2 and alert #omp-alerts on 403/failures, "
+            "auth bypass, or stale/unavailable broker blocks."
+        )
     )
     parser.add_argument("--hosts-env", default=DEFAULT_HOSTS_ENV)
     parser.add_argument("--token-env", default=None)
@@ -472,32 +741,75 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--channel", default=DEFAULT_CHANNEL)
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--threshold", type=int, default=DEFAULT_FAILURE_THRESHOLD)
+    parser.add_argument(
+        "--stale-threshold",
+        type=int,
+        default=None,
+        help="consecutive stale-block ticks before alerting (default: inherits --threshold)",
+    )
+    parser.add_argument(
+        "--stale-max-age",
+        type=int,
+        default=DEFAULT_STALE_MAX_AGE_SECONDS,
+        help="max wall-clock age in seconds for generatedAt and block as_of (default: 360)",
+    )
+    parser.add_argument(
+        "--stale-blocks",
+        default=",".join(DEFAULT_STALE_BLOCKS),
+        help="comma-separated status-v2 broker blocks to check (default: orders,fills,positions,equity)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="probe only; do not post or write state")
     args = parser.parse_args(argv)
 
-    if args.timeout <= 0 or args.threshold < 1:
-        print(json.dumps({"error": "invalid --timeout or --threshold", "ok": False}))
+    if (
+        args.timeout <= 0
+        or args.threshold < 1
+        or (args.stale_threshold is not None and args.stale_threshold < 1)
+        or args.stale_max_age < 1
+    ):
+        print(
+            json.dumps(
+                {
+                    "error": "invalid --timeout, --threshold, --stale-threshold, or --stale-max-age",
+                    "ok": False,
+                }
+            )
+        )
         return 1
 
     try:
         url = resolve_probe_url(args.url, Path(args.hosts_env))
         post_url = validate_post_url(args.post_url)
         token = resolve_token(args.token_env)
+        stale_blocks = parse_stale_blocks(args.stale_blocks)
     except ValueError as exc:
         print(json.dumps({"error": str(exc), "ok": False}))
         return 1
 
     state_path = resolve_state_file(args.state_file)
     now = datetime.now(UTC)
-    result = run_probes(url, token, args.timeout)
+    result = run_probes(
+        url,
+        token,
+        args.timeout,
+        now=now,
+        stale_blocks=stale_blocks,
+        stale_max_age=args.stale_max_age,
+    )
 
     def _post(text: str) -> bool:
         if args.dry_run:
             return False
         return post_alert(post_url, args.channel, text, timeout=min(args.timeout, 8.0))
+
     state = load_state(state_path)
     state, alert_sent, recovery_sent = step_state(
-        state, result, now, args.threshold, _post
+        state,
+        result,
+        now,
+        args.threshold,
+        _post,
+        stale_threshold=args.stale_threshold,
     )
     if not args.dry_run:
         save_state(state_path, state)
@@ -507,6 +819,8 @@ def main(argv: list[str] | None = None) -> int:
         detail_parts.append(result.avail_detail)
     if not result.bypass_ok:
         detail_parts.append(result.bypass_detail)
+    if result.stale_verified and not result.stale_ok:
+        detail_parts.append(result.stale_detail)
     detail = "; ".join(detail_parts) if detail_parts else "ok"
 
     summary = {
@@ -520,6 +834,10 @@ def main(argv: list[str] | None = None) -> int:
         "no_token_http": result.no_token_http,
         "ok": result.ok,
         "recovery_sent": recovery_sent,
+        "stale_alert_open": state.stale_alert_open,
+        "stale_blocks": list(result.stale_blocks),
+        "stale_failures": state.stale_failures,
+        "stale_verified": result.stale_verified,
         "wrong_token_http": result.wrong_token_http,
     }
     print(json.dumps(summary, sort_keys=True))

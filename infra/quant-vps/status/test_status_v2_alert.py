@@ -19,7 +19,7 @@ import tempfile
 import threading
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +33,71 @@ TIMER_UNIT = HERE / "vertex-status-v2-alert.timer"
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 import status_v2_alert as mod  # noqa: E402
+def _iso_z(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _healthy_v2_payload(
+    now: datetime | None = None,
+    *,
+    generated_age_s: int = 5,
+    block_age_s: int = 10,
+    block_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    ref = now if now is not None else datetime.now(timezone.utc)
+    as_of = _iso_z(ref - timedelta(seconds=block_age_s))
+    doc: dict[str, Any] = {
+        "schema": "vertex-deploy-status-v2",
+        "generatedAt": _iso_z(ref - timedelta(seconds=generated_age_s)),
+        "orders": {
+            "available": True,
+            "source": "ibkr_tws_api open orders via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+            "as_of": as_of,
+            "age_seconds": block_age_s,
+            "stale": False,
+            "count": 0,
+            "items": [],
+            "truncated": False,
+        },
+        "fills": {
+            "available": True,
+            "source": "ibkr_tws_api executions via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+            "as_of": as_of,
+            "age_seconds": block_age_s,
+            "stale": False,
+            "count": 0,
+            "items": [],
+            "truncated": False,
+        },
+        "positions": {
+            "available": True,
+            "source": "ibkr_tws_api positions via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+            "as_of": as_of,
+            "age_seconds": block_age_s,
+            "stale": False,
+            "count": 0,
+            "items": [],
+            "truncated": False,
+        },
+        "equity": {
+            "available": True,
+            "source": "ibkr_tws_api account summary via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+            "as_of": as_of,
+            "age_seconds": block_age_s,
+            "stale": False,
+            "currency": "USD",
+            "net_liq": 0.0,
+        },
+    }
+    if block_overrides:
+        for key, value in block_overrides.items():
+            if value is None:
+                doc.pop(key, None)
+            else:
+                doc[key] = value
+    return doc
+
+
 class _MockState:
     def __init__(self) -> None:
         self.expected_token = "tok-secret-999"
@@ -68,9 +133,7 @@ def _start_server(state: _MockState) -> tuple[_ThreadedHTTPServer, str, str]:
                 body = (
                     state.auth_body
                     if state.auth_body is not None
-                    else json.dumps(
-                        {"schema": "vertex-deploy-status-v2", "ok": True}
-                    ).encode("utf-8")
+                    else json.dumps(_healthy_v2_payload()).encode("utf-8")
                 )
                 self.send_response(state.auth_status)
                 self.send_header("Content-Type", "application/json")
@@ -260,6 +323,10 @@ class StatusV2AlertTests(unittest.TestCase):
         self.assertEqual(out["avail_failures"], 0)
         self.assertFalse(out["avail_alert_open"])
         self.assertFalse(out["bypass_alert_open"])
+        self.assertFalse(out["stale_alert_open"])
+        self.assertEqual(out["stale_failures"], 0)
+        self.assertTrue(out["stale_verified"])
+        self.assertEqual(out["stale_blocks"], [])
         self.assertFalse(out["alert_sent"])
         self.assertFalse(out["recovery_sent"])
         self.assertEqual(self.mock.posts, [])
@@ -587,6 +654,356 @@ class StatusV2AlertTests(unittest.TestCase):
         )
         rc, _ = self._run("--post-url", "https://example.com/post")
         self.assertEqual(rc, 1)
+
+    def test_stale_block_alerts_on_third_tick_dedupes_and_recovers(self) -> None:
+        stale_as_of = _iso_z(datetime.now(timezone.utc) - timedelta(seconds=900))
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {
+                        "available": True,
+                        "source": "ibkr_tws_api open orders via ibkr-monitor.service",
+                        "as_of": stale_as_of,
+                        "age_seconds": 900,
+                        "stale": True,
+                    }
+                }
+            )
+        ).encode("utf-8")
+
+        # Ticks 1 and 2: degraded but below threshold -> no alert yet.
+        for expected_count in (1, 2):
+            rc, out = self._run()
+            self.assertEqual(rc, 0)
+            self.assertFalse(out["ok"])
+            self.assertTrue(out["stale_verified"])
+            self.assertEqual(out["stale_blocks"], ["orders"])
+            self.assertEqual(out["stale_failures"], expected_count)
+            self.assertFalse(out["stale_alert_open"])
+            self.assertFalse(out["alert_sent"])
+            self.assertEqual(out["avail_failures"], 0)
+            self.assertEqual(len(self.mock.posts), 0)
+
+        # Tick 3: sends one alert naming the stale block.
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["stale_failures"], 3)
+        self.assertTrue(out["stale_alert_open"])
+        self.assertTrue(out["alert_sent"])
+        self.assertEqual(len(self.mock.posts), 1)
+        alert_text = self.mock.posts[0]["text"]
+        self.assertIn("orders: stale", alert_text)
+        self.assertIn("ibkr-monitor.service", alert_text)
+        self.assertNotIn("tok-secret-999", alert_text)
+
+        # Tick 4: deduplicated (no second alert while open).
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertEqual(out["stale_failures"], 4)
+        self.assertTrue(out["stale_alert_open"])
+        self.assertFalse(out["alert_sent"])
+        self.assertEqual(len(self.mock.posts), 1)
+
+        # Tick 5: fresh again -> sends one recovery message and clears state.
+        self.mock.auth_body = None
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["stale_failures"], 0)
+        self.assertFalse(out["stale_alert_open"])
+        self.assertEqual(out["stale_blocks"], [])
+        self.assertTrue(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 2)
+        rec_text = self.mock.posts[1]["text"]
+        self.assertIn("broker blocks recovered", rec_text.lower())
+        self.assertIn("orders=", rec_text)
+
+        # Tick 6: healthy again -> no duplicate recovery.
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 2)
+
+    def test_unavailable_missing_and_non_bool_blocks_fail_closed(self) -> None:
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "positions": {
+                        "available": False,
+                        "source": "ibkr-monitor.service (/api/snapshot)",
+                        "reason": "ibkr-monitor bridge is degraded",
+                    },
+                    "fills": None,
+                    "equity": {
+                        "available": True,
+                        "as_of": _iso_z(datetime.now(timezone.utc) - timedelta(seconds=5)),
+                        "age_seconds": 5,
+                        "stale": "false",
+                    },
+                    "orders": {
+                        "available": 1,
+                        "as_of": _iso_z(datetime.now(timezone.utc) - timedelta(seconds=5)),
+                        "stale": False,
+                    },
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertTrue(out["stale_alert_open"])
+        self.assertTrue(out["alert_sent"])
+        self.assertEqual(out["stale_blocks"], ["orders", "fills", "positions", "equity"])
+        self.assertIn("positions: unavailable (ibkr-monitor bridge is degraded)", out["detail"])
+        self.assertIn("fills: missing", out["detail"])
+        self.assertIn("equity: missing/invalid stale flag", out["detail"])
+        self.assertIn("orders: unavailable", out["detail"])
+
+    def test_frozen_snapshot_detected_by_wall_clock_even_when_stale_flag_false(self) -> None:
+        # Simulate vertex-status-collect.timer stopping 15 minutes ago: disk JSON still has stale=False.
+        frozen_at = datetime.now(timezone.utc) - timedelta(seconds=900)
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(now=frozen_at, generated_age_s=0, block_age_s=5)
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertTrue(out["stale_alert_open"])
+        self.assertEqual(
+            out["stale_blocks"], ["snapshot", "orders", "fills", "positions", "equity"]
+        )
+        self.assertIn("snapshot: stale generatedAt", out["detail"])
+        self.assertIn("orders: stale by clock", out["detail"])
+
+    def test_stale_post_failure_retries_alert_and_recovery(self) -> None:
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "fills": {"available": False, "source": "ibkr-monitor", "reason": "bridge offline"}
+                }
+            )
+        ).encode("utf-8")
+        self.mock.post_status = 500
+        for _ in range(3):
+            rc, out = self._run()
+            self.assertEqual(rc, 0)
+            self.assertFalse(out["stale_alert_open"])
+            self.assertFalse(out["alert_sent"])
+        # Post recovers on tick 4 -> alert delivered and marked open.
+        self.mock.post_status = 200
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+        self.assertTrue(out["alert_sent"])
+
+        # Blocks recover, but Discord post fails -> stale_alert_open stays True for retry.
+        self.mock.auth_body = None
+        self.mock.post_status = 500
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+        self.assertFalse(out["recovery_sent"])
+
+        # Post succeeds -> recovery delivered and stale_alert_open clears.
+        self.mock.post_status = 200
+        rc, out = self._run()
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["stale_alert_open"])
+        self.assertTrue(out["recovery_sent"])
+
+    def test_stale_alert_pauses_during_http_outage_without_false_recovery(self) -> None:
+        # Open a stale-block alert first.
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "positions": {"available": False, "source": "ibkr-monitor", "reason": "bridge down"}
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+        self.assertEqual(len(self.mock.posts), 1)
+
+        # HTTP 403 outage: stale check is skipped (stale_verified=False) and does NOT clear stale_alert_open.
+        self.mock.auth_status = 403
+        rc, out = self._run("--threshold", "3")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertFalse(out["stale_verified"])
+        self.assertTrue(out["stale_alert_open"])
+        self.assertEqual(out["stale_failures"], 1)
+        self.assertEqual(out["avail_failures"], 1)
+        self.assertFalse(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 1)
+
+        # Authorized 200 returns while positions is STILL unavailable -> stays open, no duplicate alert.
+        self.mock.auth_status = 200
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_verified"])
+        self.assertTrue(out["stale_alert_open"])
+        self.assertFalse(out["alert_sent"])
+        self.assertFalse(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 1)
+
+        # Positions recovers -> single recovery sent.
+        self.mock.auth_body = None
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["stale_alert_open"])
+        self.assertTrue(out["recovery_sent"])
+        self.assertEqual(len(self.mock.posts), 2)
+
+    def test_stale_and_bypass_alerts_are_independent(self) -> None:
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {"available": False, "source": "ibkr-monitor", "reason": "ordersAsOf null"}
+                }
+            )
+        ).encode("utf-8")
+        self.mock.no_token_status = 200
+        rc, out = self._run("--threshold", "3")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        # Bypass alerts immediately on tick 1; stale waits for threshold 3.
+        self.assertTrue(out["bypass_alert_open"])
+        self.assertFalse(out["stale_alert_open"])
+        self.assertEqual(out["stale_failures"], 1)
+        self.assertEqual(len(self.mock.posts), 1)
+        self.assertIn("auth bypass", self.mock.posts[0]["text"].lower())
+
+    def test_pre_upgrade_state_file_loads_cleanly(self) -> None:
+        self.state_file.write_text(
+            "avail_failures=2\n"
+            "avail_alert_open=true\n"
+            "avail_started_at=2026-11-27T01:00:00Z\n"
+            "avail_reason=HTTP 403\n"
+            "bypass_failures=0\n"
+            "bypass_alert_open=false\n"
+            "last_checked_at=2026-11-27T01:04:00Z\n"
+            "last_ok_at=2026-11-27T00:58:00Z\n",
+            encoding="utf-8",
+        )
+        loaded = mod.load_state(self.state_file)
+        self.assertEqual(loaded.avail_failures, 2)
+        self.assertTrue(loaded.avail_alert_open)
+        self.assertEqual(loaded.stale_failures, 0)
+        self.assertFalse(loaded.stale_alert_open)
+        self.assertEqual(loaded.stale_blocks, "")
+
+    def test_stale_reason_sanitizes_newlines_truncates_and_redacts_token(self) -> None:
+        long_reason = "bridge failed\nwith tok-secret-999 " + ("x" * 200)
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {"available": False, "source": "ibkr-monitor", "reason": long_reason}
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+        self.assertNotIn("tok-secret-999", out["detail"])
+        self.assertIn("[redacted]", out["detail"])
+        self.assertNotIn("\n", out["detail"])
+        self.assertEqual(len(self.mock.posts), 1)
+        self.assertNotIn("tok-secret-999", self.mock.posts[0]["text"])
+        saved = self.state_file.read_text(encoding="utf-8")
+        self.assertNotIn("tok-secret-999", saved)
+        self.assertEqual(len(saved.splitlines()), 15)
+
+    def test_stale_cli_options_and_validation(self) -> None:
+        # Custom --stale-blocks ignores unmonitored block (equity).
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "equity": {"available": False, "source": "ibkr-monitor", "reason": "missing summary"}
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--stale-blocks", "orders,fills,positions", "--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["stale_blocks"], [])
+
+        # Custom --stale-threshold overrides --threshold.
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {"available": False, "source": "ibkr-monitor", "reason": "down"}
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "5", "--stale-threshold", "2")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["stale_alert_open"])
+        rc, out = self._run("--threshold", "5", "--stale-threshold", "2")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+
+        # Custom --stale-max-age catches 90s-old block even when stale=False.
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(generated_age_s=5, block_age_s=90)
+        ).encode("utf-8")
+        rc, out = self._run("--stale-max-age", "60", "--dry-run")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["stale_blocks"], ["orders", "fills", "positions", "equity"])
+
+        # Invalid CLI flags exit 1.
+        for bad_args in (
+            ("--stale-blocks", "unknown_block"),
+            ("--stale-blocks", "  ,  "),
+            ("--stale-threshold", "0"),
+            ("--stale-max-age", "0"),
+        ):
+            rc, err_out = self._run(*bad_args)
+            self.assertEqual(rc, 1, f"expected exit 1 for {bad_args}")
+            self.assertFalse(err_out["ok"])
+
+    def test_iso_utc_parser_handles_z_offsets_and_rejects_naive(self) -> None:
+        self.assertEqual(
+            mod._parse_iso_utc("2026-11-27T17:30:00Z"),
+            datetime(2026, 11, 27, 17, 30, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            mod._parse_iso_utc("2026-11-27T17:30:00.250000z"),
+            datetime(2026, 11, 27, 17, 30, 0, 250000, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            mod._parse_iso_utc("2026-11-27T12:30:00-05:00"),
+            datetime(2026, 11, 27, 17, 30, 0, tzinfo=timezone.utc),
+        )
+        for bad in ("2026-11-27T17:30:00", "2026-11-27", "", "not-a-timestamp", None, 12345):
+            self.assertIsNone(mod._parse_iso_utc(bad), f"expected None for {bad!r}")
+
+
+    def test_real_collector_v2_fixture_passes_fresh_and_fails_when_clock_advances(self) -> None:
+        import collect as collector_mod  # noqa: PLC0415
+
+        inp = collector_mod.FixtureInputs(str(HERE / "fixtures" / "stopped-session"))
+        _, v2_text, leaks = collector_mod.build(inp, v2_enabled=True)
+        self.assertEqual(leaks, [])
+        doc = json.loads(v2_text)
+        gen_dt = mod._parse_iso_utc(doc["generatedAt"])
+        self.assertIsNotNone(gen_dt)
+        assert gen_dt is not None
+
+        ok, degraded, detail, ages = mod.inspect_stale_blocks(doc, gen_dt)
+        self.assertTrue(ok, detail)
+        self.assertEqual(degraded, ())
+        self.assertEqual(dict(ages), {"orders": 8, "fills": 5, "positions": 5, "equity": 5})
+
+        # Advancing wall clock 10 minutes past generatedAt catches frozen snapshot + all 4 blocks.
+        later = gen_dt + timedelta(seconds=600)
+        ok2, degraded2, detail2, _ = mod.inspect_stale_blocks(doc, later)
+        self.assertFalse(ok2)
+        self.assertEqual(degraded2, ("snapshot", "orders", "fills", "positions", "equity"))
+        self.assertIn("snapshot: stale generatedAt", detail2)
 
 
 if __name__ == "__main__":
