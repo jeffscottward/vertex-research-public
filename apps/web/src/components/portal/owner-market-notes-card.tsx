@@ -129,7 +129,9 @@ const ClaimRow = ({ claim }: Readonly<{ claim: OwnerMarketNoteClaimView }>) => (
     data-claim-status={claim.status}
   >
     <div className="sm:w-32 sm:shrink-0">
-      <StatusBadge status={claim.tone}>{claim.statusLabel}</StatusBadge>
+      <StatusBadge plain status={claim.tone}>
+        {claim.statusLabel}
+      </StatusBadge>
     </div>
     <div className="min-w-0 space-y-1">
       <p className="wrap-anywhere text-sm" data-claim-text="">
@@ -173,12 +175,13 @@ const NoteItem = ({ note }: Readonly<{ note: OwnerMarketNoteView }>) => {
         </h3>
         <StatusBadge
           data-note-verification=""
+          plain
           status={note.verificationBadge.tone}
         >
           {note.verificationBadge.label}
         </StatusBadge>
         {note.stale === null ? null : (
-          <StatusBadge data-note-stale="" status="warning">
+          <StatusBadge data-note-stale="" plain status="warning">
             {note.stale.label}
           </StatusBadge>
         )}

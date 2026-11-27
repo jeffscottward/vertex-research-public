@@ -51,6 +51,14 @@ export interface PapersWorkspaceProps {
 // Rows per table page; longer libraries page with Previous / Next.
 export const PAPERS_PAGE_SIZE = 25;
 
+const PDF_REASON_CODE = /No PDF retained \(([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\)/g;
+
+/** Prints stored PDF retention reason codes (such as no_free_copy) as plain words. */
+const formatPaperNotes = (notes: string): string =>
+  notes.replace(
+    PDF_REASON_CODE,
+    (_match, code: string) => `No PDF retained (${code.replaceAll("_", " ")})`
+  );
 const isStage = (value: string | null): value is ResearchPaperStageValue =>
   (RESEARCH_PAPER_STAGE_VALUES as readonly string[]).includes(value ?? "");
 
@@ -598,7 +606,9 @@ export const PapersWorkspace = ({
                               value={editingDraft.notes}
                             />
                           ) : paper.notes === null ? null : (
-                            <p className="mt-1 text-xs">{paper.notes}</p>
+                            <p className="mt-1 text-xs">
+                              {formatPaperNotes(paper.notes)}
+                            </p>
                           )}
                         </TableHead>
                         <TableCell

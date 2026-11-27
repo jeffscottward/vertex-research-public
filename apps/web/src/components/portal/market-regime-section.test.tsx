@@ -219,9 +219,27 @@ describe("MarketRegimeSection", () => {
     expect(container.querySelectorAll("[data-regime-etf]")).toHaveLength(4);
     expect(container.querySelector("[data-regime-stale-banner]")).toBeNull();
     expect(container.querySelector("[data-regime-mixed-drivers]")).toBeNull();
-    // Pillar detail and scope are visible text, not hover-only.
+    // Pillar detail, scope and readable source labels are visible text; raw codes stay in data attributes.
     expect(container.textContent).toContain("NYSE Breadth-90 IDLE.");
     expect(container.textContent).toContain("Market-wide");
+    expect(container.textContent).toContain("Daily price series");
+    expect(container.textContent).toContain("OpenBB macro (HY OAS)");
+    expect(container.textContent).toContain("Market-context GEX");
+    expect(container.textContent).toContain("OpenBB volatility");
+    expect(container.textContent).not.toContain("market_daily_series");
+    expect(container.textContent).not.toContain("openbb_macro");
+    expect(container.textContent).not.toContain("market_context_gex");
+    expect(container.textContent).not.toContain("openbb_vol_context");
+    expect(
+      container
+        .querySelector('[data-regime-etf="QQQ"] [data-regime-pillar="trend"]')
+        ?.getAttribute("data-pillar-source")
+    ).toBe("market_daily_series");
+    const badges = [...container.querySelectorAll('[data-slot="badge"]')];
+    expect(badges.length).toBeGreaterThan(0);
+    for (const badge of badges) {
+      expect(badge.getAttribute("data-plain")).toBe("true");
+    }
     expect(
       container.querySelectorAll('[data-regime-etf] th[scope="row"]')
     ).toHaveLength(4);

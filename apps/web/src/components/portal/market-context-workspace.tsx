@@ -304,7 +304,7 @@ export const MarketContextWorkspace = ({
               )}
             </span>
             {isSpxQuoteStale(data.spx, nowMs) ? (
-              <StatusBadge data-spx-stale="" status="warning">
+              <StatusBadge data-spx-stale="" plain status="warning">
                 Stale quote
               </StatusBadge>
             ) : null}
@@ -317,6 +317,7 @@ export const MarketContextWorkspace = ({
                 {data.implied.band === null ? null : (
                   <StatusBadge
                     data-band={data.implied.band}
+                    plain
                     status={BAND_TONE[data.implied.band]}
                   >
                     {BAND_LABEL[data.implied.band]}
