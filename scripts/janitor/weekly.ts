@@ -307,13 +307,13 @@ const must = (result: RunResult, what: string): RunResult => {
 
 /**
  * Stage the model pass in the worktree and return `git diff --cached
- * --name-status`. The worktree holds a node_modules symlink that must never
- * be staged, and the same holds for JANITOR-REPORT.md (ignored by /.gitignore
+ * --name-status`. The worktree holds its own `node_modules/` directories
+ * (ignored by `/.gitignore`) and `JANITOR-REPORT.md` (ignored by `/.gitignore`
  * since PR #388). Neither is named in the add pathspec: when an exclude file
- * ignores it (the shared .git/info/exclude does on the rig), naming it, even
- * as an exclude, makes `git add` exit 1 ("paths are ignored"). When nothing
- * ignores it (`node_modules/` matches directories only), the add stages it,
- * so it is unstaged right after. Both setups end with it unstaged.
+ * ignores it (the shared `.git/info/exclude` does on the rig), naming it, even
+ * as an exclude, makes `git add` exit 1 ("paths are ignored"). Unstaging both
+ * right after keeps root `node_modules` and `JANITOR-REPORT.md` out of the
+ * index even if an exclude rule is absent.
  */
 export const stagePass = (run: Run, wt: string): string => {
   must(run("git", ["add", "-A", "--", "."], { cwd: wt }), "git add");
@@ -352,7 +352,7 @@ const openDraftPr = (
 ): void => {
   const { run } = deps;
   const title = `chore(janitor): weekly structure pass ${pass.stamp}`;
-  const bodyPath = `${wt}-pr-body.md`;
+  const bodyPath = `/tmp/vertex-research-janitor-${pass.stamp}-pr-body.md`;
   deps.writeFile(bodyPath, pass.report.slice(0, MAX_BODY));
   must(run("git", ["commit", "-q", "-m", title], { cwd: wt }), "git commit");
   must(
@@ -381,6 +381,47 @@ const openDraftPr = (
   );
 };
 
+/**
+ * Place the ephemeral janitor worktree under the host XDG cache directory so
+ * it shares a filesystem with the pnpm store (enabling native hardlinks and
+ * avoiding a RAM-backed `/tmp/.pnpm-store`). Ignore relative `XDG_CACHE_HOME`
+ * values and fall back to `/tmp` only when neither `XDG_CACHE_HOME` nor `HOME`
+ * is an absolute path.
+ */
+export const resolveWorktreePath = (
+  env: Readonly<Record<string, string | undefined>>,
+  stamp: string
+): string => {
+  const xdg = env["XDG_CACHE_HOME"]?.trim();
+  if (xdg?.startsWith("/")) {
+    return `${xdg.replace(/\/+$/u, "")}/vertex-research-janitor/${stamp}`;
+  }
+  const home = env["HOME"]?.trim();
+  if (home?.startsWith("/")) {
+    return `${home.replace(/\/+$/u, "")}/.cache/vertex-research-janitor/${stamp}`;
+  }
+  return `/tmp/vertex-research-janitor-${stamp}`;
+};
+
+const cleanupWorktree = (
+  run: Run,
+  main: string,
+  wt: string,
+  branch: string
+): void => {
+  // Double `--force` removes the worktree even if a dependency holds a
+  // nested `.git` directory; fall back to `rm -rf` + prune on failure.
+  const removed = run("git", ["worktree", "remove", "--force", "--force", wt], {
+    cwd: main,
+  });
+  if (removed.status !== 0) {
+    run("rm", ["-rf", wt], { cwd: main });
+    run("git", ["worktree", "prune"], { cwd: main });
+  }
+  // Keep a pushed branch; drop the local one of a pass that pushed nothing.
+  run("git", ["branch", "-D", branch], { cwd: main });
+};
+
 /** One pass. Exit code 0 on success or no safe moves, 1 on failure. */
 export const runJanitorWeekly = (
   argv: readonly string[],
@@ -400,8 +441,9 @@ export const runJanitorWeekly = (
     .replaceAll(/[-:]/gu, "")
     .replace("T", "-");
   const branch = `ws/janitor-${stamp}`;
-  const wt = `/tmp/vertex-research-janitor-${stamp}`;
-  const busyPath = `${wt}-busy.txt`;
+  const scratchBase = `/tmp/vertex-research-janitor-${stamp}`;
+  const wt = resolveWorktreePath(env, stamp);
+  const busyPath = `${scratchBase}-busy.txt`;
   let worktree = false;
   try {
     const base = resolveDefaultBranch(run, main);
@@ -439,10 +481,18 @@ export const runJanitorWeekly = (
       "git rev-parse"
     ).stdout;
     must(
-      run("ln", ["-s", `${main}/node_modules`, `${wt}/node_modules`], {
-        cwd: wt,
-      }),
-      "node_modules link"
+      run(
+        "pnpm",
+        [
+          "install",
+          "--frozen-lockfile",
+          "--prefer-offline",
+          "--config.virtual-store-dir=node_modules/.pnpm",
+          "--config.confirm-modules-purge=false",
+        ],
+        { cwd: wt, inherit: true }
+      ),
+      "pnpm install"
     );
     const model = env["JANITOR_MODEL"] ?? DEFAULT_MODEL;
     must(
@@ -494,14 +544,7 @@ export const runJanitorWeekly = (
     );
     return 1;
   } finally {
-    run("rm", ["-f", busyPath, `${wt}-pr-body.md`], { cwd: main });
-    if (worktree) {
-      // The node_modules link stays until here: the pre-commit hook (biome via
-      // `bunx --no-install`) needs it. stagePass keeps it out of the index.
-      run("rm", ["-f", `${wt}/node_modules`], { cwd: main });
-      run("git", ["worktree", "remove", "--force", wt], { cwd: main });
-      // Keep a pushed branch; drop the local one of a pass that pushed nothing.
-      run("git", ["branch", "-D", branch], { cwd: main });
-    }
+    run("rm", ["-f", busyPath, `${scratchBase}-pr-body.md`], { cwd: main });
+    if (worktree) cleanupWorktree(run, main, wt, branch);
   }
 };
