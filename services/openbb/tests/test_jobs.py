@@ -901,3 +901,40 @@ def test_option_iv_out_of_range_quote_time_keeps_blocked() -> None:
     assert result.code == 0
     assert result.document["blocked"]["httpStatus"] == 403
     assert any("out of range" in w for w in result.document["warnings"])
+
+
+def test_option_iv_cboe_occ_skips_go_to_info_not_warnings() -> None:
+    inline = json.loads((FIXTURES / "inline" / "cboe-option-iv-cboe-ok.json").read_text(encoding="utf-8"))
+    spy_call = inline[0]
+    spy_opts = spy_call["result"]["data"]["options"]
+    spy_opts.append({**spy_opts[0], "option": "B1SPY261123C00665000"})
+    spy_opts.append({**spy_opts[0], "option": "B1SPY261123P00665000"})
+    result = run(["cboe-option-iv", "--symbols", "SPY,GLD"], inline, today=date(2026, 11, 8))
+    assert result.code == 0, result.stderr
+    assert result.document["warnings"] == []
+    assert result.document["info"] == ["cboe chain SPY: skipped 2 rows without a standard OCC symbol"]
+    assert "; 0 warnings; 1 info\n" in result.stderr
+
+
+def test_option_iv_cboe_only_non_occ_rows_still_warns_no_unexpired() -> None:
+    inline = json.loads((FIXTURES / "inline" / "cboe-option-iv-cboe-ok.json").read_text(encoding="utf-8"))
+    spy_call = inline[0]
+    sample = spy_call["result"]["data"]["options"][0]
+    spy_call["result"]["data"]["options"] = [{**sample, "option": "B1SPY261123C00665000"}]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], [spy_call], today=date(2026, 11, 8))
+    assert result.code == 0, result.stderr
+    assert result.document["info"] == ["cboe chain SPY: skipped 1 rows without a standard OCC symbol"]
+    assert "cboe chain SPY: no unexpired contracts" in result.document["warnings"]
+    assert "cboe-option-iv: every table is empty" in result.document["warnings"]
+
+
+def test_option_iv_clean_cboe_omits_info_key_and_yahoo_skips_stay_warnings() -> None:
+    inline = json.loads((FIXTURES / "inline" / "cboe-option-iv-cboe-ok.json").read_text(encoding="utf-8"))
+    clean = run(["cboe-option-iv", "--symbols", "SPY"], [inline[0]], today=date(2026, 11, 8))
+    assert clean.code == 0, clean.stderr
+    assert "info" not in clean.document
+    assert clean.document["warnings"] == []
+
+    yahoo = replay_fixture("cboe-option-iv")
+    assert "info" not in yahoo.document
+    assert any("skipped 1 Yahoo rows without a standard OCC symbol or strike" in w for w in yahoo.document["warnings"])
