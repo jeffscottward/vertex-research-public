@@ -61,7 +61,6 @@ ARGV: dict[str, list[str]] = {
     "finra-short-interest": ["finra-short-interest", "--symbols", "SPY,AAPL"],
     "finra-short-volume": ["finra-short-volume"],
     "sec-filings": ["sec-filings", "--symbols", "AAPL,NVDA"],
-    "sec-insider": ["sec-insider", "--symbols", "AAPL"],
     "sec-ftd": ["sec-ftd"],
     "sec-13f": ["sec-13f", "--filers", "1067983,1423053"],
     "famafrench": ["famafrench"],

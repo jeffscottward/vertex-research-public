@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { OPENBB_JOB_METADATA, OPENBB_JOBS } from "./contracts/openbb.ts";
+import {
+  OPENBB_JOB_METADATA,
+  OPENBB_JOBS,
+  OpenbbIngestBatchSchema,
+  OpenbbIngestInputSchema,
+} from "./contracts/openbb.ts";
 import { utcDay } from "./nyse-calendar.ts";
 import {
   diffOverdueIncident,
@@ -182,7 +187,7 @@ describe("evaluateForm4Overdue", () => {
 describe("evaluateOpenbbSources", () => {
   const now = new Date("2026-11-23T16:00:00.000Z"); // Mon 11:00 ET (in session)
 
-  it("marks every monitored source healthy when fresh and keeps retired sec-insider non-overdue", () => {
+  it("marks every monitored source healthy when fresh", () => {
     const evalRes = evaluateOpenbbSources({
       flow: {
         marketPremiumSessions: [
@@ -217,11 +222,6 @@ describe("evaluateOpenbbSources", () => {
     expect(evalRes.monitoredKeys).toEqual(OPENBB_MONITORED_OVERDUE_KEYS);
     expect(evalRes.overdueMonitored).toEqual([]);
     expect(evalRes.sources.every((source) => !source.overdue)).toBe(true);
-    const retired = evalRes.sources.find(
-      (source) => source.source === "sec-insider"
-    );
-    expect(retired?.retired).toBe(true);
-    expect(retired?.maxAgeSeconds).toBeNull();
   });
 
   it("detects overdue calendar, trading-day, blocked_upstream, FINRA 10:00 ET, and flow sources", () => {
@@ -601,7 +601,6 @@ describe("diffOverdueIncident and message formatting", () => {
     overdue: true,
     overdueSince,
     reason: "stale",
-    retired: false,
     smartMoney: true,
     source,
   });
@@ -764,5 +763,59 @@ describe("diffOverdueIncident and message formatting", () => {
     expect(Object.keys(OPENBB_JOB_METADATA).sort()).toEqual(
       [...OPENBB_JOBS].sort()
     );
+
+    // Retired table is rejected on the table discriminator (valid row shape)
+    const retiredTable = OpenbbIngestBatchSchema.safeParse({
+      rows: [
+        {
+          accessionNumber: "0001140361-26-039785",
+          acquiredDisposed: "D",
+          filingDate: "2026-10-15",
+          ownerName: "Example Insider",
+          ownerTitle: "Officer",
+          price: 100,
+          rowNumber: 1,
+          shares: 10,
+          sharesAfter: 90,
+          symbol: "AAPL",
+          transactionCode: "S",
+          transactionDate: "2026-10-14",
+          url: "https://www.sec.gov/Archives/edgar/data/320193/000114036126039785/form4.xml",
+        },
+      ],
+      table: "sec_insider_trades",
+    });
+    expect(retiredTable.success).toBe(false);
+    if (!retiredTable.success) {
+      expect(retiredTable.error.issues.some((i) => i.path[0] === "table")).toBe(
+        true
+      );
+    }
+
+    // Retired job is rejected on the job enum (valid sec_filings batch shape)
+    const retiredJob = OpenbbIngestInputSchema.safeParse({
+      batch: {
+        rows: [
+          {
+            accessionNumber: "0000320193-26-000024",
+            cik: "0000320193",
+            description: "10-Q",
+            filingDate: "2026-11-02",
+            formType: "10-Q",
+            reportDate: "2026-09-26",
+            symbol: "AAPL",
+            url: "https://www.sec.gov/Archives/edgar/data/320193/000032019326000024/aapl-20261102.htm",
+          },
+        ],
+        table: "sec_filings",
+      },
+      job: "sec-insider",
+    });
+    expect(retiredJob.success).toBe(false);
+    if (!retiredJob.success) {
+      expect(retiredJob.error.issues.some((i) => i.path[0] === "job")).toBe(
+        true
+      );
+    }
   });
 });

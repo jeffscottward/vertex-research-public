@@ -448,44 +448,6 @@ export const openbbSecFilings = pgTable(
   ]
 );
 
-export const openbbSecInsiderTrades = pgTable(
-  "openbb_sec_insider_trades",
-  {
-    accessionNumber: text("accession_number").notNull(),
-    acquiredDisposed: text("acquired_disposed").$type<"A" | "D">(),
-    filingDate: date("filing_date", { mode: "string" }).notNull(),
-    ownerName: text("owner_name").notNull(),
-    ownerTitle: text("owner_title"),
-    price: doublePrecision("price"),
-    rowNumber: integer("row_number").notNull(),
-    shares: doublePrecision("shares"),
-    sharesAfter: doublePrecision("shares_after"),
-    symbol: text("symbol").notNull(),
-    transactionCode: text("transaction_code"),
-    transactionDate: date("transaction_date", { mode: "string" }),
-    url: text("url"),
-  },
-  (table) => [
-    primaryKey({ columns: [table.accessionNumber, table.rowNumber] }),
-    check(
-      "openbb_sec_insider_trades_check",
-      all([
-        sql`${table.accessionNumber} ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$'`,
-        nonNegative(table.rowNumber),
-        symbol(table.symbol),
-        textLength(table.ownerName, 200),
-        textLength(table.ownerTitle, 200),
-        textLength(table.transactionCode, 10),
-        finite(table.shares),
-        finite(table.price),
-        finite(table.sharesAfter),
-        sql`(${table.acquiredDisposed} is null or ${table.acquiredDisposed} in ('A', 'D'))`,
-        sql`(${table.url} is null or ${table.url} ~ '^https://')`,
-      ])
-    ),
-  ]
-);
-
 export const openbbSecFtd = pgTable(
   "openbb_sec_ftd",
   {

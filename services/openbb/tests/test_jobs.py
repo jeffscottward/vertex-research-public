@@ -938,3 +938,19 @@ def test_option_iv_clean_cboe_omits_info_key_and_yahoo_skips_stay_warnings() -> 
     yahoo = replay_fixture("cboe-option-iv")
     assert "info" not in yahoo.document
     assert any("skipped 1 Yahoo rows without a standard OCC symbol or strike" in w for w in yahoo.document["warnings"])
+
+def test_retired_sec_insider_job_is_rejected_by_cli() -> None:
+    assert "sec-insider" not in cli.JOBS
+    assert "sec-insider" not in cli.JOB_TABLES
+    assert "sec-insider" not in cli.SYMBOL_JOBS
+    assert ("sec", "InsiderTrading") not in cli.FETCHERS_USED
+    assert "sec_insider_trades" not in rows.TABLES
+    result = subprocess.run(
+        [sys.executable, "-m", "vertex_openbb", "sec-insider"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "invalid choice: 'sec-insider'" in result.stderr

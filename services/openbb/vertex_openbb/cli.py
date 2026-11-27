@@ -50,7 +50,6 @@ JOBS: dict[str, Job] = {
     "finra-short-interest": finra.short_interest,
     "finra-short-volume": finra.short_volume,
     "sec-filings": sec.filings,
-    "sec-insider": sec.insider,
     "sec-ftd": sec.ftd,
     "sec-13f": sec.form_13f,
     "sec-form4": form4.form4,
@@ -76,7 +75,6 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     "finra-short-interest": ("short_interest",),
     "finra-short-volume": ("short_volume_daily",),
     "sec-filings": ("sec_filings",),
-    "sec-insider": ("sec_insider_trades",),
     "sec-ftd": ("sec_ftd", "cusip_symbols"),
     "sec-13f": ("sec_13f_holdings", "sec_13f_filings"),
     # Rows before the ledger, the ledger before the index days (OPENBB_TABLE_REQUIRES).
@@ -102,7 +100,7 @@ FETCHERS_USED = (
     ("us_treasury", "DailyTreasuryStatement"),
     ("oecd", "CompositeLeadingIndicator"),
     ("finra", "OTCAggregate"), ("finra", "EquityShortInterest"),
-    ("sec", "Filings"), ("sec", "CompanyFilings"), ("sec", "InsiderTrading"),
+    ("sec", "Filings"), ("sec", "CompanyFilings"),
 )
 PROVIDER_MODULES = (
     "openbb_core.provider.utils.helpers",
@@ -183,7 +181,7 @@ UNTIL_JOBS = {
 STATE_JOBS = ("sec-form4", "cboe-option-iv", "daily-prices")
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
-    "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
+    "finra-short-volume", "sec-filings", "sec-ftd", "sec-13f",
 }
 
 

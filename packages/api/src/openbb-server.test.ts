@@ -2152,7 +2152,7 @@ describe("openbb.changes13f and openbb.status overdue", () => {
     setOpenbbClockForTesting(() => new Date("2026-11-23T16:00:00.000Z"));
     const status = await clientFor({ fakes: repos }).openbb.status({});
     expect(status.checkedAt.toISOString()).toBe("2026-11-23T16:00:00.000Z");
-    expect(status.sources.length).toBeGreaterThanOrEqual(23);
+    expect(status.sources.length).toBeGreaterThanOrEqual(OPENBB_JOBS.length);
     expect(status.overdueCount).toBe(
       status.sources.filter((s) => s.overdue).length
     );

@@ -196,14 +196,6 @@ TABLES: dict[str, dict[str, Field]] = {
         "description": Field("text", max=2000), "filingDate": D, "formType": _label(20),
         "reportDate": D_NULL, "symbol": SYM, "url": Field("https"),
     },
-    "sec_insider_trades": {
-        "accessionNumber": Field("regex", pattern=_ACCESSION),
-        "acquiredDisposed": Field("enum", nullable=True, values=("A", "D")), "filingDate": D,
-        "ownerName": _label(200), "ownerTitle": _label(200, nullable=True), "price": F_NULL,
-        "rowNumber": C, "shares": F_NULL, "sharesAfter": F_NULL, "symbol": SYM,
-        "transactionCode": _label(10, nullable=True), "transactionDate": D_NULL,
-        "url": Field("https", nullable=True),
-    },
     "sec_ftd": {
         "cusip": Field("regex", pattern=_CUSIP), "price": F_NULL, "quantity": C,
         "settlementDate": D, "symbol": SYM,
@@ -282,7 +274,6 @@ KEYS: dict[str, tuple[str, ...]] = {
     "short_interest": ("settlementDate", "symbol"),
     "short_volume_daily": ("date", "symbol"),
     "sec_filings": ("accessionNumber", "symbol"),
-    "sec_insider_trades": ("accessionNumber", "rowNumber"),
     "sec_ftd": ("settlementDate", "symbol"),
     "sec_13f_holdings": ("filerCik", "periodEnding", "cusip", "optionType"),
     "sec_13f_filings": ("accessionNumber",),
