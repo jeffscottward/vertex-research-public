@@ -619,13 +619,13 @@ describe("buildOptionsSummary", () => {
       blocks: 1,
       bullishPremium: callBase + 1000,
       callPremium: call,
+      oiFlagsNotReported: 0,
       putPremium: 1500,
       sweepPremium: call,
       sweeps: prints.length + 2,
       ticker: "SPY",
       trades: prints.length + 4,
       unusual: prints.length + 3,
-      oiFlagsNotReported: 0,
       volumeOverOi: prints.length + 3,
     });
     expect(summary.putCallPremiumRatio).toBeCloseTo(1500 / call);
@@ -887,6 +887,70 @@ describe("net drift sessions and four symbols", () => {
     );
     expect(flowClockText(MON_10_00)).toBe("10:00");
     expect(flowClockText(MON_09_00)).toBe("09:00");
+  });
+
+  // Thanksgiving 2026-11-26 (NYSE holiday) and 2026-11-27 (NYSE early close), both EST (UTC-5).
+  const HOLIDAY_12_00 = new Date("2026-11-26T17:00:00Z");
+  const earlyClose = (clock: string): Date =>
+    new Date(
+      Date.parse("2026-11-27T05:00:00Z") +
+        (Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5))) * 60_000
+    );
+
+  it.each([
+    ["options", "SPY"],
+    ["gex", "SPY"],
+    ["net_drift", "SPY"],
+    ["ticks", "SPY"],
+    ["depth", "SPY"],
+    ["depth", "QQQ"],
+    ["options", "ES"],
+  ] as const)("closes %s of %s on an NYSE holiday", (source, symbol) => {
+    expect(flowSessionOpen(source, symbol, HOLIDAY_12_00)).toBe(false);
+  });
+
+  it("keeps ES ticks on Globex hours on an NYSE holiday", () => {
+    expect(flowSessionOpen("ticks", "ES", HOLIDAY_12_00)).toBe(true);
+  });
+
+  it.each([
+    ["options", "SPY", "13:14", "13:15"],
+    ["options", "NVDA", "12:59", "13:00"],
+    ["gex", "SPY", "13:14", "13:15"],
+    ["net_drift", "SPY", "13:19", "13:20"],
+    ["ticks", "SPY", "16:59", "17:00"],
+    ["depth", "QQQ", "16:59", "17:00"],
+  ] as const)(
+    "ends %s of %s 180 minutes early on an NYSE early close",
+    (source, symbol, lastOpen, firstClosed) => {
+      expect(flowSessionOpen(source, symbol, earlyClose(lastOpen))).toBe(true);
+      expect(flowSessionOpen(source, symbol, earlyClose(firstClosed))).toBe(
+        false
+      );
+    }
+  );
+
+  it("gives the last NYSE trading day as the session date on and after a holiday", () => {
+    expect(flowSessionDate(HOLIDAY_12_00)).toBe("2026-11-25");
+    expect(flowSessionDate(earlyClose("06:00"))).toBe("2026-11-25");
+    expect(flowSessionDate(earlyClose("14:00"))).toBe("2026-11-27");
+  });
+
+  it("shows the sources as closed on an NYSE holiday", () => {
+    const freshness = buildFreshness(
+      rowsOf({
+        latestOk: (["ticks", "depth", "options", "gex"] as const).map(
+          (source) => sample(source, new Date("2026-11-25T21:14:00Z"))
+        ),
+        now: HOLIDAY_12_00,
+      })
+    );
+    expect(freshness.map((row) => [row.source, row.state])).toEqual([
+      ["ticks", "closed"],
+      ["depth", "closed"],
+      ["options", "closed"],
+      ["gex", "closed"],
+    ]);
   });
 
   it("lists freshness only for the sources a symbol collects", () => {
