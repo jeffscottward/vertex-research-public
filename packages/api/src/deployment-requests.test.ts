@@ -231,8 +231,21 @@ const session = (email = "operator@domain.test"): SafeAuthSession => ({
 const denied = () =>
   new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
 
+type LibraryStrategy = Readonly<{ slug: string; tags: readonly string[] }>;
+// Plain strategies only; Academy (dyr-*) strategies are covered in academy.test.ts.
+const PLAIN_STRATEGY: LibraryStrategy = { slug: "plain-strategy", tags: [] };
+
+// What the strategy library and the study store answer for the strategy of a request.
+type StrategyWiring = Readonly<{
+  withoutLibrary?: boolean;
+  /** The strategy the library returns for every id; null when the library has no such strategy. */
+  strategy?: LibraryStrategy | null;
+  researchStudies?: NonNullable<Repositories["researchStudies"]>;
+}>;
+
 const repositoriesFor = (
-  deploymentRequests?: DeploymentRequestsRepository
+  deploymentRequests: DeploymentRequestsRepository | undefined,
+  wiring: StrategyWiring
 ): Repositories => ({
   profiles: {} as Repositories["profiles"],
   addresses: {} as Repositories["addresses"],
@@ -240,13 +253,22 @@ const repositoriesFor = (
   featureItems: {} as Repositories["featureItems"],
   adminUsers: {} as Repositories["adminUsers"],
   dashboard: {} as Repositories["dashboard"],
-  // Plain strategies only; Academy (dyr-*) strategies are covered in academy.test.ts.
-  strategyLibrary: {
-    get: async (id: string) => ({
-      strategy: { id, slug: "plain-strategy" },
-      presets: [],
-    }),
-  } as unknown as NonNullable<Repositories["strategyLibrary"]>,
+  ...(wiring.withoutLibrary === true
+    ? {}
+    : {
+        strategyLibrary: {
+          get: async (id: string) =>
+            wiring.strategy === null
+              ? null
+              : {
+                  strategy: { id, ...(wiring.strategy ?? PLAIN_STRATEGY) },
+                  presets: [],
+                },
+        } as unknown as NonNullable<Repositories["strategyLibrary"]>,
+      }),
+  ...(wiring.researchStudies === undefined
+    ? {}
+    : { researchStudies: wiring.researchStudies }),
   ...(deploymentRequests === undefined ? {} : { deploymentRequests }),
 });
 
@@ -270,13 +292,10 @@ const contextFor = (
   request: Request,
   deploymentRequests: DeploymentRequestsRepository | undefined,
   requestSession: SafeAuthSession | null,
-  withoutLibrary = false
+  wiring: StrategyWiring = {}
 ) => {
-  const repositories = repositoriesFor(deploymentRequests);
-  const { strategyLibrary: _library, ...withoutLibraryRepositories } =
-    repositories;
   return createApiContext(request, {
-    repositories: withoutLibrary ? withoutLibraryRepositories : repositories,
+    repositories: repositoriesFor(deploymentRequests, wiring),
     requestId: "request-1",
     capabilities: {
       ai: false,
@@ -301,8 +320,8 @@ const clientFor = (
     requestSession?: SafeAuthSession | null;
     apiKey?: boolean;
     repository?: DeploymentRequestsRepository;
-    withoutLibrary?: boolean;
-  }> = {}
+  }> &
+    StrategyWiring = {}
 ) => {
   return createApiClient({
     baseUrl: "https://darkfactory.localhost",
@@ -316,7 +335,7 @@ const clientFor = (
           options.requestSession === undefined
             ? session()
             : options.requestSession,
-          options.withoutLibrary === true
+          options
         )
       );
     },
@@ -590,8 +609,320 @@ describe("deploymentRequests lifecycle", () => {
       }),
       "STORAGE_ERROR",
       503,
-      "Strategy library storage is not configured on this server; the request was not saved. Set the database connection, then retry."
+      "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     ));
+});
+
+describe("deploymentRequests strategy block", () => {
+  const NO_EDGE: LibraryStrategy = {
+    slug: "insider-purchase-confirmation",
+    tags: ["insider", "smart-money", "backtest-study", "failed"],
+  };
+  const NO_EDGE_REASON =
+    "The Vertex study of this strategy found no edge; a paper deployment cannot be requested for it.";
+  const UNREAD =
+    "The Vertex study verdict of this strategy could not be read; nothing was saved. Retry.";
+  const createInput = {
+    strategyId: "s-any",
+    symbol: "SPY",
+    timeframe: "1d",
+    limits,
+  };
+  type StoredStudy = Readonly<{ id: string; kind: string; verdict: string }>;
+  const studiesWith = (stored: readonly StoredStudy[]) => {
+    const verdicts = vi.fn(async (ids: readonly string[]) =>
+      stored.filter((study) => ids.includes(study.id))
+    );
+    return {
+      verdicts,
+      repository: { verdicts } as unknown as NonNullable<
+        Repositories["researchStudies"]
+      >,
+    };
+  };
+  it("refuses create, createGroup, edit, submit and approve for a no-edge strategy and writes nothing", async () => {
+    const repository = memoryRequests();
+    const blocked = clientFor({
+      repository,
+      strategy: NO_EDGE,
+      researchStudies: studiesWith([
+        { id: NO_EDGE.slug, kind: "strategy-backtest", verdict: "no-edge" },
+      ]).repository,
+    });
+    await expectCode(
+      blocked.deploymentRequests.create(createInput),
+      "CONFLICT",
+      409,
+      NO_EDGE_REASON
+    );
+    await expectCode(
+      blocked.deploymentRequests.createGroup({
+        strategyId: "s-any",
+        symbols: ["SPY", "QQQ"],
+        timeframe: "1d",
+        limits,
+        options,
+      }),
+      "CONFLICT",
+      409,
+      NO_EDGE_REASON
+    );
+    await expectCode(
+      blocked.deploymentRequests.update({ id: "dr-1", symbol: "QQQ" }),
+      "CONFLICT",
+      409,
+      NO_EDGE_REASON
+    );
+    await expectCode(
+      blocked.deploymentRequests.submit({ id: "dr-1" }),
+      "CONFLICT",
+      409,
+      NO_EDGE_REASON
+    );
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.createGroup).not.toHaveBeenCalled();
+    expect(repository.update).not.toHaveBeenCalled();
+    expect(repository.transition).not.toHaveBeenCalled();
+    // A request that was submitted before the study said no-edge cannot be approved either.
+    await clientFor({ repository }).deploymentRequests.submit({ id: "dr-1" });
+    await expectCode(
+      blocked.deploymentRequests.approve({ id: "dr-1", confirmSlug: "hmm" }),
+      "CONFLICT",
+      409,
+      NO_EDGE_REASON
+    );
+    expect(repository.transition).toHaveBeenCalledTimes(1);
+    // Reject and withdraw stay open: they only close a request.
+    return expect(
+      await blocked.deploymentRequests.reject({ id: "dr-1", note: "no edge" })
+    ).toMatchObject({ ...LOCK, status: "rejected" });
+  });
+
+  it("refuses a research-only strategy and a failed QuantConnect port", async () => {
+    const repository = memoryRequests();
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: { slug: "trend-trio", tags: ["research-only"] },
+      }).deploymentRequests.create(createInput),
+      "CONFLICT",
+      409,
+      "This strategy is tagged research-only; a paper deployment cannot be requested for it."
+    );
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: { slug: "qc-opex-week", tags: ["quantconnect-idea"] },
+        researchStudies: studiesWith([
+          { id: "qc-opex-week", kind: "qc-port", verdict: "FAIL" },
+        ]).repository,
+      }).deploymentRequests.create(createInput),
+      "CONFLICT",
+      409,
+      "The Vertex backtest of this strategy failed its pass rule; a paper deployment cannot be requested for it."
+    );
+    // The tag failed with no study: no study tag, so the study store is not read.
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: { slug: "sma30-market-timing", tags: ["failed"] },
+      }).deploymentRequests.create(createInput),
+      "CONFLICT",
+      409,
+      "This strategy is tagged failed (Vertex tested it and it failed); a paper deployment cannot be requested for it."
+    );
+    // The tag needs no study read: with the study store down the answer is still the reason (409).
+    const failing = vi.fn(async () => {
+      throw new Error("connection refused");
+    });
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: {
+          slug: "volume-spike-breakout",
+          tags: ["research-only", "backtest-study"],
+        },
+        researchStudies: { verdicts: failing } as unknown as NonNullable<
+          Repositories["researchStudies"]
+        >,
+      }).deploymentRequests.create(createInput),
+      "CONFLICT",
+      409,
+      "This strategy is tagged research-only; a paper deployment cannot be requested for it."
+    );
+    expect(failing).not.toHaveBeenCalled();
+    return expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a strategy with a study tag when its verdict cannot be read", async () => {
+    const repository = memoryRequests();
+    await expectCode(
+      clientFor({ repository, strategy: NO_EDGE }).deploymentRequests.create(
+        createInput
+      ),
+      "STORAGE_ERROR",
+      503,
+      UNREAD
+    );
+    const failing = {
+      verdicts: vi.fn(async () => {
+        throw new Error("connection refused");
+      }),
+    } as unknown as NonNullable<Repositories["researchStudies"]>;
+    await expectCode(
+      clientFor({
+        repository,
+        strategy: NO_EDGE,
+        researchStudies: failing,
+      }).deploymentRequests.submit({ id: "dr-1" }),
+      "STORAGE_ERROR",
+      503,
+      UNREAD
+    );
+    expect(repository.create).not.toHaveBeenCalled();
+    return expect(repository.transition).not.toHaveBeenCalled();
+  });
+
+  it("passes edge, needs-more-data, PASS and a study tag with no stored study", async () => {
+    const cases: readonly Readonly<{
+      strategy: LibraryStrategy;
+      stored: readonly StoredStudy[];
+    }>[] = [
+      {
+        strategy: { slug: "has-edge", tags: ["backtest-study"] },
+        stored: [
+          { id: "has-edge", kind: "strategy-backtest", verdict: "edge" },
+        ],
+      },
+      {
+        strategy: { slug: "thin-data", tags: ["backtest-study"] },
+        stored: [
+          {
+            id: "thin-data",
+            kind: "strategy-backtest",
+            verdict: "needs-more-data",
+          },
+        ],
+      },
+      {
+        strategy: { slug: "qc-pass", tags: ["quantconnect-idea"] },
+        stored: [{ id: "qc-pass", kind: "qc-port", verdict: "PASS" }],
+      },
+      { strategy: { slug: "not-run", tags: ["backtest-study"] }, stored: [] },
+      // A stored study wins over a stale failed tag, as on the library badge.
+      {
+        strategy: { slug: "stale-tag", tags: ["backtest-study", "failed"] },
+        stored: [
+          { id: "stale-tag", kind: "strategy-backtest", verdict: "edge" },
+        ],
+      },
+      // The rule follows the verdict the library shows: a study of another kind than the tag is
+      // not shown, so it does not block.
+      {
+        strategy: { slug: "other-kind", tags: ["backtest-study"] },
+        stored: [{ id: "other-kind", kind: "qc-port", verdict: "FAIL" }],
+      },
+    ];
+    for (const { strategy, stored } of cases) {
+      const studies = studiesWith(stored);
+      expect(
+        await clientFor({
+          repository: memoryRequests(),
+          strategy,
+          researchStudies: studies.repository,
+        }).deploymentRequests.create(createInput),
+        strategy.slug
+      ).toMatchObject({ ...LOCK, id: "dr-new" });
+      expect(studies.verdicts, strategy.slug).toHaveBeenCalledWith([
+        strategy.slug,
+      ]);
+    }
+  });
+
+  it("does not read the study store for a strategy without a study tag", async () => {
+    const studies = studiesWith([
+      { id: "plain-strategy", kind: "strategy-backtest", verdict: "no-edge" },
+    ]);
+    expect(
+      await clientFor({
+        repository: memoryRequests(),
+        researchStudies: studies.repository,
+      }).deploymentRequests.create(createInput)
+    ).toMatchObject({ ...LOCK, id: "dr-new" });
+    return expect(studies.verdicts).not.toHaveBeenCalled();
+  });
+
+  it("refuses edit, submit and approve when the strategy library is not wired", async () => {
+    const repository = memoryRequests();
+    const client = clientFor({ repository, withoutLibrary: true });
+    const message =
+      "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry.";
+    await expectCode(
+      client.deploymentRequests.update({ id: "dr-1", symbol: "QQQ" }),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+    await expectCode(
+      client.deploymentRequests.submit({ id: "dr-1" }),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+    await expectCode(
+      client.deploymentRequests.approve({ id: "dr-1", confirmSlug: "hmm" }),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+    return expect(repository.transition).not.toHaveBeenCalled();
+  });
+
+  it("leaves a missing request or strategy to the repository", async () => {
+    const repository = memoryRequests();
+    await expectCode(
+      clientFor({ repository }).deploymentRequests.submit({ id: "nope" }),
+      "NOT_FOUND",
+      404
+    );
+    await expectCode(
+      clientFor({ repository }).deploymentRequests.approve({
+        id: "nope",
+        confirmSlug: "hmm",
+      }),
+      "NOT_FOUND",
+      404
+    );
+    // A request whose strategy is gone from the library has nothing to judge.
+    const orphan = clientFor({ repository, strategy: null });
+    expect(
+      await orphan.deploymentRequests.submit({ id: "dr-1" })
+    ).toMatchObject({ status: "requested" });
+    return await expectCode(
+      orphan.deploymentRequests.create({
+        ...createInput,
+        strategyId: "missing",
+      }),
+      "NOT_FOUND",
+      404,
+      "Strategy not found"
+    );
+  });
+
+  it("approves an Academy request: the Academy refusal covers create, edit and submit only", async () => {
+    const repository = memoryRequests();
+    await clientFor({ repository }).deploymentRequests.submit({ id: "dr-1" });
+    repository.get.mockResolvedValue(
+      requestRow({ status: "requested", strategySlug: "dyr-wheel" })
+    );
+    return expect(
+      await clientFor({
+        repository,
+        strategy: { slug: "dyr-wheel", tags: ["dyr"] },
+      }).deploymentRequests.approve({ id: "dr-1", confirmSlug: "hmm" })
+    ).toMatchObject({ ...LOCK, status: "approved" });
+  });
 });
 
 describe("deploymentRequests lock contract", () => {
@@ -666,6 +997,10 @@ describe("deploymentRequests modules have no network path", () => {
   const modules = [
     "./contracts/deployment-requests.ts",
     "./server/deployment-requests.ts",
+    // The request rule of the strategy (research-only tag, study verdict) and its helpers.
+    "./strategy-deployment-eligibility.ts",
+    "./strategy-library.ts",
+    "./strategy-study-tags.ts",
     "../../db/src/server/deployment-requests.ts",
     "../../db/src/server/repositories.ts",
   ];
@@ -700,6 +1035,12 @@ describe("deploymentRequests modules have no network path", () => {
       [
         "../contract.ts",
         "../contracts/deployment-requests.ts",
+        // Types only.
+        "../contracts/strategy-library.ts",
+        // The request rule and the study verdict projection (pure, no I/O): research-only tag and
+        // no-edge or FAIL study verdict.
+        "../strategy-deployment-eligibility.ts",
+        "../strategy-library.ts",
         "./context.ts",
         "./operator-access.ts",
         // Course registry (pure data, no imports): the Academy strategy prefixes refused here.

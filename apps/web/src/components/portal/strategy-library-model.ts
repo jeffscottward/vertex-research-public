@@ -1,5 +1,6 @@
 // Pure strategy-library view helpers: labels, section grouping, preset form values and text export.
 import {
+  FAILED_TAG,
   studyKindsForTags,
   type StrategyBacktestStudy,
   type StrategyLatestBacktestOutput,
@@ -68,9 +69,6 @@ export const VERDICT_LABELS: Readonly<
   "needs-more-data": "Needs more data",
   "no-edge": "No edge",
 };
-
-/** Library tag that records "Vertex tested this strategy and it failed". */
-export const FAILED_TAG = "failed";
 
 // Badges beside a strategy name. "Externally pre-validated" records a third party's claim; it is
 // shown exactly when the strategy carries an external claim and never means validated by Vertex.

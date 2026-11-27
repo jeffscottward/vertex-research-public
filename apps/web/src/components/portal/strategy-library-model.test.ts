@@ -1,8 +1,7 @@
-import type { StrategyVertexStudy } from "@darkfactory/api";
+import { FAILED_TAG, type StrategyVertexStudy } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import {
-  FAILED_TAG,
   formatParamValue,
   formatPresetValues,
   formatRatio,

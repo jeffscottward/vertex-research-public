@@ -5,6 +5,7 @@ import {
   BACKTEST_STUDY_TAG,
   QC_IDEA_TAG,
   STRATEGY_STATUS_VALUES,
+  strategyDeploymentBlock,
   type StrategyGetOutput,
   type StrategyParamOutput,
   type StrategyPresetOutput,
@@ -1045,6 +1046,55 @@ const BacktestsTab = ({
   );
 };
 
+/**
+ * The deployment action of the detail header. A blocked strategy (research-only tag, or a Vertex
+ * study verdict of no-edge or FAIL) offers no deployment or order action at all: a line of text
+ * names the reason, and the server refuses the same strategies. Academy strategies deploy only
+ * from their lesson page (rule gates, password, audit).
+ */
+const DeploymentAction = ({
+  strategy,
+}: Readonly<{
+  strategy: Pick<StrategyGetOutput["strategy"], "id" | "slug" | "tags"> &
+    Partial<Pick<StrategyGetOutput["strategy"], "vertexStudy">>;
+}>) => {
+  const block = strategyDeploymentBlock(strategy);
+  if (block !== null)
+    return (
+      <span
+        className="text-muted-foreground text-sm"
+        data-strategy-deployment-blocked={block.code}
+        data-strategy-research-only={
+          block.code === "research-only" ? strategy.id : undefined
+        }
+        title={block.reason}
+      >
+        {block.label}
+      </span>
+    );
+  // Lesson behind an Academy strategy of any course (dyr-*, qftg-*, ...), or null.
+  const academyLesson = lessonSlugOfStrategy(strategy.slug);
+  if (academyLesson === null)
+    return (
+      <a
+        className={linkButton}
+        data-strategy-request-deployment={strategy.id}
+        href={newRequestHref(strategy.id)}
+      >
+        Request paper deployment
+      </a>
+    );
+  return (
+    <a
+      className={linkButton}
+      data-strategy-academy-lesson={strategy.slug}
+      href={`/academy/${academyLesson}#deploy`}
+    >
+      Deploy from the Academy lesson
+    </a>
+  );
+};
+
 export const StrategyDetail = ({
   detail,
   gateway,
@@ -1056,8 +1106,6 @@ export const StrategyDetail = ({
   researchStudies,
 }: StrategyDetailProps) => {
   const { strategy } = detail;
-  // Lesson behind an Academy strategy of any course (dyr-*, qftg-*, ...), or null.
-  const academyLesson = lessonSlugOfStrategy(strategy.slug);
   const onTabKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const next = tabKeyTarget(event.key, tab);
     if (next === null) return;
@@ -1094,32 +1142,7 @@ export const StrategyDetail = ({
           <StrategyLinks description={strategy.description} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit).
-              Strategies tagged research-only offer no deployment or order action at all. */}
-          {strategy.tags.includes("research-only") ? (
-            <span
-              className="text-muted-foreground text-sm"
-              data-strategy-research-only={strategy.id}
-            >
-              Research only: no deployment
-            </span>
-          ) : academyLesson === null ? (
-            <a
-              className={linkButton}
-              data-strategy-request-deployment={strategy.id}
-              href={newRequestHref(strategy.id)}
-            >
-              Request paper deployment
-            </a>
-          ) : (
-            <a
-              className={linkButton}
-              data-strategy-academy-lesson={strategy.slug}
-              href={`/academy/${academyLesson}#deploy`}
-            >
-              Deploy from the Academy lesson
-            </a>
-          )}
+          <DeploymentAction strategy={strategy} />
           <Button onClick={onClose} type="button" variant="secondary">
             Close
           </Button>

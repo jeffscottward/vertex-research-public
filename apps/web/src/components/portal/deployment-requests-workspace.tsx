@@ -2,6 +2,7 @@
 
 import {
   DEPLOYMENT_REQUEST_STATUS_VALUES,
+  strategyDeploymentBlock,
   type DeploymentRequestOutput,
   type DeploymentRequestStatusValue,
   type StrategyGetOutput,
@@ -282,6 +283,11 @@ const RequestForm = ({
     };
   }, [strategies, strategyId, editing]);
 
+  // Why the chosen strategy has no paper deployment request, or null. The server refuses the same
+  // strategies (deploymentRequests create, edit, submit and approve).
+  const block =
+    strategy === null ? null : strategyDeploymentBlock(strategy.strategy);
+
   const choosePreset = (value: string): void => {
     setPresetId(value);
     if (strategy === null) return;
@@ -373,9 +379,15 @@ const RequestForm = ({
             >
               <option value="">Choose…</option>
               {options.map((option) => {
+                const optionBlock = strategyDeploymentBlock(option);
                 return (
-                  <option key={option.id} value={option.id}>
+                  <option
+                    disabled={optionBlock !== null}
+                    key={option.id}
+                    value={option.id}
+                  >
                     {option.name} ({option.slug})
+                    {optionBlock === null ? "" : ` · ${optionBlock.label}`}
                   </option>
                 );
               })}
@@ -492,8 +504,19 @@ const RequestForm = ({
             })}
           </div>
         </fieldset>
+        {block === null ? null : (
+          <p
+            className="text-muted-foreground text-sm"
+            data-request-blocked={block.code}
+          >
+            {block.reason}
+          </p>
+        )}
         <Feedback message={message} />
-        <Button disabled={busy || strategy === null} type="submit">
+        <Button
+          disabled={busy || strategy === null || block !== null}
+          type="submit"
+        >
           {editing === null ? "Save draft" : "Save changes"}
         </Button>
       </form>

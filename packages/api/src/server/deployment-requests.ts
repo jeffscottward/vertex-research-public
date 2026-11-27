@@ -18,6 +18,15 @@ import {
   DEPLOYMENT_NOT_DISPATCHED_REASON,
   type DeploymentRequestOutput,
 } from "../contracts/deployment-requests.ts";
+import type { StrategyVertexStudy } from "../contracts/strategy-library.ts";
+import {
+  RESEARCH_ONLY_TAG,
+  strategyDeploymentBlock,
+} from "../strategy-deployment-eligibility.ts";
+import {
+  studyCandidateSlugs,
+  studyVerdictsBySlug,
+} from "../strategy-library.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 
@@ -219,38 +228,106 @@ const ACADEMY_REQUEST_PATH_MESSAGE =
 // Academy strategies (every course prefix in the course registry: dyr-*, qftg-*, ...) must go
 // through academy.deployRequest: this generic path has no rule gates, no password step-up and no
 // audit, so create, edit and submit refuse them.
-const refuseAcademyStrategy = async (
-  context: ApiContext,
-  strategyId: string,
-  errors: unknown
-): Promise<void> => {
-  // Fail closed: without the library the strategy cannot be proven to be outside the Academy.
-  const library = context.repositories.strategyLibrary;
-  if (library === undefined)
-    throw factories(errors).STORAGE_ERROR({
-      message:
-        "Strategy library storage is not configured on this server; the request was not saved. Set the database connection, then retry.",
-    });
-  const record = await procedure(() => library.get(strategyId), errors);
-  if (record !== null && isAcademyStrategySlug(record.strategy.slug))
+const refuseAcademySlug = (slug: string, errors: unknown): void => {
+  if (isAcademyStrategySlug(slug))
     throw factories(errors).FORBIDDEN({
       message: ACADEMY_REQUEST_PATH_MESSAGE,
     });
 };
 
-const refuseAcademyRequest = async (
+type RequestStrategy = Readonly<{ slug: string; tags: readonly string[] }>;
+
+// Fail closed: without the library the strategy cannot be proven to be requestable.
+const strategyOf = async (
+  context: ApiContext,
+  strategyId: string,
+  errors: unknown
+): Promise<RequestStrategy | null> => {
+  const library = context.repositories.strategyLibrary;
+  if (library === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message:
+        "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
+  const record = await procedure(() => library.get(strategyId), errors);
+  return record === null ? null : record.strategy;
+};
+
+const STUDY_VERDICT_UNREAD_MESSAGE =
+  "The Vertex study verdict of this strategy could not be read; nothing was saved. Retry.";
+
+// The Vertex study verdict that strategyLibrary list and get show for this strategy, or null when
+// it has no stored study. Fail closed, unlike the list: a strategy with a study tag whose verdict
+// cannot be read is refused, because the verdict may be the one that blocks the request.
+const vertexStudyOf = async (
+  context: ApiContext,
+  strategy: RequestStrategy,
+  errors: unknown
+): Promise<StrategyVertexStudy | null> => {
+  if (studyCandidateSlugs([strategy]).length === 0) return null;
+  const unread = factories(errors).STORAGE_ERROR({
+    message: STUDY_VERDICT_UNREAD_MESSAGE,
+  });
+  const studies = context.repositories.researchStudies;
+  if (studies === undefined) throw unread;
+  const projected = await studies.verdicts([strategy.slug]).catch(() => {
+    throw unread;
+  });
+  return studyVerdictsBySlug([strategy], projected).get(strategy.slug) ?? null;
+};
+
+// A research-only strategy, a strategy whose Vertex study verdict is no-edge or FAIL, and a
+// strategy tagged failed with no study have no paper deployment request
+// (strategy-deployment-eligibility.ts, the rule the library page shows).
+// Create, edit, submit and approve refuse them with the reason of the block.
+const refuseBlockedStrategy = async (
+  context: ApiContext,
+  strategy: RequestStrategy,
+  errors: unknown
+): Promise<void> => {
+  // The research-only tag needs no read: the strategy is refused with its reason (409) even when
+  // the study store is down. Every other answer needs the verdict, because a stored study wins
+  // over the tag failed.
+  const block = strategyDeploymentBlock({
+    tags: strategy.tags,
+    vertexStudy: strategy.tags.includes(RESEARCH_ONLY_TAG)
+      ? null
+      : await vertexStudyOf(context, strategy, errors),
+  });
+  if (block !== null)
+    throw factories(errors).CONFLICT({ message: block.reason });
+};
+
+// Create and createGroup: the strategy of the input. A missing strategy passes; the repository
+// then reports it as not found.
+const refuseUnrequestableStrategy = async (
+  context: ApiContext,
+  strategyId: string,
+  errors: unknown
+): Promise<void> => {
+  const strategy = await strategyOf(context, strategyId, errors);
+  if (strategy === null) return;
+  refuseAcademySlug(strategy.slug, errors);
+  await refuseBlockedStrategy(context, strategy, errors);
+};
+
+// Edit, submit and approve: the strategy of the stored request. A missing request passes; the
+// repository then reports it as not found. Approve skips the Academy refusal: Academy requests
+// are created by academy.deployRequest and approved here.
+const refuseUnrequestableRequest = async (
   context: ApiContext,
   id: string,
-  errors: unknown
+  errors: unknown,
+  path: "generic" | "approve" = "generic"
 ): Promise<void> => {
   const row = await procedure(
     () => requestsFor(context, errors).get(id),
     errors
   );
-  if (row !== null && isAcademyStrategySlug(row.strategySlug))
-    throw factories(errors).FORBIDDEN({
-      message: ACADEMY_REQUEST_PATH_MESSAGE,
-    });
+  if (row === null) return;
+  if (path === "generic") refuseAcademySlug(row.strategySlug, errors);
+  const strategy = await strategyOf(context, row.strategyId, errors);
+  if (strategy !== null) await refuseBlockedStrategy(context, strategy, errors);
 };
 
 const deploymentRequestsCreate = api.deploymentRequests.create
@@ -258,7 +335,7 @@ const deploymentRequestsCreate = api.deploymentRequests.create
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const repository = requestsFor(context, errors);
-    await refuseAcademyStrategy(context, input.strategyId, errors);
+    await refuseUnrequestableStrategy(context, input.strategyId, errors);
     const row = await procedure(
       () =>
         repository.create({
@@ -283,7 +360,7 @@ const deploymentRequestsCreateGroup = api.deploymentRequests.createGroup
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const repository = requestsFor(context, errors);
-    await refuseAcademyStrategy(context, input.strategyId, errors);
+    await refuseUnrequestableStrategy(context, input.strategyId, errors);
     const groupKey = `grp-${crypto.randomUUID()}`;
     const rows = await procedure(async () => {
       const symbols = input.symbols.map(normalizeDeploymentSymbol);
@@ -315,7 +392,7 @@ const deploymentRequestsUpdate = api.deploymentRequests.update
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const repository = requestsFor(context, errors);
-    await refuseAcademyRequest(context, input.id, errors);
+    await refuseUnrequestableRequest(context, input.id, errors);
     const row = await procedure(
       () =>
         repository.update({
@@ -339,7 +416,7 @@ const deploymentRequestsSubmit = api.deploymentRequests.submit
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const repository = requestsFor(context, errors);
-    await refuseAcademyRequest(context, input.id, errors);
+    await refuseUnrequestableRequest(context, input.id, errors);
     return found(
       await procedure(
         () =>
@@ -359,6 +436,7 @@ export const deploymentRequestsApprove = api.deploymentRequests.approve
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const repository = requestsFor(context, errors);
+    await refuseUnrequestableRequest(context, input.id, errors, "approve");
     // The stored options block is checked again: a request that breaks a rule (for example a max
     // loss above the ceiling written before the rule, or by hand) can never be approved.
     await procedure(async () => {
