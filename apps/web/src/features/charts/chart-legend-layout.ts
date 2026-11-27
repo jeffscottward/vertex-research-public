@@ -4,8 +4,8 @@ import type { ChartPalette } from "./types.ts";
 // Keeps price, MA and MACD legends compact and separated from plotted data at 375 px without
 // crowding wide viewports.
 
-export const COMPACT_CHART_WIDTH_PX = 640;
-export const COMPACT_PLOT_WIDTH_PX = 580;
+export const COMPACT_CHART_WIDTH_PX = 760;
+export const COMPACT_PLOT_WIDTH_PX = 700;
 export const DEFAULT_CHART_FONT_FAMILY =
   '"Public Sans", system-ui, -apple-system, sans-serif';
 
@@ -87,11 +87,11 @@ export const COMPACT_CANDLE_TOOLTIP: readonly TooltipLegendEntry[] =
     { title: "V ", value: "{volume}" },
   ]);
 
-/** True when the chart container is narrow (mobile or mid-width host < 640 px). Unmeasured 0 stays wide. */
+/** True when the chart container is too narrow for the wide one-row OHLCV legend (< 760 px). Unmeasured 0 stays wide. */
 export const isCompactChartWidth = (width: number): boolean =>
   Number.isFinite(width) && width > 0 && width < COMPACT_CHART_WIDTH_PX;
 
-/** True when the inner plot canvas is narrower than the wide one-row legend threshold (< 580 px). */
+/** True when the inner plot canvas is narrower than the wide one-row legend threshold (< 700 px). */
 export const isCompactPlotWidth = (width: number): boolean =>
   Number.isFinite(width) && width > 0 && width < COMPACT_PLOT_WIDTH_PX;
 
@@ -140,7 +140,7 @@ export const candlePaneGap = (
 /** Top and bottom Y-axis gap ratios for 96 px indicator panes (Volume, MACD, OI, scripts). */
 export const subPaneGap = (compact: boolean): PaneGapSpec => ({
   bottom: PANE_GAP_BOTTOM,
-  top: compact ? 0.5 : 0.36,
+  top: compact ? 0.56 : 0.36,
 });
 /** Tooltip and typography style fragment for KLineCharts init and narrow/wide resize switches. */
 export const chartLegendStyles = (
@@ -200,8 +200,8 @@ export const chartLegendStyles = (
         color: palette.falling,
         family: fontFamily,
         marginBottom: 3,
-        marginLeft: 8,
-        marginRight: 8,
+        marginLeft: 6,
+        marginRight: 6,
         marginTop: 3,
         size: 12,
       },

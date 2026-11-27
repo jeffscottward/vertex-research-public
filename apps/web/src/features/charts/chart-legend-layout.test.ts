@@ -62,7 +62,7 @@ describe("chart-legend-layout", () => {
     const clampedMany = candlePaneGap(true, 20);
     expect(clampedMany.top).toBe(0.55);
 
-    expect(subPaneGap(true)).toEqual({ bottom: 0.08, top: 0.5 });
+    expect(subPaneGap(true)).toEqual({ bottom: 0.08, top: 0.56 });
     expect(subPaneGap(false)).toEqual({ bottom: 0.08, top: 0.36 });
   });
 

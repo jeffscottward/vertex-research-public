@@ -554,8 +554,8 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
     ).toEqual(["▲★ 615.00", "⇄ 602.50", "◎ 600.00", "▼ 590.00"]);
 
     // The chart legend covers the top-left of the pane. A level near the top keeps its line there
-    // and gets its pill below the legend rows: 48 px on a wide pane, 54 px on a compact narrow or
-    // mid-width (<580 px) pane.
+    // and gets its pill centered below the legend rows (+9 px half-height): 57 px on a wide pane,
+    // 63 px on a compact narrow or mid-width (<700 px) pane.
     const pillYs = (
       ys: readonly number[],
       bounding: { height: number; width: number }
@@ -566,16 +566,16 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
         bounding
       ).flatMap((f) => (f.type === "text" ? [f.attrs.y] : []));
     expect(pillYs([10, 140, 200, 280], { height: 360, width: 800 })).toEqual([
-      48, 140, 200, 280,
+      57, 140, 200, 280,
     ]);
     expect(pillYs([10, 140, 200, 280], { height: 360, width: 520 })).toEqual([
-      54, 140, 200, 280,
+      63, 140, 200, 280,
     ]);
     expect(pillYs([10, 140, 200, 280], { height: 360, width: 375 })).toEqual([
-      54, 140, 200, 280,
+      63, 140, 200, 280,
     ]);
     // With off-scale "↑ Above" levels, the summary pill clears the legend on narrow, mid-width,
-    // and wide panes and visible pills sit below the summary pill without overlap.
+    // and wide panes and visible pills sit cleanly below the summary pill (+28 px center offset).
     const narrowWithAbove = gammaLevelsFigures(
       [
         { x: 50, y: -20 },
@@ -590,7 +590,7 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
       f.attrs.text.startsWith("↑ Above:")
     );
     expect(abovePill?.attrs.y).toBe(54);
-    expect(narrowWithAbove[0]?.attrs.y).toBe(74);
+    expect(narrowWithAbove[0]?.attrs.y).toBe(82);
     expect(
       narrowWithAbove.every((f) => f.styles.family === data.fontFamily)
     ).toBe(true);
@@ -608,7 +608,7 @@ describe("gammaLevelsOverlayData and gammaLevelsFigures", () => {
       f.attrs.text.startsWith("↑ Above:")
     );
     expect(wideAbovePill?.attrs.y).toBe(48);
-    expect(wideWithAbove[0]?.attrs.y).toBe(68);
+    expect(wideWithAbove[0]?.attrs.y).toBe(76);
     expect(
       wideWithAbove.every((f) => f.styles.family === data.fontFamily)
     ).toBe(true);

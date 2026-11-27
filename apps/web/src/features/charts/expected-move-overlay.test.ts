@@ -253,6 +253,40 @@ describe("expectedMoveConeFigures", () => {
     const legendClearTexts = legendClear.filter((fig) => fig.type === "text");
     expect(legendClearTexts[0]?.attrs["text"]).toBe("+1σ $625.60");
     expect(legendClearTexts[0]?.attrs["y"]).toBe(64);
+
+    // When both +1σ and -1σ sit above the viewport (or -1σ sits inside the clamped upper pill band),
+    // -1σ stacks cleanly below +1σ without colliding on the same pixels.
+    const bothAbove = expectedMoveConeFigures(
+      [
+        { x: 200, y: 150 },
+        { x: 320, y: -40 },
+        { x: 320, y: -10 },
+        { x: 320, y: -30 },
+        { x: 320, y: -5 },
+      ],
+      data,
+      { height: 300, width: 400 }
+    ).filter((fig) => fig.type === "text");
+    expect(bothAbove[0]?.attrs["text"]).toBe("↑ +1σ $625.60");
+    expect(bothAbove[0]?.attrs["y"]).toBe(70);
+    expect(bothAbove[1]?.attrs["text"]).toBe("↑ -1σ $574.40");
+    expect(bothAbove[1]?.attrs["y"]).toBe(72);
+
+    const nearUpper = expectedMoveConeFigures(
+      [
+        { x: 200, y: 150 },
+        { x: 320, y: -40 },
+        { x: 320, y: 58 },
+        { x: 320, y: -20 },
+        { x: 320, y: 90 },
+      ],
+      data,
+      { height: 300, width: 400 }
+    ).filter((fig) => fig.type === "text");
+    expect(nearUpper[0]?.attrs["y"]).toBe(70);
+    expect(nearUpper[1]?.attrs["text"]).toBe("-1σ $574.40");
+    expect(nearUpper[1]?.attrs["y"]).toBe(72);
+
     // Target panned off-canvas horizontally hides labels
     const hiddenX = expectedMoveConeFigures(coords, data, {
       height: 300,

@@ -1234,9 +1234,70 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       id: "vx_macd_pane",
     });
 
+    // Shrinking back below the compact breakpoint (800 -> 309) restores compact styles and gaps.
+    Object.defineProperty(element, "clientWidth", {
+      configurable: true,
+      value: 309,
+    });
+    fake.setStyles.mockClear();
+    fake.setPaneOptions.mockClear();
+    renderer.resize();
+    expect(fake.setStyles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candle: expect.objectContaining({
+          tooltip: expect.objectContaining({
+            text: expect.objectContaining({ size: 10 }),
+          }),
+        }),
+        indicator: expect.objectContaining({
+          tooltip: expect.objectContaining({ showParams: false }),
+        }),
+      })
+    );
+    expect(fake.setPaneOptions).toHaveBeenCalledWith({
+      gap: { bottom: 0.08, top: 0.56 },
+      id: "vx_macd_pane",
+    });
+
     renderer.dispose();
     fake.resize.mockClear();
     renderer.resize();
     expect(fake.resize).not.toHaveBeenCalled();
+  });
+
+  it("switches from unmeasured initial mount (0 px) to compact mode on first narrow resize", async () => {
+    stubBrowser();
+    const fake = {
+      ...studyChart(),
+      overrideIndicator: vi.fn(),
+      setPaneOptions: vi.fn(),
+    };
+    mocks.init.mockReturnValue(fake);
+    const element = { clientWidth: 0 } as HTMLElement;
+    const renderer = await createKLineRenderer(
+      element,
+      options(new AbortController().signal)
+    );
+    const init = mocks.init.mock.calls[0]?.[1] as {
+      styles: { candle: { tooltip: { text: { size: number } } } };
+    };
+    expect(init.styles.candle.tooltip.text.size).toBe(12);
+
+    Object.defineProperty(element, "clientWidth", {
+      configurable: true,
+      value: 309,
+    });
+    fake.setStyles.mockClear();
+    renderer.resize();
+    expect(fake.setStyles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candle: expect.objectContaining({
+          tooltip: expect.objectContaining({
+            text: expect.objectContaining({ size: 10 }),
+          }),
+        }),
+      })
+    );
+    renderer.dispose();
   });
 });

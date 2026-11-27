@@ -294,16 +294,15 @@ const finiteCoord = (
 
 const LABEL_EDGE_MARGIN = 20;
 const PILL_TEXT_HEIGHT_PX = 16;
+const PILL_STACK_GAP_PX = 2;
 
 const clampLabelY = (
   y: number,
   label: string,
   bounding: OverlayBounding | undefined,
-  topOffset: number
+  topMargin: number
 ): Readonly<{ y: number; text: string }> => {
   if (bounding === undefined) return { text: label, y };
-  const topMargin =
-    legendClearancePx(isCompactPlotWidth(bounding.width), 1) + topOffset;
   const minTop = Math.min(
     topMargin,
     Math.max(LABEL_EDGE_MARGIN, bounding.height - LABEL_EDGE_MARGIN)
@@ -313,6 +312,34 @@ const clampLabelY = (
   if (y > bounding.height - LABEL_EDGE_MARGIN)
     return { text: `↓ ${label}`, y: bounding.height - LABEL_EDGE_MARGIN };
   return { text: label, y };
+};
+
+const placeConePills = (
+  upperY: number,
+  lowerY: number,
+  data: ExpectedMoveOverlayData,
+  bounding: OverlayBounding | undefined
+): Readonly<{
+  upperPill: Readonly<{ y: number; text: string }>;
+  lowerPill: Readonly<{ y: number; text: string }>;
+}> => {
+  const legendTop =
+    bounding === undefined
+      ? LABEL_EDGE_MARGIN
+      : legendClearancePx(isCompactPlotWidth(bounding.width), 1);
+  const upperPill = clampLabelY(
+    upperY - 4,
+    data.upperLabel,
+    bounding,
+    legendTop + PILL_TEXT_HEIGHT_PX
+  );
+  const lowerPill = clampLabelY(
+    lowerY + 4,
+    data.lowerLabel,
+    bounding,
+    Math.max(legendTop, upperPill.y + PILL_STACK_GAP_PX)
+  );
+  return { lowerPill, upperPill };
 };
 
 /**
@@ -433,13 +460,12 @@ export const expectedMoveConeFigures = (
       bounding !== undefined && upper.x > bounding.width - 64;
     const pillAlign = nearRightEdge ? "right" : "center";
     const pillX = nearRightEdge ? upper.x - 4 : upper.x;
-    const upperPill = clampLabelY(
-      upper.y - 4,
-      data.upperLabel,
-      bounding,
-      PILL_TEXT_HEIGHT_PX
+    const { lowerPill, upperPill } = placeConePills(
+      upper.y,
+      lower.y,
+      data,
+      bounding
     );
-    const lowerPill = clampLabelY(lower.y + 4, data.lowerLabel, bounding, 0);
     const pillStyle = {
       backgroundColor: data.background,
       borderColor: data.stroke,

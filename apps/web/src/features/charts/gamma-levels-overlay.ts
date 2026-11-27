@@ -127,6 +127,8 @@ export type GammaLevelGroup = Readonly<{
 
 const COINCIDENT_EPSILON = 1e-6;
 const PILL_MIN_GAP_PX = 20;
+const PILL_HALF_HEIGHT_PX = 9;
+const ABOVE_PILL_CLEARANCE_PX = 28;
 const PILL_PADDING_Y_PX = 12;
 const PILL_EDGE_X_PX = 8;
 const positiveFiniteOrNull = (
@@ -746,10 +748,14 @@ export const gammaLevelsFigures = (
       ? height - PILL_PADDING_Y_PX - 20
       : height - PILL_PADDING_Y_PX;
   // Place the top-right "↑ Above" summary below the price + overlay legend on every pane width
-  // so it never overlaps the legend rows. Visible pills then start below both.
+  // so it never overlaps the legend rows. Visible pills (baseline "middle", ~18 px tall) start
+  // cleanly below the legend or below the "↑ Above" pill.
   const legendTop = legendClearancePx(isCompactPlotWidth(width), 1);
   const aboveY = Math.min(legendTop, Math.max(4, height - 36));
-  const minPillTop = above.length > 0 ? aboveY + PILL_MIN_GAP_PX : legendTop;
+  const minPillTop =
+    above.length > 0
+      ? aboveY + ABOVE_PILL_CLEARANCE_PX
+      : legendTop + PILL_HALF_HEIGHT_PX;
   const topReserve = Math.max(
     PILL_PADDING_Y_PX,
     Math.min(minPillTop, bottomReserve - (visible.length - 1) * PILL_MIN_GAP_PX)
