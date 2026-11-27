@@ -168,6 +168,7 @@ tests/test_polymarket_chain_sample.py
 tests/test_prediction_market_parquet.py
 tests/test_distribution_days.py
 tests/test_flow_control_control.py
+tests/test_flow_control_stability.py
 tests/test_flow_control_rules.py
 tests/test_flow_control_data.py
 tests/test_flow_control_download.py
