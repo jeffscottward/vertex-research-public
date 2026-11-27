@@ -28,8 +28,10 @@ The job `cme-futures-oi` reads the CME public FTP server through its own adapter
 
 - Output: stdout, one JSON document `{"schemaVersion": "openbb-batch.v1", "job": "<job>",
   "openbbVersion": "<openbb-core version>", "tables": [{"table": "<table>", "rows": [...]}],
-  "warnings": ["..."]}`. Row keys are camelCase and match the Zod row schemas below exactly. Dates are
-  `YYYY-MM-DD`, numbers are JSON numbers or null, never NaN or Infinity.
+  "warnings": ["..."]}`, plus optional `"info": ["..."]` when a job emits informational notes (for
+  example `cboe-option-iv` Cboe non-standard OCC row skips; omitted when empty). Row keys are
+  camelCase and match the Zod row schemas below exactly. Dates are `YYYY-MM-DD`, numbers are JSON
+  numbers or null, never NaN or Infinity.
 - Exit codes: 0 ok (warnings allowed, including a partial document at the deadline) or blocked
   upstream (see below), 1 internal error, 2 bad arguments or missing/malformed SEC contact, 3 upstream
   failed for every source of the job and at least one failure is not a block. Errors go to stderr. No
@@ -399,11 +401,16 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   `layout_unknown` accessions with their parser version of the incomplete days (sec-form4 tick only).
 - `openbb.recordRun` input `{ job, startedAt, finishedAt, status, rowsReceived, rowsWritten, warnings, error, openbbVersion }`.
   Status (set by tick.ts): `failed` when the fetcher exits non-zero, prints a document that fails the
-  schema or answers another job, or every ingest chunk fails; `partial` when the document has warnings
-  or some chunks fail; `blocked_upstream` when the document has `blocked` and no rows (`error` is then
-  `HTTP <code> from <host>`); else `ok`. tick.ts exits 0 for ok, warnings-only partial and
-  blocked_upstream, 1 for any failed chunk or failed recordRun, 2 for bad arguments. A job whose
-  sources are all blocked therefore does not fail `vertex-openbb.service`.
+  schema or answers another job, or every ingest chunk fails; `partial` when `document.warnings` is
+  non-empty or some chunks fail; `blocked_upstream` when the document has `blocked` and no rows
+  (`error` is then `HTTP <code> from <host>`); else `ok`. Producer-side `document.info` entries (such
+  as `cboe-option-iv` Cboe non-standard OCC skip lines `cboe chain <SYM>: skipped <N> rows without a
+  standard OCC symbol`) keep `status` `ok` (when no warnings or chunk failures occur) and are
+  appended to `openbb_ingest_runs.warnings` (deduped, warnings first, capped at 500 entries) so
+  `openbb.status` and MCP `openbb_status` preserve the skip count. Yahoo fallback warnings and Yahoo
+  OCC/strike skip lines stay in `document.warnings` and keep `status` `partial`. tick.ts exits 0 for
+  ok, warnings-only partial and blocked_upstream, 1 for any failed chunk or failed recordRun, 2 for
+  bad arguments. A job whose sources are all blocked therefore does not fail `vertex-openbb.service`.
   Blocked streak: the newest recorded runs of a job that are all `blocked_upstream`. A timer run
   (`VERTEX_OPENBB_TIMER=1`) first reads `openbb.status`; while the job is in a blocked streak and the
   retry time (minus a 5-minute tolerance) is not reached, it prints `skip: blocked upstream (...)`,

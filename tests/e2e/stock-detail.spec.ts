@@ -41,7 +41,7 @@ const reply = async (route: Route, json: unknown) =>
     status: 200,
   });
 
-const mockMarketData = async (page: Page) => {
+const mockMarketData = async (page: Page, partialOi = false) => {
   await page.route("**/api/orpc/marketData/bars**", async (route) => {
     const input = rpcInput(route);
     await reply(
@@ -55,13 +55,24 @@ const mockMarketData = async (page: Page) => {
   await page.route("**/api/orpc/optionsChain/chain**", async (route) => {
     const input = rpcInput(route);
     const expiry = input["expiry"];
-    await reply(
-      route,
-      await optionsChain.chain({
-        symbol: String(input["symbol"] ?? "SPY"),
-        ...(typeof expiry === "string" ? { expiry } : {}),
-      })
-    );
+    const chain = await optionsChain.chain({
+      symbol: String(input["symbol"] ?? "SPY"),
+      ...(typeof expiry === "string" ? { expiry } : {}),
+    });
+    const rows = partialOi
+      ? chain.rows.map((row, index) => ({
+          ...row,
+          call:
+            row.call === null || index % 3 !== 0
+              ? row.call
+              : { ...row.call, openInterest: null },
+          put:
+            row.put === null || index % 4 !== 0
+              ? row.put
+              : { ...row.put, openInterest: null },
+        }))
+      : chain.rows;
+    await reply(route, { ...chain, rows });
   });
   // The analytics tab is not opened here; any snapshot/heatmap request stays pending.
   await page.route("**/api/orpc/optionsAnalytics/snapshot**", () => undefined);
@@ -131,6 +142,66 @@ test("stock detail stacks calls and puts on a phone", async ({ page }) => {
     () => document.documentElement.scrollWidth - window.innerWidth
   );
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test("stock detail keeps partial put/call OI details within the tile at target widths", async ({
+  page,
+}) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  await page.setViewportSize({ height: 1100, width: 1440 });
+  await mockMarketData(page, true);
+  await page.goto("/stock/NVDA?tab=options");
+
+  const card = page.locator("[data-stock-kpis] dl").filter({
+    has: page.getByText("Put/call OI", { exact: true }),
+  });
+  await expect(card).toBeVisible();
+  const value = card.locator("dd").first();
+  await expect(value).toHaveText("No ratio");
+  const detail = card.locator("dd").nth(1);
+  await expect(detail).toHaveText(
+    "OI reported for 27 of 41 calls and 30 of 41 puts in the returned chain"
+  );
+  // The table shows "no OI" for the contracts the tile counts as not reported, and for no others:
+  // 14 calls (27 of 41 reported) and 11 puts (30 of 41 reported).
+  await page.getByLabel("Strikes").selectOption("all");
+  const noOi = page
+    .locator('table[data-chain-layout="split"]')
+    .locator('td[title="Open interest not sent by the source"]');
+  await expect(noOi).toHaveCount(14 + 11);
+  await expect(noOi.first()).toHaveText("no OI");
+
+  for (const width of [375, 768, 1024, 1440]) {
+    await page.setViewportSize({ height: 1100, width });
+    const bounds = await detail.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const tile = element.closest("dl")?.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        clientWidth: element.clientWidth,
+        detailHeight: rect.height,
+        detailLeft: rect.left,
+        detailRight: rect.right,
+        lineHeight: Number.parseFloat(style.lineHeight),
+        scrollWidth: element.scrollWidth,
+        tileLeft: tile?.left ?? Number.NaN,
+        tileRight: tile?.right ?? Number.NaN,
+      };
+    });
+    expect(bounds.detailLeft).toBeGreaterThanOrEqual(bounds.tileLeft);
+    expect(bounds.detailRight).toBeLessThanOrEqual(bounds.tileRight);
+    // The text itself fits its box: a block keeps its box even when its text overflows.
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+    if (width === 375)
+      expect(bounds.detailHeight).toBeGreaterThan(1.5 * bounds.lineHeight);
+    // The big value stays on one line: the sentence is in the detail, not in the value.
+    const valueLines = await value.evaluate(
+      (element) =>
+        element.getBoundingClientRect().height /
+        Number.parseFloat(getComputedStyle(element).lineHeight)
+    );
+    expect(valueLines).toBeLessThan(1.5);
+  }
 });
 
 test("charts open on the SPY chart and change interval through the URL", async ({
