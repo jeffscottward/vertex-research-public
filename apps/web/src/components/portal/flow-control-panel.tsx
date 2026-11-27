@@ -398,7 +398,9 @@ const ControlDocument = ({
       <ul className="space-y-1">
         {controlFreshnessRows(control).map((row) => (
           <li className="flex items-center gap-2" key={row.key}>
-            <StatusBadge status={row.tone}>{row.text}</StatusBadge>
+            <StatusBadge plain status={row.tone}>
+              {row.text}
+            </StatusBadge>
           </li>
         ))}
       </ul>

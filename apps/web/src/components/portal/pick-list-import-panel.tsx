@@ -159,7 +159,7 @@ export const PickListImportPanel = ({
               value={text}
             />
           </label>
-          <label className="flex min-h-11 min-w-0 flex-wrap items-center gap-2 text-sm">
+          <label className="inline-flex min-h-11 min-w-0 max-w-full flex-wrap items-center gap-2 text-sm">
             <Upload aria-hidden="true" className="size-4" />
             <span>CSV file</span>
             <input

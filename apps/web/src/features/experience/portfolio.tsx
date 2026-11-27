@@ -374,7 +374,6 @@ export const PortfolioObservation = ({
       </p>
       {snapshot.sourceKind === "source-unavailable" ? (
         <ReadNotice
-          plain
           title={`Portfolio source reported no portfolio data for ${snapshot.environment} at ${snapshot.asOfAt}`}
         >
           {`The source reported at ${snapshot.asOfAt} (sequence ${snapshot.sequence}) that it has no portfolio data; this page received the report at ${snapshot.receivedAt}. `}
@@ -386,7 +385,6 @@ export const PortfolioObservation = ({
         </ReadNotice>
       ) : snapshot.continuity.freshness.status === "stale" ? (
         <ReadNotice
-          plain
           title={`Portfolio source not responding for ${snapshot.environment}: no newer observation since ${snapshot.asOfAt}`}
         >
           {`No newer portfolio observation arrived within the age limit of ${snapshot.continuity.freshness.maxAgeMs} ms. The values below are from that observation (sequence ${snapshot.sequence}); current balances are unconfirmed.`}

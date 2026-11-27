@@ -117,18 +117,16 @@ export const AcademyLesson = ({
             }
             title={lesson.title}
           />
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-muted-foreground text-xs">
             {[
               ...lesson.tags.regime,
               ...lesson.tags.instruments,
               lesson.tags.timeframe,
               lesson.tags.risk,
-            ].map((tag) => (
-              <span className="text-muted-foreground text-xs" key={tag}>
-                {labelOf(tag)}
-              </span>
-            ))}
-          </div>
+            ]
+              .map(labelOf)
+              .join(" · ")}
+          </p>
           {course.narrated ? null : (
             <p className="text-sm">
               <a

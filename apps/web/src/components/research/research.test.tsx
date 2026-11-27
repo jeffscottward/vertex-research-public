@@ -498,6 +498,18 @@ describe("Vertex rendered research states", () => {
       if (kind === "not-found" || kind === "invalid")
         expect(html).not.toContain("<button");
     }
+    // The detail of this kind says that a retry cannot succeed, so the panel offers none.
+    const notConfigured = renderToStaticMarkup(
+      <ReadFailure
+        failure={classifyVertexFailure(
+          new VertexReadError("server-not-configured")
+        )}
+        retry={() => undefined}
+        returnTo="/modules"
+      />
+    );
+    expect(notConfigured).toContain("A retry cannot succeed");
+    expect(notConfigured).not.toContain("<button");
     const retry = vi.fn();
     const node = ReadFailure({
       failure: classifyVertexFailure(new Error()),
@@ -513,21 +525,6 @@ describe("Vertex rendered research states", () => {
       renderToStaticMarkup(<ModulesWorkspace gateway={fixture.gateway} />)
     ).toContain("Refresh catalog");
     return expect(fixture.list).not.toHaveBeenCalled();
-  });
-
-  it("draws a notice border only where no card already holds the notice", () => {
-    const boxed = renderToStaticMarkup(
-      <ReadNotice title="Empty">No record</ReadNotice>
-    );
-    expect(boxed).toMatch(/class="[^"]*\bborder\b[^"]*" role="status"/u);
-    const plain = renderToStaticMarkup(
-      <ReadNotice plain title="Empty">
-        No record
-      </ReadNotice>
-    );
-    expect(plain).toContain('role="status"');
-    expect(plain).toContain("<p>No record</p>");
-    expect(plain).not.toMatch(/\bborder\b|\bbg-card\b|\bpx-4\b/u);
   });
 
   it("prints the module version as plain sentence-case text above the module name", () => {

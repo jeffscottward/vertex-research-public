@@ -19,24 +19,17 @@ export const ResearchHeading = ({
   </header>
 );
 
-/** A notice inside a card: the same text and role, without a second border, fill or padding. */
-const PLAIN_NOTICE =
-  "my-3 grid w-full gap-1 text-sm [&>p:not(.alert-title)]:text-muted-foreground";
-
 export const ReadNotice = ({
   title,
   children,
   loading = false,
-  plain = false,
 }: {
   readonly title: string;
   readonly children?: ReactNode;
   readonly loading?: boolean;
-  /** True when a bordered card already holds the notice (one surface level). */
-  readonly plain?: boolean;
 }) => (
   <div
-    className={plain ? PLAIN_NOTICE : alertVariants()}
+    className={alertVariants()}
     role="status"
     aria-live="polite"
     aria-busy={loading}
@@ -80,7 +73,10 @@ export const ReadFailure = ({
         {"Verify the workspace session "}
         <ArrowUpRight aria-hidden="true" className="size-4" />
       </a>
-    ) : failure.kind === "invalid" || failure.kind === "not-found" ? null : (
+    ) : failure.kind === "invalid" ||
+      failure.kind === "not-found" ||
+      // The detail of this kind says that a retry cannot succeed.
+      failure.kind === "server-not-configured" ? null : (
       <button className="vx-text-link" onClick={retry} type="button">
         <RotateCcw aria-hidden="true" className="size-4" />
         Retry read

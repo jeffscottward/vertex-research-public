@@ -9,7 +9,7 @@ describe("app root not-found page", () => {
   it("shows one title, one sentence and a link to the start page", () => {
     expect(html.match(/<h[1-6]/g)).toEqual(["<h1"]);
     expect(html).toContain(">Page not found</h1>");
-    expect(html).toContain("This address does not match a page.");
+    expect(html).toContain("There is no page to show at this address.");
     expect(html).toMatch(/<a [^>]*href="\/"[^>]*>Go to the start page<\/a>/);
   });
 

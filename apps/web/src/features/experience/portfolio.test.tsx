@@ -344,7 +344,7 @@ describe("portfolio source truthfulness", () => {
     return expect(html).toContain("1 supplied");
   });
 
-  it("draws one border around the source and continuity cards and none inside them", () => {
+  it("keeps the boxed source warning and draws no other border inside the two cards", () => {
     const stale = {
       ...snapshot,
       continuity: {
@@ -358,6 +358,12 @@ describe("portfolio source truthfulness", () => {
       { ...snapshot, sourceKind: "source-unavailable" as const },
     ]) {
       const html = markup(<PortfolioObservation snapshot={observation} />);
+      // The warning about the portfolio source keeps its box, its text and its status role.
+      const warning =
+        /<div class="([^"]*)" role="status" aria-live="polite" aria-busy="false"><p class="[^"]*">Portfolio source /.exec(
+          html
+        )?.[1] ?? "";
+      expect(warning.split(" ")).toContain("border");
       for (const label of ["Portfolio source", "Projection continuity"]) {
         const card =
           html.match(
@@ -367,16 +373,14 @@ describe("portfolio source truthfulness", () => {
           )?.[0] ?? "";
         const [outer, ...inner] = Array.from(
           card.matchAll(/class="([^"]*)"/g),
-          (match) => (match[1] ?? "").split(" ")
+          (match) => match[1] ?? ""
         );
-        expect(outer).toContain("border");
+        expect((outer ?? "").split(" ")).toContain("border");
         expect(inner.length).toBeGreaterThan(0);
-        for (const tokens of inner) expect(tokens).not.toContain("border");
+        // Only the source warning has a border inside a card.
+        for (const tokens of inner.filter((value) => value !== warning))
+          expect(tokens.split(" ")).not.toContain("border");
       }
-      // The notice inside the source card keeps its text and its status role.
-      expect(html).toMatch(
-        /<div class="my-3 [^"]*" role="status" aria-live="polite" aria-busy="false"><p class="[^"]*">Portfolio source /
-      );
     }
   });
 

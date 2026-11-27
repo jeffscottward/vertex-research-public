@@ -36,6 +36,7 @@ import {
   OperatorAccessRequired,
   STAGE_LABELS,
   STATUS_LABELS,
+  TASK_KIND_LABELS,
 } from "./agent-ops-client.tsx";
 import { SectorRotationChanges } from "./sector-rotation-changes.tsx";
 
@@ -188,8 +189,8 @@ const TaskTable = ({
                     </div>
                   )}
                 </TableHead>
-                <TableCell className="align-top font-mono text-xs">
-                  {task.kind}
+                <TableCell className="align-top text-xs">
+                  {labelFor(TASK_KIND_LABELS, task.kind)}
                 </TableCell>
                 <TableCell className="align-top font-mono text-xs">
                   {task.agent}

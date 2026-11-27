@@ -306,19 +306,14 @@ const CourseLessons = ({
                       <span className="line-clamp-3 text-muted-foreground text-sm">
                         {lesson.summary}
                       </span>
-                      <span className="mt-auto flex flex-wrap gap-x-2 gap-y-1 pt-1">
+                      <span className="mt-auto pt-1 text-muted-foreground text-xs">
                         {[
                           ...lesson.tags.regime,
                           ...lesson.tags.instruments.slice(0, 3),
                           lesson.tags.timeframe,
-                        ].map((tag) => (
-                          <span
-                            className="text-muted-foreground text-xs"
-                            key={tag}
-                          >
-                            {labelOf(tag)}
-                          </span>
-                        ))}
+                        ]
+                          .map(labelOf)
+                          .join(" · ")}
                       </span>
                     </span>
                   </Link>

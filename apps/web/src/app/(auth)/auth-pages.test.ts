@@ -49,7 +49,7 @@ describe("auth route pages", () => {
     );
 
     expect(signInMetadata.title).toBe("Sign in");
-    expect(html).toContain("Sign in");
+    expect(html).toContain(">Sign in</h1>");
     expect(html).toContain("Checking your session");
     expect(html).not.toContain('value="/feature-items"');
     return expect(html).not.toContain('type="email"');
@@ -59,9 +59,9 @@ describe("auth route pages", () => {
     const signup = markup(createElement(SignUpPage));
     const forgot = markup(createElement(ForgotPasswordPage));
 
-    expect(signup).toContain("Create an account");
+    expect(signup).toContain(">Create an account</h1>");
     expect(signup).toContain("Checking your session");
-    expect(forgot).toContain("Reset your password");
+    expect(forgot).toContain(">Reset your password</h1>");
     return expect(forgot).toContain("Checking your session");
   });
 
@@ -101,7 +101,7 @@ describe("auth route pages", () => {
   it("renders the default sign-in state without password-reset confirmation", async () => {
     const html = markup(await SignInPage({ searchParams: searchParams() }));
 
-    expect(html).toContain("Sign in");
+    expect(html).toContain(">Sign in</h1>");
     return expect(html).not.toContain("Your password was updated.");
   });
 

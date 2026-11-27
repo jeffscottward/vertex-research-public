@@ -26,6 +26,7 @@ import {
   InfoGlyph,
   OperatorAccessRequired,
   STATUS_LABELS,
+  TASK_KIND_LABELS,
   createBrowserAgentOpsGateway,
   describeAgentOpsFailure,
   isOperatorAccessDenied,
@@ -70,21 +71,8 @@ const BLANK_DRAFT: Draft = {
 const selectClass =
   "h-9 rounded-md border border-border bg-background px-2 text-sm";
 
-// The words of a task kind; the page prints these, never the kind code.
-const KIND_LABELS: Readonly<Record<AgentTaskKindValue, string>> = {
-  backtest: "Backtest",
-  data: "Data",
-  deployment: "Deployment",
-  forward_test: "Forward test",
-  ops: "Ops",
-  optimization: "Optimization",
-  paper: "Paper",
-  research: "Research",
-  strategy: "Strategy",
-};
-
 const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
-  const metrics = Object.entries(labelledMetrics(detail.task.metrics));
+  const metrics = labelledMetrics(detail.task.metrics);
   return (
     <div className="grid gap-4 py-2 md:grid-cols-3">
       <section aria-label="Task metrics" className="space-y-1">
@@ -335,7 +323,7 @@ export const AgentRunsWorkspace = ({
             >
               {AGENT_TASK_KIND_VALUES.map((kind) => (
                 <option key={kind} value={kind}>
-                  {labelFor(KIND_LABELS, kind)}
+                  {labelFor(TASK_KIND_LABELS, kind)}
                 </option>
               ))}
             </select>
@@ -411,7 +399,7 @@ export const AgentRunsWorkspace = ({
             <option value="">All</option>
             {AGENT_TASK_KIND_VALUES.map((kind) => (
               <option key={kind} value={kind}>
-                {labelFor(KIND_LABELS, kind)}
+                {labelFor(TASK_KIND_LABELS, kind)}
               </option>
             ))}
           </select>
@@ -526,7 +514,7 @@ export const AgentRunsWorkspace = ({
                         )}
                       </TableHead>
                       <TableCell className="whitespace-normal py-1 font-mono text-xs">
-                        {labelFor(KIND_LABELS, task.kind)}
+                        {labelFor(TASK_KIND_LABELS, task.kind)}
                       </TableCell>
                       <TableCell className="whitespace-normal py-1 font-mono text-xs">
                         {task.agent}
