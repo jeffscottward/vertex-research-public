@@ -1,7 +1,7 @@
 // What: Request database admission per isolate: a cap, FIFO waiters, and leases that end at a maximum age.
 // Used by: packages/db/src/server/client.ts#createRequestDatabase.
 // See: docs/debugging.md#symptom--where-to-look (DATABASE_CAPACITY, request-database.slot-reclaimed);
-// docs/vertex-rebuild/designs/vertex-web-request-slot-leak-cancel/plan.md (Fix D).
+// docs/vertex-rebuild/designs/vertex-web-request-slot-leak-cancel/plan.md (Design, Layer 2).
 
 /** Concurrent request database clients per isolate. */
 export const REQUEST_DATABASE_POOL_MAX_CONNECTIONS = 8;

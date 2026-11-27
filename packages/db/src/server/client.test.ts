@@ -137,6 +137,7 @@ import {
   REQUEST_DATABASE_POOL_MAX_CONNECTIONS,
   REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS,
   REQUEST_DATABASE_SLOT_RECLAIM_AFTER_MILLISECONDS,
+  resetRequestSlotsForTesting,
 } from "./request-slots.ts";
 
 const CONNECTION_STRING = "postgresql://localhost/darkfactory_test";
@@ -1074,6 +1075,8 @@ describe("database client factories", () => {
     };
 
     beforeEach(() => {
+      // Admission state is per module: start from an empty pool whatever earlier tests left.
+      resetRequestSlotsForTesting();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     });
 
