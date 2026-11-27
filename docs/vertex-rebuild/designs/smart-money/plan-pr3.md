@@ -10,7 +10,7 @@ Design: [design.md](design.md) (section "PR 3", Glossary "insider cluster buy").
 * The ledger (`sec_form4_filings`, one row per accession, plus `sec_form4_index_days`, one row per index day) lets a run that stops at the 240 s deadline resume where it stopped.
 * `openbb.sec` (stock page insider table, MCP tool `openbb_sec`) reads the new tables, so a symbol outside the old 10 stocks has insider rows when filers report that symbol.
 * New procedure `openbb.insiderClusters`, MCP tool `openbb_insider_clusters` and page `/insider-clusters` list insider cluster buys.
-* The `sec-insider` step leaves the rig schedule. Job `sec-insider` and table `openbb_sec_insider_trades` stay (unscheduled, no writer) until the new data covers 30 days; then a follow-up PR removes them. PR 6 folds `/insider-clusters` into `/smart-money`.
+* The `sec-insider` step leaves the rig schedule. Job `sec-insider` and table `openbb_sec_insider_trades` stay (unscheduled, no writer) until the new data covers 30 days; then a follow-up PR removes them. Completed in [plan-sec-insider-retire.md](./plan-sec-insider-retire.md) (migration `0102_drop_openbb_sec_insider_trades`). PR 6 folds `/insider-clusters` into `/smart-money`.
 
 ## Decisions
 

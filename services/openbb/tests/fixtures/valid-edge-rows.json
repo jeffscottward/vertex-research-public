@@ -146,25 +146,6 @@
     "why": "daysToCover zero"
   },
   {
-    "table": "sec_insider_trades",
-    "row": {
-      "accessionNumber": "0001140361-26-039785",
-      "acquiredDisposed": null,
-      "filingDate": "2026-10-15",
-      "ownerName": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
-      "ownerTitle": null,
-      "price": null,
-      "rowNumber": 1,
-      "shares": null,
-      "sharesAfter": null,
-      "symbol": "AAPL",
-      "transactionCode": null,
-      "transactionDate": null,
-      "url": null
-    },
-    "why": "nullable fields null, owner name of 200 units"
-  },
-  {
     "table": "sec_13f_holdings",
     "row": {
       "accessionNumber": null,

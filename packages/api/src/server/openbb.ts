@@ -64,7 +64,7 @@ const VOL_INDEX_LOOKBACK_DAYS = 420;
 const SEC_FILINGS_LIMIT = 25;
 /** sec13fAccessions cap: 23 filers x 4 quarters x many years stays far below it. */
 const SEC_13F_ACCESSIONS_LIMIT = 5000;
-const SEC_INSIDER_LIMIT = 50;
+const SEC_FORM4_LIMIT = 50;
 const FTD_LIMIT = 60;
 const SHORTS_FTD_LIMIT = 500;
 /** Default history of openbb.macro and daily openbb.factors (a year with margin). */
@@ -668,7 +668,7 @@ const sec = api.openbb.sec
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
     const [filings, insiderTrades, ftd] = await Promise.all([
       openbb.secFilings(input.symbol, SEC_FILINGS_LIMIT),
-      openbb.insiderTrades(input.symbol, SEC_INSIDER_LIMIT),
+      openbb.insiderTrades(input.symbol, SEC_FORM4_LIMIT),
       openbb.ftd(input.symbol, null, FTD_LIMIT),
     ]);
     // 13F rows match by their symbol, else by the symbol's CUSIPs: the CUSIP-to-ticker map

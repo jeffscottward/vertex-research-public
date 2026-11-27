@@ -152774,158 +152774,6 @@
                             "items": {
                               "additionalProperties": false,
                               "properties": {
-                                "accessionNumber": {
-                                  "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
-                                  "type": "string"
-                                },
-                                "acquiredDisposed": {
-                                  "anyOf": [
-                                    {
-                                      "enum": [
-                                        "A",
-                                        "D"
-                                      ],
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "filingDate": {
-                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                  "type": "string"
-                                },
-                                "ownerName": {
-                                  "maxLength": 200,
-                                  "minLength": 1,
-                                  "type": "string"
-                                },
-                                "ownerTitle": {
-                                  "anyOf": [
-                                    {
-                                      "maxLength": 200,
-                                      "minLength": 1,
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "price": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "rowNumber": {
-                                  "maximum": 9007199254740991,
-                                  "minimum": 0,
-                                  "type": "integer"
-                                },
-                                "shares": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "sharesAfter": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "symbol": {
-                                  "pattern": "^[A-Z0-9.^=-]{1,16}$",
-                                  "type": "string"
-                                },
-                                "transactionCode": {
-                                  "anyOf": [
-                                    {
-                                      "maxLength": 10,
-                                      "minLength": 1,
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "transactionDate": {
-                                  "anyOf": [
-                                    {
-                                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "url": {
-                                  "anyOf": [
-                                    {
-                                      "maxLength": 2000,
-                                      "pattern": "^https:\\/\\/",
-                                      "type": "string"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                }
-                              },
-                              "required": [
-                                "accessionNumber",
-                                "acquiredDisposed",
-                                "filingDate",
-                                "ownerName",
-                                "ownerTitle",
-                                "price",
-                                "rowNumber",
-                                "shares",
-                                "sharesAfter",
-                                "symbol",
-                                "transactionCode",
-                                "transactionDate",
-                                "url"
-                              ],
-                              "type": "object"
-                            },
-                            "maxItems": 2000,
-                            "minItems": 1,
-                            "type": "array"
-                          },
-                          "table": {
-                            "const": "sec_insider_trades"
-                          }
-                        },
-                        "required": [
-                          "rows",
-                          "table"
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "additionalProperties": false,
-                        "properties": {
-                          "rows": {
-                            "items": {
-                              "additionalProperties": false,
-                              "properties": {
                                 "cusip": {
                                   "pattern": "^[0-9A-Z]{9}$",
                                   "type": "string"
@@ -153988,7 +153836,6 @@
                       "finra-short-interest",
                       "finra-short-volume",
                       "sec-filings",
-                      "sec-insider",
                       "sec-ftd",
                       "sec-13f",
                       "famafrench",
@@ -154036,7 +153883,6 @@
                         "short_interest",
                         "short_volume_daily",
                         "sec_filings",
-                        "sec_insider_trades",
                         "sec_ftd",
                         "sec_13f_holdings",
                         "sec_13f_filings",
@@ -157190,7 +157036,6 @@
                       "finra-short-interest",
                       "finra-short-volume",
                       "sec-filings",
-                      "sec-insider",
                       "sec-ftd",
                       "sec-13f",
                       "famafrench",
@@ -159545,16 +159390,9 @@
                             ]
                           },
                           "maxAgeSeconds": {
-                            "anyOf": [
-                              {
-                                "maximum": 9007199254740991,
-                                "minimum": 0,
-                                "type": "integer"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
                           },
                           "overdue": {
                             "type": "boolean"
@@ -159581,9 +159419,6 @@
                               }
                             ]
                           },
-                          "retired": {
-                            "type": "boolean"
-                          },
                           "smartMoney": {
                             "type": "boolean"
                           },
@@ -159601,7 +159436,6 @@
                           "overdue",
                           "overdueSince",
                           "reason",
-                          "retired",
                           "smartMoney",
                           "source"
                         ],
@@ -159660,16 +159494,9 @@
                             ]
                           },
                           "maxAgeSeconds": {
-                            "anyOf": [
-                              {
-                                "maximum": 9007199254740991,
-                                "minimum": 0,
-                                "type": "integer"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
                           },
                           "overdue": {
                             "type": "boolean"
@@ -159696,9 +159523,6 @@
                               }
                             ]
                           },
-                          "retired": {
-                            "type": "boolean"
-                          },
                           "smartMoney": {
                             "type": "boolean"
                           },
@@ -159716,7 +159540,6 @@
                           "overdue",
                           "overdueSince",
                           "reason",
-                          "retired",
                           "smartMoney",
                           "source"
                         ],
@@ -160251,16 +160074,9 @@
                             ]
                           },
                           "maxAgeSeconds": {
-                            "anyOf": [
-                              {
-                                "maximum": 9007199254740991,
-                                "minimum": 0,
-                                "type": "integer"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
                           },
                           "overdue": {
                             "type": "boolean"
@@ -160287,9 +160103,6 @@
                               }
                             ]
                           },
-                          "retired": {
-                            "type": "boolean"
-                          },
                           "smartMoney": {
                             "type": "boolean"
                           },
@@ -160307,7 +160120,6 @@
                           "overdue",
                           "overdueSince",
                           "reason",
-                          "retired",
                           "smartMoney",
                           "source"
                         ],

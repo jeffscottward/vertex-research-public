@@ -53,11 +53,8 @@ const directive = (text: string, key: string): string | undefined =>
 
 describe("vertex-openbb.steps", () => {
   it("has one well-formed step per job, running the wrapper with that job", () => {
-    // sec-insider is retired (plan-pr3.md): sec-form4 replaces it; its job and table stay until the
-    // new data covers 30 days, then a follow-up removes both.
-    const unscheduled = ["sec-insider"];
     expect(steps.map((step) => step.name).sort()).toEqual(
-      OPENBB_JOBS.filter((job) => !unscheduled.includes(job)).sort()
+      [...OPENBB_JOBS].sort()
     );
     for (const step of steps) {
       expect(Number.isInteger(step.timeout) && step.timeout > 0).toBe(true);

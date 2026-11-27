@@ -420,44 +420,6 @@
     "why": "cik of 11 digits"
   },
   {
-    "table": "sec_insider_trades",
-    "row": {
-      "accessionNumber": "0001140361-26-039785",
-      "acquiredDisposed": "a",
-      "filingDate": "2026-10-15",
-      "ownerName": "Newstead Jennifer",
-      "ownerTitle": "SVP, GC and Government Affairs",
-      "price": 345.0,
-      "rowNumber": 1,
-      "shares": 2399.0,
-      "sharesAfter": 37194.0,
-      "symbol": "AAPL",
-      "transactionCode": "S",
-      "transactionDate": "2026-10-13",
-      "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126039785/form4.xml"
-    },
-    "why": "acquiredDisposed lower case"
-  },
-  {
-    "table": "sec_insider_trades",
-    "row": {
-      "accessionNumber": "0001140361-26-039785",
-      "acquiredDisposed": "D",
-      "filingDate": "2026-10-15",
-      "ownerName": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
-      "ownerTitle": "SVP, GC and Government Affairs",
-      "price": 345.0,
-      "rowNumber": 1,
-      "shares": 2399.0,
-      "sharesAfter": 37194.0,
-      "symbol": "AAPL",
-      "transactionCode": "S",
-      "transactionDate": "2026-10-13",
-      "url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126039785/form4.xml"
-    },
-    "why": "owner name of 201 UTF-16 units (101 astral characters)"
-  },
-  {
     "table": "sec_ftd",
     "row": {
       "cusip": "78462F10",
