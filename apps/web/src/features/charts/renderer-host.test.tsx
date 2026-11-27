@@ -51,36 +51,36 @@ const flush = async () => ({
 
 const candles: readonly DisplayCandle[] = [
   {
-    id: "1",
-    timestamp: 1000,
-    open: 10,
-    high: 11,
-    low: 9,
     close: 10.5,
+    high: 11,
+    id: "1",
+    low: 9,
+    open: 10,
+    timestamp: 1000,
     volume: 20,
   },
 ];
-const studiesA: ChartStudies = { volume: true, sma: [20], ema: [] };
+const studiesA: ChartStudies = { ema: [], sma: [20], volume: true };
 const studiesB: ChartStudies = {
-  volume: false,
-  sma: [],
   ema: [20],
   extra: ["boll", "macd", "adx"],
+  sma: [],
+  volume: false,
 };
 const markersA: readonly ChartMarker[] = [
-  { id: "m", timestamp: 1000, value: 10.5, text: "Long" },
+  { id: "m", text: "Long", timestamp: 1000, value: 10.5 },
 ];
 
 const fakeRenderer = () => {
   const renderer = {
+    dispose: vi.fn(),
     replace: vi.fn(),
     resize: vi.fn(),
-    dispose: vi.fn(),
-    setStudies: vi.fn(),
     setMarkers: vi.fn(),
+    setStudies: vi.fn(),
   };
   const factory: CandleRendererFactory = vi.fn(async () => renderer);
-  return { renderer, factory };
+  return { factory, renderer };
 };
 
 describe("CandleCanvas optional studies and markers", () => {
@@ -163,14 +163,14 @@ describe("CandleCanvas optional studies and markers", () => {
     vi.setSystemTime(new Date("2026-11-19T14:05:30Z"));
     const failing = (method: "replace" | "setStudies" | "setMarkers") => {
       const renderer = {
+        dispose: vi.fn(),
         replace: vi.fn(),
         resize: vi.fn(),
-        dispose: vi.fn(),
-        setStudies: vi.fn(),
         setMarkers: vi.fn(),
+        setStudies: vi.fn(),
       };
       const factory: CandleRendererFactory = vi.fn(async () => renderer);
-      return { renderer, factory, method };
+      return { factory, method, renderer };
     };
     for (const method of ["replace", "setStudies", "setMarkers"] as const) {
       const { renderer, factory } = failing(method);
@@ -214,11 +214,11 @@ describe("CandleCanvas optional studies and markers", () => {
     }
     // A mount that fails after the renderer exists also clears it.
     const broken = {
+      dispose: vi.fn(),
       replace: vi.fn(() => {
         throw new Error("bad bars");
       }),
       resize: vi.fn(),
-      dispose: vi.fn(),
     };
     const onRenderer = vi.fn();
     await act(async () => {
@@ -301,7 +301,7 @@ describe("CandleCanvas optional studies and markers", () => {
         }
       }
     );
-    const renderer = { replace: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+    const renderer = { dispose: vi.fn(), replace: vi.fn(), resize: vi.fn() };
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -334,7 +334,7 @@ describe("CandleCanvas optional studies and markers", () => {
   });
 
   it("leaves renderers without the optional methods untouched when the props are omitted", async () => {
-    const renderer = { replace: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+    const renderer = { dispose: vi.fn(), replace: vi.fn(), resize: vi.fn() };
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -355,22 +355,21 @@ describe("CandleCanvas optional studies and markers", () => {
     return expect(container.textContent).toContain("approximate values");
   });
 
-  return it("keeps effect cleanups valid when renderer methods return values, and uses host captions", async () => {
-    // Regression: an implicit return of setStudies' value from an effect made React call a string as cleanup.
+  it("keeps effect cleanups valid when renderer methods return values, and uses host captions", async () => {
     const renderer = {
+      dispose: vi.fn(),
       replace: vi.fn(() => "r"),
       resize: vi.fn(),
-      dispose: vi.fn(),
-      setStudies: vi.fn(() => "20"),
       setMarkers: vi.fn(() => "m"),
+      setStudies: vi.fn(() => "20"),
     };
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
     const captions = {
-      ready: "Display values are approximate.",
-      loading: "Loading chart renderer.",
       error: "reload the page to retry",
+      loading: "Loading chart renderer.",
+      ready: "Display values are approximate.",
     };
     const render = async (
       studies: ChartStudies,
@@ -406,6 +405,33 @@ describe("CandleCanvas optional studies and markers", () => {
     expect(container.textContent).toContain("Display values are approximate.");
     await act(async () => root.unmount());
     return expect(renderer.dispose).toHaveBeenCalled();
+  });
+
+  it("forwards a non-empty computed fontFamily on the chart palette", async () => {
+    const captured: (string | undefined)[] = [];
+    const renderer = { dispose: vi.fn(), replace: vi.fn(), resize: vi.fn() };
+    const factory: CandleRendererFactory = async (_element, options) => {
+      captured.push(options.palette.fontFamily);
+      return renderer;
+    };
+    const container = document.createElement("div");
+    container.style.fontFamily = '"Public Sans", sans-serif';
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () => {
+      root.render(
+        <CandleCanvas
+          factory={factory}
+          label="Bars"
+          pricePrecision={2}
+          values={candles}
+          volumePrecision={0}
+        />
+      );
+      return await flush();
+    });
+    expect(captured).toEqual(['"Public Sans", sans-serif']);
   });
 });
 

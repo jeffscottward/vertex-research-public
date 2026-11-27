@@ -353,6 +353,7 @@ describe("script layer helpers", () => {
     expect(signalMark(signal(), palette)).toEqual({
       background: "#ffffff",
       color: "#111111",
+      fontFamily: '"Public Sans", system-ui, -apple-system, sans-serif',
       foreground: "#222222",
       location: "belowbar",
       text: "\u25B2 Buy",
@@ -386,6 +387,7 @@ describe("script layer helpers", () => {
       ],
     });
     expect(below[1]?.attrs).toMatchObject({ baseline: "top", y: 62 });
+    expect(below[1]?.styles["family"]).toContain("Public Sans");
     const above = scriptSignalFigures(
       [{ x: 10, y: 50 }],
       signalMark(signal({ location: "abovebar" }), palette)
@@ -398,6 +400,7 @@ describe("script layer helpers", () => {
       { ...signalMark(signal(), palette), location: "inbar" },
       { ...signalMark(signal(), palette), text: 1 },
       { ...signalMark(signal(), palette), color: 1 },
+      { ...signalMark(signal(), palette), fontFamily: 1 },
       { ...signalMark(signal(), palette), foreground: 1 },
       { ...signalMark(signal(), palette), background: 1 },
     ])

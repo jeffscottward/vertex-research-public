@@ -881,6 +881,9 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(diamondFigs).toHaveLength(2);
     expect(bearishFigs).toHaveLength(2);
     const slot0LabelY = (arrowFigs[1] as { attrs: { y: number } }).attrs.y;
+    expect(arrowFigs[1]).toMatchObject({
+      styles: { family: expect.stringContaining("Public Sans") },
+    });
     const slot1TopY = (
       diamondFigs[0] as { attrs: { coordinates: { y: number }[] } }
     ).attrs.coordinates[0]!.y;
@@ -1117,5 +1120,184 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     );
     renderer.dispose();
     renderer.setGammaLevels!(levels);
+  });
+
+  it("uses compact legend styles and pane gaps on narrow containers and updates them on resize", async () => {
+    stubBrowser();
+    const fake = {
+      ...studyChart(),
+      overrideIndicator: vi.fn(),
+      setPaneOptions: vi.fn(),
+    };
+    mocks.init.mockReturnValue(fake);
+    const element = { clientWidth: 309 } as HTMLElement;
+    const renderer = await createKLineRenderer(
+      element,
+      options(new AbortController().signal)
+    );
+    const init = mocks.init.mock.calls[0]?.[1] as {
+      styles: {
+        candle: {
+          tooltip: { custom: { title: string }[]; text: { size: number } };
+        };
+        crosshair: {
+          horizontal: { text: { family: string } };
+          vertical: { text: { family: string } };
+        };
+        indicator: { tooltip: { showParams: boolean; text: { size: number } } };
+      };
+    };
+    expect(init.styles.candle.tooltip.text.size).toBe(10);
+    expect(init.styles.crosshair.horizontal.text.family).toContain(
+      "Public Sans"
+    );
+    expect(init.styles.crosshair.vertical.text.family).toContain("Public Sans");
+    expect(
+      init.styles.candle.tooltip.custom.map((entry) => entry.title)
+    ).toEqual(["O ", "H ", "L ", "C ", "V "]);
+    expect(init.styles.indicator.tooltip.showParams).toBe(false);
+    expect(fake.setPaneOptions).toHaveBeenCalledWith({
+      gap: { bottom: 0.08, top: 0.229 },
+      id: "candle_pane",
+    });
+
+    // Add candle overlays (MA, EMA, BOLL, overlay script) and sub-panes (VOL, MACD, RSI, script, series).
+    fake.setPaneOptions.mockClear();
+    renderer.setStudies!({
+      ema: [20],
+      extra: ["boll", "macd"],
+      panes: ["RSI"],
+      sma: [20, 50],
+      volume: true,
+    });
+    renderer.setScriptPlots!([
+      {
+        id: "script-overlay",
+        overlay: true,
+        plots: [
+          { color: "#2962ff", id: "p", kind: "line", title: "p", values: [10] },
+        ],
+        signals: [],
+        title: "Overlay",
+      },
+      {
+        id: "script-pane",
+        overlay: false,
+        plots: [
+          { color: "#2962ff", id: "q", kind: "line", title: "q", values: [1] },
+        ],
+        signals: [],
+        title: "Osc",
+      },
+    ]);
+    renderer.setSeriesPane!({
+      points: [{ timestamp: 1000, value: 5 }],
+      precision: 0,
+      title: "OI change",
+    });
+    const subIds = (fake.setPaneOptions.mock.calls as [{ id: string }][]).map(
+      ([arg]) => arg.id
+    );
+    expect(subIds).toContain("candle_pane");
+    expect(subIds).toContain(VOLUME_PANE_ID);
+    expect(subIds).toContain("vx_macd_pane");
+    expect(subIds).toContain("vx_rsi_builtin_pane");
+    expect(subIds).toContain("vx_script_1_pane");
+    expect(subIds).toContain("vx_series_pane");
+
+    // Same width mode does not restyle on resize.
+    fake.setStyles.mockClear();
+    renderer.resize();
+    expect(fake.setStyles).not.toHaveBeenCalled();
+
+    // Widening past the compact breakpoint restores full labels and wide pane gaps.
+    Object.defineProperty(element, "clientWidth", {
+      configurable: true,
+      value: 800,
+    });
+    fake.setPaneOptions.mockClear();
+    renderer.resize();
+    expect(fake.setStyles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candle: expect.objectContaining({
+          tooltip: expect.objectContaining({
+            text: expect.objectContaining({ size: 12 }),
+          }),
+        }),
+        indicator: expect.objectContaining({
+          tooltip: expect.objectContaining({ showParams: true }),
+        }),
+      })
+    );
+    expect(fake.setPaneOptions).toHaveBeenCalledWith({
+      gap: { bottom: 0.08, top: 0.36 },
+      id: "vx_macd_pane",
+    });
+
+    // Shrinking back below the compact breakpoint (800 -> 309) restores compact styles and gaps.
+    Object.defineProperty(element, "clientWidth", {
+      configurable: true,
+      value: 309,
+    });
+    fake.setStyles.mockClear();
+    fake.setPaneOptions.mockClear();
+    renderer.resize();
+    expect(fake.setStyles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candle: expect.objectContaining({
+          tooltip: expect.objectContaining({
+            text: expect.objectContaining({ size: 10 }),
+          }),
+        }),
+        indicator: expect.objectContaining({
+          tooltip: expect.objectContaining({ showParams: false }),
+        }),
+      })
+    );
+    expect(fake.setPaneOptions).toHaveBeenCalledWith({
+      gap: { bottom: 0.08, top: 0.56 },
+      id: "vx_macd_pane",
+    });
+
+    renderer.dispose();
+    fake.resize.mockClear();
+    renderer.resize();
+    expect(fake.resize).not.toHaveBeenCalled();
+  });
+
+  it("switches from unmeasured initial mount (0 px) to compact mode on first narrow resize", async () => {
+    stubBrowser();
+    const fake = {
+      ...studyChart(),
+      overrideIndicator: vi.fn(),
+      setPaneOptions: vi.fn(),
+    };
+    mocks.init.mockReturnValue(fake);
+    const element = { clientWidth: 0 } as HTMLElement;
+    const renderer = await createKLineRenderer(
+      element,
+      options(new AbortController().signal)
+    );
+    const init = mocks.init.mock.calls[0]?.[1] as {
+      styles: { candle: { tooltip: { text: { size: number } } } };
+    };
+    expect(init.styles.candle.tooltip.text.size).toBe(12);
+
+    Object.defineProperty(element, "clientWidth", {
+      configurable: true,
+      value: 309,
+    });
+    fake.setStyles.mockClear();
+    renderer.resize();
+    expect(fake.setStyles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candle: expect.objectContaining({
+          tooltip: expect.objectContaining({
+            text: expect.objectContaining({ size: 10 }),
+          }),
+        }),
+      })
+    );
+    renderer.dispose();
   });
 });
