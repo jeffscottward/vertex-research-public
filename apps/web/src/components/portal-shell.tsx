@@ -1,6 +1,6 @@
-// What: Signed-in Vertex Research workspace shell with shadcn sidebar-07 / dashboard-01 anatomy: collapsible inset sidebar (16rem, 3rem icon mode), SidebarInset, a site header with SidebarTrigger, separator, page title, assistant panel toggle and the user menu, and the assistant panel on the right.
+// What: Signed-in Vertex Research workspace shell with shadcn sidebar-07 / dashboard-01 anatomy: collapsible inset sidebar (16rem, 3rem icon mode), SidebarInset, a site header with SidebarTrigger, separator, page title, assistant panel toggle and the user menu, and the assistant panel on the right. Under the page content it prints the research notice once, except on a page with an order, arming or approval control.
 // Used by: apps/web/src/app/(portal)/layout.tsx.
-// See: packages/ui/src/client/sidebar.tsx; apps/web/src/lib/navigation.ts#PORTAL_SIDEBAR_GROUPS; apps/web/src/components/user-menu.tsx; apps/web/src/components/portal/assistant-panel.tsx (right assistant panel).
+// See: packages/ui/src/client/sidebar.tsx; apps/web/src/lib/navigation.ts#PORTAL_SIDEBAR_GROUPS; apps/web/src/components/user-menu.tsx; apps/web/src/components/portal/assistant-panel.tsx (right assistant panel); apps/web/src/lib/research-notice.ts (notice text and route rule).
 "use client";
 
 import { Button, Separator } from "@darkfactory/ui";
@@ -37,6 +37,10 @@ import {
   SETTINGS_NAVIGATION,
 } from "../lib/navigation.ts";
 import { portalBreadcrumb } from "../lib/portal-page-title.ts";
+import {
+  PORTAL_RESEARCH_NOTICE,
+  researchNoticeApplies,
+} from "../lib/research-notice.ts";
 import { useUiState } from "../lib/ui-store.tsx";
 import { BrandMark } from "./brand-mark.tsx";
 import {
@@ -508,6 +512,22 @@ const PortalTopbar = ({
   );
 };
 
+/**
+ * The research notice, printed once under the page content. A page with an order, arming or
+ * approval control gets no notice: apps/web/src/lib/research-notice.ts holds the route rule.
+ */
+const PortalResearchNotice = () => {
+  return researchNoticeApplies(usePathname()) ? (
+    <p
+      className="mt-2 text-muted-foreground text-xs"
+      data-slot="portal-research-notice"
+      role="note"
+    >
+      {PORTAL_RESEARCH_NOTICE}
+    </p>
+  ) : null;
+};
+
 export interface PortalShellProps {
   /** Assistant panel transport (tests); the browser gateway by default. */
   readonly assistantGateway?: AssistantGateway;
@@ -580,6 +600,7 @@ export const PortalShell = ({
                   <BrowserExperienceProvider>
                     {children}
                   </BrowserExperienceProvider>
+                  <PortalResearchNotice />
                 </div>
               </div>
             </div>
