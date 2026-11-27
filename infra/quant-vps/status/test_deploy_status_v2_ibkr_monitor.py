@@ -52,6 +52,9 @@ class DeployStatusV2IbkrMonitorTests(unittest.TestCase):
     def test_collect_has_no_disk_report_or_mutating_ibkr_monitor_paths(self) -> None:
         source = (HERE / "collect.py").read_text(encoding="utf-8")
         for forbidden in (
+            "SNAPSHOT_PREFIX",
+            "latest_report",
+            "ibkr-account-snapshot",
             "OPEN_ORDERS_FILE",
             "FILLS_FILE",
             "ibkr-open-orders.json",
@@ -61,7 +64,7 @@ class DeployStatusV2IbkrMonitorTests(unittest.TestCase):
             "method='POST'",
         ):
             self.assertNotIn(forbidden, source)
-        self.assertEqual(collect.COLLECTOR_VERSION, "2.3.0")
+        self.assertEqual(collect.COLLECTOR_VERSION, "2.4.0")
 
     def test_deploy_script_guard_scope_and_ordering(self) -> None:
         self.assertTrue(DEPLOY_SCRIPT.is_file(), f"missing {DEPLOY_SCRIPT}")

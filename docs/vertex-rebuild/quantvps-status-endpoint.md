@@ -54,7 +54,7 @@ Rig-side deployers live in `~/.local/state/vertex-vps-status/`: `deploy-tailnet.
 
 | Item | Location | Notes |
 | --- | --- | --- |
-| Collector | `/opt/vertex-status/collect.py` + `vertex-status-collect.{service,timer}` (30 s, oneshot, `Nice=10`, `TimeoutStartSec=25`) | Writes the public `public/status.json` (v1). Writes v2 **only** to `/opt/vertex-status/private-v2/status-v2.json` (0700); it refuses the public dir and deletes any v2 file found there. Reads `orders` and `fills` from local `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195, redirects refused, 4 MiB cap, 5 s timeout). Never starts or stops containers, never calls portfolio-ui, never opens an IBKR client, never touches kill-switch files. |
+| Collector | `/opt/vertex-status/collect.py` + `vertex-status-collect.{service,timer}` (30 s, oneshot, `Nice=10`, `TimeoutStartSec=25`) | Writes the public `public/status.json` (v1). Writes v2 **only** to `/opt/vertex-status/private-v2/status-v2.json` (0700); it refuses the public dir and deletes any v2 file found there. Reads `positions`, `orders`, `fills`, and `equity` from local `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195, redirects refused, 4 MiB cap, 5 s timeout). Never starts or stops containers, never calls portfolio-ui, never opens an IBKR client, never touches kill-switch files. |
 | v1 status server | container `vertex-status` (caddy:2-alpine; network `ibkr-nautilus-exec-node_prototype`; published on `127.0.0.1:8790` only; read-only; caps dropped except NET_BIND_SERVICE; 64 MB) | Mounts only `/opt/vertex-status/public`. Bearer token required, otherwise 401. |
 | Public route | none (retired 2026-11-05) | The main Caddy serves no public site. v1 is served by `vertex-status-tailnet` (`@status_v1_caller`). |
 | Tailnet status server | container `vertex-status-tailnet` (caddy:2-alpine; `--network host`; read-only; caps dropped except NET_BIND_SERVICE; 64 MB; restart unless-stopped) | Binds **only** 100.64.0.10:8443 and [fd7a:115c:a1e0::10]:8443. TLS certificate for `quant-vps-host.example-tailnet.ts.net` comes from tailscaled through the mounted socket. `@status_v2_caller` allows the rig (`100.64.0.20`, `fd7a:115c:a1e0::20`) and VPS self (`100.64.0.10`, `fd7a:115c:a1e0::10`) with a valid bearer token on `/vertex-status/v2` (200); rig without/wrong token 401; VPS without/wrong token 403; other sources 403; `/vertex-history/v1/*` and `/vertex-portfolio/v1/*` stay rig-only. Mounts `private-v2` read-only. |
@@ -66,8 +66,8 @@ Rig-side deployers live in `~/.local/state/vertex-vps-status/`: `deploy-tailnet.
 Collector inputs (all read-only):
 
 - `docker inspect` and `docker logs --tail`.
-- Local `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195; loopback `127.0.0.1:3461` with fallback to `VERTEX_TAILNET_IPV4:3461` from `/etc/vertex/hosts.env`): live `orders` (`ordersAsOf`) and `fills` (`executions`, `status.dataAsOf`).
-- Files under `/opt/vertex-exec-node/data` (formerly `/opt/vertex-quant/data`): health.json, the newest account snapshot, and the tails of watchdog.log and prototype-runner.log. (`ibkr-open-orders.json` and `ibkr-fills.json` are no longer read by `collect.py`, and the transitional `vertex-ibkr-open-orders-refresh.{service,timer}` bridge is retired.)
+- Local `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195; loopback `127.0.0.1:3461` with fallback to `VERTEX_TAILNET_IPV4:3461` from `/etc/vertex/hosts.env`): live `positions`, `orders` (`ordersAsOf`), `fills` (`executions`), and `equity` (`summary` + `pnl`), all stamped from `ibkr-monitor` timestamps (`ordersAsOf` / `status.dataAsOf`).
+- Files under `/opt/vertex-exec-node/data` (formerly `/opt/vertex-quant/data`): `health.json`, and the tails of `watchdog.log` and `prototype-runner.log`. (`collect.py` 2.4.0+ never reads `/opt/vertex-exec-node/data/nautilus/reports/`: `ibkr-account-snapshot-*.json`, `ibkr-open-orders.json`, and `ibkr-fills.json` are all replaced by `ibkr-monitor.service`, and the transitional `vertex-ibkr-open-orders-refresh.{service,timer}` bridge is retired.)
 - Redis `HGETALL` of the heartbeat hash.
 - Postgres inside `BEGIN READ ONLY` with a 4 s statement timeout, cached 300 s in `/opt/vertex-status/state/`.
 - Allow-listed non-secret nautilus-trader env keys.
@@ -78,8 +78,8 @@ v2 keeps all v1 fields with identical values. Every block has `available`, `sour
 
 | Block | Contents |
 | --- | --- |
-| `session` | `state` (starting, running, paused, degraded, halted, stopping, stopped, error, unknown) plus `raw_state`, strategies, symbols, `account_masked` (`****NNNN`), start/stop/heartbeat times |
-| `positions`, `equity` | newest IBKR account-snapshot report |
+| `session` | `state` (starting, running, paused, degraded, halted, stopping, stopped, error, missing, unreadable, unrecognised) plus `raw_state`, strategies, symbols, `account_masked` (`****NNNN` or `null`), start/stop/heartbeat times |
+| `positions`, `equity` | live positions, account summary, and P&L from `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195; fails closed when bridge != live, mode mismatch, or `dataAsOf` is null; stays fresh 24/7 including off-hours) |
 | `orders` | live open orders from `ibkr-monitor.service` (`GET /api/snapshot`, IBKR client id 195; fails closed when bridge != live, mode mismatch, or `ordersAsOf` is null) |
 | `fills` | last 50 executions from the same `ibkr-monitor.service` `/api/snapshot` call (newest first; fails closed when bridge != live, mode mismatch, or `dataAsOf` is null) |
 | `risk` | kill switch (engaged, clear or unknown) with indicators; risk limits; last risk check; watchdog summary |

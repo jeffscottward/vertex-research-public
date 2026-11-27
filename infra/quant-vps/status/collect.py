@@ -7,9 +7,9 @@ Writes two sanitized snapshots every timer cycle:
 
 Read-only by construction: `docker inspect`, `docker logs`, file reads/stat, `redis-cli HGETALL`,
 `psql` inside `BEGIN READ ONLY`, and a single read-only `GET /api/snapshot` to the local
-`ibkr-monitor.service` (IBKR client id 195) for live orders and fills. Never starts/stops
-containers, never connects an IBKR API client itself, never calls portfolio-ui, never invokes
-any 2FA/recovery or POST endpoint, never touches kill-switch files. Account numbers are masked
+`ibkr-monitor.service` (IBKR client id 195) for live positions, orders, fills, and equity. Never
+starts/stops containers, never connects an IBKR API client itself, never calls portfolio-ui, never
+invokes any 2FA/recovery or POST endpoint, never touches kill-switch files. Account numbers are
 to the last 4 characters, log text is filtered to WARNING/ERROR and scrubbed, output is bounded.
 Stdlib only; runs on Python 3.8+.
 
@@ -28,7 +28,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-COLLECTOR_VERSION = "2.3.0"
+COLLECTOR_VERSION = "2.4.0"
 # v2 (session/account blocks) is built only when VERTEX_STATUS_V2=1 (or --v2). Default OFF: the user's
 # condition for publishing account data is token + source-IP allow-list, and no stable source exists yet.
 V2_ENV = "VERTEX_STATUS_V2"
@@ -53,12 +53,10 @@ SERVICES = ["nautilus-trader", "ib-gateway", "watchdog", "portfolio-ui", "postgr
 ROOT = "/opt/vertex-exec-node"
 DATA = ROOT + "/data"
 NAUT = DATA + "/nautilus"
-REPORTS = NAUT + "/reports"
 LOGS = NAUT + "/logs"
 HEALTH_FILE = NAUT + "/health.json"
 RUNNER_LOG = LOGS + "/prototype-runner.log"
 WATCHDOG_LOG = LOGS + "/watchdog.log"
-SNAPSHOT_PREFIX = "ibkr-account-snapshot-"
 # KILL_SWITCH_PATH resolves to data/KILL_SWITCH for nautilus/watchdog (/app/data) and, through the
 # relative default, to portfolio-ui/data/KILL_SWITCH for portfolio-ui (working dir /app/portfolio-ui).
 KILL_SWITCH_FILES = [DATA + "/KILL_SWITCH", ROOT + "/portfolio-ui/data/KILL_SWITCH"]
@@ -426,19 +424,6 @@ class LiveInputs:
         except OSError:
             return None
 
-    def latest_report(self, prefix):
-        # Report files embed a UTC timestamp in the name, so the lexical max is the newest one.
-        best = None
-        try:
-            with os.scandir(REPORTS) as it:
-                for entry in it:
-                    n = entry.name
-                    if n.startswith(prefix) and n.endswith(".json") and (best is None or n > best):
-                        best = n
-        except OSError:
-            return None
-        return os.path.join(REPORTS, best) if best else None
-
     def psql(self, sql):
         script = "BEGIN READ ONLY;\nSET LOCAL statement_timeout = '4000';\n" + sql + "\nCOMMIT;\n"
         code, out, _ = _sh(["docker", "exec", "-i", PREFIX + "postgres-1", "sh", "-c",
@@ -527,10 +512,6 @@ class FixtureInputs(LiveInputs):
     def exists(self, path):
         v = self.manifest.get("exists", {}).get(path, False)
         return v
-
-    def latest_report(self, prefix):
-        names = [p for p in self.manifest.get("files", {}) if os.path.basename(p).startswith(prefix)]
-        return max(names) if names else None
 
     def psql(self, sql):
         key = "strategies" if "strategy_events" in sql else "risk" if "risk_events" in sql else None
@@ -839,60 +820,6 @@ def build_session(inp, now, nautilus_raw, health, kill_engaged, account, read="o
     }
 
 
-def build_positions(inp, now, snapshot, snapshot_path):
-    if snapshot is None:
-        return unavailable("ibkr-account-snapshot report file", "no readable account snapshot report")
-    items = []
-    for p in (snapshot.get("positions") or [])[:MAX_POSITIONS]:
-        c = p.get("contract") or {}
-        qty = num(p.get("quantity"))
-        mult = num(c.get("multiplier")) or 1
-        avg_cost = num(p.get("average_cost"))
-        item = {"symbol": scrub(p.get("symbol") or c.get("symbol"), 24), "sec_type": scrub(p.get("sec_type") or c.get("secType"), 8),
-                "qty": qty, "avg_px": (round(avg_cost / mult, 6) if avg_cost is not None and mult else avg_cost),
-                "avg_cost": avg_cost, "multiplier": mult if mult != 1 else None,
-                "market_price": num(p.get("market_price")), "market_value": num(p.get("market_value")),
-                "unrealized_pnl": num(p.get("unrealized_pnl")), "realized_pnl": num(p.get("realized_pnl")),
-                "currency": scrub(p.get("currency") or c.get("currency"), 8) or None}
-        if (c.get("secType") or p.get("sec_type")) in ("OPT", "FOP"):
-            item["right"] = scrub(c.get("right"), 4)
-            item["strike"] = num(c.get("strike"))
-            item["expiry"] = scrub(c.get("lastTradeDateOrContractMonth"), 12)
-        items.append(item)
-    as_of = snapshot.get("generated_at") or snapshot.get("captured_at_epoch")
-    return {"available": True, "source": "ibkr_tws_api via " + os.path.basename(snapshot_path) + " (written by portfolio-ui snapshot refresh)",
-            **freshness(now, as_of, REPORT_STALE_SECONDS), "count": len(items), "items": items,
-            "truncated": len(snapshot.get("positions") or []) > MAX_POSITIONS}
-
-
-def build_equity(now, snapshot, snapshot_path, positions):
-    if snapshot is None:
-        return unavailable("ibkr-account-snapshot report file", "no readable account snapshot report")
-    summary = snapshot.get("summary") or {}
-
-    def pick(tag):
-        v = summary.get(tag)
-        if isinstance(v, dict):
-            for cur in ("USD", "BASE"):
-                if cur in v:
-                    return num(v[cur])
-            return num(next(iter(v.values()), None))
-        return num(v)
-    items = positions.get("items", []) if positions.get("available") else []
-    unreal = [i["unrealized_pnl"] for i in items if isinstance(i.get("unrealized_pnl"), (int, float))]
-    real = [i["realized_pnl"] for i in items if isinstance(i.get("realized_pnl"), (int, float))]
-    as_of = snapshot.get("generated_at") or snapshot.get("captured_at_epoch")
-    return {"available": True, "source": "ibkr_tws_api account summary via " + os.path.basename(snapshot_path),
-            **freshness(now, as_of, REPORT_STALE_SECONDS), "currency": "USD",
-            "net_liq": pick("NetLiquidation"), "cash": pick("TotalCashValue"),
-            "available_funds": pick("AvailableFunds") if pick("AvailableFunds") is not None else num(snapshot.get("available_funds_usd")),
-            "buying_power": pick("BuyingPower"),
-            "unrealized": round(sum(unreal), 2) if unreal else None, "realized": round(sum(real), 2) if real else None}
-
-
-STOP_TYPES = ("STP", "STP LMT", "TRAIL", "TRAIL LIMIT", "STP PRT")
-
-
 def _validate_ibkr_monitor_snapshot(payload, fetch_error):
     if payload is None:
         return None, None, fetch_error or "ibkr-monitor snapshot unavailable"
@@ -910,6 +837,113 @@ def _validate_ibkr_monitor_snapshot(payload, fetch_error):
         return None, None, "ibkr-monitor bridge is %s" % label
     return payload, status, None
 
+
+def build_positions(now, ibkr_payload, ibkr_error=None):
+    payload, status, err = _validate_ibkr_monitor_snapshot(ibkr_payload, ibkr_error)
+    if err is not None:
+        return unavailable(IBKR_MONITOR_SOURCE, err)
+    raw_positions = payload.get("positions")
+    if not isinstance(raw_positions, list):
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing positions list")
+    as_of_dt = parse_epoch_ms(status.get("dataAsOf"))
+    if as_of_dt is None:
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing dataAsOf timestamp")
+    items = []
+    for p in raw_positions[:MAX_POSITIONS]:
+        if not isinstance(p, dict):
+            return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor positions payload contains invalid entry")
+        sec_type = scrub(p.get("secType"), 8) or None
+        raw_mult = ibkr_num(p.get("multiplier"))
+        eff_mult = raw_mult if (raw_mult is not None and raw_mult > 0) else 1
+        avg_px = ibkr_num(p.get("avgPrice"))
+        avg_cost = ibkr_num(p.get("avgCost"))
+        if avg_cost is None and avg_px is not None:
+            avg_cost = round(avg_px * eff_mult, 6)
+        elif avg_px is None and avg_cost is not None:
+            avg_px = round(avg_cost / eff_mult, 6)
+        item = {
+            "symbol": scrub(p.get("symbol"), 24),
+            "sec_type": sec_type,
+            "qty": ibkr_num(p.get("position")),
+            "avg_px": avg_px,
+            "avg_cost": avg_cost,
+            "multiplier": eff_mult if eff_mult != 1 else None,
+            "market_price": ibkr_num(p.get("last")),
+            "market_value": ibkr_num(p.get("marketValue")),
+            "unrealized_pnl": ibkr_num(p.get("unrealized")),
+            "realized_pnl": ibkr_num(p.get("realized")),
+            "currency": scrub(p.get("currency"), 8) or None,
+        }
+        if sec_type in ("OPT", "FOP"):
+            item["right"] = scrub(p.get("right"), 4) or None
+            item["strike"] = ibkr_num(p.get("strike"))
+            item["expiry"] = scrub(p.get("expiry"), 12) or None
+        items.append(item)
+    fresh = freshness(now, as_of_dt, REPORT_STALE_SECONDS)
+    if status.get("stale") is True:
+        fresh["stale"] = True
+    return {
+        "available": True,
+        "source": "ibkr_tws_api positions via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+        **fresh,
+        "count": len(items),
+        "items": items,
+        "truncated": len(raw_positions) > MAX_POSITIONS,
+    }
+
+
+def build_equity(now, ibkr_payload, positions, ibkr_error=None):
+    payload, status, err = _validate_ibkr_monitor_snapshot(ibkr_payload, ibkr_error)
+    if err is not None:
+        return unavailable(IBKR_MONITOR_SOURCE, err)
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing summary object")
+    as_of_dt = parse_epoch_ms(status.get("dataAsOf"))
+    if as_of_dt is None:
+        return unavailable(IBKR_MONITOR_SOURCE, "ibkr-monitor snapshot missing dataAsOf timestamp")
+
+    def pick(tag):
+        v = summary.get(tag)
+        if isinstance(v, dict):
+            for cur in ("USD", "BASE"):
+                if cur in v:
+                    return ibkr_num(v[cur])
+            return ibkr_num(next(iter(v.values()), None))
+        return ibkr_num(v)
+
+    pnl = payload.get("pnl") if isinstance(payload.get("pnl"), dict) else {}
+    unreal_val = ibkr_num(pnl.get("unrealized"))
+    real_val = ibkr_num(pnl.get("realized"))
+    items = positions.get("items", []) if isinstance(positions, dict) and positions.get("available") else []
+    if unreal_val is not None:
+        unrealized = round(unreal_val, 2)
+    else:
+        unreal_list = [i["unrealized_pnl"] for i in items if isinstance(i.get("unrealized_pnl"), (int, float))]
+        unrealized = round(sum(unreal_list), 2) if unreal_list else None
+    if real_val is not None:
+        realized = round(real_val, 2)
+    else:
+        real_list = [i["realized_pnl"] for i in items if isinstance(i.get("realized_pnl"), (int, float))]
+        realized = round(sum(real_list), 2) if real_list else None
+    fresh = freshness(now, as_of_dt, REPORT_STALE_SECONDS)
+    if status.get("stale") is True:
+        fresh["stale"] = True
+    return {
+        "available": True,
+        "source": "ibkr_tws_api account summary via ibkr-monitor.service (/api/snapshot; IBKR client id 195)",
+        **fresh,
+        "currency": "USD",
+        "net_liq": pick("NetLiquidation"),
+        "cash": pick("TotalCashValue"),
+        "available_funds": pick("AvailableFunds"),
+        "buying_power": pick("BuyingPower"),
+        "unrealized": unrealized,
+        "realized": realized,
+    }
+
+
+STOP_TYPES = ("STP", "STP LMT", "TRAIL", "TRAIL LIMIT", "STP PRT")
 
 def build_orders(now, ibkr_payload, ibkr_error=None):
     payload, status, err = _validate_ibkr_monitor_snapshot(ibkr_payload, ibkr_error)
@@ -1191,15 +1225,14 @@ def build(inp, v2_enabled=True, previous=None):
     running = {s for s in SERVICES if ((raws[s] or {}).get("State") or {}).get("Running")}
     health = load_json_text(inp.read_text(HEALTH_FILE))
     wd, wd_lines = watchdog_summary(inp)
-    snapshot_path = inp.latest_report(SNAPSHOT_PREFIX)
-    snapshot = load_json_text(inp.read_text(snapshot_path)) if snapshot_path else None
-    account = mask_account((snapshot or {}).get("account_masked"))
     ibkr_payload, ibkr_error = inp.ibkr_monitor_snapshot()
+    account = mask_account(ibkr_payload.get("account_masked")) if isinstance(ibkr_payload, dict) else None
+    positions = safe_block("positions", build_positions, now, ibkr_payload, ibkr_error)
     orders = safe_block("orders", build_orders, now, ibkr_payload, ibkr_error)
     fills = safe_block("fills", build_fills, now, ibkr_payload, ibkr_error)
+    equity = safe_block("equity", build_equity, now, ibkr_payload, positions, ibkr_error)
     risk = safe_block("risk", build_risk, inp, now, raws["nautilus-trader"], health, wd)
     kill_engaged = risk.get("kill_switch") == "engaged"
-    positions = safe_block("positions", build_positions, inp, now, snapshot, snapshot_path or "")
     v2 = dict(v1)
     v2["schema"] = "vertex-deploy-status-v2"
     v2.update({
@@ -1208,7 +1241,7 @@ def build(inp, v2_enabled=True, previous=None):
         "positions": positions,
         "orders": orders,
         "fills": fills,
-        "equity": safe_block("equity", build_equity, now, snapshot, snapshot_path or "", positions),
+        "equity": equity,
         "risk": risk,
         "logs": safe_block("logs", collect_logs, inp, now, wd_lines, running),
     })
@@ -1250,8 +1283,10 @@ def verify_v2_document(v2_text, pub_dir=None, token=None):
     if version != COLLECTOR_VERSION:
         return "unexpected collector.version: %r (expected %s)" % (version, COLLECTOR_VERSION)
     for key, prefix in (
+        ("positions", "ibkr_tws_api positions via ibkr-monitor.service"),
         ("orders", "ibkr_tws_api open orders via ibkr-monitor.service"),
         ("fills", "ibkr_tws_api executions via ibkr-monitor.service"),
+        ("equity", "ibkr_tws_api account summary via ibkr-monitor.service"),
     ):
         blk = doc.get(key)
         if not isinstance(blk, dict) or blk.get("available") is not True:
@@ -1282,13 +1317,16 @@ def main(argv):
             return 1
         doc = load_json_text(v2_text) or {}
         sys.stdout.write(
-            "v2_check ok: version=%s orders_count=%s orders_age=%s fills_count=%s fills_age=%s\n"
+            "v2_check ok: version=%s positions_count=%s positions_age=%s orders_count=%s orders_age=%s fills_count=%s fills_age=%s equity_age=%s\n"
             % (
                 (doc.get("collector") or {}).get("version"),
+                (doc.get("positions") or {}).get("count"),
+                (doc.get("positions") or {}).get("age_seconds"),
                 (doc.get("orders") or {}).get("count"),
                 (doc.get("orders") or {}).get("age_seconds"),
                 (doc.get("fills") or {}).get("count"),
                 (doc.get("fills") or {}).get("age_seconds"),
+                (doc.get("equity") or {}).get("age_seconds"),
             )
         )
         return 0
@@ -1325,13 +1363,16 @@ def main(argv):
             return 1
         doc = load_json_text(v2_text) or {}
         sys.stdout.write(
-            "dry_run ok: version=%s orders_count=%s orders_age=%s fills_count=%s fills_age=%s\n"
+            "dry_run ok: version=%s positions_count=%s positions_age=%s orders_count=%s orders_age=%s fills_count=%s fills_age=%s equity_age=%s\n"
             % (
                 (doc.get("collector") or {}).get("version"),
+                (doc.get("positions") or {}).get("count"),
+                (doc.get("positions") or {}).get("age_seconds"),
                 (doc.get("orders") or {}).get("count"),
                 (doc.get("orders") or {}).get("age_seconds"),
                 (doc.get("fills") or {}).get("count"),
                 (doc.get("fills") or {}).get("age_seconds"),
+                (doc.get("equity") or {}).get("age_seconds"),
             )
         )
     return 0

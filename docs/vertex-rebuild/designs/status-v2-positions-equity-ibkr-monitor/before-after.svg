@@ -1,0 +1,800 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1280 700"
+  width="1280"
+  height="700"
+  font-family="Manrope, 'Public Sans', 'DejaVu Sans', sans-serif"
+>
+  <title>
+    Before and after: status-v2 positions and equity move off market-hours-only
+    account-snapshot JSON files onto the same single read-only GET /api/snapshot
+    call to ibkr-monitor.service (IBKR client id 195), completing full 24/7
+    convergence for all four status-v2 broker blocks
+  </title>
+  <defs>
+    <marker
+      id="arrowMuted"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#8b98a9" />
+    </marker>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#f2545b" />
+    </marker>
+    <marker
+      id="arrowAmber"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#f59e0b" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#d4af37" />
+    </marker>
+  </defs>
+
+  <!-- Canvas background -->
+  <rect width="1280" height="700" fill="#0b0f14" />
+
+  <!-- Top header -->
+  <text x="40" y="44" fill="#f3f5f8" font-size="22" font-weight="700">
+    status-v2 Broker Convergence: 24/7 Positions &amp; Equity via
+    ibkr-monitor.service
+  </text>
+  <text x="40" y="68" fill="#8b98a9" font-size="13">
+    collect.py 2.3.0 &#x2192; 2.4.0 &#xB7; ibkr-fills.json already retired in PR
+    #479 &#xB7; all 4 broker blocks now share 1 read-only HTTP GET
+  </text>
+
+  <!-- Divider between Before and After -->
+  <line
+    x1="640"
+    y1="90"
+    x2="640"
+    y2="610"
+    stroke="#1e2733"
+    stroke-width="2"
+    stroke-dasharray="6 6"
+  />
+
+  <!-- ==================== LEFT PANEL: BEFORE (2.3.0) ==================== -->
+  <rect
+    x="28"
+    y="90"
+    width="596"
+    height="516"
+    rx="14"
+    fill="#111720"
+    stroke="#243040"
+    stroke-width="1.5"
+  />
+  <rect
+    x="44"
+    y="106"
+    width="112"
+    height="26"
+    rx="13"
+    fill="#2a161b"
+    stroke="#f2545b"
+    stroke-width="1"
+  />
+  <text
+    x="100"
+    y="124"
+    text-anchor="middle"
+    fill="#f87171"
+    font-size="12"
+    font-weight="700"
+  >
+    BEFORE (2.3.0)
+  </text>
+  <text x="168" y="124" fill="#cbd5e1" font-size="13" font-weight="600">
+    Split path &#xB7; stale off-hours snapshots
+  </text>
+
+  <!-- Left: Top path (already migrated in PR #479) -->
+  <rect
+    x="48"
+    y="152"
+    width="174"
+    height="68"
+    rx="10"
+    fill="#13221d"
+    stroke="#2a6f59"
+    stroke-width="1.5"
+  />
+  <circle
+    cx="70"
+    cy="176"
+    r="8"
+    fill="#34d399"
+    opacity="0.2"
+    stroke="#34d399"
+    stroke-width="1.5"
+  />
+  <circle cx="70" cy="176" r="3" fill="#34d399" />
+  <text x="86" y="180" fill="#e2e8f0" font-size="13" font-weight="700">
+    ibkr-monitor
+  </text>
+  <text x="62" y="202" fill="#86efac" font-size="11">
+    client 195 &#xB7; 24/7 HTTP
+  </text>
+
+  <line
+    x1="222"
+    y1="186"
+    x2="366"
+    y2="186"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrowGreen)"
+  />
+  <text x="294" y="177" text-anchor="middle" fill="#86efac" font-size="11">
+    GET /api/snapshot
+  </text>
+  <text x="294" y="203" text-anchor="middle" fill="#64748b" font-size="10">
+    orders + fills only
+  </text>
+
+  <!-- Left: Middle path (stale disk account snapshot) -->
+  <rect
+    x="48"
+    y="252"
+    width="174"
+    height="80"
+    rx="10"
+    fill="#211a11"
+    stroke="#b45309"
+    stroke-width="1.5"
+  />
+  <!-- Clock pictogram -->
+  <circle
+    cx="70"
+    cy="278"
+    r="9"
+    fill="none"
+    stroke="#f59e0b"
+    stroke-width="1.5"
+  />
+  <path
+    d="M70 273 L70 278 L74 280"
+    fill="none"
+    stroke="#f59e0b"
+    stroke-width="1.5"
+    stroke-linecap="round"
+  />
+  <text x="86" y="282" fill="#fde68a" font-size="12" font-weight="700">
+    account-heartbeat
+  </text>
+  <text x="62" y="303" fill="#fbbf24" font-size="11">
+    09:15&#x2013;16:15 ET only
+  </text>
+  <text x="62" y="320" fill="#94a3b8" font-size="10">
+    pm2 &#xB7; off nights/wknd
+  </text>
+
+  <line
+    x1="135"
+    y1="332"
+    x2="135"
+    y2="364"
+    stroke="#f59e0b"
+    stroke-width="1.8"
+    stroke-dasharray="4 3"
+    marker-end="url(#arrowAmber)"
+  />
+
+  <rect
+    x="48"
+    y="368"
+    width="174"
+    height="62"
+    rx="10"
+    fill="#221417"
+    stroke="#b91c1c"
+    stroke-width="1.5"
+  />
+  <!-- File pictogram -->
+  <path
+    d="M62 384 h10 l4 4 v14 h-14 z"
+    fill="none"
+    stroke="#f87171"
+    stroke-width="1.5"
+  />
+  <text x="82" y="396" fill="#fecaca" font-size="11.5" font-weight="700">
+    ibkr-account-snapshot
+  </text>
+  <text x="62" y="416" fill="#f87171" font-size="10.5">
+    data/nautilus/reports/*.json
+  </text>
+
+  <line
+    x1="222"
+    y1="399"
+    x2="366"
+    y2="342"
+    stroke="#f2545b"
+    stroke-width="2"
+    stroke-dasharray="5 4"
+    marker-end="url(#arrowRed)"
+  />
+  <text x="294" y="352" text-anchor="middle" fill="#fca5a5" font-size="10.5">
+    disk read
+  </text>
+  <text
+    x="294"
+    y="392"
+    text-anchor="middle"
+    fill="#f87171"
+    font-size="10.5"
+    font-weight="700"
+  >
+    STALE &gt;300s off-hours
+  </text>
+
+  <!-- Left: Retired ibkr-fills.json badge -->
+  <rect
+    x="48"
+    y="446"
+    width="174"
+    height="40"
+    rx="8"
+    fill="#151b24"
+    stroke="#334155"
+    stroke-width="1"
+    stroke-dasharray="4 3"
+  />
+  <text
+    x="135"
+    y="463"
+    text-anchor="middle"
+    fill="#64748b"
+    font-size="11"
+    text-decoration="line-through"
+  >
+    ibkr-fills.json
+  </text>
+  <text x="135" y="478" text-anchor="middle" fill="#64748b" font-size="10">
+    retired from collect.py (#479)
+  </text>
+
+  <!-- Left: collect.py 2.3.0 box -->
+  <rect
+    x="372"
+    y="152"
+    width="232"
+    height="278"
+    rx="12"
+    fill="#151c27"
+    stroke="#334155"
+    stroke-width="1.5"
+  />
+  <text
+    x="488"
+    y="178"
+    text-anchor="middle"
+    fill="#e2e8f0"
+    font-size="14"
+    font-weight="700"
+  >
+    collect.py 2.3.0
+  </text>
+  <text x="488" y="196" text-anchor="middle" fill="#64748b" font-size="11">
+    status-v2.json (every 30s)
+  </text>
+
+  <rect
+    x="390"
+    y="212"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#13261f"
+    stroke="#2a6f59"
+    stroke-width="1"
+  />
+  <text x="404" y="236" fill="#86efac" font-size="12" font-weight="700">
+    orders
+  </text>
+  <text x="572" y="236" text-anchor="end" fill="#34d399" font-size="11">
+    24/7 fresh
+  </text>
+
+  <rect
+    x="390"
+    y="262"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#13261f"
+    stroke="#2a6f59"
+    stroke-width="1"
+  />
+  <text x="404" y="286" fill="#86efac" font-size="12" font-weight="700">
+    fills
+  </text>
+  <text x="572" y="286" text-anchor="end" fill="#34d399" font-size="11">
+    24/7 fresh
+  </text>
+
+  <rect
+    x="390"
+    y="312"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#2a161b"
+    stroke="#dc2626"
+    stroke-width="1.2"
+  />
+  <text x="404" y="336" fill="#fecaca" font-size="12" font-weight="700">
+    positions
+  </text>
+  <text
+    x="572"
+    y="336"
+    text-anchor="end"
+    fill="#f87171"
+    font-size="11"
+    font-weight="700"
+  >
+    STALE off-hours
+  </text>
+
+  <rect
+    x="390"
+    y="362"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#2a161b"
+    stroke="#dc2626"
+    stroke-width="1.2"
+  />
+  <text x="404" y="386" fill="#fecaca" font-size="12" font-weight="700">
+    equity
+  </text>
+  <text
+    x="572"
+    y="386"
+    text-anchor="end"
+    fill="#f87171"
+    font-size="11"
+    font-weight="700"
+  >
+    STALE off-hours
+  </text>
+
+  <!-- Left: 24h weekday timeline bar -->
+  <text x="48" y="518" fill="#94a3b8" font-size="11" font-weight="700">
+    WEEKDAY 24h FRESHNESS (ET) &#x2014; positions &amp; equity
+  </text>
+  <rect
+    x="48"
+    y="528"
+    width="556"
+    height="24"
+    rx="6"
+    fill="#2a161b"
+    stroke="#7f1d1d"
+    stroke-width="1"
+  />
+  <!-- 09:15 to 16:15 = 7h / 24h = 29.2% starting at 38.5% -->
+  <rect x="262" y="528" width="162" height="24" rx="3" fill="#15803d" />
+  <text
+    x="155"
+    y="544"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-size="10.5"
+    font-weight="700"
+  >
+    00:00&#x2013;09:15 STALE
+  </text>
+  <text
+    x="343"
+    y="544"
+    text-anchor="middle"
+    fill="#ecfdf5"
+    font-size="10.5"
+    font-weight="700"
+  >
+    09:15&#x2013;16:15 FRESH
+  </text>
+  <text
+    x="514"
+    y="544"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-size="10.5"
+    font-weight="700"
+  >
+    16:15&#x2013;24:00 STALE
+  </text>
+  <text x="48" y="574" fill="#f87171" font-size="11.5" font-weight="600">
+    Stale 17h every weeknight &amp; 65h every weekend (~79% of week)
+  </text>
+
+  <!-- ==================== RIGHT PANEL: AFTER (2.4.0) ==================== -->
+  <rect
+    x="656"
+    y="90"
+    width="596"
+    height="516"
+    rx="14"
+    fill="#111720"
+    stroke="#243040"
+    stroke-width="1.5"
+  />
+  <rect
+    x="672"
+    y="106"
+    width="108"
+    height="26"
+    rx="13"
+    fill="#12281f"
+    stroke="#34d399"
+    stroke-width="1"
+  />
+  <text
+    x="726"
+    y="124"
+    text-anchor="middle"
+    fill="#34d399"
+    font-size="12"
+    font-weight="700"
+  >
+    AFTER (2.4.0)
+  </text>
+  <text x="792" y="124" fill="#cbd5e1" font-size="13" font-weight="600">
+    Single reader &#xB7; 1 HTTP GET &#xB7; 24/7 fresh
+  </text>
+
+  <!-- Right: Single ibkr-monitor source -->
+  <rect
+    x="676"
+    y="176"
+    width="184"
+    height="146"
+    rx="12"
+    fill="#13221d"
+    stroke="#34d399"
+    stroke-width="2"
+  />
+  <circle
+    cx="700"
+    cy="204"
+    r="9"
+    fill="#34d399"
+    opacity="0.2"
+    stroke="#34d399"
+    stroke-width="1.8"
+  />
+  <circle cx="700" cy="204" r="3.5" fill="#34d399" />
+  <text x="716" y="209" fill="#f8fafc" font-size="14" font-weight="700">
+    ibkr-monitor
+  </text>
+  <text x="692" y="232" fill="#86efac" font-size="11.5">
+    IBKR client id 195
+  </text>
+  <text x="692" y="252" fill="#cbd5e1" font-size="11">GET /api/snapshot</text>
+  <text x="692" y="272" fill="#94a3b8" font-size="10.5">
+    positions &#xB7; summary &#xB7; pnl
+  </text>
+  <text x="692" y="290" fill="#94a3b8" font-size="10.5">
+    orders &#xB7; executions
+  </text>
+  <text x="692" y="308" fill="#d4af37" font-size="10.5" font-weight="600">
+    127.0.0.1:3461 &#xB7; 5s / 4 MiB
+  </text>
+
+  <!-- Single arrow fanning into all 4 blocks -->
+  <line
+    x1="860"
+    y1="249"
+    x2="994"
+    y2="249"
+    stroke="#34d399"
+    stroke-width="2.5"
+    marker-end="url(#arrowGreen)"
+  />
+  <text
+    x="927"
+    y="236"
+    text-anchor="middle"
+    fill="#86efac"
+    font-size="11.5"
+    font-weight="700"
+  >
+    1 HTTP GET
+  </text>
+  <text x="927" y="268" text-anchor="middle" fill="#94a3b8" font-size="10.5">
+    fail-closed on
+  </text>
+  <text x="927" y="282" text-anchor="middle" fill="#94a3b8" font-size="10.5">
+    bridge / mode / ts
+  </text>
+
+  <!-- Right: Unchanged exec-node isolation box -->
+  <rect
+    x="676"
+    y="362"
+    width="290"
+    height="114"
+    rx="10"
+    fill="#151b24"
+    stroke="#334155"
+    stroke-width="1.2"
+  />
+  <!-- Shield pictogram -->
+  <path
+    d="M694 380 l10 -4 l10 4 v9 c0 7 -4 12 -10 15 c-6 -3 -10 -8 -10 -15 z"
+    fill="none"
+    stroke="#d4af37"
+    stroke-width="1.5"
+  />
+  <text x="722" y="392" fill="#f8fafc" font-size="12" font-weight="700">
+    Exec-Node Boundary Untouched
+  </text>
+  <text x="692" y="416" fill="#94a3b8" font-size="11">
+    &#x2022; collect.py reads ZERO data/nautilus/reports/*
+  </text>
+  <text x="692" y="435" fill="#94a3b8" font-size="11">
+    &#x2022; arm_gate.py &amp; heartbeat stay market-hours
+  </text>
+  <text x="692" y="454" fill="#94a3b8" font-size="11">
+    &#x2022; Zero trading / container / TWS changes
+  </text>
+
+  <!-- Right: collect.py 2.4.0 box -->
+  <rect
+    x="1000"
+    y="152"
+    width="232"
+    height="324"
+    rx="12"
+    fill="#151c27"
+    stroke="#2a6f59"
+    stroke-width="1.5"
+  />
+  <text
+    x="1116"
+    y="178"
+    text-anchor="middle"
+    fill="#f8fafc"
+    font-size="14"
+    font-weight="700"
+  >
+    collect.py 2.4.0
+  </text>
+  <text x="1116" y="196" text-anchor="middle" fill="#86efac" font-size="11">
+    status-v2.json (every 30s)
+  </text>
+
+  <rect
+    x="1018"
+    y="212"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#13261f"
+    stroke="#34d399"
+    stroke-width="1.2"
+  />
+  <text x="1032" y="236" fill="#ecfdf5" font-size="12" font-weight="700">
+    positions
+  </text>
+  <text
+    x="1200"
+    y="236"
+    text-anchor="end"
+    fill="#34d399"
+    font-size="11"
+    font-weight="700"
+  >
+    24/7 fresh
+  </text>
+
+  <rect
+    x="1018"
+    y="262"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#13261f"
+    stroke="#34d399"
+    stroke-width="1.2"
+  />
+  <text x="1032" y="286" fill="#ecfdf5" font-size="12" font-weight="700">
+    orders
+  </text>
+  <text
+    x="1200"
+    y="286"
+    text-anchor="end"
+    fill="#34d399"
+    font-size="11"
+    font-weight="700"
+  >
+    24/7 fresh
+  </text>
+
+  <rect
+    x="1018"
+    y="312"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#13261f"
+    stroke="#34d399"
+    stroke-width="1.2"
+  />
+  <text x="1032" y="336" fill="#ecfdf5" font-size="12" font-weight="700">
+    fills
+  </text>
+  <text
+    x="1200"
+    y="336"
+    text-anchor="end"
+    fill="#34d399"
+    font-size="11"
+    font-weight="700"
+  >
+    24/7 fresh
+  </text>
+
+  <rect
+    x="1018"
+    y="362"
+    width="196"
+    height="40"
+    rx="8"
+    fill="#13261f"
+    stroke="#34d399"
+    stroke-width="1.2"
+  />
+  <text x="1032" y="386" fill="#ecfdf5" font-size="12" font-weight="700">
+    equity
+  </text>
+  <text
+    x="1200"
+    y="386"
+    text-anchor="end"
+    fill="#34d399"
+    font-size="11"
+    font-weight="700"
+  >
+    24/7 fresh
+  </text>
+
+  <rect
+    x="1018"
+    y="416"
+    width="196"
+    height="44"
+    rx="8"
+    fill="#1c222d"
+    stroke="#d4af37"
+    stroke-width="1"
+  />
+  <text
+    x="1116"
+    y="434"
+    text-anchor="middle"
+    fill="#fde68a"
+    font-size="11"
+    font-weight="700"
+  >
+    --verify-ibkr-monitor
+  </text>
+  <text x="1116" y="450" text-anchor="middle" fill="#cbd5e1" font-size="10">
+    checks all 4 blocks fresh
+  </text>
+
+  <!-- Right: 24h timeline bar -->
+  <text x="676" y="518" fill="#94a3b8" font-size="11" font-weight="700">
+    WEEKDAY &amp; WEEKEND 24h FRESHNESS (ET) &#x2014; all 4 blocks
+  </text>
+  <rect
+    x="676"
+    y="528"
+    width="556"
+    height="24"
+    rx="6"
+    fill="#15803d"
+    stroke="#34d399"
+    stroke-width="1.2"
+  />
+  <text
+    x="954"
+    y="544"
+    text-anchor="middle"
+    fill="#ecfdf5"
+    font-size="11"
+    font-weight="700"
+  >
+    00:00 &#x2013; 24:00 FRESH (100% live while ibkr-monitor bridge == live)
+  </text>
+  <text x="676" y="574" fill="#34d399" font-size="11.5" font-weight="600">
+    Zero off-hours staleness &#xB7; Zero extra TWS sessions &#xB7; Zero disk
+    report reads
+  </text>
+
+  <!-- Bottom summary metrics strip -->
+  <rect
+    x="28"
+    y="624"
+    width="1224"
+    height="56"
+    rx="10"
+    fill="#111720"
+    stroke="#243040"
+    stroke-width="1.2"
+  />
+  <text x="56" y="657" fill="#cbd5e1" font-size="12.5" font-weight="700">
+    HTTP calls / tick:
+  </text>
+  <text x="174" y="657" fill="#34d399" font-size="12.5" font-weight="700">
+    1 (unchanged)
+  </text>
+
+  <line x1="305" y1="636" x2="305" y2="668" stroke="#243040" stroke-width="1" />
+  <text x="328" y="657" fill="#cbd5e1" font-size="12.5" font-weight="700">
+    Disk report reads:
+  </text>
+  <text x="454" y="657" fill="#34d399" font-size="12.5" font-weight="700">
+    1 &#x2192; 0
+  </text>
+
+  <line x1="530" y1="636" x2="530" y2="668" stroke="#243040" stroke-width="1" />
+  <text x="554" y="657" fill="#cbd5e1" font-size="12.5" font-weight="700">
+    IBKR clients added:
+  </text>
+  <text x="692" y="657" fill="#34d399" font-size="12.5" font-weight="700">
+    0 (client 195)
+  </text>
+
+  <line x1="818" y1="636" x2="818" y2="668" stroke="#243040" stroke-width="1" />
+  <text x="842" y="657" fill="#cbd5e1" font-size="12.5" font-weight="700">
+    Schema compatibility:
+  </text>
+  <text x="996" y="657" fill="#d4af37" font-size="12.5" font-weight="700">
+    DeployUpstreamStatusV2Schema (exact)
+  </text>
+</svg>

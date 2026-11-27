@@ -15,6 +15,61 @@
     "modeError": null
   },
   "accountCount": 1,
+  "summary": {
+    "NetLiquidation": 150000.25,
+    "TotalCashValue": 90000.0,
+    "AvailableFunds": 120000.5,
+    "BuyingPower": 480002.0
+  },
+  "pnl": {
+    "daily": 45.0,
+    "unrealized": 170.0,
+    "realized": 12.5
+  },
+  "positions": [
+    {
+      "id": "1001",
+      "symbol": "ORCL",
+      "secType": "STK",
+      "currency": "USD",
+      "desc": "ORCL",
+      "right": "",
+      "strike": 0,
+      "expiry": "",
+      "multiplier": 1,
+      "position": 100.0,
+      "avgPrice": 100.5,
+      "last": 101.0,
+      "marketValue": 10100.0,
+      "costBasis": 10050.0,
+      "dailyPnl": 25.0,
+      "unrealized": 50.0,
+      "unrealizedPct": 0.5,
+      "realized": 0.0,
+      "weightPct": 6.73
+    },
+    {
+      "id": "2002",
+      "symbol": "AAPL",
+      "secType": "OPT",
+      "currency": "USD",
+      "desc": "AAPL 20261120 150 C",
+      "right": "C",
+      "strike": 150.0,
+      "expiry": "20261120",
+      "multiplier": 100,
+      "position": 2.0,
+      "avgPrice": 2.5,
+      "last": 3.1,
+      "marketValue": 620.0,
+      "costBasis": 500.0,
+      "dailyPnl": 20.0,
+      "unrealized": 120.0,
+      "unrealizedPct": 24.0,
+      "realized": 12.5,
+      "weightPct": 0.41
+    }
+  ],
   "ordersAsOf": 1791026302000,
   "orders": [
     {

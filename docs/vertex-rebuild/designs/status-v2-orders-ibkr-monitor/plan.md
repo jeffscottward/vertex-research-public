@@ -26,7 +26,7 @@
 
 ### Non-Goals
 
-- Migrating `positions` and `equity` (account snapshot reports) in this card.
+- Migrating `positions` and `equity` (account snapshot reports) in this card — completed in follow-up card `vertex-ibkr-fills-report-stale` (`collect.py` 2.4.0; see [../status-v2-positions-equity-ibkr-monitor/plan.md](../status-v2-positions-equity-ibkr-monitor/plan.md)).
 - Modifying `infra/quant-vps/exec-node/`, `portfolio-ui/server.mjs`, `ibkr-monitor.service`, or restarting any container.
 
 ## Design

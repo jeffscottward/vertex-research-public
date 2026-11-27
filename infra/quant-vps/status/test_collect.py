@@ -71,7 +71,7 @@ class CollectorFixtureTest(unittest.TestCase):
         self.assertEqual(s["state"], "stopped")
         self.assertEqual(s["raw_state"]["container_status"], "created")
         self.assertEqual(s["raw_state"]["last_runner_event"], "runner_stopped")
-        self.assertEqual(s["account_masked"], "****0042")
+        self.assertIsNone(s["account_masked"])
         self.assertEqual(s["strategies"][0]["id"], "example_strategy")
         self.assertEqual(s["symbols"], ["AAPL"])
         self.assertEqual(s["last_heartbeat_at"], "2026-09-25T16:38:38Z")
@@ -81,13 +81,23 @@ class CollectorFixtureTest(unittest.TestCase):
     def test_positions_equity(self):
         p = self.v2["positions"]
         self.assertTrue(p["available"])
-        self.assertTrue(p["stale"])
-        self.assertEqual(p["as_of"], "2026-09-18T20:15:50Z")
+        self.assertFalse(p["stale"])
+        self.assertEqual(p["as_of"], "2026-10-03T11:18:25Z")
+        self.assertEqual(p["age_seconds"], 5)
+        self.assertIn("ibkr-monitor.service", p["source"])
         orcl, aapl = p["items"]
         self.assertEqual((orcl["symbol"], orcl["qty"], orcl["avg_px"], orcl["currency"]), ("ORCL", 100, 100.5, "USD"))
+        self.assertEqual((orcl["avg_cost"], orcl["multiplier"], orcl["market_price"], orcl["market_value"]), (100.5, None, 101.0, 10100.0))
         self.assertEqual((aapl["right"], aapl["strike"], aapl["expiry"], aapl["avg_px"], aapl["multiplier"]), ("C", 150, "20261120", 2.5, 100))
+        self.assertEqual((aapl["avg_cost"], aapl["market_price"], aapl["market_value"], aapl["unrealized_pnl"], aapl["realized_pnl"]), (250.0, 3.1, 620.0, 120.0, 12.5))
         e = self.v2["equity"]
+        self.assertTrue(e["available"])
+        self.assertFalse(e["stale"])
+        self.assertEqual(e["as_of"], "2026-10-03T11:18:25Z")
+        self.assertEqual(e["age_seconds"], 5)
+        self.assertIn("ibkr-monitor.service", e["source"])
         self.assertEqual((e["net_liq"], e["cash"], e["unrealized"], e["realized"], e["currency"]), (150000.25, 90000, 170, 12.5, "USD"))
+        self.assertEqual((e["available_funds"], e["buying_power"]), (120000.5, 480002.0))
 
     def test_orders_fills(self):
         orders = self.v2["orders"]
@@ -109,7 +119,7 @@ class CollectorFixtureTest(unittest.TestCase):
         f = fills["items"]
         self.assertEqual([x["side"] for x in f], ["sell", "buy"])
         self.assertEqual(f[0]["time"], "2026-09-11T19:45:00Z")
-        self.assertEqual(self.v2["collector"]["version"], "2.3.0")
+        self.assertEqual(self.v2["collector"]["version"], "2.4.0")
     def test_risk(self):
         r = self.v2["risk"]
         self.assertEqual(r["kill_switch"], "clear")
@@ -421,19 +431,26 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
             self.assertEqual(leaks, [])
             doc = json.loads(v2_text)
             self.assertEqual(seen, [("GET", "/api/snapshot")])
+            self.assertTrue(doc["positions"]["available"])
+            self.assertEqual(doc["positions"]["count"], 2)
             self.assertTrue(doc["orders"]["available"])
             self.assertEqual(doc["orders"]["count"], 2)
             self.assertTrue(doc["fills"]["available"])
             self.assertEqual(doc["fills"]["count"], 2)
+            self.assertTrue(doc["equity"]["available"])
+            self.assertEqual(doc["equity"]["net_liq"], 150000.25)
         finally:
             srv.shutdown()
             srv.server_close()
 
-        # After server shutdown (connection refused), orders & fills MUST fail closed (never disk fallback).
+        # After server shutdown (connection refused), all 4 broker blocks MUST fail closed (never disk fallback).
         doc_down, _ = self._run_with_snapshot(*live.ibkr_monitor_snapshot())
+        self.assertFalse(doc_down["positions"]["available"])
         self.assertFalse(doc_down["orders"]["available"])
         self.assertFalse(doc_down["fills"]["available"])
+        self.assertFalse(doc_down["equity"]["available"])
         self.assertNotIn(str(port), doc_down["orders"]["reason"])
+        self.assertNotIn(str(port), doc_down["positions"]["reason"])
 
     def test_http_errors_redirects_content_type_and_size_cap_fail_closed(self):
         import http.server
@@ -545,17 +562,22 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
             snap = self._base_snapshot()
             snap["status"]["bridge"] = bridge
             doc, _ = self._run_with_snapshot(snap)
+            self.assertFalse(doc["positions"]["available"], repr(bridge))
             self.assertFalse(doc["orders"]["available"], repr(bridge))
             self.assertFalse(doc["fills"]["available"], repr(bridge))
+            self.assertFalse(doc["equity"]["available"], repr(bridge))
 
         snap = self._base_snapshot()
         snap["account"]["modeError"] = "mismatch"
         doc, _ = self._run_with_snapshot(snap)
+        self.assertFalse(doc["positions"]["available"])
         self.assertFalse(doc["orders"]["available"])
         self.assertFalse(doc["fills"]["available"])
+        self.assertFalse(doc["equity"]["available"])
         self.assertIn("mismatch", doc["orders"]["reason"])
+        self.assertIn("mismatch", doc["positions"]["reason"])
 
-        # ordersAsOf explicitly null -> orders fail closed (never fake 0 open orders), fills still work.
+        # ordersAsOf explicitly null -> orders fail closed (never fake 0 open orders); positions/fills/equity still work.
         snap = self._base_snapshot()
         snap["orders"] = []
         snap["ordersAsOf"] = None
@@ -563,6 +585,8 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         self.assertFalse(doc["orders"]["available"])
         self.assertIn("ordersAsOf", doc["orders"]["reason"])
         self.assertTrue(doc["fills"]["available"])
+        self.assertTrue(doc["positions"]["available"])
+        self.assertTrue(doc["equity"]["available"])
 
         # ordersAsOf key absent (older ibkr-monitor) -> falls back to status.dataAsOf.
         snap = self._base_snapshot()
@@ -571,21 +595,45 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         self.assertTrue(doc["orders"]["available"])
         self.assertEqual(doc["orders"]["as_of"], "2026-10-03T11:18:25Z")
 
-        # status.dataAsOf null -> fills fail closed.
+        # status.dataAsOf null -> positions, fills, and equity fail closed.
         snap = self._base_snapshot()
         snap["status"]["dataAsOf"] = None
         doc, _ = self._run_with_snapshot(snap)
         self.assertTrue(doc["orders"]["available"])
+        self.assertFalse(doc["positions"]["available"])
         self.assertFalse(doc["fills"]["available"])
+        self.assertFalse(doc["equity"]["available"])
+
+        # Missing positions list or summary object -> respective blocks fail closed.
+        snap = self._base_snapshot()
+        del snap["positions"]
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertFalse(doc["positions"]["available"])
+        self.assertTrue(doc["equity"]["available"])
+
+        snap = self._base_snapshot()
+        snap["positions"] = ["not-a-dict"]
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertFalse(doc["positions"]["available"])
+
+        snap = self._base_snapshot()
+        del snap["summary"]
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["positions"]["available"])
+        self.assertFalse(doc["equity"]["available"])
 
         # status.stale true forces stale even with recent timestamps.
         snap = self._base_snapshot()
         snap["status"]["stale"] = True
         doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["positions"]["available"])
+        self.assertTrue(doc["positions"]["stale"])
         self.assertTrue(doc["orders"]["available"])
         self.assertTrue(doc["orders"]["stale"])
         self.assertTrue(doc["fills"]["available"])
         self.assertTrue(doc["fills"]["stale"])
+        self.assertTrue(doc["equity"]["available"])
+        self.assertTrue(doc["equity"]["stale"])
 
         # Old ordersAsOf (> REPORT_STALE_SECONDS) marks orders stale even if status.stale is False.
         snap = self._base_snapshot()
@@ -593,7 +641,83 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         doc, _ = self._run_with_snapshot(snap)
         self.assertTrue(doc["orders"]["available"])
         self.assertTrue(doc["orders"]["stale"])
+        self.assertFalse(doc["positions"]["stale"])
         self.assertFalse(doc["fills"]["stale"])
+        self.assertFalse(doc["equity"]["stale"])
+
+        # Old status.dataAsOf (> REPORT_STALE_SECONDS) marks positions, fills, and equity stale.
+        snap = self._base_snapshot()
+        snap["status"]["dataAsOf"] = 1791026310000 - (collect.REPORT_STALE_SECONDS + 30) * 1000
+        doc, _ = self._run_with_snapshot(snap)
+        self.assertTrue(doc["positions"]["stale"])
+        self.assertTrue(doc["fills"]["stale"])
+        self.assertTrue(doc["equity"]["stale"])
+        self.assertFalse(doc["orders"]["stale"])
+
+    def test_position_and_equity_field_mapping_edge_cases(self):
+        snap = self._base_snapshot()
+        snap["positions"] = [
+            {
+                "id": "3003",
+                "symbol": "SPY",
+                "secType": "OPT",
+                "currency": "USD",
+                "right": "P",
+                "strike": 500.0,
+                "expiry": "20261218",
+                "multiplier": 100,
+                "position": 3,
+                "avgPrice": 1.7976931348623157e+308,
+                "avgCost": 425.0,
+                "last": 1.7976931348623157e+308,
+                "marketValue": 1500.0,
+                "unrealized": 225.0,
+                "realized": 1.7976931348623157e+308,
+            },
+            {
+                "id": "4004",
+                "symbol": "QQQ",
+                "secType": "STK",
+                "currency": "",
+                "multiplier": 1,
+                "position": 10,
+                "avgPrice": 450.25,
+                "last": 455.0,
+                "marketValue": 4550.0,
+                "unrealized": 47.5,
+                "realized": 0.0,
+            },
+        ]
+        # pnl uses IBKR Double.MAX -> falls back to summing position P&L values.
+        snap["pnl"] = {"unrealized": 1.7976931348623157e+308, "realized": None}
+        snap["summary"] = {
+            "NetLiquidation": 1.7976931348623157e+308,
+            "TotalCashValue": {"USD": "50000.5"},
+            "AvailableFunds": 45000.0,
+            "BuyingPower": 180000.0,
+        }
+        doc, leaks = self._run_with_snapshot(snap)
+        self.assertEqual(leaks, [])
+        p0, p1 = doc["positions"]["items"]
+        self.assertEqual((p0["symbol"], p0["sec_type"], p0["qty"]), ("SPY", "OPT", 3))
+        self.assertEqual((p0["avg_px"], p0["avg_cost"], p0["multiplier"]), (4.25, 425.0, 100))
+        self.assertIsNone(p0["market_price"])
+        self.assertIsNone(p0["realized_pnl"])
+        self.assertEqual((p0["right"], p0["strike"], p0["expiry"]), ("P", 500.0, "20261218"))
+        self.assertNotIn("right", p1)
+        self.assertIsNone(p1["currency"])
+        self.assertIsNone(p1["multiplier"])
+        self.assertEqual((p1["avg_px"], p1["avg_cost"]), (450.25, 450.25))
+
+        eq = doc["equity"]
+        self.assertIsNone(eq["net_liq"])
+        self.assertEqual((eq["cash"], eq["available_funds"], eq["buying_power"]), (50000.5, 45000.0, 180000.0))
+        self.assertEqual((eq["unrealized"], eq["realized"]), (272.5, 0.0))
+
+        # Explicit 0.0 in pnl is preserved (not treated as falsy).
+        snap["pnl"] = {"unrealized": 0.0, "realized": 0.0}
+        doc2, _ = self._run_with_snapshot(snap)
+        self.assertEqual((doc2["equity"]["unrealized"], doc2["equity"]["realized"]), (0.0, 0.0))
 
     def test_order_and_fill_field_mapping_edge_cases(self):
         snap = self._base_snapshot()
@@ -688,14 +812,16 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0)
         os.remove(os.path.join(out, "status-v2.json"))
 
-        # Fail if orders are stale.
+        # Fail if any of the 4 ibkr-monitor blocks (positions, orders, fills, equity) is stale.
         v2_path = os.path.join(priv, "status-v2.json")
         with open(v2_path) as f:
-            d = json.load(f)
-        d["orders"]["stale"] = True
-        with open(v2_path, "w") as f:
-            json.dump(d, f)
-        self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0)
+            original = json.load(f)
+        for blk_key in ("positions", "orders", "fills", "equity"):
+            d = json.loads(json.dumps(original))
+            d[blk_key]["stale"] = True
+            with open(v2_path, "w") as f:
+                json.dump(d, f)
+            self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0, blk_key)
 
 
 if __name__ == "__main__":
