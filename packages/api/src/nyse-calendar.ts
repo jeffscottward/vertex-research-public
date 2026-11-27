@@ -12,7 +12,7 @@ export const utcDay = (year: number, month: number, date: number): number =>
   Date.UTC(year, month, date) / DAY_MS;
 
 /** UTC day of the `n`th `day` (0 Sunday to 6 Saturday) of a month (0 January). */
-export const nthWeekday = (
+const nthWeekday = (
   year: number,
   month: number,
   day: number,
