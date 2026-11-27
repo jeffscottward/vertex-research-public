@@ -770,7 +770,7 @@
   <text x="56" y="657" fill="#cbd5e1" font-size="12.5" font-weight="700">
     HTTP calls / tick:
   </text>
-  <text x="174" y="657" fill="#34d399" font-size="12.5" font-weight="700">
+  <text x="188" y="657" fill="#34d399" font-size="12.5" font-weight="700">
     1 (unchanged)
   </text>
 

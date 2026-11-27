@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Unit and invariant tests for migrating status-v2 orders/fills to ibkr-monitor
-and retiring the transitional vertex-ibkr-open-orders-refresh timer.
+"""Unit and invariant tests for migrating status-v2 positions/orders/fills/equity to
+ibkr-monitor and retiring the transitional vertex-ibkr-open-orders-refresh timer.
 
 Standard-library unittest only. Reads repository files and tests the market-hours
 guard block offline with bash; nothing reaches QuantVPS, Docker, or IBKR.

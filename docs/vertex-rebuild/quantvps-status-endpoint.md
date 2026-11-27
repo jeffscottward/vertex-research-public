@@ -32,7 +32,7 @@ The tailnet URL is not secret. It is reachable only by tailnet members that use 
 
 | File | Purpose |
 | --- | --- |
-| `collect.py` (2.3.0) | Collector, stdlib Python. Reads live `orders` and `fills` via one read-only `GET /api/snapshot` to `ibkr-monitor.service` (IBKR client id 195). Tests: `python3 infra/quant-vps/status/test_collect.py`. |
+| `collect.py` (2.4.0) | Collector, stdlib Python. Reads live `positions`, `orders`, `fills`, and `equity` via one read-only `GET /api/snapshot` to `ibkr-monitor.service` (IBKR client id 195). Tests: `python3 infra/quant-vps/status/test_collect.py`. |
 | `vertex-status-collect.service.tailnet` | Deployed unit: `VERTEX_STATUS_V2=1`, `VERTEX_STATUS_V2_DIR=/opt/vertex-status/private-v2`. |
 | `vertex-status-collect.service` | v1-only unit (`VERTEX_STATUS_V2=0`). |
 | `vertex-status-collect.timer` | Runs the collector every 30 s. |
@@ -43,7 +43,7 @@ The tailnet URL is not secret. It is reachable only by tailnet members that use 
 | `deploy-status-v2-alert.sh` | Market-hours-guarded deployer for `Caddyfile.tailnet` (graceful reload) and `vertex-status-v2-alert.{service,timer}`. |
 | `status_v2_alert.py` | Read-only stdlib Python probe alerting `#omp-alerts` on `/vertex-status/v2` 403/failures (3 consecutive ticks) or auth bypass (immediate). Tests: `test_status_v2_alert.py`. |
 | `vertex-status-v2-alert.{service,timer}` | Hardened `DynamicUser=yes` unit (`LoadCredential` for token) running every 2 minutes. |
-| `deploy-status-v2-ibkr-monitor.sh` | Market-hours-guarded deployer for `collect.py` (2.3.0) that dry-runs and verifies live `orders`/`fills` from `ibkr-monitor.service` before retiring `vertex-ibkr-open-orders-refresh.{service,timer}` (no container restarts). Tests: `test_deploy_status_v2_ibkr_monitor.py`. |
+| `deploy-status-v2-ibkr-monitor.sh` | Market-hours-guarded deployer for `collect.py` (2.4.0) that dry-runs and verifies live `positions`/`orders`/`fills`/`equity` from `ibkr-monitor.service` before retiring `vertex-ibkr-open-orders-refresh.{service,timer}` (no container restarts). Tests: `test_deploy_status_v2_ibkr_monitor.py`. |
 | `install-remote.sh` | Public-v2 installer. Refuses to run unless `VERTEX_STATUS_ENABLE_V2=1`. **Do not use.** |
 | `Caddyfile.route.snippet` | Retirement note for the former public main-Caddy route. |
 | `SCHEMA.md` | v2 contract. |
@@ -335,7 +335,7 @@ rm -f /etc/systemd/system/vertex-status-v2-alert.{service,timer} /opt/vertex-sta
 systemctl daemon-reload
 ```
 
-### Roll back the `ibkr-monitor` orders/fills migration (collector 2.3.0)
+### Roll back the `ibkr-monitor` status-v2 migration (collector 2.4.0)
 
 ```sh
 R=/opt/vertex-status/rollback-<UTC>-ibkr-monitor

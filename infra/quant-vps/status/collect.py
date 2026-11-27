@@ -571,7 +571,7 @@ def freshness(now, as_of, stale_after):
     dt = parse_time(as_of)
     if dt is None:
         return {"as_of": None, "age_seconds": None, "stale": True}
-    age = int((now - dt).total_seconds())
+    age = max(0, int((now - dt).total_seconds()))
     return {"as_of": iso(dt), "age_seconds": age, "stale": age > stale_after}
 
 
@@ -858,9 +858,11 @@ def build_positions(now, ibkr_payload, ibkr_error=None):
         avg_px = ibkr_num(p.get("avgPrice"))
         avg_cost = ibkr_num(p.get("avgCost"))
         if avg_cost is None and avg_px is not None:
-            avg_cost = round(avg_px * eff_mult, 6)
+            derived_cost = ibkr_num(avg_px * eff_mult)
+            avg_cost = round(derived_cost, 6) if derived_cost is not None else None
         elif avg_px is None and avg_cost is not None:
-            avg_px = round(avg_cost / eff_mult, 6)
+            derived_px = ibkr_num(avg_cost / eff_mult)
+            avg_px = round(derived_px, 6) if derived_px is not None else None
         item = {
             "symbol": scrub(p.get("symbol"), 24),
             "sec_type": sec_type,
@@ -919,12 +921,12 @@ def build_equity(now, ibkr_payload, positions, ibkr_error=None):
     if unreal_val is not None:
         unrealized = round(unreal_val, 2)
     else:
-        unreal_list = [i["unrealized_pnl"] for i in items if isinstance(i.get("unrealized_pnl"), (int, float))]
+        unreal_list = [v for v in (ibkr_num(i.get("unrealized_pnl")) for i in items) if v is not None]
         unrealized = round(sum(unreal_list), 2) if unreal_list else None
     if real_val is not None:
         realized = round(real_val, 2)
     else:
-        real_list = [i["realized_pnl"] for i in items if isinstance(i.get("realized_pnl"), (int, float))]
+        real_list = [v for v in (ibkr_num(i.get("realized_pnl")) for i in items) if v is not None]
         realized = round(sum(real_list), 2) if real_list else None
     fresh = freshness(now, as_of_dt, REPORT_STALE_SECONDS)
     if status.get("stale") is True:
@@ -1226,7 +1228,7 @@ def build(inp, v2_enabled=True, previous=None):
     health = load_json_text(inp.read_text(HEALTH_FILE))
     wd, wd_lines = watchdog_summary(inp)
     ibkr_payload, ibkr_error = inp.ibkr_monitor_snapshot()
-    account = mask_account(ibkr_payload.get("account_masked")) if isinstance(ibkr_payload, dict) else None
+    account = None
     positions = safe_block("positions", build_positions, now, ibkr_payload, ibkr_error)
     orders = safe_block("orders", build_orders, now, ibkr_payload, ibkr_error)
     fills = safe_block("fills", build_fills, now, ibkr_payload, ibkr_error)
@@ -1292,8 +1294,11 @@ def verify_v2_document(v2_text, pub_dir=None, token=None):
         if not isinstance(blk, dict) or blk.get("available") is not True:
             reason = blk.get("reason") if isinstance(blk, dict) else "missing block"
             return "%s unavailable: %s" % (key, reason)
+        age = blk.get("age_seconds")
+        if not isinstance(age, int) or isinstance(age, bool) or age < 0:
+            return "%s invalid age_seconds: %r" % (key, age)
         if blk.get("stale") is not False:
-            return "%s stale (as_of=%r age_seconds=%r)" % (key, blk.get("as_of"), blk.get("age_seconds"))
+            return "%s stale (as_of=%r age_seconds=%r)" % (key, blk.get("as_of"), age)
         if not str(blk.get("source") or "").startswith(prefix):
             return "%s unexpected source: %r" % (key, blk.get("source"))
     if pub_dir is not None:

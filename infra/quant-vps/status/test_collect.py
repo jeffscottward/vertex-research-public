@@ -719,6 +719,74 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         doc2, _ = self._run_with_snapshot(snap)
         self.assertEqual((doc2["equity"]["unrealized"], doc2["equity"]["realized"]), (0.0, 0.0))
 
+        # FOP option fields, overflow avgPrice*multiplier -> None (valid JSON), NaN/inf/booleans rejected,
+        # future dataAsOf clamped to age_seconds=0, and untrusted account_masked ignored.
+        snap3 = self._base_snapshot()
+        snap3["status"]["dataAsOf"] = 1791026310000 + 3000  # 3s ahead of fixture now
+        snap3["account_masked"] = True
+        snap3["positions"] = [
+            {
+                "id": "5005",
+                "symbol": "ES",
+                "secType": "FOP",
+                "currency": "USD",
+                "right": "C",
+                "strike": 6000.0,
+                "expiry": "20261218",
+                "multiplier": 1e200,
+                "position": True,
+                "avgPrice": 1e200,
+                "last": float("nan"),
+                "marketValue": float("inf"),
+                "unrealized": True,
+                "realized": False,
+            }
+        ]
+        snap3["summary"] = {
+            "NetLiquidation": float("inf"),
+            "TotalCashValue": float("nan"),
+            "AvailableFunds": True,
+            "BuyingPower": False,
+        }
+        snap3["pnl"] = {"unrealized": True, "realized": False}
+        doc3, _ = self._run_with_snapshot(snap3)
+        json.dumps(doc3, allow_nan=False)  # must never emit Infinity or NaN
+        self.assertEqual(doc3["positions"]["age_seconds"], 0)
+        self.assertFalse(doc3["positions"]["stale"])
+        self.assertEqual(doc3["equity"]["age_seconds"], 0)
+        self.assertIsNone(doc3["session"]["account_masked"])
+        fop = doc3["positions"]["items"][0]
+        self.assertEqual((fop["sec_type"], fop["right"], fop["strike"], fop["expiry"]), ("FOP", "C", 6000.0, "20261218"))
+        self.assertIsNone(fop["qty"])
+        self.assertIsNone(fop["avg_cost"])
+        self.assertIsNone(fop["market_price"])
+        self.assertIsNone(fop["market_value"])
+        self.assertIsNone(fop["unrealized_pnl"])
+        self.assertIsNone(fop["realized_pnl"])
+        self.assertEqual(
+            (doc3["equity"]["net_liq"], doc3["equity"]["cash"], doc3["equity"]["available_funds"], doc3["equity"]["buying_power"]),
+            (None, None, None, None),
+        )
+        self.assertEqual((doc3["equity"]["unrealized"], doc3["equity"]["realized"]), (None, None))
+
+        # Direct build_equity ignores boolean P&L values in position fallback.
+        now_dt = collect.parse_time("2026-10-03T11:18:30+00:00")
+        direct_snap = self._base_snapshot()
+        direct_snap["pnl"] = {}
+        fake_positions = {"available": True, "items": [{"unrealized_pnl": True, "realized_pnl": False}]}
+        direct_eq = collect.build_equity(now_dt, direct_snap, fake_positions)
+        self.assertEqual((direct_eq["unrealized"], direct_eq["realized"]), (None, None))
+
+        # Truncation when positions exceed MAX_POSITIONS.
+        snap_many = self._base_snapshot()
+        snap_many["positions"] = [
+            {"symbol": f"S{i}", "secType": "STK", "position": 1, "avgPrice": 10.0}
+            for i in range(collect.MAX_POSITIONS + 5)
+        ]
+        doc_many, _ = self._run_with_snapshot(snap_many)
+        self.assertEqual(doc_many["positions"]["count"], collect.MAX_POSITIONS)
+        self.assertTrue(doc_many["positions"]["truncated"])
+
     def test_order_and_fill_field_mapping_edge_cases(self):
         snap = self._base_snapshot()
         snap["orders"] = [
@@ -812,7 +880,7 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
         self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0)
         os.remove(os.path.join(out, "status-v2.json"))
 
-        # Fail if any of the 4 ibkr-monitor blocks (positions, orders, fills, equity) is stale.
+        # Fail if any of the 4 ibkr-monitor blocks (positions, orders, fills, equity) is stale or has negative age_seconds.
         v2_path = os.path.join(priv, "status-v2.json")
         with open(v2_path) as f:
             original = json.load(f)
@@ -822,6 +890,11 @@ class IbkrMonitorOrdersFillsTest(unittest.TestCase):
             with open(v2_path, "w") as f:
                 json.dump(d, f)
             self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0, blk_key)
+            d_neg = json.loads(json.dumps(original))
+            d_neg[blk_key]["age_seconds"] = -1
+            with open(v2_path, "w") as f:
+                json.dump(d_neg, f)
+            self.assertNotEqual(collect.main(["--check-v2-dir", priv, "--check-public-dir", out]), 0, blk_key + ":neg")
 
 
 if __name__ == "__main__":
