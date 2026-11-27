@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import ssl
 import sys
@@ -55,6 +56,7 @@ DEFAULT_FAILURE_THRESHOLD = 3
 DEFAULT_STALE_BLOCKS: tuple[str, ...] = ("orders", "fills", "positions", "equity")
 VALID_STALE_BLOCKS: frozenset[str] = frozenset(DEFAULT_STALE_BLOCKS)
 DEFAULT_STALE_MAX_AGE_SECONDS = 360
+MAX_FUTURE_SKEW_SECONDS = 60
 MAX_REASON_CHARS = 120
 MAX_TIMESTAMP_CHARS = 40
 MAX_BODY_BYTES = 262_144
@@ -127,7 +129,7 @@ class AlertState:
 
 
 def _clean_value(value: str) -> str:
-    return value.replace("\r", " ").replace("\n", " ").strip()
+    return " ".join(value.splitlines()).strip()
 
 
 def _sanitize_text(
@@ -213,6 +215,17 @@ def inspect_stale_blocks(
             reasons.append(
                 f"snapshot: stale generatedAt (age={gen_age}s, generatedAt={gen_txt})"
             )
+        elif gen_age < -MAX_FUTURE_SKEW_SECONDS:
+            gen_txt = _sanitize_text(
+                gen_raw,
+                max_chars=MAX_TIMESTAMP_CHARS,
+                fallback="unknown",
+                secret_token=secret_token,
+            )
+            degraded.append("snapshot")
+            reasons.append(
+                f"snapshot: future generatedAt (skew=+{abs(gen_age)}s, generatedAt={gen_txt})"
+            )
 
     for name in blocks:
         blk = doc.get(name)
@@ -236,22 +249,28 @@ def inspect_stale_blocks(
             secret_token=secret_token,
         )
         age_raw = blk.get("age_seconds")
-        age_int = (
-            age_raw
-            if isinstance(age_raw, int) and not isinstance(age_raw, bool)
-            else None
-        )
+        age_int: int | None
+        if (
+            isinstance(age_raw, (int, float))
+            and not isinstance(age_raw, bool)
+            and math.isfinite(age_raw)
+        ):
+            age_int = int(age_raw)
+        else:
+            age_int = None
         wall_age = int((now - as_of_dt).total_seconds()) if as_of_dt is not None else None
 
         stale_flag = blk.get("stale")
         if stale_flag is True:
             degraded.append(name)
             if age_int is not None and wall_age is not None:
-                reported_age: int | None = max(age_int, wall_age)
+                reported_age: int | None = max(0, age_int, wall_age)
             elif age_int is not None:
-                reported_age = age_int
+                reported_age = max(0, age_int)
+            elif wall_age is not None:
+                reported_age = max(0, wall_age)
             else:
-                reported_age = wall_age
+                reported_age = None
             age_txt = f"{reported_age}s" if reported_age is not None else "unknown"
             reasons.append(f"{name}: stale (age={age_txt}, as_of={as_of_txt})")
             continue
@@ -271,6 +290,13 @@ def inspect_stale_blocks(
             degraded.append(name)
             reasons.append(
                 f"{name}: stale by clock (age={wall_age}s, as_of={as_of_txt})"
+            )
+            continue
+
+        if wall_age < -MAX_FUTURE_SKEW_SECONDS:
+            degraded.append(name)
+            reasons.append(
+                f"{name}: future as_of (skew=+{abs(wall_age)}s, as_of={as_of_txt})"
             )
             continue
 
@@ -706,6 +732,10 @@ def step_state(
                     state.stale_reason = ""
                     state.stale_blocks = ""
                     recovery_sent = True
+            else:
+                state.stale_started_at = ""
+                state.stale_reason = ""
+                state.stale_blocks = ""
             state.stale_failures = 0
         else:
             state.stale_failures += 1

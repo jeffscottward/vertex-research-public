@@ -33,7 +33,7 @@
 ### In Scope
 
 1. `infra/quant-vps/status/status_v2_alert.py`:
-   - Add `_parse_iso_utc()` (Python 3.10+ compatible, timezone-aware UTC only), `_sanitize_reason()` (single-line, truncated, redacts probe token if echoed), and `inspect_stale_blocks()`.
+   - Add `_parse_iso_utc()` (Python 3.10+ compatible, timezone-aware UTC only), `_sanitize_text()` (single-line across all Unicode line separators, truncated, redacts probe token if echoed), and `inspect_stale_blocks()` (including a 60 s forward clock-skew guard on `generatedAt` and `as_of`).
    - Extend `CheckResult` (`stale_ok`, `stale_verified`, `stale_blocks`, `stale_detail`, `block_ages`) and `AlertState` (`stale_failures`, `stale_alert_open`, `stale_started_at`, `stale_reason`, `stale_blocks`).
    - Add third independent `stale_*` state machine inside `step_state()` (keeping `avail_*` and `bypass_*` behavior intact).
    - Add CLI flags `--stale-blocks` (default `orders,fills,positions,equity`), `--stale-max-age` (default `360` s = `REPORT_STALE_SECONDS` 300 s + 60 s collector/timer jitter margin), and `--stale-threshold` (default: inherits `--threshold`, 3).

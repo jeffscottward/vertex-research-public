@@ -945,7 +945,9 @@ class StatusV2AlertTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(out["stale_alert_open"])
 
-        # Custom --stale-max-age catches 90s-old block even when stale=False.
+        # Custom --stale-max-age catches 90s-old block even when stale=False, and --dry-run touches neither posts nor state.
+        posts_before = len(self.mock.posts)
+        state_before = self.state_file.read_text(encoding="utf-8")
         self.mock.auth_body = json.dumps(
             _healthy_v2_payload(generated_age_s=5, block_age_s=90)
         ).encode("utf-8")
@@ -953,6 +955,8 @@ class StatusV2AlertTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertFalse(out["ok"])
         self.assertEqual(out["stale_blocks"], ["orders", "fills", "positions", "equity"])
+        self.assertEqual(len(self.mock.posts), posts_before)
+        self.assertEqual(self.state_file.read_text(encoding="utf-8"), state_before)
 
         # Invalid CLI flags exit 1.
         for bad_args in (
@@ -1004,6 +1008,153 @@ class StatusV2AlertTests(unittest.TestCase):
         self.assertFalse(ok2)
         self.assertEqual(degraded2, ("snapshot", "orders", "fills", "positions", "equity"))
         self.assertIn("snapshot: stale generatedAt", detail2)
+
+
+    def test_transient_stale_ticks_clear_metadata_on_recovery(self) -> None:
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {"available": False, "source": "ibkr-monitor", "reason": "brief blip"}
+                }
+            )
+        ).encode("utf-8")
+        # 2 ticks below threshold -> metadata populated, no alert.
+        for _ in range(2):
+            rc, out = self._run("--threshold", "3")
+            self.assertEqual(rc, 0)
+            self.assertFalse(out["stale_alert_open"])
+        mid = mod.load_state(self.state_file)
+        self.assertEqual(mid.stale_failures, 2)
+        self.assertNotEqual(mid.stale_started_at, "")
+        self.assertIn("orders", mid.stale_blocks)
+
+        # Next tick healthy -> counters AND transient metadata cleared cleanly.
+        self.mock.auth_body = None
+        rc, out = self._run("--threshold", "3")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["ok"])
+        self.assertEqual(len(self.mock.posts), 0)
+        cleared = mod.load_state(self.state_file)
+        self.assertEqual(cleared.stale_failures, 0)
+        self.assertEqual(cleared.stale_started_at, "")
+        self.assertEqual(cleared.stale_reason, "")
+        self.assertEqual(cleared.stale_blocks, "")
+
+    def test_unicode_line_separators_sanitized_in_state_file(self) -> None:
+        # Unicode U+2028/U+2029/U+0085 splitlines() characters must never inject state.txt keys.
+        injected = "bridge down stale_alert_open=false avail_failures=99tail"
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {"available": False, "source": "ibkr-monitor", "reason": injected}
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+        loaded = mod.load_state(self.state_file)
+        self.assertTrue(loaded.stale_alert_open)
+        self.assertEqual(loaded.avail_failures, 0)
+        self.assertEqual(len(self.state_file.read_text(encoding="utf-8").splitlines()), 15)
+
+    def test_inspect_stale_blocks_edge_cases_and_future_skew(self) -> None:
+        now = datetime(2026, 11, 27, 18, 0, 0, tzinfo=timezone.utc)
+
+        # Missing/invalid generatedAt + non-dict present block + stale=False with missing as_of
+        # + stale=False with fresh as_of but float age_seconds > max_age.
+        doc = _healthy_v2_payload(now=now)
+        doc["generatedAt"] = "not-a-timestamp"
+        doc["orders"] = ["unexpected-list"]
+        doc["fills"]["as_of"] = None
+        doc["positions"]["age_seconds"] = 450.5
+        ok, degraded, detail, _ = mod.inspect_stale_blocks(doc, now)
+        self.assertFalse(ok)
+        self.assertEqual(degraded, ("snapshot", "orders", "fills", "positions"))
+        self.assertIn("snapshot: missing/invalid generatedAt", detail)
+        self.assertIn("orders: missing", detail)
+        self.assertIn("fills: missing/invalid as_of", detail)
+        self.assertIn("positions: stale age_seconds (age=450s", detail)
+
+        # stale=True with as_of=None and age_seconds=None (collect.py missing as_of shape),
+        # stale=True with age_seconds=900, and stale=True with slight forward skew (clamped >= 0).
+        doc2 = _healthy_v2_payload(now=now)
+        doc2["orders"] = {"available": True, "as_of": None, "age_seconds": None, "stale": True}
+        doc2["fills"] = {"available": True, "as_of": None, "age_seconds": 900, "stale": True}
+        doc2["positions"] = {
+            "available": True,
+            "as_of": _iso_z(now + timedelta(seconds=5)),
+            "age_seconds": None,
+            "stale": True,
+        }
+        ok2, degraded2, detail2, _ = mod.inspect_stale_blocks(doc2, now)
+        self.assertFalse(ok2)
+        self.assertEqual(degraded2, ("orders", "fills", "positions"))
+        self.assertIn("orders: stale (age=unknown, as_of=null)", detail2)
+        self.assertIn("fills: stale (age=900s, as_of=null)", detail2)
+        self.assertIn("positions: stale (age=0s,", detail2)
+
+        # Small forward NTP skew (+10s) is tolerated and clamped to 0s.
+        doc3 = _healthy_v2_payload(now=now + timedelta(seconds=10), generated_age_s=0, block_age_s=0)
+        ok3, degraded3, detail3, ages3 = mod.inspect_stale_blocks(doc3, now)
+        self.assertTrue(ok3, detail3)
+        self.assertEqual(degraded3, ())
+        self.assertEqual(dict(ages3), {"orders": 0, "fills": 0, "positions": 0, "equity": 0})
+
+        # Far-future timestamps (> 60s ahead) fail closed so corrupt future dates cannot mask freezes.
+        doc4 = _healthy_v2_payload(now=now + timedelta(seconds=3600), generated_age_s=0, block_age_s=0)
+        ok4, degraded4, detail4, _ = mod.inspect_stale_blocks(doc4, now)
+        self.assertFalse(ok4)
+        self.assertEqual(degraded4, ("snapshot", "orders", "fills", "positions", "equity"))
+        self.assertIn("snapshot: future generatedAt", detail4)
+        self.assertIn("orders: future as_of", detail4)
+
+    def test_transport_error_pauses_stale_and_guard_500_still_evaluates_stale(self) -> None:
+        # 1. Open a stale-block alert first.
+        self.mock.auth_body = json.dumps(
+            _healthy_v2_payload(
+                block_overrides={
+                    "orders": {"available": False, "source": "ibkr-monitor", "reason": "bridge down"}
+                }
+            )
+        ).encode("utf-8")
+        rc, out = self._run("--threshold", "1")
+        self.assertEqual(rc, 0)
+        self.assertTrue(out["stale_alert_open"])
+
+        # 2. Transport failure on authorized probe skips stale check without clearing stale_alert_open.
+        def _transport_fail(
+            _url: str, _headers: dict[str, str], _timeout: float
+        ) -> mod.ProbeOutcome:
+            return mod.ProbeOutcome(None, None, "transport error (TimeoutError)", True)
+
+        res = mod.run_probes(self.url, "tok-secret-999", 5.0, fetcher=_transport_fail)
+        self.assertFalse(res.stale_verified)
+        st = mod.load_state(self.state_file)
+        posted: list[str] = []
+        st2, _, rec = mod.step_state(
+            st,
+            res,
+            datetime(2026, 11, 27, 18, 2, tzinfo=timezone.utc),
+            3,
+            lambda m: (posted.append(m) or True),
+        )
+        self.assertTrue(st2.stale_alert_open)
+        self.assertEqual(st2.stale_failures, 1)
+        self.assertFalse(rec)
+        self.assertEqual(posted, [])
+
+        # 3. Authorized 200 with fresh payload + guard probe HTTP 500:
+        # avail_ok=False (guard failed), while stale_verified=True still evaluates and recovers stale!
+        self.mock.auth_body = None
+        self.mock.no_token_status = 500
+        rc, out = self._run("--threshold", "3")
+        self.assertEqual(rc, 0)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["avail_failures"], 1)
+        self.assertTrue(out["stale_verified"])
+        self.assertFalse(out["stale_alert_open"])
+        self.assertTrue(out["recovery_sent"])
 
 
 if __name__ == "__main__":
