@@ -117,7 +117,7 @@ export const AcademyLesson = ({
             }
             title={lesson.title}
           />
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-xs" data-lesson-tags="">
             {[
               ...lesson.tags.regime,
               ...lesson.tags.instruments,

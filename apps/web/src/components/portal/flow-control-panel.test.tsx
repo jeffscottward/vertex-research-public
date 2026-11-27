@@ -82,19 +82,38 @@ describe("FlowControlPanel", () => {
     expect(options?.textContent).toContain("since ");
     expect(options?.textContent).toContain("Ratio 0.42 (enter ratio 0.30)");
     expect(options?.textContent).toContain("as of ");
-    // Each freshness row is plain status text; a warning row keeps the warning colour.
+    // Each freshness row is plain status text.
     const freshness = [
       ...container.querySelectorAll<HTMLElement>('li > [data-slot="badge"]'),
     ];
     expect(freshness.length).toBeGreaterThan(0);
-    for (const row of freshness) {
+    for (const row of freshness)
       expect(row.getAttribute("data-plain")).toBe("true");
-      expect(row.className).toContain(
-        row.getAttribute("data-status") === "warning"
-          ? "text-warning-foreground"
-          : "text-"
-      );
-    }
+  });
+
+  it("keeps the warning colour on a stale freshness row", async () => {
+    const { container } = await mount(
+      panel({
+        control: {
+          ...sp500,
+          freshness: sp500.freshness.map((row, index) =>
+            index === 0 ? { ...row, state: "stale" as const } : row
+          ),
+        },
+      })
+    );
+    const rows = [
+      ...container.querySelectorAll<HTMLElement>('li > [data-slot="badge"]'),
+    ];
+    const stale = rows.filter(
+      (row) => row.getAttribute("data-status") === "warning"
+    );
+    expect(stale).toHaveLength(1);
+    expect(stale[0]?.getAttribute("data-plain")).toBe("true");
+    expect(stale[0]?.textContent).toContain("stale");
+    expect(stale[0]?.className.split(" ")).toContain("text-warning-foreground");
+    for (const row of rows.filter((item) => item !== stale[0]))
+      expect(row.className.split(" ")).not.toContain("text-warning-foreground");
   });
 
   it("shows the options, futures and agreement rows with their names, states and texts", async () => {

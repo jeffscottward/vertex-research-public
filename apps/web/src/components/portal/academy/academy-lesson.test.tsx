@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { AcademyGateway } from "./academy-client.ts";
 import { AcademyLesson } from "./academy-lesson.tsx";
+import { labelOf } from "./labels.ts";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -213,12 +214,20 @@ describe("AcademyLesson", () => {
         />
       )
     );
-    // The tags print as one line of plain text with separators.
+    // The tags print as one line of plain text with separators, in the stored order.
+    expect(container.querySelector("[data-lesson-tags]")?.textContent).toBe(
+      [
+        ...lesson.tags.regime,
+        ...lesson.tags.instruments,
+        lesson.tags.timeframe,
+        lesson.tags.risk,
+      ]
+        .map(labelOf)
+        .join(" · ")
+    );
     expect(
-      [...container.querySelectorAll("p")].some((line) =>
-        /\S · \S/.test(line.textContent ?? "")
-      )
-    ).toBe(true);
+      container.querySelector('[data-lesson-tags] [data-slot="badge"]')
+    ).toBeNull();
     expect(container.querySelector("[data-concept-note]")).not.toBeNull();
     expect(container.querySelector("[data-lesson-backtest]")).toBeNull();
     expect(container.querySelector("[data-lesson-deploy]")).toBeNull();
