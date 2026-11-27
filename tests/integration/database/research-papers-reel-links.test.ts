@@ -131,16 +131,16 @@ describe("0103 reel DfDt0GDR8Oa learning links (Postgres)", () => {
     expect(await reelRows()).toHaveLength(3);
   });
 
-  it("skips inserting a link when an operator already added the same source_url or identifier", async () => {
+  it("skips inserting a link when an operator already added the same source_url or mixed-case identifier", async () => {
     await postgres().query(rollbackSql);
 
-    // Operator added JPMorgan with a trailing slash & uppercase org via UI (identifier null)
-    // and Quantopian via API with the same identifier under a custom id.
+    // Operator added JPMorgan with trailing slashes & uppercase org via UI (identifier null)
+    // and Quantopian via API with a differently cased identifier under a custom id.
     await postgres().query(
       `insert into research_papers (id, title, source_url, identifier, kind, stage, verdict)
        values
-         ('operator-jpmorgan-custom', 'Operator JPMorgan Note', 'https://github.com/JPMorganChase/python-training/', null, 'article', 'ingested', 'pending'),
-         ('operator-quantopian-custom', 'Operator Quantopian Note', 'https://example.test/quantopian-mirror', 'github:quantopian/research_public', 'article', 'ingested', 'pending')`
+         ('operator-jpmorgan-custom', 'Operator JPMorgan Note', 'https://github.com/JPMorganChase/python-training//', null, 'article', 'ingested', 'pending'),
+         ('operator-quantopian-custom', 'Operator Quantopian Note', 'https://example.test/quantopian-mirror', 'github:Quantopian/Research_Public', 'article', 'ingested', 'pending')`
     );
 
     try {
@@ -173,7 +173,13 @@ describe("0103 reel DfDt0GDR8Oa learning links (Postgres)", () => {
     }
   });
 
-  it("refuses rollback when a row was edited by an operator", async () => {
+  it("refuses rollback when updated_at or any seeded content column was edited", async () => {
+    const before = await reelRows();
+    const originalNotes =
+      before.find((row) => row.id === "article-jpmorgan-python-training")
+        ?.notes ?? "";
+
+    // Timestamp-bumped operator edit
     await postgres().query(
       `update research_papers
           set notes = 'Operator reviewed', updated_at = created_at + interval '1 minute'
@@ -182,30 +188,51 @@ describe("0103 reel DfDt0GDR8Oa learning links (Postgres)", () => {
     try {
       await expectRollbackRefused();
       expect(await reelRows()).toHaveLength(3);
-    } finally {
+
+      // Content-only edit even when updated_at equals created_at
       await postgres().query(
         `update research_papers
             set updated_at = created_at
           where id = 'article-jpmorgan-python-training'`
       );
-    }
-  });
-
-  it("refuses rollback when stage or verdict changed even if updated_at equals created_at", async () => {
-    await postgres().query(
-      `update research_papers
-          set stage = 'ingested'
-        where id = 'article-quantopian-research-public'`
-    );
-    try {
       await expectRollbackRefused();
       expect(await reelRows()).toHaveLength(3);
     } finally {
       await postgres().query(
         `update research_papers
-            set stage = 'queued'
-          where id = 'article-quantopian-research-public'`
+            set notes = $1, updated_at = created_at
+          where id = 'article-jpmorgan-python-training'`,
+        [originalNotes]
       );
+    }
+  });
+
+  it("refuses rollback when stage, verdict, or metrics changed even if updated_at equals created_at", async () => {
+    const mutations: readonly [string, string][] = [
+      ["stage = 'ingested'", "stage = 'queued'"],
+      ["verdict = 'promising'", "verdict = 'pending'"],
+      [
+        `reported_metrics = '{"stars":14300}'::jsonb`,
+        `reported_metrics = '{}'::jsonb`,
+      ],
+      [
+        `reproduced_metrics = '{"verified":1}'::jsonb`,
+        `reproduced_metrics = '{}'::jsonb`,
+      ],
+    ];
+
+    for (const [mutateSql, restoreSql] of mutations) {
+      await postgres().query(
+        `update research_papers set ${mutateSql} where id = 'article-quantopian-research-public'`
+      );
+      try {
+        await expectRollbackRefused();
+        expect(await reelRows()).toHaveLength(3);
+      } finally {
+        await postgres().query(
+          `update research_papers set ${restoreSql} where id = 'article-quantopian-research-public'`
+        );
+      }
     }
   });
 

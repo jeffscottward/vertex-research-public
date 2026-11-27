@@ -60,6 +60,7 @@ FROM (
 WHERE NOT EXISTS (
   SELECT 1
   FROM "public"."research_papers" existing
-  WHERE lower(existing."source_url") IN (lower(v."source_url"), lower(v."source_url") || '/')
+  WHERE rtrim(lower(existing."source_url"), '/') = lower(v."source_url")
+     OR lower(existing."identifier") = lower(v."identifier")
 )
 ON CONFLICT DO NOTHING;

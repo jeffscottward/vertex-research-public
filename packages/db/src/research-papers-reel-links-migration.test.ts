@@ -106,11 +106,12 @@ describe(TAG, () => {
     expect(byId.get("article-firmai-financial-ml")?.[11]).toContain("a0fda6ac");
   });
 
-  it("is idempotent, skips duplicate source_url rows, and never overwrites existing rows", () => {
+  it("is idempotent, skips duplicate source_url or identifier rows, and never overwrites existing rows", () => {
     const migration = read(`../migrations/${TAG}.sql`);
     expect(migration).toContain('INSERT INTO "public"."research_papers"');
     expect(migration).toContain("WHERE NOT EXISTS");
-    expect(migration).toContain('lower(existing."source_url")');
+    expect(migration).toContain("rtrim(lower(existing.\"source_url\"), '/')");
+    expect(migration).toContain('lower(existing."identifier")');
     expect(migration).toContain("ON CONFLICT DO NOTHING");
     expect(migration).not.toMatch(/^\s*(GRANT|TRUNCATE|UPDATE|DELETE)\s/im);
   });
@@ -143,10 +144,22 @@ describe(TAG, () => {
     expect(currSnap.id).not.toBe(prevSnap.id);
   });
 
-  it("rolls back only unedited, unreferenced rows and checks every referencing table", () => {
+  it("rolls back only unedited, unreferenced rows and checks every seeded column and referencing table", () => {
     const rollback = read(`../rollback/${TAG}.down.sql`);
     for (const id of REEL_IDS) {
       expect(rollback).toContain(`'${id}'`);
+    }
+    for (const col of [
+      "title",
+      "authors",
+      "year",
+      "source_url",
+      "identifier",
+      "kind",
+      "blockers",
+      "notes",
+    ]) {
+      expect(rollback).toContain(`p."${col}" IS DISTINCT FROM seed."${col}"`);
     }
     for (const table of [
       "agent_tasks",
