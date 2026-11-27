@@ -42,11 +42,13 @@ Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` 
     - Keep small scratch files (`busyPath` and `${wt}-pr-body.md` -> `/tmp/vertex-research-janitor-<stamp>-busy.txt` and `-pr-body.md`) in `/tmp`.
   - Remove the `ln -s ${main}/node_modules ${wt}/node_modules` step.
   - Immediately after `worktree = true` and `git rev-parse HEAD` (after `--dry-run` and `ls-remote` guards, so install failures trigger `finally` cleanup), install isolated dependencies inside `${wt}` via:
+
     ```bash
     pnpm install --frozen-lockfile --prefer-offline \
       --config.virtual-store-dir=node_modules/.pnpm \
       --config.confirm-modules-purge=false
     ```
+
     Run with `{ cwd: wt, inherit: true }` wrapped in `must(..., "pnpm install")` so install failures stream diagnostics to `vertex-janitor.service` logs and exit cleanly. Because `${wt}` is on the same `btrfs` filesystem as the host pnpm store, pnpm natively hardlinks packages (~0 RAM overhead) and child `pnpm` commands inside the `omp` pass also resolve the host store without creating `/tmp/.pnpm-store`.
   - Update `finally` cleanup: remove `rm -f ${wt}/node_modules` (a real directory causes `rm -f` to fail), run `git worktree remove --force --force ${wt}` (double `--force` handles any nested `.git` directory), and if that exits non-zero, fall back to `rm -rf ${wt}` followed by `git worktree prune` before `git branch -D ${branch}`.
   - Update `stagePass` (the helper that stages model edits while keeping `JANITOR-REPORT.md` and `node_modules` unstaged) JSDoc comments to describe a real `node_modules/` directory rather than a symlink, while retaining `git reset -q -- node_modules JANITOR-REPORT.md`.
@@ -60,6 +62,7 @@ Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` 
 ## Execution order
 
 1. **Repair `${main}/node_modules` on `omarchy-rig`:**
+
    ```bash
    fm claim vertex-public-main-node-modules-dangling "file:vertex-research-public:node_modules"
    # Re-verify 0 worktree symlinks and 0 processes with cwd/fd in main/node_modules
@@ -68,6 +71,7 @@ Repair `/home/jeffscottward/Github/trading/vertex-research-public/node_modules` 
      --config.virtual-store-dir=node_modules/.pnpm \
      --config.confirm-modules-purge=false
    ```
+
    Run verification commands below, then run `fm release vertex-public-main-node-modules-dangling "file:vertex-research-public:node_modules"` (also on error).
 2. **Implement and test the `scripts/janitor/weekly.ts` fix in the linked worktree** (`ws/vertex-research-public-main`).
 3. **Run verification gates:** Vitest with 100% coverage on `scripts/janitor/weekly.ts`, `bun run verify:prepush`, `node scripts/public-names.ts` (public-repo leak scanner), Elephant-Goldfish Model (EGM) drift report, and fresh-context code review.
