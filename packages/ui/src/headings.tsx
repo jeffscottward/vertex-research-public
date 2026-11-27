@@ -10,7 +10,9 @@ interface PageHeaderBaseProps
 
 /**
  * Portal header (Fulcrum structure): optional breadcrumb above, the title with an optional status
- * chip, one plain line of purpose below, and the primary actions on the right.
+ * beside it, one plain line of purpose below, and the primary actions on the right. A StatusBadge
+ * in the status slot prints as plain text (see status-badge.tsx). No variant has an eyebrow, and
+ * the title has no negative letter-spacing.
  */
 export interface PortalPageHeaderProps extends PageHeaderBaseProps {
   breadcrumb?: ReactNode;
@@ -23,7 +25,7 @@ export interface PortalPageHeaderProps extends PageHeaderBaseProps {
 export interface PublicPageHeaderProps extends PageHeaderBaseProps {
   breadcrumb?: never;
   description?: ReactNode;
-  eyebrow?: ReactNode;
+  eyebrow?: never;
   status?: never;
   variant: "public";
 }
@@ -35,7 +37,6 @@ export const PageHeader = ({
   breadcrumb,
   className,
   description,
-  eyebrow,
   status,
   title,
   variant = "portal",
@@ -43,10 +44,9 @@ export const PageHeader = ({
 }: PageHeaderProps) => {
   const heading = (
     <h1
-      className={cn(
-        "tracking-tight",
+      className={
         variant === "public" ? "font-extrabold text-4xl" : "font-bold text-2xl"
-      )}
+      }
     >
       {title}
     </h1>
@@ -70,9 +70,6 @@ export const PageHeader = ({
           >
             {breadcrumb}
           </div>
-        )}
-        {eyebrow === undefined ? null : (
-          <p className="font-medium text-muted-foreground text-sm">{eyebrow}</p>
         )}
         {status === undefined ? (
           heading

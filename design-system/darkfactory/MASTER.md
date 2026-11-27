@@ -103,8 +103,8 @@ Tailwind's default scale, as in shadcn. Every step is multiplied by `--font-scal
 | `text-sm` | `0.875rem / 1.25rem` | Default UI text: buttons, menus, tables, labels, descriptions |
 | `text-base` | `1rem / 1.5rem` | Site header page title, card title, inputs on mobile |
 | `text-lg` | `1.125rem / 1.75rem` | Dialog title, settings section title |
-| `text-2xl` | `1.5rem / 2rem` | Page title (`font-bold tracking-tight`), KPI numbers |
-| `text-4xl` | `2.25rem / 2.5rem` | Public page title (`font-extrabold tracking-tight`) |
+| `text-2xl` | `1.5rem / 2rem` | Page title (`font-bold`, no negative letter-spacing), KPI numbers |
+| `text-4xl` | `2.25rem / 2.5rem` | Public page title (`font-extrabold`, no negative letter-spacing) |
 | `text-display` | `3rem / 1` | Public hero only |
 
 - Weights: `font-medium` for buttons, labels, menu items, tabs and active navigation; `font-semibold` for card and dialog titles; `font-bold` for page titles.
@@ -324,7 +324,7 @@ The default theme is System: Default Light, or Default Dark when the OS prefers 
 
 - Use a calm, left-aligned header with one primary action and a lower-emphasis sign-in link.
 - Build hero compositions from an asymmetrical text/media split, not a centered headline floating above generic cards.
-- Let large Geist headlines (`font-extrabold tracking-tight`), rules, and whitespace create drama.
+- Let large Geist headlines (`font-extrabold`, no negative letter-spacing), rules, and whitespace create drama.
 - Alternate text-led, media-led, and proof/detail sections to avoid repetitive card grids.
 - Use flat editorial bands and hairline separators more often than boxed cards.
 - Keep primary calls to action specific: “Explore the architecture,” “Open the demo,” or “Sign in to the portal.”
@@ -374,8 +374,10 @@ Use [shadcn blocks](https://ui.shadcn.com/blocks) as the continual composition r
 
 ### Information hierarchy
 
-- Portal page header: title and actions only (`PageHeader` without `description` or `eyebrow`; the type rejects them unless `variant="public"`). Title: `text-2xl font-bold tracking-tight`.
+- Portal page header: title and actions; a `description` only where a page needs one line of purpose (the filler rule below applies). No variant of `PageHeader` has an eyebrow; the type rejects `eyebrow`. Title: `text-2xl font-bold`, with no negative letter-spacing.
+- Page status: the `status` slot of `PageHeader` may show one status beside the title. A `StatusBadge` in the slot prints as plain text: no border, no fill, no dot, no rounded box and no padding. Warning and destructive keep their text colour; neutral, info and success print in `text-muted-foreground`. `<StatusBadge plain>` gives the same look for a row status.
 - No filler text in the portal: no subtitles that restate the title, no explanatory paragraphs, no empty-state prose. Keep data, actions, labels, error messages and required safety or legal notices.
+- Research notice: the portal shell prints the research notice once on every portal page that has no order, arming or approval control; page subtitles must not repeat it. The shell prints it under the page content (`data-slot="portal-research-notice"`); the text and the route rule are in `apps/web/src/lib/research-notice.ts`. A notice inside a panel keeps its text and position.
 - Use section headings before adding containers.
 - Prefer one dominant page task and a small number of secondary actions.
 - Do not use oversized “hero metrics” or decorative dashboard charts.
@@ -397,6 +399,7 @@ Use [shadcn blocks](https://ui.shadcn.com/blocks) as the continual composition r
 
 - Include a descriptive title, optional summary, and explicit empty state.
 - Header cells use correct `scope`; row actions have accessible names that include the row identity.
+- Header labels are sentence case and print as written ("Net premium"). `TableHeader` applies no upper-case transform and no added letter-spacing. Ticker symbols and acronyms (IV, OI, P&L, ETF) keep their capitals.
 - Provide loading skeletons that match final column geometry.
 - Distinguish no data, no search results, permission denied, and load failure.
 - At 375px, present priority data as labeled stacked rows or a controlled accessible scroll region.

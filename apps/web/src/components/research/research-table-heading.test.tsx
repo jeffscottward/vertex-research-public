@@ -23,6 +23,19 @@ describe("research table heading help", () => {
     );
   });
 
+  it("renders only the heading when there is no help text", () => {
+    const html = renderToStaticMarkup(
+      <ResearchTableHeading id="positions-heading" title="Positions" />
+    );
+    expect(html).toBe(
+      '<div class="vx-research-table-heading"><h2 id="positions-heading">Positions</h2></div>'
+    );
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("<aside");
+    expect(html).not.toContain("popover");
+    return expect(html).not.toContain("positions-heading-help");
+  });
+
   it("keeps caller IDs stable and associates separate headings with separate help", () => {
     const html = renderToStaticMarkup(
       <div>
