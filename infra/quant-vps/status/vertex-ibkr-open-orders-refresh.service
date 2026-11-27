@@ -1,0 +1,13 @@
+# Card: vertex-open-orders-report-stale (transitional bridge).
+# Refresh the IBKR open-orders report every minute via the frozen read-only writer
+# inside portfolio-ui (IBKR client id 149). No order, arming or risk changes.
+# Non-zero exit marks the unit failed and self-clears on the next successful minute.
+[Unit]
+Description=Vertex: refresh the IBKR open-orders report (read-only query, IBKR client id 149)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec ibkr-nautilus-exec-node-portfolio-ui-1 /usr/bin/timeout -k 5 40 /opt/ibkr-snapshot-venv/bin/python3 /app/scripts/ibkr_open_orders.py --client-id 149 --timeout-seconds 15
+TimeoutStartSec=50
+Nice=10

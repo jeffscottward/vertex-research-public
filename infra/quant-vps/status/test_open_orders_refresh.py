@@ -130,8 +130,11 @@ class OpenOrdersRefreshTests(unittest.TestCase):
 
         # Dynamically verify no other runtime file under infra/quant-vps/ declares this client ID.
         id_patterns = (
-            re.compile(rf"--client-id(?:=|\s+){client_id}\b"),
-            re.compile(rf"CLIENT_ID\s*[:=]\s*['\"]?{client_id}\b"),
+            re.compile(rf"--client-id(?:=|\s+){client_id}\b", re.IGNORECASE),
+            re.compile(
+                rf"client[_-]id[^\n#]*?(?:[:=]|:-|\|\|)\s*['\"]?{client_id}\b",
+                re.IGNORECASE,
+            ),
         )
         for path in sorted(QUANT_VPS_DIR.rglob("*")):
             if not path.is_file() or path.suffix not in CLIENT_ID_SCAN_EXTS:
@@ -210,6 +213,7 @@ class OpenOrdersRefreshTests(unittest.TestCase):
         self.assertGreater(start_idx, -1, "deploy script must start the service once")
         self.assertGreater(enable_idx, -1, "deploy script must enable and start the timer")
         self.assertLess(start_idx, enable_idx, "initial service start must run before enabling timer")
+        self.assertIn("START_RC=", code_only)
         self.assertIn("first_run: result=", code_only)
         self.assertIn("protected_containers=unchanged", code_only)
 
