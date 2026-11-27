@@ -1,15 +1,18 @@
 <svg
-  xmlns="http://www.w3.org/2000/svg"
-  width="960"
+  font-family="Public Sans, Manrope, sans-serif"
   height="460"
   viewBox="0 0 960 460"
-  font-family="Public Sans, Manrope, sans-serif"
+  width="960"
+  xmlns="http://www.w3.org/2000/svg"
 >
-  <rect width="960" height="460" fill="#111317" />
-  <text x="40" y="44" fill="#f2f2f2" font-size="22" font-weight="700">
+  <title>
+    Before and after: flow reads on an NYSE holiday and an early-close day
+  </title>
+  <rect fill="#111317" height="460" width="960" />
+  <text fill="#f2f2f2" font-size="22" font-weight="700" x="40" y="44">
     Flow reads by New York time
   </text>
-  <text x="40" y="68" fill="#9aa0a6" font-size="14">
+  <text fill="#9aa0a6" font-size="14" x="40" y="68">
     Options, GEX, net drift and the SPY tape. Research data only; no orders.
   </text>
 
@@ -23,95 +26,95 @@
     <text x="920" y="100">20:00</text>
   </g>
   <g stroke="#2c3036" stroke-width="1">
-    <line x1="447" y1="108" x2="447" y2="430" />
-    <line x1="605" y1="108" x2="605" y2="430" />
-    <line x1="740" y1="108" x2="740" y2="430" />
-    <line x1="785" y1="108" x2="785" y2="430" />
+    <line x1="447" x2="447" y1="108" y2="430" />
+    <line x1="605" x2="605" y1="108" y2="430" />
+    <line x1="740" x2="740" y1="108" y2="430" />
+    <line x1="785" x2="785" y1="108" y2="430" />
   </g>
 
   <!-- BEFORE -->
-  <text x="40" y="140" fill="#e0b84a" font-size="16" font-weight="700">
+  <text fill="#e0b84a" font-size="16" font-weight="700" x="40" y="140">
     BEFORE
   </text>
-  <text x="40" y="172" fill="#d0d0d0" font-size="14">Holiday</text>
-  <text x="40" y="188" fill="#9aa0a6" font-size="11">2026-11-26</text>
-  <rect x="447" y="164" width="304" height="12" rx="6" fill="#c0504d" />
+  <text fill="#d0d0d0" font-size="14" x="40" y="172">Holiday</text>
+  <text fill="#9aa0a6" font-size="11" x="40" y="188">2026-11-26</text>
+  <rect fill="#c0504d" height="12" rx="6" width="304" x="447" y="164" />
   <rect
+    fill="#c0504d"
+    height="8"
+    opacity="0.7"
+    rx="4"
+    width="720"
     x="200"
     y="182"
-    width="720"
-    height="8"
-    rx="4"
-    fill="#c0504d"
-    opacity="0.7"
   />
-  <text x="760" y="174" fill="#f28b82" font-size="12">
+  <text fill="#f28b82" font-size="12" x="760" y="174">
     ✕ reads on a closed market
   </text>
 
-  <text x="40" y="232" fill="#d0d0d0" font-size="14">Early close</text>
-  <text x="40" y="248" fill="#9aa0a6" font-size="11">2026-11-27</text>
-  <rect x="447" y="224" width="169" height="12" rx="6" fill="#4caf7a" />
-  <rect x="616" y="224" width="135" height="12" rx="6" fill="#c0504d" />
+  <text fill="#d0d0d0" font-size="14" x="40" y="232">Early close</text>
+  <text fill="#9aa0a6" font-size="11" x="40" y="248">2026-11-27</text>
+  <rect fill="#4caf7a" height="12" rx="6" width="169" x="447" y="224" />
+  <rect fill="#c0504d" height="12" rx="6" width="135" x="616" y="224" />
   <rect
+    fill="#4caf7a"
+    height="8"
+    opacity="0.7"
+    rx="4"
+    width="585"
     x="200"
     y="242"
-    width="585"
-    height="8"
-    rx="4"
-    fill="#4caf7a"
-    opacity="0.7"
   />
   <rect
+    fill="#c0504d"
+    height="8"
+    opacity="0.7"
+    rx="4"
+    width="135"
     x="785"
     y="242"
-    width="135"
-    height="8"
-    rx="4"
-    fill="#c0504d"
-    opacity="0.7"
   />
 
   <!-- AFTER -->
-  <text x="40" y="300" fill="#e0b84a" font-size="16" font-weight="700">
+  <text fill="#e0b84a" font-size="16" font-weight="700" x="40" y="300">
     AFTER
   </text>
-  <text x="40" y="332" fill="#d0d0d0" font-size="14">Holiday</text>
-  <text x="40" y="348" fill="#9aa0a6" font-size="11">2026-11-26</text>
+  <text fill="#d0d0d0" font-size="14" x="40" y="332">Holiday</text>
+  <text fill="#9aa0a6" font-size="11" x="40" y="348">2026-11-26</text>
   <rect
-    x="200"
-    y="326"
-    width="720"
+    fill="none"
     height="16"
     rx="8"
-    fill="none"
     stroke="#4a4f57"
     stroke-dasharray="6 5"
+    width="720"
+    x="200"
+    y="326"
   />
-  <text x="560" y="339" fill="#9aa0a6" font-size="12" text-anchor="middle">
+  <text fill="#9aa0a6" font-size="12" text-anchor="middle" x="560" y="339">
     closed: no reads, /flow shows the last trading session
   </text>
 
-  <text x="40" y="392" fill="#d0d0d0" font-size="14">Early close</text>
-  <text x="40" y="408" fill="#9aa0a6" font-size="11">2026-11-27</text>
-  <rect x="447" y="384" width="169" height="12" rx="6" fill="#4caf7a" />
+  <text fill="#d0d0d0" font-size="14" x="40" y="392">Early close</text>
+  <text fill="#9aa0a6" font-size="11" x="40" y="408">2026-11-27</text>
+  <rect fill="#4caf7a" height="12" rx="6" width="169" x="447" y="384" />
   <rect
+    fill="#4caf7a"
+    height="8"
+    opacity="0.7"
+    rx="4"
+    width="585"
     x="200"
     y="402"
-    width="585"
-    height="8"
-    rx="4"
-    fill="#4caf7a"
-    opacity="0.7"
   />
-  <text x="800" y="400" fill="#81c995" font-size="12">✓ ends 3 h early</text>
+  <text fill="#81c995" font-size="12" x="800" y="400">✓ ends 3 h early</text>
 
   <!-- legend -->
-  <rect x="200" y="436" width="22" height="10" rx="5" fill="#4caf7a" />
-  <text x="228" y="445" fill="#9aa0a6" font-size="11">reads with data</text>
-  <rect x="340" y="436" width="22" height="10" rx="5" fill="#c0504d" />
-  <text x="368" y="445" fill="#9aa0a6" font-size="11">wasted reads</text>
-  <text x="470" y="445" fill="#9aa0a6" font-size="11">
+  <rect fill="#4caf7a" height="10" rx="5" width="22" x="200" y="436" />
+  <text fill="#9aa0a6" font-size="11" x="228" y="445">reads with data</text>
+  <rect fill="#c0504d" height="10" rx="5" width="22" x="340" y="436" />
+  <text fill="#9aa0a6" font-size="11" x="368" y="445">wasted reads</text>
+  <text fill="#9aa0a6" font-size="11" x="470" y="445">
     thick bar: options, GEX, net drift · thin bar: SPY tape (extended hours) ·
     ES/NQ futures unchanged
   </text>
