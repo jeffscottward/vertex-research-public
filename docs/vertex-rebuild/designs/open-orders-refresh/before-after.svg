@@ -1,0 +1,544 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1280 720"
+  width="1280"
+  height="720"
+  font-family="Inter, 'DejaVu Sans', Arial, sans-serif"
+>
+  <title>
+    Before and after: the IBKR open-orders report is written only on
+    portfolio-ui on-demand triggers; after the fix a 24/7 timer runs the same
+    writer every 60 seconds
+  </title>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#8b98a9" />
+    </marker>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#f2545b" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#3ddc97" />
+    </marker>
+  </defs>
+  <rect width="1280" height="720" fill="#0d1117" />
+
+  <!-- headings -->
+  <text x="40" y="52" fill="#e6edf3" font-size="26" font-weight="700">
+    Open-orders report: who starts the writer
+  </text>
+  <text x="40" y="100" fill="#f2545b" font-size="20" font-weight="700">
+    BEFORE
+  </text>
+  <text x="130" y="100" fill="#8b98a9" font-size="16">
+    measured 2026-11-27 12:29 UTC
+  </text>
+  <text x="40" y="420" fill="#3ddc97" font-size="20" font-weight="700">
+    AFTER
+  </text>
+  <text x="112" y="420" fill="#8b98a9" font-size="16">design targets</text>
+  <line x1="40" y1="382" x2="1240" y2="382" stroke="#21262d" stroke-width="2" />
+
+  <!-- ============ BEFORE row ============ -->
+  <!-- person at a browser: the only trigger -->
+  <g transform="translate(60,150)">
+    <rect
+      x="0"
+      y="0"
+      width="150"
+      height="100"
+      rx="10"
+      fill="#161b22"
+      stroke="#f2545b"
+      stroke-width="2"
+      stroke-dasharray="7 6"
+    />
+    <rect x="0" y="0" width="150" height="22" rx="10" fill="#21262d" />
+    <circle cx="14" cy="11" r="4" fill="#f2545b" />
+    <circle cx="28" cy="11" r="4" fill="#e3b341" />
+    <circle cx="42" cy="11" r="4" fill="#3ddc97" />
+    <circle
+      cx="75"
+      cy="52"
+      r="13"
+      fill="none"
+      stroke="#8b98a9"
+      stroke-width="3"
+    />
+    <path
+      d="M50 92 q25 -34 50 0"
+      fill="none"
+      stroke="#8b98a9"
+      stroke-width="3"
+    />
+    <text x="75" y="126" fill="#e6edf3" font-size="15" text-anchor="middle">
+      on-demand UI
+    </text>
+    <text x="75" y="146" fill="#f2545b" font-size="14" text-anchor="middle">
+      last: 2026-11-06
+    </text>
+  </g>
+  <line
+    x1="222"
+    y1="200"
+    x2="300"
+    y2="200"
+    stroke="#f2545b"
+    stroke-width="3"
+    stroke-dasharray="8 7"
+    marker-end="url(#arrowRed)"
+  />
+
+  <!-- writer gear -->
+  <g transform="translate(370,200)">
+    <circle r="46" fill="#161b22" stroke="#8b98a9" stroke-width="2" />
+    <g fill="#8b98a9">
+      <rect x="-7" y="-40" width="14" height="14" rx="2" />
+      <rect x="-7" y="26" width="14" height="14" rx="2" />
+      <rect x="-40" y="-7" width="14" height="14" rx="2" />
+      <rect x="26" y="-7" width="14" height="14" rx="2" />
+      <rect
+        x="-7"
+        y="-40"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+      <rect
+        x="-7"
+        y="26"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+      <rect
+        x="-40"
+        y="-7"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+      <rect
+        x="26"
+        y="-7"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+    </g>
+    <circle r="24" fill="#0d1117" stroke="#8b98a9" stroke-width="3" />
+    <text y="76" fill="#e6edf3" font-size="15" text-anchor="middle">
+      writer
+    </text>
+    <text y="96" fill="#8b98a9" font-size="14" text-anchor="middle">
+      works: 1.19 s
+    </text>
+  </g>
+  <line
+    x1="428"
+    y1="200"
+    x2="520"
+    y2="200"
+    stroke="#8b98a9"
+    stroke-width="3"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- stale file -->
+  <g transform="translate(540,140)">
+    <path
+      d="M0 0 h78 l32 32 v88 h-110 z"
+      fill="#161b22"
+      stroke="#f2545b"
+      stroke-width="2"
+    />
+    <path d="M78 0 v32 h32" fill="none" stroke="#f2545b" stroke-width="2" />
+    <g stroke="#3a424d" stroke-width="5" stroke-linecap="round">
+      <line x1="18" y1="50" x2="92" y2="50" />
+      <line x1="18" y1="68" x2="80" y2="68" />
+      <line x1="18" y1="86" x2="92" y2="86" />
+      <line x1="18" y1="104" x2="62" y2="104" />
+    </g>
+    <!-- cobweb in the corner -->
+    <g stroke="#8b98a9" stroke-width="1.5" fill="none">
+      <path d="M0 120 L46 74" />
+      <path d="M0 120 L0 62" />
+      <path d="M0 120 L58 120" />
+      <path d="M0 96 Q14 102 24 120" />
+      <path d="M0 78 Q24 88 42 120" />
+    </g>
+    <text x="55" y="146" fill="#e6edf3" font-size="15" text-anchor="middle">
+      report file
+    </text>
+    <text x="55" y="166" fill="#f2545b" font-size="14" text-anchor="middle">
+      21 days old
+    </text>
+  </g>
+  <line
+    x1="662"
+    y1="200"
+    x2="750"
+    y2="200"
+    stroke="#8b98a9"
+    stroke-width="3"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- status gauge: stale -->
+  <g transform="translate(830,205)">
+    <path
+      d="M-60 0 A60 60 0 0 1 60 0"
+      fill="none"
+      stroke="#21262d"
+      stroke-width="16"
+    />
+    <path
+      d="M-60 0 A60 60 0 0 1 -52 -30"
+      fill="none"
+      stroke="#3ddc97"
+      stroke-width="16"
+    />
+    <path
+      d="M-52 -30 A60 60 0 0 1 60 0"
+      fill="none"
+      stroke="#f2545b"
+      stroke-width="16"
+    />
+    <line
+      x1="0"
+      y1="0"
+      x2="52"
+      y2="-10"
+      stroke="#e6edf3"
+      stroke-width="4"
+      stroke-linecap="round"
+    />
+    <circle r="7" fill="#e6edf3" />
+    <text y="34" fill="#e6edf3" font-size="15" text-anchor="middle">
+      status-v2 orders
+    </text>
+    <text y="54" fill="#f2545b" font-size="14" text-anchor="middle">
+      stale: age 1,858,265 s
+    </text>
+    <text y="74" fill="#8b98a9" font-size="13" text-anchor="middle">
+      limit 300 s
+    </text>
+  </g>
+  <line
+    x1="912"
+    y1="200"
+    x2="1000"
+    y2="200"
+    stroke="#f2545b"
+    stroke-width="3"
+    marker-end="url(#arrowRed)"
+  />
+
+  <!-- gate closed -->
+  <g transform="translate(1030,140)">
+    <rect x="0" y="0" width="14" height="120" fill="#8b98a9" />
+    <rect x="146" y="0" width="14" height="120" fill="#8b98a9" />
+    <rect x="-6" y="48" width="172" height="20" rx="4" fill="#f2545b" />
+    <g fill="#0d1117">
+      <rect
+        x="16"
+        y="48"
+        width="18"
+        height="20"
+        transform="skewX(-25) translate(26,0)"
+      />
+      <rect
+        x="62"
+        y="48"
+        width="18"
+        height="20"
+        transform="skewX(-25) translate(26,0)"
+      />
+      <rect
+        x="108"
+        y="48"
+        width="18"
+        height="20"
+        transform="skewX(-25) translate(26,0)"
+      />
+    </g>
+    <text x="80" y="146" fill="#e6edf3" font-size="15" text-anchor="middle">
+      deploy check
+    </text>
+    <text x="80" y="166" fill="#f2545b" font-size="14" text-anchor="middle">
+      blocked (migration 0081)
+    </text>
+  </g>
+
+  <!-- ============ AFTER row ============ -->
+  <!-- timer clock -->
+  <g transform="translate(135,510)">
+    <circle r="50" fill="#161b22" stroke="#3ddc97" stroke-width="3" />
+    <g stroke="#8b98a9" stroke-width="3" stroke-linecap="round">
+      <line x1="0" y1="-42" x2="0" y2="-34" />
+      <line x1="42" y1="0" x2="34" y2="0" />
+      <line x1="0" y1="42" x2="0" y2="34" />
+      <line x1="-42" y1="0" x2="-34" y2="0" />
+    </g>
+    <line
+      x1="0"
+      y1="0"
+      x2="0"
+      y2="-30"
+      stroke="#e6edf3"
+      stroke-width="4"
+      stroke-linecap="round"
+    />
+    <line
+      x1="0"
+      y1="0"
+      x2="20"
+      y2="12"
+      stroke="#3ddc97"
+      stroke-width="4"
+      stroke-linecap="round"
+    />
+    <circle r="5" fill="#e6edf3" />
+    <path
+      d="M-36 -52 A62 62 0 0 1 36 -52"
+      fill="none"
+      stroke="#3ddc97"
+      stroke-width="3"
+      marker-end="url(#arrowGreen)"
+    />
+    <text y="80" fill="#e6edf3" font-size="15" text-anchor="middle">
+      systemd timer
+    </text>
+    <text y="100" fill="#3ddc97" font-size="14" text-anchor="middle">
+      every 60 s, 24/7
+    </text>
+  </g>
+  <line
+    x1="197"
+    y1="510"
+    x2="300"
+    y2="510"
+    stroke="#3ddc97"
+    stroke-width="3"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <!-- same writer gear -->
+  <g transform="translate(370,510)">
+    <circle r="46" fill="#161b22" stroke="#3ddc97" stroke-width="2" />
+    <g fill="#8b98a9">
+      <rect x="-7" y="-40" width="14" height="14" rx="2" />
+      <rect x="-7" y="26" width="14" height="14" rx="2" />
+      <rect x="-40" y="-7" width="14" height="14" rx="2" />
+      <rect x="26" y="-7" width="14" height="14" rx="2" />
+      <rect
+        x="-7"
+        y="-40"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+      <rect
+        x="-7"
+        y="26"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+      <rect
+        x="-40"
+        y="-7"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+      <rect
+        x="26"
+        y="-7"
+        width="14"
+        height="14"
+        rx="2"
+        transform="rotate(45)"
+      />
+    </g>
+    <circle r="24" fill="#0d1117" stroke="#8b98a9" stroke-width="3" />
+    <text y="76" fill="#e6edf3" font-size="15" text-anchor="middle">
+      same writer
+    </text>
+    <text y="96" fill="#8b98a9" font-size="14" text-anchor="middle">
+      read-only query
+    </text>
+  </g>
+  <line
+    x1="428"
+    y1="510"
+    x2="520"
+    y2="510"
+    stroke="#3ddc97"
+    stroke-width="3"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <!-- fresh file -->
+  <g transform="translate(540,450)">
+    <path
+      d="M0 0 h78 l32 32 v88 h-110 z"
+      fill="#161b22"
+      stroke="#3ddc97"
+      stroke-width="2"
+    />
+    <path d="M78 0 v32 h32" fill="none" stroke="#3ddc97" stroke-width="2" />
+    <g stroke="#3a424d" stroke-width="5" stroke-linecap="round">
+      <line x1="18" y1="50" x2="92" y2="50" />
+      <line x1="18" y1="68" x2="80" y2="68" />
+      <line x1="18" y1="86" x2="92" y2="86" />
+      <line x1="18" y1="104" x2="62" y2="104" />
+    </g>
+    <path
+      d="M84 96 l10 12 l22 -28"
+      fill="none"
+      stroke="#3ddc97"
+      stroke-width="6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <text x="55" y="146" fill="#e6edf3" font-size="15" text-anchor="middle">
+      report file
+    </text>
+    <text x="55" y="166" fill="#3ddc97" font-size="14" text-anchor="middle">
+      ≤ 66 s on disk
+    </text>
+  </g>
+  <line
+    x1="662"
+    y1="510"
+    x2="750"
+    y2="510"
+    stroke="#3ddc97"
+    stroke-width="3"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <!-- status gauge: fresh -->
+  <g transform="translate(830,515)">
+    <path
+      d="M-60 0 A60 60 0 0 1 60 0"
+      fill="none"
+      stroke="#21262d"
+      stroke-width="16"
+    />
+    <path
+      d="M-60 0 A60 60 0 0 1 -52 -30"
+      fill="none"
+      stroke="#3ddc97"
+      stroke-width="16"
+    />
+    <path
+      d="M-52 -30 A60 60 0 0 1 60 0"
+      fill="none"
+      stroke="#f2545b"
+      stroke-width="16"
+      opacity="0.35"
+    />
+    <line
+      x1="0"
+      y1="0"
+      x2="-52"
+      y2="-12"
+      stroke="#e6edf3"
+      stroke-width="4"
+      stroke-linecap="round"
+    />
+    <circle r="7" fill="#e6edf3" />
+    <text y="34" fill="#e6edf3" font-size="15" text-anchor="middle">
+      status-v2 orders
+    </text>
+    <text y="54" fill="#3ddc97" font-size="14" text-anchor="middle">
+      fresh: ≤ 96 s (limit 300 s)
+    </text>
+  </g>
+  <line
+    x1="912"
+    y1="510"
+    x2="1000"
+    y2="510"
+    stroke="#3ddc97"
+    stroke-width="3"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <!-- gate open -->
+  <g transform="translate(1030,450)">
+    <rect x="0" y="0" width="14" height="120" fill="#8b98a9" />
+    <rect x="146" y="0" width="14" height="120" fill="#8b98a9" />
+    <rect
+      x="-2"
+      y="48"
+      width="130"
+      height="20"
+      rx="4"
+      fill="#3ddc97"
+      transform="rotate(-58 7 58)"
+    />
+    <text x="80" y="146" fill="#e6edf3" font-size="15" text-anchor="middle">
+      deploy check
+    </text>
+    <text x="80" y="166" fill="#3ddc97" font-size="14" text-anchor="middle">
+      can read fresh orders
+    </text>
+  </g>
+
+  <!-- footer: what does not change -->
+  <g transform="translate(40,676)">
+    <rect
+      x="0"
+      y="-22"
+      width="1200"
+      height="40"
+      rx="8"
+      fill="#161b22"
+      stroke="#21262d"
+    />
+    <path
+      d="M22 -12 l12 5 v9 q0 9 -12 14 q-12 -5 -12 -14 v-9 z"
+      fill="none"
+      stroke="#e3b341"
+      stroke-width="2.5"
+    />
+    <text x="48" y="4" fill="#e6edf3" font-size="15">
+      No order, arming or risk change. No engine container restart. The
+      portfolio-ui on-demand triggers stay.
+    </text>
+  </g>
+</svg>

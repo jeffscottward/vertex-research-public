@@ -79,7 +79,7 @@ describe("0064 openbb migration", () => {
     );
 
   it("creates every openbb table with its columns and checks, and grants them", () => {
-    expect(tables).toHaveLength(16);
+    expect(tables).toHaveLength(15);
     for (const config of tables) {
       expect(migration).toContain(`CREATE TABLE "${config.name}"`);
       for (const column of config.columns)
@@ -336,7 +336,7 @@ describe("openbb repository writes", () => {
       'coalesce(excluded."symbol", "openbb_sec_13f_holdings"."symbol")'
     );
     expect(render(holdingsSet["issuer"]).sql).toBe('excluded."issuer"');
-    expect(OPENBB_UPSERT_TABLES).toHaveLength(21);
+    expect(OPENBB_UPSERT_TABLES).toHaveLength(20);
     const map = createDouble();
     await createOpenbbRepository(map.database).upsertRows("cusip_symbols", [
       { cusip: "78462F103", lastSeen: "2026-10-15", symbol: "SPY" },
@@ -515,7 +515,7 @@ describe("openbb repository writes", () => {
 
 describe("openbb repository reads", () => {
   it("reads runs and table stats", async () => {
-    const stats = Array.from({ length: 22 }, (_, index) => [
+    const stats = Array.from({ length: 21 }, (_, index) => [
       { newestDate: index === 0 ? null : "2026-11-06", rows: index },
     ]);
     const { calls, database } = createDouble([[{ job: "cftc-cot" }], ...stats]);
@@ -534,7 +534,7 @@ describe("openbb repository reads", () => {
     });
     expect(tableStats.at(-1)).toEqual({
       newestDate: "2026-11-06",
-      rows: 21,
+      rows: 20,
       table: "openbb_congress_filings",
     });
   });

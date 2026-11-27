@@ -44,7 +44,6 @@ import {
   openbbSecForm4Owners,
   openbbSecForm4Transactions,
   openbbSecFtd,
-  openbbSecInsiderTrades,
   openbbShortInterest,
   openbbShortVolumeDaily,
   openbbVxCurve,
@@ -129,10 +128,6 @@ const UPSERT_TABLES = {
     table: openbbSecForm4Transactions,
   },
   sec_ftd: { keys: ["settlementDate", "symbol"], table: openbbSecFtd },
-  sec_insider_trades: {
-    keys: ["accessionNumber", "rowNumber"],
-    table: openbbSecInsiderTrades,
-  },
   short_interest: {
     keys: ["settlementDate", "symbol"],
     table: openbbShortInterest,
@@ -448,11 +443,6 @@ const STAT_TABLES: ReadonlyArray<readonly [string, PgTable, PgColumn]> = [
     openbbShortVolumeDaily.date,
   ],
   ["openbb_sec_filings", openbbSecFilings, openbbSecFilings.filingDate],
-  [
-    "openbb_sec_insider_trades",
-    openbbSecInsiderTrades,
-    openbbSecInsiderTrades.filingDate,
-  ],
   [
     "openbb_sec_form4_filings",
     openbbSecForm4Filings,

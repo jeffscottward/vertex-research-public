@@ -30,7 +30,6 @@ export const OPENBB_JOBS = [
   "finra-short-interest",
   "finra-short-volume",
   "sec-filings",
-  "sec-insider",
   "sec-ftd",
   "sec-13f",
   "famafrench",
@@ -53,7 +52,6 @@ export const OPENBB_TABLES = [
   "short_interest",
   "short_volume_daily",
   "sec_filings",
-  "sec_insider_trades",
   "sec_ftd",
   "sec_13f_holdings",
   "sec_13f_filings",
@@ -214,16 +212,12 @@ export const OPENBB_DAILY_PRICES_SOURCE =
 
 export type OpenbbJob = (typeof OPENBB_JOBS)[number];
 export type OpenbbTable = (typeof OPENBB_TABLES)[number];
-export const OPENBB_JOB_SCHEDULES = [
-  "calendar",
-  "trading-day",
-  "retired",
-] as const;
+export const OPENBB_JOB_SCHEDULES = ["calendar", "trading-day"] as const;
 export type OpenbbJobSchedule = (typeof OPENBB_JOB_SCHEDULES)[number];
 export type OpenbbJobMetadata = Readonly<{
   label: string;
-  /** Maximum age in hours after the newest usable (ok or partial) run; null for retired jobs. */
-  maxAgeHours: number | null;
+  /** Maximum age in hours after the newest usable (ok or partial) run. */
+  maxAgeHours: number;
   schedule: OpenbbJobSchedule;
   smartMoney: boolean;
 }>;
@@ -355,12 +349,6 @@ export const OPENBB_JOB_METADATA = {
     schedule: "calendar",
     smartMoney: false,
   },
-  "sec-insider": {
-    label: "SEC insider (retired)",
-    maxAgeHours: null,
-    schedule: "retired",
-    smartMoney: false,
-  },
   "treasury-tga": {
     label: "Treasury TGA",
     maxAgeHours: 30,
@@ -402,7 +390,6 @@ export const OPENBB_JOB_TABLES: Readonly<
     "sec_form4_index_days",
   ],
   "sec-ftd": ["sec_ftd", "cusip_symbols"],
-  "sec-insider": ["sec_insider_trades"],
   "treasury-tga": ["macro_points", "event_calendar"],
 };
 /**
@@ -879,7 +866,6 @@ export const OPENBB_ROW_SCHEMAS = {
   sec_form4_owners: OpenbbForm4OwnerRowSchema,
   sec_form4_transactions: OpenbbForm4TransactionRowSchema,
   sec_ftd: OpenbbSecFtdRowSchema,
-  sec_insider_trades: OpenbbSecInsiderRowSchema,
   short_interest: OpenbbShortInterestRowSchema,
   short_volume_daily: OpenbbShortVolumeRowSchema,
   vx_curve: OpenbbVxCurveRowSchema,
@@ -937,10 +923,6 @@ const tableRows = (max?: number) => {
     z.strictObject({
       rows: rows(OpenbbSecFilingRowSchema),
       table: z.literal("sec_filings"),
-    }),
-    z.strictObject({
-      rows: rows(OpenbbSecInsiderRowSchema),
-      table: z.literal("sec_insider_trades"),
     }),
     z.strictObject({
       rows: rows(OpenbbSecFtdRowSchema),
@@ -1090,11 +1072,10 @@ export const OpenbbSourceStatusSchema = z.object({
   lastOkAt: z.date().nullable(),
   lastRunAt: z.date().nullable(),
   lastStatus: z.string().nullable(),
-  maxAgeSeconds: count.nullable(),
+  maxAgeSeconds: count,
   overdue: z.boolean(),
   overdueSince: z.date().nullable(),
   reason: z.string().nullable(),
-  retired: z.boolean(),
   smartMoney: z.boolean(),
   source: z.string(),
 });

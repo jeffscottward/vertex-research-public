@@ -140,7 +140,7 @@ const paperNotes = (capture: QuantLabCapture): string => {
   const pdf =
     capture.pdf_status === "retained"
       ? `PDF retained, sha256 ${capture.pdf_sha256}`
-      : `No PDF retained (${capture.pdf_status.replace("metadata_only:", "")})`;
+      : `No PDF retained (${capture.pdf_status.replace("metadata_only:", "").replaceAll("_", " ")})`;
   const head = `SSRN capture ${capture.captured_at}, ${capture.version}. ${pdf}.\nAbstract (Crossref): `;
   return clip(`${head}${capture.abstract ?? "(none)"}`, 4000);
 };

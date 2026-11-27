@@ -38,11 +38,9 @@ export const NON_PREMIUM_FLOW_SOURCES: readonly Exclude<
     source !== "market_premium"
 );
 
-/** Monitored source keys for the QuantVPS overdue pager (22 non-retired OpenBB jobs + market_premium). */
+/** Monitored source keys for the QuantVPS overdue pager (22 OpenBB jobs + market_premium). */
 export const OPENBB_MONITORED_OVERDUE_KEYS: readonly string[] = [
-  ...OPENBB_JOBS.filter(
-    (job) => OPENBB_JOB_METADATA[job].schedule !== "retired"
-  ).map((job) => `openbb:${job}`),
+  ...OPENBB_JOBS.map((job) => `openbb:${job}`),
   "flow:market_premium",
 ];
 
@@ -424,8 +422,6 @@ const evaluateOpenbbJobAge = (
   reason: string | null;
 }> => {
   const meta = OPENBB_JOB_METADATA[job];
-  if (meta.schedule === "retired" || meta.maxAgeHours === null)
-    return { overdue: false, overdueSince: null, reason: null };
   const maxAgeMs = meta.maxAgeHours * HOUR_MS;
   if (job === "sec-form4") {
     const form4 = evaluateForm4Overdue({
@@ -549,7 +545,6 @@ const evaluateMarketPremiumSource = (
       overdue,
       overdueSince,
       reason,
-      retired: false,
       smartMoney: meta.smartMoney,
       source: "market_premium",
     },
@@ -597,7 +592,6 @@ const evaluateFlowSampleSource = (
     overdue,
     overdueSince,
     reason,
-    retired: false,
     smartMoney: meta.smartMoney,
     source,
   };
@@ -643,7 +637,6 @@ export const evaluateOpenbbSources = (
     const run = runsByJob.get(job);
     const latest = run?.latest ?? null;
     const lastOkAt = run?.latestUsable?.finishedAt ?? null;
-    const retired = meta.schedule === "retired";
     const status = evaluateOpenbbJobAge(job, lastOkAt, latest, input, parts);
     const entry: OpenbbSourceStatus = {
       kind: "openbb",
@@ -651,21 +644,18 @@ export const evaluateOpenbbSources = (
       lastOkAt,
       lastRunAt: latest?.finishedAt ?? null,
       lastStatus: latest?.status ?? null,
-      maxAgeSeconds: meta.maxAgeHours === null ? null : meta.maxAgeHours * 3600,
+      maxAgeSeconds: meta.maxAgeHours * 3600,
       overdue: status.overdue,
       overdueSince: status.overdueSince,
       reason: status.reason,
-      retired,
       smartMoney: meta.smartMoney,
       source: job,
     };
     sources.push(entry);
-    if (!retired) {
-      const key = sourceKeyOf(entry);
-      monitoredKeys.push(key);
-      if (status.overdue) overdueMonitored.push(entry);
-      else clearableKeys.push(key);
-    }
+    const key = sourceKeyOf(entry);
+    monitoredKeys.push(key);
+    if (status.overdue) overdueMonitored.push(entry);
+    else clearableKeys.push(key);
   }
 
   if (input.flow !== undefined) {

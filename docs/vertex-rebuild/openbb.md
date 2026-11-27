@@ -152,7 +152,6 @@ worktree so bulk worktree cleanup leaves it intact, and syncs the venv with `uv 
 | `finra-short-interest` | `equity/shorts/short_interest` (finra) | `short_interest` | 2, 12 h, any time, 240 s | 60 days (backfill: available) |
 | `finra-short-volume` | FINRA Reg SHO daily file `cdn.finra.org/equity/regsho/daily/CNMSshvol<YYYYMMDD>.txt` (not in OpenBB); every symbol of the file (FINRA symbol rule `^[A-Za-z0-9./^=-]{1,16}$`, smart-money PR 5) | `short_volume_daily` | 2, 3 h, any time, 240 s | 5 days (backfill: 1 year) |
 | `sec-filings` | `equity/fundamental/filings` (sec) | `sec_filings` | 3, 2 h, `mon-fri@07:00-22:00`, 300 s | 30 days (backfill: 2 years) |
-| `sec-insider` | `equity/ownership/insider_trading` (sec) | `sec_insider_trades` | not scheduled (retired by `sec-form4`; job and table kept until the new data covers 30 days) | 30 days (backfill: 2 years) |
 | `sec-form4` | EDGAR daily form index `daily-index/<YYYY>/QTR<q>/form.<YYYYMMDD>.idx` and each full submission `<accession>.txt` (not OpenBB; OpenBB's `clean_xml` and transaction code map) | `sec_form4_transactions`, `sec_form4_owners`, `sec_form4_filings`, `sec_form4_index_days` | 4, 10 min, any time, 350 s | 40 days (`--until` default today; `--since` for history) |
 | `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page; every (CUSIP, symbol) pair of the files feeds the CUSIP-to-ticker map | `sec_ftd`, `cusip_symbols` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
 | `sec-13f` | `equity/ownership/form_13f` (sec): full books of 23 filers (`FILERS` in `jobs/sec.py`); filings already in the ledger are skipped (`--skip-accessions` from `openbb.sec13fAccessions`); at most 40,000 rows per run | `sec_13f_holdings`, `sec_13f_filings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
@@ -363,7 +362,6 @@ Daily IV rows store provenance in `openbb_option_iv_daily.source` as `cboe`, `ya
 | `openbb_short_interest` | (settlement_date, symbol) | short_interest, previous_short_interest, avg_daily_volume, days_to_cover |
 | `openbb_short_volume_daily` | (date, symbol) | short_volume, short_exempt_volume, total_volume |
 | `openbb_sec_filings` | (accession_number, symbol) | cik, form_type, filing_date, report_date null, url, description |
-| `openbb_sec_insider_trades` | (accession_number, row_number) | symbol, filing_date, transaction_date null, owner_name, owner_title null, transaction_code null, shares null, price null, shares_after null, acquired_disposed (`A`/`D`/null), url null |
 | `openbb_sec_ftd` | (settlement_date, symbol) | cusip, quantity, price null |
 | `openbb_sec_13f_holdings` | (filer_cik, period_ending, cusip, option_type) | symbol null (indexed; ticker from the fetcher's verified CUSIP map of the universe), filer_name, issuer, asset_class null, shares null, value (dollars), weight null, accession_number null and filed_on null (0086; null on rows stored before it); option_type is `put`, `call` or `''`; index on cusip |
 | `openbb_sec_13f_filings` (0086) | (accession_number) | filer_cik, filer_name, period_ending, filed_on, rows; one row per fully stored 13F-HR book (openbb.ingest stores it only when the stored holdings count of the accession equals `rows`) |
@@ -384,7 +382,7 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   Jobs table, `OPENBB_JOB_TABLES`, or when a vol index point is refused) where `batch` is a discriminated union on `table`
   (`daily_series`, `vx_curve`, `option_iv_daily`, `option_iv_term`, `cot_positions`, `macro_points`,
   `event_calendar`, `finra_otc_weekly`, `short_interest`, `short_volume_daily`, `sec_filings`,
-  `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `sec_13f_filings`, `cusip_symbols`, `factor_returns`) with `rows` (1..2,000).
+  `sec_ftd`, `sec_13f_holdings`, `sec_13f_filings`, `cusip_symbols`, `factor_returns`) with `rows` (1..2,000).
   `option_iv_daily` accepts legacy rows without `source` and stores them as `unknown`; new Python producer rows require `cboe` or `yahoo_fallback`.
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
@@ -426,7 +424,7 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
 Reads (operator, read-only):
 
 - `openbb.status`: per job last run and status, per-source overdue evaluation (`checkedAt`,
-  `overdueCount`, `sources[]` covering all 23 `OPENBB_JOBS` via `OPENBB_JOB_METADATA` plus QuantVPS
+  `overdueCount`, `sources[]` covering all 22 `OPENBB_JOBS` via `OPENBB_JOB_METADATA` plus QuantVPS
   flow sources via `FLOW_SOURCE_METADATA`, with `market_premium` read from
   `flow_market_premium_sessions` and the remaining 5 flow sources read from SPY `flow_samples`),
   per table newest date and row count, and nullable `lastFallbackAt`. The newest run of a job in a blocked streak has
@@ -439,7 +437,7 @@ Reads (operator, read-only):
 - `openbb.checkSourceOverdue` `{ dryRun? }` and `openbb.recordSourceOverdueChat`
   `{ eventId, delivery }` (scheduler, agent write key): QuantVPS 15-minute overdue alert check
   (`infra/openbb-overdue/quantvps/vertex-openbb-overdue.timer`, `scripts/openbb-overdue/tick.ts`)
-  monitoring the 22 non-retired OpenBB jobs + `flow:market_premium` via `price_freshness_state`
+  monitoring the 22 OpenBB jobs + `flow:market_premium` via `price_freshness_state`
   (`monitor = "openbb-overdue"`), sending one alert per incident via `sendPriceAlertsNtfy` (with
   `#omp-alerts` fallback outbox) and one recovery notice when all overdue sources catch up.
 - `openbb.volContext` `{ asOf? }`: latest vol index closes (within 30 calendar days of `asOf`) with
