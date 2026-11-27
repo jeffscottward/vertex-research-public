@@ -1479,7 +1479,7 @@ export const FlowOptionBubblesSchema = z
     session: isoDate.nullable(),
     /** Session open (09:30 New York) in ISO UTC; null when no print is stored. */
     sessionStart: timestamp.nullable(),
-    /** Session close (16:15 New York) in ISO UTC; null when no print is stored. */
+    /** Session close (16:15 New York, 13:15 on an NYSE early close) in ISO UTC; null when no print is stored. */
     sessionEnd: timestamp.nullable(),
     minPremiumUsd: optionBubblesMinPremiumOutput,
     /** Trade time of the newest stored print in the newest session; null without one. */

@@ -525,8 +525,8 @@ Rules (`HEDGING_PRESSURE_RULES`, version `hedging-pressure.v1`):
 | `volFallback` | 0.2 | volatility used when the stored IV is below 1% (the vendor sends 0.0477% on deep in-the-money prints) |
 
 - **Range.** The prints of the options session (09:30 to 16:15 New York, end-exclusive) of the
-  newest stored print's session date (`flowSessionDate`: a weekend or a pre-open print maps to the
-  weekday before). Prints before 09:30 are not read.
+  newest stored print's session date (`flowSessionDate`: a weekend, holiday or pre-open print maps
+  to the NYSE trading day before). Prints before 09:30 are not read.
 - **Sign.** `above_ask` and `ask`: +1; `bid` and `below_bid`: -1; `mid` and `unknown`: no sign
   (`OPTION_SIDE_SIGN` in `flow-options.ts`, the same table as the cross-check of `flow.control`).
   The rule assumes that the dealer took the other side of every signed print.
@@ -793,7 +793,7 @@ Panel "Off-exchange print levels (SPY)" on `/flow` (below the Options flow heatm
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options
-ticker and the session date (the newest weekday; before 09:30 the previous weekday): `total` (all expiries) and `zero_dte` (same day).
+ticker and the session date (the newest NYSE trading day; before 09:30 the previous one): `total` (all expiries) and `zero_dte` (same day).
 Both use the filter profile `otm-clean.v1`: out-of-the-money options only, without complex, floor,
 tied and cancelled trades. Each answered bucket is upserted into `flow_net_drift` by ticker, part and
 minute; a row is rewritten only when a value or the filter profile changed. No sums are stored;
@@ -827,8 +827,8 @@ are recorded under SPY in `flow_samples`, so `flow.collect` with `symbols` that 
 
 Each run makes at most one request (`packages/api/src/server/flow-market-premium-collect.ts`):
 
-1. **Live capture.** While options trade (09:30-16:15 New York on an NYSE trading day;
-   `isMarketPremiumSessionOpen`), today's session is captured when its ledger row is missing or its
+1. **Live capture.** While options trade (09:30-16:15 New York, 13:15 on an early close, on an
+   NYSE trading day; `isMarketPremiumSessionOpen`), today's session is captured when its ledger row is missing or its
    last attempt is at least 840 s old (about every 15 minutes with the 60 s timer).
 2. **Gap fill.** Otherwise the collector requests the oldest weekday of the last 400 days (before
    today) whose ledger row is missing, or is `partial` or `unavailable` and was last tried at least
@@ -949,10 +949,10 @@ The futures state comes from the streamed tape of the group's future. It exists 
   `source_unavailable` (the newest tape sample failed and no `ok` sample is inside the stale
   limit); `stale` (the newest stored `ok` tape read is older than 180 s); `session_start` (fewer
   than 10 minutes have passed since 09:30); `gap` (the window holds fewer than 10 covered minutes,
-  or more than 5 of its minutes since 09:30 are not covered). Holidays and half days are not
-  modelled: on a weekday holiday the futures side computes a state from 09:30 while the options side
-  has no data (agreement `not_comparable`), and after an early close the futures line reads stale
-  until 16:00.
+  or more than 5 of its minutes since 09:30 are not covered). On an NYSE holiday both sides are
+  `market_closed` and the page shows the last trading session, as on a weekend; on an early close
+  the options side closes at 13:15. CME early closes are not modelled: after an early close the
+  futures line reads stale until 16:00.
 - **Gap rule.** A gap ends a running futures state, and the next state needs a new entry: the tape
   of a gap cannot be read later. The options fold carries its state through a gap, because the
   vendor's net drift of a gap is read again later. The fold runs to the newest stored minute,
@@ -1010,12 +1010,14 @@ Measured time of one `flow.control` call after the deploy: not measured yet (tar
 Per source: `fresh`, `stale` (older than 10 min for sampled ticks (SPY), 180 s for the streamed
 tape of ES and NQ (`FLOW_TAPE_STALE_SECONDS`), 3 min for depth, 5 min for options, 30 min for GEX
 while its market is open), `closed` (market closed; last session shown) or `never`.
-Net drift is stale after 5 min (session 9:30-16:20 New York); its freshness is in `flow.control`
+Net drift is stale after 5 min (session 9:30-16:20 New York, 13:20 on an early close); its freshness is in `flow.control`
 only. `flow.control` also has one freshness row for the tape of the group's future (source `ticks`,
 stale after 180 s, Globex session). Snapshot freshness lists only the sources a symbol collects (QQQ: depth and GEX; NQ: ticks, depth
 and GEX).
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
-Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
+Friday 17:00, daily break 17:00-18:00). Options, GEX, net drift and the stock tape (SPY ticks and
+depth, QQQ depth) follow the NYSE calendar: closed on a holiday, and 180 minutes earlier on an early
+close (`flowSessionOpen`). CME holidays are not modelled.
 
 ## Retention
 
@@ -1065,7 +1067,7 @@ print ids are skipped), and each resume moves at least 1 ms. A gap whose capped 
 usable trade time stays as it is and holds the gap budget (newest end first) until it can be read;
 after the close such a run records an `unavailable` options sample, so it shows on the freshness
 strip. After
-the options close (16:15 New York) the collector keeps reading gaps every ~2 minutes with all 8
+the options close (16:15 New York, 13:15 on an early close) the collector keeps reading gaps every ~2 minutes with all 8
 requests per symbol (about 12,000 prints per hour) until none are left; without gaps it answers
 "market closed" with no request. Gaps whose end is older than the 14-day retention are pruned. The
 sample message shows the gaps left and the oldest gap start.
