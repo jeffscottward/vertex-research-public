@@ -1,0 +1,346 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 540"
+  width="1200"
+  height="540"
+  font-family="Manrope, 'Public Sans', 'DejaVu Sans', sans-serif"
+>
+  <title>
+    Before and after: remove stale retired field from openbb_status MCP tool
+    description and track the 30 semantic-layer witness trials
+  </title>
+  <defs>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#f2545b" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#eab308" />
+    </marker>
+  </defs>
+
+  <!-- Dark background -->
+  <rect width="1200" height="540" fill="#0b1017" />
+
+  <!-- Title -->
+  <text x="44" y="48" fill="#f8fafc" font-size="24" font-weight="700">
+    openbb_status MCP Description: Remove Stale "retired" Field
+  </text>
+  <text x="44" y="74" fill="#94a3b8" font-size="14">
+    Follow-up to PR #475 · aligns MCP tool text with OpenbbSourceStatusSchema ·
+    semantic-layer eval witness impact: 30 / 90 trials
+  </text>
+
+  <!-- BEFORE panel -->
+  <g transform="translate(44, 102)">
+    <rect
+      width="540"
+      height="396"
+      rx="14"
+      fill="#121823"
+      stroke="#4b232b"
+      stroke-width="1.5"
+    />
+    <rect x="20" y="18" width="96" height="28" rx="6" fill="#2b161b" />
+    <text
+      x="68"
+      y="37"
+      text-anchor="middle"
+      fill="#f2545b"
+      font-size="13"
+      font-weight="700"
+      letter-spacing="0.06em"
+    >
+      BEFORE
+    </text>
+    <text x="130" y="37" fill="#cbd5e1" font-size="14" font-weight="600">
+      Schema &amp; MCP tool description drift
+    </text>
+
+    <!-- Schema pictogram -->
+    <g transform="translate(28, 72)">
+      <rect
+        width="484"
+        height="92"
+        rx="10"
+        fill="#17202e"
+        stroke="#2a3649"
+        stroke-width="1.2"
+      />
+      <!-- Braces icon -->
+      <circle cx="34" cy="46" r="18" fill="#1e293b" stroke="#64748b" />
+      <text
+        x="34"
+        y="52"
+        text-anchor="middle"
+        fill="#e2e8f0"
+        font-size="18"
+        font-weight="700"
+      >
+        {}
+      </text>
+      <text x="68" y="34" fill="#f8fafc" font-size="14" font-weight="700">
+        OpenbbSourceStatusSchema (PR #475)
+      </text>
+      <!-- Field pills -->
+      <g transform="translate(68, 48)">
+        <rect width="74" height="24" rx="5" fill="#1e293b" />
+        <text x="37" y="16" text-anchor="middle" fill="#cbd5e1" font-size="12">
+          overdue
+        </text>
+        <rect x="82" width="66" height="24" rx="5" fill="#1e293b" />
+        <text x="115" y="16" text-anchor="middle" fill="#cbd5e1" font-size="12">
+          reason
+        </text>
+        <rect x="156" width="94" height="24" rx="5" fill="#1e293b" />
+        <text x="203" y="16" text-anchor="middle" fill="#cbd5e1" font-size="12">
+          smartMoney
+        </text>
+        <rect
+          x="258"
+          width="96"
+          height="24"
+          rx="5"
+          fill="none"
+          stroke="#475569"
+          stroke-dasharray="4 3"
+        />
+        <text x="306" y="16" text-anchor="middle" fill="#64748b" font-size="12">
+          no retired
+        </text>
+      </g>
+    </g>
+
+    <!-- Mismatch arrow -->
+    <line
+      x1="270"
+      y1="168"
+      x2="270"
+      y2="218"
+      stroke="#f2545b"
+      stroke-width="2.2"
+      stroke-dasharray="5 4"
+      marker-end="url(#arrowRed)"
+    />
+    <circle cx="270" cy="192" r="13" fill="#2b161b" stroke="#f2545b" />
+    <path
+      d="M265 187 L275 197 M275 187 L265 197"
+      stroke="#f2545b"
+      stroke-width="2.2"
+      stroke-linecap="round"
+    />
+    <text x="292" y="197" fill="#f2545b" font-size="13" font-weight="600">
+      advertises removed field
+    </text>
+
+    <!-- MCP tool pictogram -->
+    <g transform="translate(28, 224)">
+      <rect
+        width="484"
+        height="98"
+        rx="10"
+        fill="#1b1820"
+        stroke="#7f2b36"
+        stroke-width="1.3"
+      />
+      <circle cx="34" cy="49" r="18" fill="#2b161b" stroke="#f2545b" />
+      <text
+        x="34"
+        y="55"
+        text-anchor="middle"
+        fill="#f2545b"
+        font-size="16"
+        font-weight="700"
+      >
+        !
+      </text>
+      <text x="68" y="34" fill="#f8fafc" font-size="14" font-weight="700">
+        MCP openbb_status (packages/api/src/server/mcp.ts:749)
+      </text>
+      <text x="68" y="60" fill="#cbd5e1" font-size="13">
+        ..., overdueSince, reason, smartMoney,
+      </text>
+      <rect
+        x="318"
+        y="43"
+        width="68"
+        height="24"
+        rx="5"
+        fill="#3b1620"
+        stroke="#f2545b"
+      />
+      <text
+        x="352"
+        y="60"
+        text-anchor="middle"
+        fill="#fda4af"
+        font-size="13"
+        font-weight="700"
+      >
+        retired
+      </text>
+      <text x="68" y="84" fill="#94a3b8" font-size="12">
+        No mcp.test.ts check on openbb_status description
+      </text>
+    </g>
+
+    <!-- Footer status -->
+    <text x="28" y="360" fill="#94a3b8" font-size="13">
+      Eval fixture: 90 / 90 trials on old tool-list hash (0 call openbb_status)
+    </text>
+  </g>
+
+  <!-- AFTER panel -->
+  <g transform="translate(616, 102)">
+    <rect
+      width="540"
+      height="396"
+      rx="14"
+      fill="#121823"
+      stroke="#1e463a"
+      stroke-width="1.5"
+    />
+    <rect x="20" y="18" width="88" height="28" rx="6" fill="#132e26" />
+    <text
+      x="64"
+      y="37"
+      text-anchor="middle"
+      fill="#34d399"
+      font-size="13"
+      font-weight="700"
+      letter-spacing="0.06em"
+    >
+      AFTER
+    </text>
+    <text x="122" y="37" fill="#cbd5e1" font-size="14" font-weight="600">
+      Aligned description + test + 30 witness trials
+    </text>
+
+    <!-- Schema -> MCP aligned flow -->
+    <g transform="translate(28, 72)">
+      <rect
+        width="484"
+        height="92"
+        rx="10"
+        fill="#132322"
+        stroke="#276752"
+        stroke-width="1.3"
+      />
+      <!-- Check shield icon -->
+      <circle cx="34" cy="46" r="18" fill="#132e26" stroke="#34d399" />
+      <path
+        d="M26 46 L32 52 L43 40"
+        fill="none"
+        stroke="#34d399"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <text x="68" y="34" fill="#f8fafc" font-size="14" font-weight="700">
+        MCP openbb_status matches OpenbbSourceStatusSchema
+      </text>
+      <text x="68" y="59" fill="#a7f3d0" font-size="13">
+        ..., overdueSince, reason, smartMoney; flow samples ...
+      </text>
+      <text x="68" y="80" fill="#94a3b8" font-size="12">
+        Pinned by unit test in packages/api/src/server/mcp.test.ts (32 / 32)
+      </text>
+    </g>
+
+    <!-- Arrow down to Eval witness chart -->
+    <line
+      x1="270"
+      y1="168"
+      x2="270"
+      y2="208"
+      stroke="#eab308"
+      stroke-width="2.2"
+      marker-end="url(#arrowGold)"
+    />
+    <text x="284" y="193" fill="#eab308" font-size="12" font-weight="600">
+      tool-list digest changes (schema v3 witness rule)
+    </text>
+
+    <!-- Stacked bar chart: 60 kept vs 30 witness -->
+    <g transform="translate(28, 214)">
+      <rect
+        width="484"
+        height="156"
+        rx="10"
+        fill="#17202e"
+        stroke="#3b331d"
+        stroke-width="1.3"
+      />
+      <text x="20" y="28" fill="#f8fafc" font-size="14" font-weight="700">
+        Semantic-Layer Eval Recording Scope (90 trials total)
+      </text>
+
+      <!-- Bar track -->
+      <rect x="20" y="46" width="444" height="34" rx="7" fill="#0f172a" />
+      <!-- 60 kept (66.7% = 296px) -->
+      <rect x="20" y="46" width="296" height="34" rx="7" fill="#1f5143" />
+      <rect x="308" y="46" width="8" height="34" fill="#1f5143" />
+      <text
+        x="168"
+        y="68"
+        text-anchor="middle"
+        fill="#d1fae5"
+        font-size="13"
+        font-weight="700"
+      >
+        60 trials kept (0 call openbb_status)
+      </text>
+      <!-- 30 witness (33.3% = 148px) -->
+      <rect x="316" y="46" width="148" height="34" rx="7" fill="#854d0e" />
+      <rect x="316" y="46" width="8" height="34" fill="#854d0e" />
+      <text
+        x="390"
+        y="68"
+        text-anchor="middle"
+        fill="#fef08a"
+        font-size="13"
+        font-weight="700"
+      >
+        30 witness trials
+      </text>
+
+      <!-- Legend / status -->
+      <circle cx="28" cy="106" r="5" fill="#34d399" />
+      <text x="40" y="110" fill="#cbd5e1" font-size="12">
+        Dry-run verified: bun run eval:semantic:record -- --expect=0 3 4 stale →
+        30 selected
+      </text>
+      <circle cx="28" cy="132" r="5" fill="#eab308" />
+      <text x="40" y="136" fill="#fde047" font-size="12" font-weight="600">
+        Draft PR: pending anthropic/claude-opus-5-5 recording &amp; 3x audit on
+        omarchy-rig
+      </text>
+    </g>
+  </g>
+</svg>
