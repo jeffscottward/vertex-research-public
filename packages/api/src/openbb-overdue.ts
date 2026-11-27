@@ -8,7 +8,14 @@ import {
   OPENBB_JOBS,
   type OpenbbSourceStatus,
 } from "./contracts/openbb.ts";
-import { isNyseTradingDay, utcDay } from "./nyse-calendar.ts";
+import {
+  isNyseTradingDay,
+  isoDayOf,
+  nyseCloseMinute,
+  previousNyseTradingDay,
+  utcDay,
+  utcDayOfIso,
+} from "./nyse-calendar.ts";
 
 // Pure per-source overdue evaluation and incident-transition logic for OpenBB jobs and QuantVPS
 // flow sources (docs/vertex-rebuild/designs/smart-money/plan-pr6.md). Research data alerting only:
@@ -20,9 +27,9 @@ const FORM4_DUE_HOUR_NY = 10;
 const FINRA_DUE_HOUR_NY = 10;
 const MARKET_PREMIUM_OPEN_MINUTE = 9 * 60 + 30;
 const MARKET_PREMIUM_CLOSE_MINUTE = 16 * 60 + 15;
-const MARKET_PREMIUM_CLEAR_MINUTE =
-  MARKET_PREMIUM_CLOSE_MINUTE -
-  Math.floor(FLOW_SOURCE_METADATA.market_premium.maxAgeSeconds / 60);
+const MARKET_PREMIUM_CLEAR_MARGIN_MINUTES = Math.floor(
+  FLOW_SOURCE_METADATA.market_premium.maxAgeSeconds / 60
+);
 
 export const OPENBB_OVERDUE_MONITOR = "openbb-overdue" as const;
 const OPENBB_OVERDUE_IN_FLIGHT_LEASE_MS = 60_000 as const;
@@ -89,9 +96,6 @@ const nyParts = (date: Date): NyParts => {
   };
 };
 
-const isoDayOf = (utcDayNum: number): string =>
-  new Date(utcDayNum * DAY_MS).toISOString().slice(0, 10);
-
 /**
  * Exact UTC epoch millisecond timestamp of wall time `hour:minute:00 America/New_York` on
  * `utcDayNum` (DST-safe for every non-ambiguous wall time such as 00:00, 09:30, 10:00, 15:45).
@@ -145,24 +149,10 @@ export const tradingDayDeadline = (from: Date, maxAgeMs: number): Date => {
   }
 };
 
-/** Most recent NYSE trading day strictly before `todayUtcDay`, formatted as `YYYY-MM-DD`. */
-export const previousNyseTradingDay = (todayUtcDay: number): string => {
-  let day = todayUtcDay - 1;
-  while (!isNyseTradingDay(day)) day -= 1;
-  return isoDayOf(day);
-};
-
-const parseIsoUtcDay = (iso: string): number =>
-  utcDay(
-    Number(iso.slice(0, 4)),
-    Number(iso.slice(5, 7)) - 1,
-    Number(iso.slice(8, 10))
-  );
-
 /**
  * Whether QuantData `market_premium` live options session is open right now: NYSE trading day
- * and 09:30–16:15 America/New_York. Shared between the live capture of `flow.collect`,
- * `openbb.status` and `smartMoney.ranking`.
+ * and 09:30–16:15 America/New_York (13:15 on an early close). Shared between the live capture of
+ * `flow.collect`, `openbb.status` and `smartMoney.ranking`.
  */
 export const isMarketPremiumSessionOpen = (now: Date): boolean => {
   const parts = nyParts(now);
@@ -170,10 +160,11 @@ export const isMarketPremiumSessionOpen = (now: Date): boolean => {
   const minutes = parts.hour * 60 + parts.minute;
   return (
     minutes >= MARKET_PREMIUM_OPEN_MINUTE &&
-    minutes < MARKET_PREMIUM_CLOSE_MINUTE
+    minutes < nyseCloseMinute(parts.utcDayNum, MARKET_PREMIUM_CLOSE_MINUTE)
   );
 };
 
+/** The overdue window of a SPY flow source: NYSE trading day, 09:30 to its close (early-close aware). */
 const isFlowSourceSessionOpen = (
   source: Exclude<FlowSource, "market_premium">,
   now: Date
@@ -181,11 +172,15 @@ const isFlowSourceSessionOpen = (
   const parts = nyParts(now);
   if (!isNyseTradingDay(parts.utcDayNum)) return false;
   const minutes = parts.hour * 60 + parts.minute;
-  if (source === "net_drift")
-    return minutes >= 9 * 60 + 30 && minutes < 16 * 60 + 20;
-  if (source === "options" || source === "gex")
-    return minutes >= 9 * 60 + 30 && minutes < 16 * 60 + 15;
-  return minutes >= 9 * 60 + 30 && minutes < 16 * 60;
+  const regularClose = ((): number => {
+    if (source === "net_drift") return 16 * 60 + 20;
+    if (source === "options" || source === "gex") return 16 * 60 + 15;
+    return 16 * 60;
+  })();
+  return (
+    minutes >= 9 * 60 + 30 &&
+    minutes < nyseCloseMinute(parts.utcDayNum, regularClose)
+  );
 };
 
 const sanitizeReason = (text: string): string => {
@@ -266,11 +261,7 @@ export const evaluateForm4Overdue = (
       newestCompleteDay,
       overdue: true,
       overdueSince: new Date(
-        nyWallTimeUtcMs(
-          parseIsoUtcDay(earliestLateDay) + 1,
-          FORM4_DUE_HOUR_NY,
-          0
-        )
+        nyWallTimeUtcMs(utcDayOfIso(earliestLateDay) + 1, FORM4_DUE_HOUR_NY, 0)
       ),
       reason: sanitizeReason(
         `Form 4 index incomplete for ${lateIncomplete.slice(0, 3).join(", ")}`
@@ -348,11 +339,15 @@ const isCapturedNearClose = (
   capturedAt: Date,
   sessionDate: string
 ): boolean => {
-  const sessionDay = parseIsoUtcDay(sessionDate);
+  const sessionDay = utcDayOfIso(sessionDate);
+  // The close of that session (13:15 on an early close) minus the source's maximum age.
+  const cutoff =
+    nyseCloseMinute(sessionDay, MARKET_PREMIUM_CLOSE_MINUTE) -
+    MARKET_PREMIUM_CLEAR_MARGIN_MINUTES;
   const clearCutoffMs = nyWallTimeUtcMs(
     sessionDay,
-    Math.floor(MARKET_PREMIUM_CLEAR_MINUTE / 60),
-    MARKET_PREMIUM_CLEAR_MINUTE % 60
+    Math.floor(cutoff / 60),
+    cutoff % 60
   );
   return capturedAt.getTime() >= clearCutoffMs;
 };
@@ -382,7 +377,7 @@ const checkFinraShortVolume = (
   const latestDueTradingDay =
     isNyseTradingDay(parts.utcDayNum) && parts.hour >= FINRA_DUE_HOUR_NY
       ? parts.utcDayNum
-      : parseIsoUtcDay(previousNyseTradingDay(parts.utcDayNum));
+      : utcDayOfIso(previousNyseTradingDay(parts.utcDayNum));
   const expectedDay = previousNyseTradingDay(latestDueTradingDay);
   const dueAt = new Date(
     nyWallTimeUtcMs(latestDueTradingDay, FINRA_DUE_HOUR_NY, 0)
@@ -475,7 +470,8 @@ const isOffHoursMarketPremiumClearable = (
 ): boolean => {
   const expectedSessionDate =
     isNyseTradingDay(parts.utcDayNum) &&
-    parts.hour * 60 + parts.minute >= MARKET_PREMIUM_CLOSE_MINUTE
+    parts.hour * 60 + parts.minute >=
+      nyseCloseMinute(parts.utcDayNum, MARKET_PREMIUM_CLOSE_MINUTE)
       ? parts.isoDate
       : previousNyseTradingDay(parts.utcDayNum);
   const expectedSession = sorted.find(

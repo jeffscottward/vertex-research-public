@@ -64,6 +64,7 @@ const facts = (overrides: Partial<FlowSideFacts> = {}): FlowSideFacts => ({
   ratio: 0.42,
   reason: null,
   sessionDate: "2026-11-13",
+  sessionEndEt: "16:15 ET",
   staleMinutes: 5,
   state: "buyers",
   ...overrides,

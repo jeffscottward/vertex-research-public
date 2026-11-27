@@ -1,6 +1,7 @@
 // What: the market_premium source of flow.collect. Each run makes at most one QuantData
 // gainers-losers request: the live capture of today's session (about every 15 minutes while
-// options trade, 09:30-16:15 New York on an NYSE trading day), else the gap fill of the oldest
+// options trade, 09:30-16:15 New York, 13:15 on an early close, on an NYSE trading day), else the
+// gap fill of the oldest
 // weekday of the last 400 days that the session ledger does not hold as complete. A session is
 // complete only when it was fetched on a New York day after the session date, so the gap fill is
 // the one-year backfill, the settle fetch of each partial live session (after midnight) and the
@@ -250,8 +251,8 @@ export const collectMarketPremium = async (
       row(deps.sessionDate),
       "seed"
     );
-  // Live captures run while options trade (09:30-16:15 New York on an NYSE trading day): on a
-  // market holiday the gap fill runs instead.
+  // Live captures run while options trade (09:30-16:15 New York, 13:15 on an early close, on an
+  // NYSE trading day): on a market holiday the gap fill runs instead.
   if (isMarketPremiumSessionOpen(now)) {
     const live = row(today);
     if (

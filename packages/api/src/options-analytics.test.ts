@@ -1590,6 +1590,39 @@ describe("stored prints for the strike profiles", () => {
       ).complete
     ).toBe(true);
   });
+
+  it("on an NYSE holiday and after an early close needs a run that reached that session's close", async () => {
+    // Thanksgiving 2026-11-26 12:00 New York: the newest session closed 2026-11-25 16:15 ET (21:15Z).
+    const holiday = new Date("2026-11-26T17:00:00.000Z");
+    expect(
+      (
+        await storedProfileFlow(
+          storedRepository({ okAt: new Date("2026-11-25T21:14:00.000Z") }),
+          {
+            ...flowWindow(6, holiday),
+            now: holiday,
+            symbol: "SPY",
+            today: "2026-11-26",
+          }
+        )
+      ).complete
+    ).toBe(true);
+    // 2026-11-27 14:00 New York: the options session closed early at 13:15 ET (18:15Z).
+    const afterEarly = new Date("2026-11-27T19:00:00.000Z");
+    return expect(
+      (
+        await storedProfileFlow(
+          storedRepository({ okAt: new Date("2026-11-27T18:14:00.000Z") }),
+          {
+            ...flowWindow(6, afterEarly),
+            now: afterEarly,
+            symbol: "SPY",
+            today: "2026-11-27",
+          }
+        )
+      ).complete
+    ).toBe(true);
+  });
 });
 
 const fakeClient = (

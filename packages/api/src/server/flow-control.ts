@@ -20,9 +20,9 @@ import {
   type FlowCrossCheck,
   type FlowDeepTrades,
   type FlowGroupId,
+  type FlowIndexOptionTicker,
   type FlowNetDriftSeries,
   type FlowNetDriftTotals,
-  type FlowIndexOptionTicker,
   type FlowNoDataReason,
   type FlowStudyStatus,
   type FlowSymbol,
@@ -68,6 +68,11 @@ import {
 } from "../flow-features.ts";
 import type { FlowNetDriftRow } from "../flow-net-drift.ts";
 import { type FlowOptionPrintRow, OPTION_SIDE_SIGN } from "../flow-options.ts";
+import {
+  isNyseTradingDay,
+  nyseCloseMinute,
+  utcDayOfIso,
+} from "../nyse-calendar.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import {
   FLOW_STALE_SECONDS,
@@ -149,12 +154,12 @@ export const futuresSessionRange = (
   to: newYorkTime(date, 960),
 });
 
-/** The options session of a New York date: 09:30 to 16:15. */
+/** The options session of a New York date: 09:30 to 16:15 (13:15 on an NYSE early close). */
 export const optionsSessionRange = (
   date: string
 ): Readonly<{ from: Date; to: Date }> => ({
   from: newYorkTime(date, 570),
-  to: newYorkTime(date, 975),
+  to: newYorkTime(date, nyseCloseMinute(utcDayOfIso(date), 975)),
 });
 
 /** New York wall time as "HH:MM ET". */
@@ -301,6 +306,7 @@ const buildOptionsSide = (
       ratio: last?.ratio ?? null,
       reason,
       sessionDate: rows.sessionDate,
+      sessionEndEt: etClock(optionsSessionRange(rows.sessionDate).to),
       staleMinutes: FLOW_STALE_SECONDS.net_drift / 60,
       state,
     },
@@ -541,11 +547,6 @@ const buildFreshnessRow = (
   };
 };
 
-const isWeekday = (day: string): boolean => {
-  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
-  return weekday !== 0 && weekday !== 6;
-};
-
 /** The stored rows of the group's future inside the futures session of the session date. */
 type FuturesSession = Readonly<{
   range: Readonly<{ from: Date; to: Date }>;
@@ -619,7 +620,12 @@ const futuresReason = (
   const { latest, latestOk } = samplesOf(rows, group.future, "ticks");
   const today = newYorkClock(now).day;
   const open = futuresSessionRange(today);
-  if (!isWeekday(today) || now < open.from || now >= open.to)
+  // A weekend or an NYSE holiday is closed: the page then shows the last trading session.
+  if (
+    !isNyseTradingDay(utcDayOfIso(today)) ||
+    now < open.from ||
+    now >= open.to
+  )
     return "market_closed";
   const okRecently =
     latestOk !== undefined && now.getTime() - latestOk.at.getTime() <= staleMs;

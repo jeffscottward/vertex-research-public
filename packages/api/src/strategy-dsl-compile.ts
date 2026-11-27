@@ -14,7 +14,11 @@ import {
   runSignalBacktest,
   type SignalRunOptions,
 } from "./instant-backtest-engine.ts";
-import { isNyseTradingDay, nthWeekday, weekday } from "./nyse-calendar.ts";
+import {
+  isNyseEarlyClose,
+  isNyseTradingDay,
+  weekday,
+} from "./nyse-calendar.ts";
 import {
   type CalendarWindowFilter,
   type IvRankFilter,
@@ -1822,13 +1826,7 @@ export const nyseSession = (
   day: number
 ): { open: Date; close: Date; earlyClose: boolean } | null => {
   if (!isNyseTradingDay(day)) return null;
-  const date = new Date(day * DAY_MS);
-  const month = date.getUTCMonth();
-  const dayOfMonth = date.getUTCDate();
-  const earlyClose =
-    (month === 6 && dayOfMonth === 3) ||
-    (month === 11 && dayOfMonth === 24) ||
-    day === nthWeekday(date.getUTCFullYear(), 10, 4, 4) + 1;
+  const earlyClose = isNyseEarlyClose(day);
   return {
     close: newYorkInstant(day, earlyClose ? 13 * 60 : 16 * 60),
     earlyClose,

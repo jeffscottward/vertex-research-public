@@ -59,8 +59,8 @@ const coverageOf = (
 ): SmartMoneyRankingOutput["coverage"] => {
   const parts = newYorkParts(now);
   const minute = Number(parts["hour"]) * 60 + Number(parts["minute"]);
-  // The live capture window of flow.collect: while options trade (09:30-16:15 New York on an NYSE
-  // trading day). Today's row is never no_data in that window: no_data needs a fetch after the
+  // The live capture window of flow.collect: while options trade (09:30-16:15 New York, 13:15 on
+  // an early close, on an NYSE trading day). Today's row is never no_data in that window: no_data needs a fetch after the
   // session date.
   const inSession = isMarketPremiumSessionOpen(now);
   const capturedAt = today?.capturedAt ?? null;
