@@ -60,7 +60,6 @@ import {
   DATASET_TABS,
   type DatasetView,
   filterCatalogGroups,
-  RESEARCH_REPORTS_NOTICE,
   RESEARCH_REPORTS_PATH,
   toCatalogSummary,
   toCatalogViewModel,
@@ -426,7 +425,7 @@ export const ResearchReportsCatalog = ({
     <div className="space-y-6" data-research-reports-state={state.type}>
       <PageHeader
         breadcrumb={<Breadcrumb href="/research" label="Research" />}
-        description={`Imported research dossiers by group. ${RESEARCH_REPORTS_NOTICE}`}
+        description="Imported research dossiers by group."
         status={catalogStatus(state)}
         title="Research dossiers"
       />
@@ -973,7 +972,7 @@ export const ResearchReportDetail = ({
           <>
             Research dossier for{" "}
             {symbol === undefined ? reportId : <TickerLink symbol={symbol} />},
-            one dataset per tab. {RESEARCH_REPORTS_NOTICE}
+            one dataset per tab.
           </>
         }
         status={

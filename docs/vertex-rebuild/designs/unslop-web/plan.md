@@ -176,6 +176,15 @@ Rules for the other changed lines: one plain sentence, no pair of two-word sloga
 | Smart money | the words "Research only;" | first sentence, then "No blended score and no trade signals." |
 | Research | Research only: nothing here authorizes a trade. | Discuss evidence with corpus-based research agents. |
 
+Added after the live check of 2026-11-27 (the table above missed these two; the other statements of this plan still count 9):
+
+| Page | Removed from the subtitle | Subtitle after the change |
+| --- | --- | --- |
+| Research dossiers | Research only; a recommendation does not authorize a trade. | Imported research dossiers by group. |
+| Research dossier (one report) | Research only; a recommendation does not authorize a trade. | first sentence, unchanged |
+
+Both pages keep "Research only" as the status beside the page title, and the Payoff lab keeps its in-panel "Research only." `apps/web/src/lib/research-notice.test.ts` now reads the `description` of every `PageHeader` call and fails when one repeats the notice.
+
 ## Non-Functional Requirements
 
 - Accessibility: status text keeps its screen-reader prefix. Headings keep their levels and ids. The notice has `role="note"`.

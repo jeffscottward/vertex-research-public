@@ -10,8 +10,6 @@ import type {
 } from "@darkfactory/api";
 
 export const RESEARCH_REPORTS_PATH = "/research/reports";
-export const RESEARCH_REPORTS_NOTICE =
-  "Research only; a recommendation does not authorize a trade.";
 
 export const DATASET_TABS: readonly Readonly<{
   id: ResearchReportDatasetName;

@@ -1891,8 +1891,8 @@ const collectNetDrift = async (
     (zero.ok ? await storeNetDrift(state, ticker, zeroPart, zero.buckets) : 0);
   const zeroCount = zero.ok ? zero.buckets.length : 0;
   const newest = newestBucketAt(total.buckets);
-  const head = `${ticker} total ${total.buckets.length} buckets, zero_dte ${zeroCount}`;
-  const tail = zero.ok ? "" : `; zero_dte failed (${zero.text})`;
+  const head = `${ticker} total ${total.buckets.length} buckets, 0DTE ${zeroCount}`;
+  const tail = zero.ok ? "" : `; 0DTE failed (${zero.text})`;
   if (newest === null)
     return {
       events: 0,

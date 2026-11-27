@@ -2297,7 +2297,7 @@ describe("runFlowCollect net drift", () => {
     });
     expect(run("ES", "net_drift")).toMatchObject({
       items: 3,
-      message: "SPX total 2 buckets, zero_dte 1, newest 09:59 NY, 2 requests",
+      message: "SPX total 2 buckets, 0DTE 1, newest 09:59 NY, 2 requests",
       status: "ok",
     });
   });
@@ -2398,7 +2398,7 @@ describe("runFlowCollect net drift", () => {
     expect(run("SPY", "net_drift")).toMatchObject({
       items: 1,
       message:
-        "SPY total 1 buckets, zero_dte 0, newest 09:59 NY, 2 requests; zero_dte failed (QuantData netDrift: HTTP 502.)",
+        "SPY total 1 buckets, 0DTE 0, newest 09:59 NY, 2 requests; 0DTE failed (QuantData netDrift: HTTP 502.)",
       status: "ok",
     });
     const reserved = withNetDrift(answer(minuteAgo(1)), {
@@ -2411,7 +2411,7 @@ describe("runFlowCollect net drift", () => {
       symbols: ["SPY"],
     });
     expect(second.run("SPY", "net_drift").message).toContain(
-      "; zero_dte failed (QuantData netDrift: 6 kept free.)"
+      "; 0DTE failed (QuantData netDrift: 6 kept free.)"
     );
   });
 
@@ -2421,7 +2421,7 @@ describe("runFlowCollect net drift", () => {
       symbols: ["SPY"],
     });
     expect(run("SPY", "net_drift")).toMatchObject({
-      message: "SPY total 0 buckets, zero_dte 0, 2 requests",
+      message: "SPY total 0 buckets, 0DTE 0, 2 requests",
       status: "empty",
     });
   });
@@ -2432,7 +2432,7 @@ describe("runFlowCollect net drift", () => {
       symbols: ["SPY"],
     });
     expect(run("SPY", "net_drift")).toMatchObject({
-      message: "SPY total 1 buckets, zero_dte 0, newest 09:54 NY, 2 requests",
+      message: "SPY total 1 buckets, 0DTE 0, newest 09:54 NY, 2 requests",
       status: "empty",
     });
     const exact = withNetDrift(answer(minuteAgo(5)), answer());
