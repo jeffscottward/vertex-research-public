@@ -233,7 +233,7 @@ export const PickListProposalPanel = ({
               NLV for sizing (USD, optional; stays in this tab)
             </span>
             <Input
-              className="w-48 font-mono"
+              className="w-48 max-w-full font-mono"
               id={fieldId}
               inputMode="decimal"
               onChange={(event) => setNlvText(event.target.value)}

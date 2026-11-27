@@ -6,7 +6,6 @@ import {
   SEMANTIC_GRAIN_LABELS,
 } from "@darkfactory/api";
 import {
-  Badge,
   Button,
   Input,
   Label,
@@ -186,10 +185,10 @@ const CertificationBlock = ({
     <div className="space-y-2" data-certification={kind}>
       {item.certified ? (
         <div className="space-y-1 text-sm">
-          <Badge variant="secondary">Certified</Badge>{" "}
-          <span className="text-muted-foreground">
-            {`${when(item.certifiedAt)} by ${item.certifiedBy ?? "certifier not recorded"}`}
-          </span>
+          {/* Plain text in one colour: a term that is not certified is the row that stands out. */}
+          <p className="text-muted-foreground" data-certified-status="true">
+            {`Certified ${when(item.certifiedAt)} by ${item.certifiedBy ?? "certifier not recorded"}`}
+          </p>
           {item.certificationNote === null ? null : (
             <p className="text-muted-foreground">
               Note: {item.certificationNote}
@@ -307,7 +306,7 @@ const EditForm = ({
   return (
     <form
       aria-label={`Edit ${kind} ${id}`}
-      className="space-y-3 rounded-md border border-border p-3"
+      className="space-y-3 border-border border-t pt-3"
       onSubmit={(event) => void save(event)}
     >
       {fields.map((spec) => {

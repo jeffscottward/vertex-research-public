@@ -164,19 +164,28 @@ const CourseLessons = ({
   const shown = pageAcademyLessons(matching, query.page);
   return (
     <>
-      <Panel
-        className="scroll-mt-20"
+      {/* A heading with its lesson cards: the cards are the only bordered surface. */}
+      <section
+        aria-labelledby={`${prefix}-lessons-title`}
+        className="min-w-0 scroll-mt-20 space-y-4"
         data-academy-course={course.id}
-        description={courseDescription(course, lessons, sourceCount)}
-        flush
-        headingId={`${prefix}-lessons-title`}
         id={`course-${course.id}`}
         ref={panel}
-        title={title}
       >
+        <header className="space-y-0.5">
+          <h2
+            className="font-semibold text-base leading-snug"
+            id={`${prefix}-lessons-title`}
+          >
+            {title}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {courseDescription(course, lessons, sourceCount)}
+          </p>
+        </header>
         <div
           aria-label="Filter lessons"
-          className="grid grid-cols-2 items-end gap-3 border-border border-b p-4 sm:grid-cols-3 lg:grid-cols-[minmax(13rem,2fr)_repeat(5,minmax(0,1fr))_auto]"
+          className="grid grid-cols-2 items-end gap-3 border-border border-b pb-4 sm:grid-cols-3 lg:grid-cols-[minmax(13rem,2fr)_repeat(5,minmax(0,1fr))_auto]"
           role="search"
         >
           <label
@@ -242,7 +251,7 @@ const CourseLessons = ({
             Clear
           </button>
         </div>
-        <div className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4">
           <p aria-live="polite" className="text-muted-foreground text-sm">
             Showing {matching.length} of {lessons.length} lessons
             {shown.pageCount > 1
@@ -297,14 +306,14 @@ const CourseLessons = ({
                       <span className="line-clamp-3 text-muted-foreground text-sm">
                         {lesson.summary}
                       </span>
-                      <span className="mt-auto flex flex-wrap gap-1 pt-1">
+                      <span className="mt-auto flex flex-wrap gap-x-2 gap-y-1 pt-1">
                         {[
                           ...lesson.tags.regime,
                           ...lesson.tags.instruments.slice(0, 3),
                           lesson.tags.timeframe,
                         ].map((tag) => (
                           <span
-                            className="rounded border border-border px-1.5 py-0.5 text-muted-foreground text-xs"
+                            className="text-muted-foreground text-xs"
                             key={tag}
                           >
                             {labelOf(tag)}
@@ -326,7 +335,7 @@ const CourseLessons = ({
         {shown.pageCount > 1 ? (
           <nav
             aria-label="Lesson pages"
-            className="flex flex-wrap items-center justify-between gap-3 border-border border-t p-4 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 border-border border-t pt-4 text-sm"
             data-academy-pager
           >
             <button
@@ -350,7 +359,7 @@ const CourseLessons = ({
             </button>
           </nav>
         ) : null}
-      </Panel>
+      </section>
       <p className="text-muted-foreground text-xs">{course.disclaimer}</p>
     </>
   );
@@ -470,7 +479,13 @@ export const AcademyCatalog = ({
         }
         title="Academy"
       />
-      <Panel headingId="academy-courses-title" title="Courses">
+      <section aria-labelledby="academy-courses-title" className="space-y-3">
+        <h2
+          className="font-semibold text-base leading-snug"
+          id="academy-courses-title"
+        >
+          Courses
+        </h2>
         <ul
           className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
           data-academy-courses
@@ -523,7 +538,7 @@ export const AcademyCatalog = ({
             );
           })}
         </ul>
-      </Panel>
+      </section>
       {courses.map((listing) => {
         const course = COURSES[listing.course];
         const notice = emptyCourseNotice(listing);

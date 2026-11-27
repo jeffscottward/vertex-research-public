@@ -25,6 +25,7 @@ import {
   absorptionMarks,
   buildDeepTradesChart,
   buildNetDriftChart,
+  CONTROL_STATE_LABELS,
   controlAgeNotice,
   controlFreshnessRows,
   type ControlLine,
@@ -45,7 +46,11 @@ import {
   sessionEventLine,
   studyLine,
 } from "../../features/flow/control-view-model.ts";
-import { formatMoney, formatNyTime } from "../../features/flow/format.ts";
+import {
+  enumLabel,
+  formatMoney,
+  formatNyTime,
+} from "../../features/flow/format.ts";
 
 /** 44 px high native select (shared by the /flow selects). */
 export const FLOW_SELECT_CLASS =
@@ -351,9 +356,10 @@ const ControlDocument = ({
             </span>
             <StatusBadge
               data-flow-control-state={line.state}
+              plain
               status={line.tone}
             >
-              {line.state}
+              {enumLabel(CONTROL_STATE_LABELS, line.state)}
             </StatusBadge>
             <span className="text-sm">{line.text}</span>
             {[line.since, line.ratio, line.asOf]

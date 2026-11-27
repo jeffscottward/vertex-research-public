@@ -19,17 +19,24 @@ export const ResearchHeading = ({
   </header>
 );
 
+/** A notice inside a card: the same text and role, without a second border, fill or padding. */
+const PLAIN_NOTICE =
+  "my-3 grid w-full gap-1 text-sm [&>p:not(.alert-title)]:text-muted-foreground";
+
 export const ReadNotice = ({
   title,
   children,
   loading = false,
+  plain = false,
 }: {
   readonly title: string;
   readonly children?: ReactNode;
   readonly loading?: boolean;
+  /** True when a bordered card already holds the notice (one surface level). */
+  readonly plain?: boolean;
 }) => (
   <div
-    className={alertVariants()}
+    className={plain ? PLAIN_NOTICE : alertVariants()}
     role="status"
     aria-live="polite"
     aria-busy={loading}
@@ -132,7 +139,9 @@ export const ModuleResults = ({
         >
           <div className="vx-module-heading">
             <div>
-              <p className="vx-eyebrow">Module manifest / {module.version}</p>
+              <p className="font-medium text-muted-foreground text-sm">
+                Module manifest / {module.version}
+              </p>
               <h2 id={`module-${module.moduleId}`}>{module.moduleId}</h2>
             </div>
             <span className="vx-status">

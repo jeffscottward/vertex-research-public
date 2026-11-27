@@ -1,4 +1,5 @@
 import type {
+  AgentModelRunEventKindValue,
   AgentModelRunEventOutput,
   AgentModelRunEventsOutput,
   AgentModelRunOutput,
@@ -131,6 +132,20 @@ export const AGENT_PHASE_LABELS = {
   writing: "Writing",
 } as const;
 export type AgentPhase = keyof typeof AGENT_PHASE_LABELS;
+
+/** The words of an event kind; the page prints these, never the kind code. */
+export const EVENT_KIND_LABELS: Readonly<
+  Record<AgentModelRunEventKindValue, string>
+> = {
+  decision: "Decision",
+  flag: "Flag",
+  llm_call: "LLM call",
+  message: "Message",
+  reasoning: "Reasoning",
+  status: "Status",
+  tool_call: "Tool call",
+  tool_result: "Tool result",
+};
 
 export type AgentCard = Readonly<{
   agent: string;

@@ -248,7 +248,7 @@ describe("mission control", () => {
     expect(section("mc-attention")).toEqual(["a", "d"]);
     expect(section("mc-running")).toEqual(["b"]);
     expect(section("mc-recent")).toEqual(["c"]);
-    expect(container.textContent).toContain("sharpe=0.7");
+    expect(container.textContent).toContain("Sharpe=0.7");
     return expect(container.textContent).toContain("No events recorded.");
   });
 
@@ -388,7 +388,17 @@ describe("mission control", () => {
 
 describe("agent runs workspace", () => {
   it("creates a task, filters, expands events and changes status with an audit event", async () => {
-    const tasks = [task("a", { metrics: { folds: 5 } })];
+    const tasks = [
+      task("a", {
+        kind: "forward_test",
+        metrics: {
+          folds: 5,
+          mode: "research_only",
+          period: "2026-01-02",
+          wf_cagr: 0.12,
+        },
+      }),
+    ];
     const gateway = agentGateway(tasks);
     const container = await mount(
       <AgentRunsWorkspace gateway={gateway} initialTaskId={null} />
@@ -396,6 +406,22 @@ describe("agent runs workspace", () => {
     expect(container.querySelectorAll("tbody tr[data-task-id]")).toHaveLength(
       1
     );
+    // A kind, a metric key and a code value print as words; a number and a date print as written.
+    const row = container.querySelector('tr[data-task-id="a"]');
+    const cells = [...(row?.querySelectorAll("td") ?? [])].map(
+      (cell) => cell.textContent
+    );
+    expect(cells[1]).toBe("Forward test");
+    expect(cells[5]).toBe(
+      "Folds=5 · Mode=Research only · Period=2026-01-02 · Walk-forward CAGR=0.12"
+    );
+    expect(row?.textContent).not.toMatch(/[a-z]_[a-z]/);
+    for (const label of ["New task kind", "Filter by kind"])
+      expect(
+        [...byLabel<HTMLSelectElement>(label).options].map(
+          (option) => option.textContent
+        )
+      ).toContain("Forward test");
 
     await setValue(
       byLabel<HTMLInputElement>("New task title"),
@@ -418,7 +444,20 @@ describe("agent runs workspace", () => {
     await clickButton("Expand Task a");
     expect(gateway.getTask).toHaveBeenCalledWith("a");
     expect(container.textContent).toContain("fold 3 done");
-    expect(container.textContent).toContain("folds");
+    // The expanded metrics list prints the same words.
+    const metricsList = container.querySelector(
+      '[aria-label="Task metrics"] dl'
+    );
+    expect(
+      [...(metricsList?.querySelectorAll("dt") ?? [])].map(
+        (term) => term.textContent
+      )
+    ).toEqual(["Folds", "Mode", "Period", "Walk-forward CAGR"]);
+    expect(
+      [...(metricsList?.querySelectorAll("dd") ?? [])].map(
+        (value) => value.textContent
+      )
+    ).toEqual(["5", "Research only", "2026-01-02", "0.12"]);
 
     await setValue(byLabel<HTMLSelectElement>("Task a status"), "needs_review");
     expect(gateway.updateTask).toHaveBeenCalledWith({

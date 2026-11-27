@@ -328,6 +328,58 @@ describe("portfolio source truthfulness", () => {
     return expect(visible).not.toContain("<details");
   });
 
+  it("shows a table heading without an info icon when the table has no help text", () => {
+    const html = markup(
+      <PortfolioCollection
+        title="Reservation projections"
+        rows={snapshot.positions}
+        columns={[{ label: "Instrument", value: (row) => row.instrumentId }]}
+        identity={(row) => row.instrumentId}
+      />
+    );
+    expect(html).toMatch(/<h2 id="[^"]+">Reservation projections<\/h2>/);
+    expect(html).not.toContain("<aside");
+    expect(html).not.toContain("popovertarget");
+    expect(html).not.toContain('aria-label="About Reservation projections"');
+    return expect(html).toContain("1 supplied");
+  });
+
+  it("draws one border around the source and continuity cards and none inside them", () => {
+    const stale = {
+      ...snapshot,
+      continuity: {
+        ...continuity,
+        state: "stale" as const,
+        freshness: { ...continuity.freshness, status: "stale" as const },
+      },
+    };
+    for (const observation of [
+      stale,
+      { ...snapshot, sourceKind: "source-unavailable" as const },
+    ]) {
+      const html = markup(<PortfolioObservation snapshot={observation} />);
+      for (const label of ["Portfolio source", "Projection continuity"]) {
+        const card =
+          html.match(
+            new RegExp(
+              `<section class="[^"]*"[^>]*aria-label="${label}">[\\s\\S]*?</section>`
+            )
+          )?.[0] ?? "";
+        const [outer, ...inner] = Array.from(
+          card.matchAll(/class="([^"]*)"/g),
+          (match) => (match[1] ?? "").split(" ")
+        );
+        expect(outer).toContain("border");
+        expect(inner.length).toBeGreaterThan(0);
+        for (const tokens of inner) expect(tokens).not.toContain("border");
+      }
+      // The notice inside the source card keeps its text and its status role.
+      expect(html).toMatch(
+        /<div class="my-3 [^"]*" role="status" aria-live="polite" aria-busy="false"><p class="[^"]*">Portfolio source /
+      );
+    }
+  });
+
   it("keeps critical portfolio source, uncertainty and authority states outside help", () => {
     const html = markup(
       <PortfolioObservation
@@ -354,11 +406,12 @@ describe("portfolio source truthfulness", () => {
         }}
       />
     );
+    // Three of the four tables have help text; Reservation projections has none.
     const help = Array.from(
       html.matchAll(/<aside\b[^>]*popover="auto"[^>]*>[\s\S]*?<\/aside>/g),
       (match) => match[0]
     );
-    expect(help).toHaveLength(4);
+    expect(help).toHaveLength(3);
     const visible = help.reduce(
       (remaining, disclosure) => remaining.replace(disclosure, ""),
       html

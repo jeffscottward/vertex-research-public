@@ -472,7 +472,7 @@ export const MarketNewsWorkspace = ({
             Refresh
           </Button>
         }
-        description="Headlines from IBKR, Reuters, Seeking Alpha and Yahoo Finance, and SEC 8-K filings, for the 25 newest symbols on your watchlist. Research only; no orders."
+        description="Headlines from IBKR, Reuters, Seeking Alpha and Yahoo Finance, and SEC 8-K filings, for the 25 newest symbols on your watchlist."
         status={<NewsStatus state={state} />}
         title="News monitor"
       />

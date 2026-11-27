@@ -154,29 +154,32 @@ export const Breadth90Chart = ({
           </>
         )}
       </svg>
-      <table className="sr-only">
-        <caption>Breadth-90 sessions</caption>
-        <thead>
-          <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Up volume %</th>
-            <th scope="col">Advancers %</th>
-            <th scope="col">Day</th>
-            <th scope="col">Session</th>
-          </tr>
-        </thead>
-        <tbody>
-          {days.map((day) => (
-            <tr key={day.date}>
-              <td>{day.date}</td>
-              <td>{day.upPct.toFixed(1)}</td>
-              {advancersCell(day)}
-              <td>{KIND_LABEL[day.kind]}</td>
-              <td>{day.final ? "Close" : "Intraday"}</td>
+      {/* A table ignores the 1px width of sr-only and would widen the page: the div holds it. */}
+      <div className="sr-only">
+        <table>
+          <caption>Breadth-90 sessions</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Up volume %</th>
+              <th scope="col">Advancers %</th>
+              <th scope="col">Day</th>
+              <th scope="col">Session</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {days.map((day) => (
+              <tr key={day.date}>
+                <td>{day.date}</td>
+                <td>{day.upPct.toFixed(1)}</td>
+                {advancersCell(day)}
+                <td>{KIND_LABEL[day.kind]}</td>
+                <td>{day.final ? "Close" : "Intraday"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 };

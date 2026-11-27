@@ -289,7 +289,7 @@ const BucketControl = ({
             <span className="block">Bucket symbol</span>
             <Input
               aria-describedby={invalid ? `${fieldId}-error` : undefined}
-              className="w-36 font-mono"
+              className="w-36 max-w-full font-mono"
               id={fieldId}
               invalid={invalid}
               maxLength={10}

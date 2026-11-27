@@ -542,7 +542,7 @@ describe("SectorRotationWorkspace", () => {
     });
     const text = container.textContent;
     expect(text).toContain(
-      "Our own relative strength ratio and momentum, both centered on 100. Not the RRG® / JdK algorithm. Research only."
+      "Our own relative strength ratio and momentum, both centered on 100. Not the RRG® / JdK algorithm."
     );
     expect(text).toContain(
       "Stored nightly. As of 2026-10-30 against SPY. Generated 2026-10-30T22:00:00.000Z."

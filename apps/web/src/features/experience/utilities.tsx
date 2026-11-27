@@ -74,7 +74,9 @@ export const GatewayObservation = ({
 }) => (
   <article className="vx-artifact" aria-label="Gateway observation">
     <header className="vx-artifact-heading">
-      <p className="vx-eyebrow">Source observation / {status.environment}</p>
+      <p className="font-medium text-muted-foreground text-sm">
+        Source observation / {status.environment}
+      </p>
       <h2>{status.gatewayId}</h2>
       <p className="text-muted-foreground text-sm leading-relaxed">
         The source observed this status at{" "}
@@ -120,7 +122,9 @@ const HumanConnectionSteps = () => (
     className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
     aria-labelledby="connection-human-steps"
   >
-    <p className="vx-eyebrow">Required human actions</p>
+    <p className="font-medium text-muted-foreground text-sm">
+      Required human actions
+    </p>
     <h2 id="connection-human-steps">
       Verify the connection in a trusted console
     </h2>
@@ -205,10 +209,23 @@ const ConnectionsContent = () => {
     if (first === undefined || selected !== null) return;
     return choose(first);
   });
+  // The gateway list answers 503 "not-configured" when the deployment has no
+  // gateway list (key `gateway`, with `policy`, of VERTEX_RUNTIME_CONFIG). Only
+  // the operator can change that, so the page shows one plain line and no Retry.
   return (
     <>
       {list.state.type === "idle" ? (
         <ReadNotice title="Loading broker gateways" loading />
+      ) : list.state.type === "error" &&
+        list.state.failure.kind === "server-not-configured" ? (
+        <p
+          className="text-muted-foreground text-sm leading-relaxed"
+          data-connections-state="not-configured"
+          role="status"
+        >
+          Connections are not configured on this server. Ask the operator to
+          configure the broker gateways.
+        </p>
       ) : (
         <ResourcePanel
           state={list.state}

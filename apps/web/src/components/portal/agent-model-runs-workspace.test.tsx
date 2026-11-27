@@ -314,6 +314,7 @@ describe("AgentModelRunsWorkspace", () => {
         page([
           modelRun(),
           modelRun({
+            flags: ["research_only", "single_call"],
             frameworkVersion: null,
             id: "run-2",
             modelsServed: [],
@@ -348,6 +349,31 @@ describe("AgentModelRunsWorkspace", () => {
     expect(container.textContent).toContain("Unrated");
     expect(container.textContent).toContain("(not set)");
     expect(container.textContent).toContain("50%");
+    // Status and flags print as words in plain text; the codes stay in data attributes.
+    const statuses = [...container.querySelectorAll("[data-run-status]")];
+    expect(statuses.map((item) => item.textContent)).toEqual([
+      "Status:Succeeded",
+      "Status:Succeeded",
+      "Status:Failed",
+    ]);
+    expect(statuses.map((item) => item.getAttribute("data-plain"))).toEqual([
+      "true",
+      "true",
+      "true",
+    ]);
+    expect(statuses[2]?.getAttribute("data-run-status")).toBe("failed");
+    const flags = [...container.querySelectorAll("[data-run-flags]")];
+    expect(flags.map((item) => item.textContent)).toEqual([
+      "Rerun",
+      "Research only, Single call",
+      "",
+    ]);
+    expect(flags[1]?.getAttribute("data-run-flags")).toBe(
+      "research_only single_call"
+    );
+    expect(
+      container.querySelector('[aria-label="Model runs table"]')?.textContent
+    ).not.toMatch(/[a-z]_[a-z]/);
     expect(gateway.breakdown).toHaveBeenCalledWith({}, "model");
   });
 
@@ -660,6 +686,8 @@ describe("AgentModelRunsWorkspace", () => {
       ticker: ["AAPL"],
     });
     expect(container.querySelector("mark")?.textContent).toBe("support");
+    // The event kind prints as words.
+    expect(container.textContent).toContain("News Analyst · Reasoning: ");
     expect(container.textContent).toContain('1 run mentions "support"');
     expect(
       container

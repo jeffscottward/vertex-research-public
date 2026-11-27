@@ -177,7 +177,10 @@ describe("Breadth90Card", () => {
     expect(basket).toContain("Core · 20% NLV · SPY QQQ");
     expect(basket).toContain("Beta");
     expect(container.textContent).toContain("Scale in over three sessions.");
-    expect(text(container, "code")).toBe("reports/dip-basket.md");
+    // reportPath is a file path on the rig's disk: the card never prints it.
+    expect(container.querySelector("code")).toBeNull();
+    expect(container.textContent).not.toContain("Report:");
+    expect(container.textContent).not.toContain("reports/dip-basket.md");
     expect(text(container, "[data-breadth90-source]")).toContain(
       "Source wsj, as of 11/06/26 3:30 PM. Signal computed 2026-11-06T20:00:00.000Z."
     );
@@ -222,6 +225,33 @@ describe("Breadth90Card", () => {
     expect(container.textContent).toContain("No events yet.");
     expect(container.textContent).toContain("No dip basket published.");
     expect(container.querySelector("code")).toBeNull();
+  });
+
+  it.each([
+    ["an absolute local path", "/home/rig/reports/dip-basket/report.md"],
+    ["a home-relative path", "~/Documents/reports/dip-basket/report.md"],
+    ["a web address", "https://reports.example.test/dip-basket/report.md"],
+  ] as const)("never prints the report path: %s", async (_name, reportPath) => {
+    const container = await mount(async () =>
+      ready({
+        status: status({
+          basket: {
+            asOf: "2026-11-05",
+            reportPath,
+            rulesNote: null,
+            summary: "Dip basket: 2 tiers",
+            tiers: [],
+          },
+        }),
+      })
+    );
+    expect(text(container, "[data-breadth90-basket]")).toBe(
+      "Dip basket: 2 tiers"
+    );
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("code")).toBeNull();
+    expect(container.textContent).not.toContain("Report:");
+    expect(container.textContent).not.toContain("report.md");
   });
 
   it("shows tiers without a summary, armed days without a count and no basket", async () => {

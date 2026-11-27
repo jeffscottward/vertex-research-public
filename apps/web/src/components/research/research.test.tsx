@@ -515,6 +515,34 @@ describe("Vertex rendered research states", () => {
     return expect(fixture.list).not.toHaveBeenCalled();
   });
 
+  it("draws a notice border only where no card already holds the notice", () => {
+    const boxed = renderToStaticMarkup(
+      <ReadNotice title="Empty">No record</ReadNotice>
+    );
+    expect(boxed).toMatch(/class="[^"]*\bborder\b[^"]*" role="status"/u);
+    const plain = renderToStaticMarkup(
+      <ReadNotice plain title="Empty">
+        No record
+      </ReadNotice>
+    );
+    expect(plain).toContain('role="status"');
+    expect(plain).toContain("<p>No record</p>");
+    expect(plain).not.toMatch(/\bborder\b|\bbg-card\b|\bpx-4\b/u);
+  });
+
+  it("prints the module version as plain sentence-case text above the module name", () => {
+    const html = renderToStaticMarkup(
+      <ModuleResults
+        retry={() => undefined}
+        state={{ type: "ready", value: [module] }}
+      />
+    );
+    expect(html).toContain(
+      `<p class="font-medium text-muted-foreground text-sm">Module manifest / ${module.version}</p>`
+    );
+    expect(html).not.toContain("vx-eyebrow");
+  });
+
   return it("retains source-first foundations while exposing scope-protected Research Lab", () => {
     for (const Page of [ModulesPage, ResearchPage]) {
       const html = renderToStaticMarkup(createElement(Page));

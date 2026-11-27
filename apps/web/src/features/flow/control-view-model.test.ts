@@ -1,4 +1,9 @@
-import { type FlowControl, FlowControlSchema } from "@darkfactory/api";
+import {
+  FLOW_AGREEMENT_STATES,
+  FLOW_CONTROL_STATES,
+  type FlowControl,
+  FlowControlSchema,
+} from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import { LAB_NOW } from "../../lab/fixtures/core.ts";
@@ -7,6 +12,7 @@ import {
   absorptionMarks,
   buildDeepTradesChart,
   buildNetDriftChart,
+  CONTROL_STATE_LABELS,
   controlAgeNotice,
   controlFreshnessRows,
   controlLines,
@@ -174,6 +180,17 @@ describe("control view-model", () => {
     expect(tone("one_sided", "neutral")).toBe("info");
     expect(tone("both_balanced", "neutral")).toBe("info");
     expect(tone("not_comparable", "neutral")).toBe("info");
+  });
+
+  it("has words for every control state and every agreement state", () => {
+    const states = [...FLOW_CONTROL_STATES, ...FLOW_AGREEMENT_STATES];
+    expect(Object.keys(CONTROL_STATE_LABELS).sort()).toEqual(
+      [...new Set<string>(states)].sort()
+    );
+    expect(CONTROL_STATE_LABELS.no_data).toBe("No data");
+    expect(CONTROL_STATE_LABELS.not_comparable).toBe("Not comparable");
+    for (const label of Object.values(CONTROL_STATE_LABELS))
+      expect(label).toMatch(/^[A-Z][a-z]+( [a-z]+)*$/);
   });
 
   it("writes the agreement line without a start time when the sides cannot be compared", () => {

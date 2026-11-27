@@ -463,11 +463,13 @@ export const STAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   verdict: "Verdict",
 });
 
+// A value without a label prints as its words: "research_only" -> "Research only".
 export const labelFor = (
   labels: Readonly<Record<string, string>>,
   value: string
 ): string => {
-  return labels[value] ?? value.replaceAll("_", " ");
+  const words = value.replaceAll("_", " ");
+  return labels[value] ?? `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };
 
 export const formatTimestamp = (
@@ -494,11 +496,39 @@ export const formatDuration = (
   return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 };
 
+// The words of the metric keys that the quant lab study writes: wf is the walk-forward run and bh
+// is buy and hold on the same days (see quant-lab-panel.tsx). Any other key prints as its words.
+const METRIC_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  bh_cagr: "Buy-and-hold CAGR",
+  bh_max_drawdown: "Buy-and-hold max drawdown",
+  bh_sharpe: "Buy-and-hold Sharpe",
+  wf_cagr: "Walk-forward CAGR",
+  wf_max_drawdown: "Walk-forward max drawdown",
+  wf_sharpe: "Walk-forward Sharpe",
+});
+
+// A text value that is a code ("research_only") prints as its words. Numbers, dates, names and
+// every other text print as written.
+const CODE_VALUE = /^[a-z]+(?:_[a-z]+)+$/u;
+
+/** Metrics with words in place of the keys and of the code values, for every page that prints them. */
+export const labelledMetrics = (
+  metrics: Readonly<Record<string, number | string>>
+): Record<string, number | string> =>
+  Object.fromEntries(
+    Object.entries(metrics).map(([key, value]) => [
+      labelFor(METRIC_LABELS, key),
+      typeof value === "string" && CODE_VALUE.test(value)
+        ? labelFor(STATUS_LABELS, value)
+        : value,
+    ])
+  );
+
 export const formatMetrics = (
   metrics: Readonly<Record<string, number | string>>,
   limit = 4
 ): string => {
-  const entries = Object.entries(metrics);
+  const entries = Object.entries(labelledMetrics(metrics));
   if (entries.length === 0) return "no metrics reported";
   const shown = entries
     .slice(0, limit)

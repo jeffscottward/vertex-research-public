@@ -575,7 +575,13 @@ describe("FlowWorkspace", () => {
     expect(
       container.querySelector('[data-flow-source="options"] [data-freshness]')
         ?.textContent
-    ).toContain("stale");
+    ).toBe("Status:Stale");
+    // The state code stays in the attribute; the page prints words as plain text.
+    const optionsFreshness = container.querySelector(
+      '[data-flow-source="options"] [data-freshness]'
+    );
+    expect(optionsFreshness?.getAttribute("data-freshness")).toBe("stale");
+    expect(optionsFreshness?.getAttribute("data-plain")).toBe("true");
     expect(text).toContain("No new prints since the last sample.");
     expect(container.querySelector("[data-flow-never]")).toBeNull();
     expect(
@@ -607,6 +613,17 @@ describe("FlowWorkspace", () => {
       )
     ).not.toBeNull();
     expect(text).toContain("golden sweep");
+    // Sentiment, type and event direction print as words, not as the stored codes.
+    const firstPrint = container.querySelector("[data-flow-print]");
+    const printCells = [...(firstPrint?.querySelectorAll("td") ?? [])].map(
+      (cell) => cell.textContent
+    );
+    expect(printCells.slice(-3, -1)).toEqual(["Status:Bullish", "Sweep"]);
+    expect(
+      [...container.querySelectorAll("[data-flow-event]")].map(
+        (item) => item.children[2]?.textContent
+      )
+    ).toEqual(["Status:Bullish", "Status:Neutral"]);
     expect(container.querySelector("[data-flow-basis]")?.textContent).toBe(
       "Levels come from SPY options, already in SPY price."
     );
@@ -806,15 +823,23 @@ describe("FlowWorkspace", () => {
         (item) => item.children[2]?.textContent
       )
     ).toEqual([
-      "Status:no data",
-      "Status:context",
+      "Status:No data",
+      "Status:Context",
       'Status:Value "later_vote" has no label in this page version · reload the page',
     ]);
+    // A vote is plain text. A vote with a label prints no code; only the vote without a label
+    // (a page older than the server) names its value in the stale-page message.
+    for (const item of container.querySelectorAll("[data-flow-factor]")) {
+      expect(item.children[2]?.getAttribute("data-plain")).toBe("true");
+      expect(
+        (item.children[2]?.textContent ?? "").replace(/Value "[^"]+"/u, "")
+      ).not.toMatch(/[a-z]_[a-z]/);
+    }
     const sides = [
       ...container.querySelectorAll("[data-flow-print] td:nth-last-child(4)"),
     ];
     expect(sides.map((cell) => cell.textContent)).toEqual([
-      "not classified",
+      "Not classified",
       "At ask",
     ]);
     expect(sides.map((cell) => cell.getAttribute("title"))).toEqual([
