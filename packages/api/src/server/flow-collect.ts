@@ -142,9 +142,10 @@ export const FLOW_TAPE_REREAD_SECONDS = 60;
  */
 export const FLOW_TAPE_LOOKBACK_SECONDS = 600;
 /**
- * A catch-up read (catchUpTape) reads this many seconds of the oldest tape gap per symbol and run,
- * oldest part first: a gap of 60 minutes that the ring still holds is read back in 6 runs. In the busiest measured minutes
- * (about 83 prints per second) 10 minutes are about 50,000 prints, 3 answers.
+ * A catch-up read (catchUpTape) reads this many seconds of the oldest tape gap per symbol and
+ * run, oldest part first: a gap of 60 minutes that the ring still holds is read back in 6 runs.
+ * In the busiest measured minutes (about 83 prints per second) 10 minutes are about 50,000
+ * prints, 3 answers.
  */
 const FLOW_TAPE_CATCHUP_SECONDS = 600;
 /** A tape gap whose end is older than this is deleted unread: the ring restarts every night. */
@@ -867,18 +868,23 @@ const catchUpTape = async (
     }
     if (read.last.until + 1 < end) return `${droppedNote}; catch-up waits`;
     const prints = read.prints.filter(([t]) => t >= start && t < end);
-    const { items } = await storeTapeRange(state, instrument, read, {
-      end,
-      prints,
-      since: start,
-    });
+    const { items, secondsNote } = await storeTapeRange(
+      state,
+      instrument,
+      read,
+      {
+        end,
+        prints,
+        since: start,
+      }
+    );
     const left = (gapEnd - end) / 60;
     await write(() =>
       left === 0
         ? repository.deleteTapeGap(symbol, startTime)
         : repository.moveTapeGapStart(symbol, startTime, new Date(end * 1000))
     );
-    return `${droppedNote}; caught up ${(end - start) / 60} min (${prints.length} prints, ${items} rows)${lostNote}${left > 0 ? `, ${left} gap min left` : ""}`;
+    return `${droppedNote}; caught up ${(end - start) / 60} min (${prints.length} prints, ${items} rows)${lostNote}${left > 0 ? `, ${left} gap min left` : ""}${secondsNote}`;
   } catch (error) {
     return tapeFailureNote("; catch-up failed", error);
   }
@@ -899,9 +905,10 @@ const tapeAuditTurn = (symbol: TapeSymbol, now: Date): boolean =>
  * Checks the tape against IBKR history in the symbol's turn (tapeAuditTurn): the newest 1000
  * history prints (one IBKR request, only while at most FLOW_IBKR_MAX_RECENT of 6 requests are
  * recent, so /charts keeps priority), then one tape read from the first history second, compared
- * second by second (compareTapeWithHistory) and stored in flow_tape_audits. Only history prints from
- * the minute after the symbol's previous turn count, so two checks never overlap. Returns the note for the sample message ("" when it is not
- * the turn); it never throws. A dry run checks but stores nothing.
+ * second by second (compareTapeWithHistory) and stored in flow_tape_audits. Only history prints
+ * from the minute after the symbol's previous turn, and after the checks already stored in this
+ * turn, count, so two checks never overlap. Returns the note for the sample message ("" when it
+ * is not the turn); it never throws. A dry run checks but stores nothing.
  */
 const auditTape = async (
   state: RunState,

@@ -209,3 +209,7 @@ A second fresh-context reviewer read the full code diff. It found no blocker and
 | 4 | The page line cannot tell "no check" from "not read". | Kept: the note of the document says "not read"; the line says "no check in this session yet". |
 | 5 | "1 tape gaps … dropped", also on a dry run. | Singular, and "to drop" on a dry run. |
 | 6 | Rounding can show 100% with a mismatch. | Rounded down. |
+
+An exact-head review of the full diff after these fixes approved it with one minor finding: a
+failed per-second write of a catch-up chunk left no note. The catch-up note now ends with the note
+of that write (`; per-second counts not stored (<error>)`).

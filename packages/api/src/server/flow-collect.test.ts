@@ -4307,6 +4307,27 @@ describe("runFlowCollect tape catch-up (flow_tape_gaps)", () => {
     expect(deps.tape).toHaveBeenCalledTimes(3);
   });
 
+  it("names a failed per-second write of the chunk in the catch-up note", async () => {
+    const G = NOW_S - 1500;
+    const { deps, tapeGaps } = gapDeps([gap(G, NOW_S - 1200)], {
+      tape: tapeBySince({ [G]: ringFrom(G) }),
+    });
+    // The live write works; the write of the catch-up chunk fails.
+    deps.repository.upsertTapeSeconds
+      .mockImplementationOnce(async (rows) => rows.length)
+      .mockRejectedValueOnce(
+        Object.assign(new Error("check failed"), {
+          code: "23514",
+          name: "PostgresError",
+        })
+      );
+    const { run } = await collect(deps, { symbols: ["ES"] });
+    expect(run("ES", "ticks").message).toMatch(
+      /side; caught up 5 min \(2 prints, 2 rows\); per-second counts not stored \(PostgresError 23514\)$/
+    );
+    expect(tapeGaps.rows()).toEqual([]);
+  });
+
   it("writes nothing on a dry run", async () => {
     const G = NOW_S - 1500;
     const { deps, tapeGaps } = gapDeps(
