@@ -21,8 +21,8 @@ Because `fetch` defaults to `redirect: "follow"`, any `301`/`302`/`303`/`307`/`3
 1. **`redirect: "manual"` on both bridge fetches (`workerd`-compatible):**
    - Cloudflare Workers (`workerd`) rejects `redirect: "error"` with a `TypeError`; `redirect: "manual"` returns any `3xx` response as-is without following `Location`.
 2. **Fail-closed `3xx` / non-OK refusal before reading JSON:**
-   - **`golive-live-quotes.ts`:** pass `redirect: "manual"` in `fetchImpl(endpoint, { ... })`. On `!response.ok` (which refuses all `3xx` `300-399`, `4xx`/`5xx`, and `opaqueredirect` status `0`), cancel `response.body` (`void response.body?.cancel()`) and return `none` so callers receive `null` and drafts stay unapprovable.
-   - **`vertex-orders-gateway.ts`:** pass `redirect: "manual"` in `fetchImpl(url, { ... })`. Before `response.json()`, check `if (!response.ok)`, cancel `response.body` (`void response.body?.cancel()`), and throw `OrderGatewayError("UPSTREAM_ERROR", ...)`:
+   - **`golive-live-quotes.ts`:** pass `redirect: "manual"` in `fetchImpl(endpoint, { ... })`. On `!response.ok` (which refuses all `3xx` `300-399`, `4xx`/`5xx`, and `opaqueredirect` status `0`), cancel `response.body` (`void response.body?.cancel().catch(() => undefined)`) and return `none` so callers receive `null` and drafts stay unapprovable.
+   - **`vertex-orders-gateway.ts`:** pass `redirect: "manual"` in `fetchImpl(url, { ... })`. Before `response.json()`, check `if (!response.ok)`, cancel `response.body` (`void response.body?.cancel().catch(() => undefined)`), and throw `OrderGatewayError("UPSTREAM_ERROR", ...)`:
      - For `response.status >= 300 && response.status < 400`: ``Order bridge redirected (HTTP ${response.status}); redirects are not followed`` (never leaks `Location`, URL, token, or body).
      - For other non-OK statuses: ``Order bridge returned an invalid response (HTTP ${response.status})``.
    - Keep `vertex-orders.ts` unknown-outcome reconciliation unchanged (a failed `place`/`placeCombo` still records `unknown` and blocks retries until reconciled).

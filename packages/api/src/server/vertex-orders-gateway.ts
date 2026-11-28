@@ -315,7 +315,7 @@ export const createBridgeOrderGateway = (
     }
     const isRedirect = response.status >= 300 && response.status < 400;
     if (!response.ok) {
-      void response.body?.cancel();
+      void response.body?.cancel().catch(() => undefined);
       throw new OrderGatewayError(
         "UPSTREAM_ERROR",
         isRedirect

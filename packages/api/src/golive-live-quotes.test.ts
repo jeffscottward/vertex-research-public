@@ -182,9 +182,25 @@ describe("createBridgeQuotesReader", () => {
       expect(bodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
       expect(jsonSpy).not.toHaveBeenCalled();
     }
+
+    const erroredBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("socket reset"));
+      },
+    });
+    expect(
+      await createBridgeQuotesReader(URL_, TOKEN, {
+        fetch: async () =>
+          new Response(erroredBody, {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status: 302,
+          }),
+      })([SPREAD])
+    ).toEqual([null]);
   });
 
   it("does not follow a real loopback 307 redirect or forward the bridge token", async () => {
+    let quotesHits = 0;
     let stealHits = 0;
     const server = createServer((req, res) => {
       if (req.url === "/steal") {
@@ -198,6 +214,13 @@ describe("createBridgeQuotesReader", () => {
           })
         );
         return;
+      }
+      if (
+        req.url === "/quotes" &&
+        req.method === "POST" &&
+        req.headers["x-vertex-bridge-token"] === TOKEN
+      ) {
+        quotesHits += 1;
       }
       const address = server.address() as AddressInfo;
       res.writeHead(307, {
@@ -215,6 +238,7 @@ describe("createBridgeQuotesReader", () => {
         TOKEN
       );
       expect(await read([SPREAD])).toEqual([null]);
+      expect(quotesHits).toBe(1);
       expect(stealHits).toBe(0);
     } finally {
       await new Promise<void>((resolve) => {

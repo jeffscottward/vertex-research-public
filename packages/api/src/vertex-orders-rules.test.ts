@@ -1044,6 +1044,25 @@ describe("vertex order gateways", () => {
       message: "Order bridge returned an invalid response (HTTP 500)",
     });
     expect(errorJsonSpy).not.toHaveBeenCalled();
+
+    const erroredBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("socket reset"));
+      },
+    });
+    const erroredGateway = createBridgeOrderGateway(
+      "http://127.0.0.1:3470",
+      async () =>
+        new Response(erroredBody, {
+          headers: { location: "http://127.0.0.1:9999/steal" },
+          status: 302,
+        }),
+      TOKEN
+    );
+    await expect(erroredGateway.account()).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+      message: "Order bridge redirected (HTTP 302); redirects are not followed",
+    });
   });
 
   it("bridge gateway does not follow real loopback 307 redirects or forward the bridge token", async () => {

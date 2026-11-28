@@ -179,7 +179,7 @@ export const createBridgeQuotesReader = (
       return none;
     }
     if (!response.ok) {
-      void response.body?.cancel();
+      void response.body?.cancel().catch(() => undefined);
       return none;
     }
     const parsed = BridgeQuotesSchema.safeParse(
