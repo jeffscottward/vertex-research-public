@@ -79,7 +79,8 @@ const SmartMoneyCoverageSchema = z.object({
   /** Today's New York date; the live capture runs on NYSE trading days. */
   sessionDate: date,
   /**
-   * fresh: today's capture is at most 30 minutes old while options trade (09:30-16:15 New York);
+   * fresh: today's capture is at most 30 minutes old while options trade (09:30-16:15 New York,
+   * 13:15 on an NYSE early close);
    * stale: older, or missing after the first 30 minutes; never: no capture yet in the first 30
    * minutes; closed: outside that window, on a weekend or on an NYSE holiday.
    */

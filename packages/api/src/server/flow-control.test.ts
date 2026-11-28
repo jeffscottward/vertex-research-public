@@ -401,6 +401,34 @@ describe("buildFlowControl", () => {
     });
   });
 
+  it("is closed on an NYSE holiday and names the early close of the session", () => {
+    const holiday = buildFlowControl(
+      rowsOf({ now: new Date("2026-11-26T17:00:00.000Z") })
+    );
+    expect(holiday.options.noDataReason).toBe("market_closed");
+    expect(holiday.futures.noDataReason).toBe("market_closed");
+    // 2026-11-27 closes at 13:00 (options 13:15); at 14:00 New York the session has ended.
+    const shift = Date.parse("2026-11-27T14:30:00.000Z") - FROM.getTime();
+    const early = buildFlowControl(
+      rowsOf({
+        netDrift: run("SPX", 0, 21, 1000, 0).map((row) => ({
+          ...row,
+          minute: new Date(row.minute.getTime() + shift),
+        })),
+        now: new Date("2026-11-27T19:00:00.000Z"),
+        sessionDate: "2026-11-27",
+      })
+    );
+    expect(early.options).toMatchObject({
+      detail:
+        "Last session ended 13:15 ET on 2026-11-27; at the close the SPX options side was bullish",
+      noDataReason: "market_closed",
+    });
+    expect(optionsSessionRange("2026-11-27").to).toEqual(
+      new Date("2026-11-27T18:15:00.000Z")
+    );
+  });
+
   it("names the state at the last close, and says that no session is stored when there is none", () => {
     const closed = buildFlowControl(
       rowsOf({ now: new Date("2026-11-09T21:21:00.000Z") })
@@ -654,6 +682,11 @@ describe("buildFlowControl", () => {
         trades: 21,
         windowEnd: at(21).toISOString(),
       });
+      // An NYSE holiday (Thanksgiving, 12:00 New York) is closed like a weekend.
+      expect(
+        control({ ...buyTape, now: new Date("2026-11-26T17:00:00.000Z") })
+          .futures
+      ).toMatchObject({ noDataReason: "market_closed", state: "no_data" });
       // Before the open no minute has ended.
       expect(control({ ...buyTape, now: at(-1) }).futures).toMatchObject({
         asOf: null,

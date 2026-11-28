@@ -12,7 +12,7 @@ export const utcDay = (year: number, month: number, date: number): number =>
   Date.UTC(year, month, date) / DAY_MS;
 
 /** UTC day of the `n`th `day` (0 Sunday to 6 Saturday) of a month (0 January). */
-export const nthWeekday = (
+const nthWeekday = (
   year: number,
   month: number,
   day: number,
@@ -110,3 +110,52 @@ export const isNyseTradingDay = (day: number): boolean => {
     !nyseHolidays(new Date(day * DAY_MS).getUTCFullYear()).has(day)
   );
 };
+
+/** UTC day number of a `YYYY-MM-DD` date. */
+export const utcDayOfIso = (iso: string): number =>
+  Date.parse(`${iso}T00:00:00Z`) / DAY_MS;
+
+/** `YYYY-MM-DD` of a UTC day number. */
+export const isoDayOf = (day: number): string =>
+  new Date(day * DAY_MS).toISOString().slice(0, 10);
+
+/** Most recent NYSE trading day strictly before `todayUtcDay`, formatted as `YYYY-MM-DD`. */
+export const previousNyseTradingDay = (todayUtcDay: number): string => {
+  let day = todayUtcDay - 1;
+  while (!isNyseTradingDay(day)) day -= 1;
+  return isoDayOf(day);
+};
+
+/**
+ * NYSE early close (13:00 instead of 16:00 New York) on a trading day: 3 July, 24 December and
+ * the day after Thanksgiving. False on a day that is not a trading day.
+ */
+export const isNyseEarlyClose = (day: number): boolean => {
+  if (!isNyseTradingDay(day)) return false;
+  const date = new Date(day * DAY_MS);
+  const month = date.getUTCMonth();
+  const dayOfMonth = date.getUTCDate();
+  return (
+    (month === 6 && dayOfMonth === 3) ||
+    (month === 11 && dayOfMonth === 24) ||
+    day === nthWeekday(date.getUTCFullYear(), 10, 4, 4) + 1
+  );
+};
+
+/**
+ * Minutes by which an NYSE early close (13:00 instead of 16:00 New York) moves each NYSE-calendar
+ * window close of that day earlier.
+ */
+const NYSE_EARLY_CLOSE_SHIFT_MINUTES = 180;
+
+/**
+ * The close (New York minutes after midnight) on the UTC day `day` of a window whose regular close
+ * is `regularCloseMinute`: 180 minutes earlier on an NYSE early close.
+ */
+export const nyseCloseMinute = (
+  day: number,
+  regularCloseMinute: number
+): number =>
+  isNyseEarlyClose(day)
+    ? regularCloseMinute - NYSE_EARLY_CLOSE_SHIFT_MINUTES
+    : regularCloseMinute;
