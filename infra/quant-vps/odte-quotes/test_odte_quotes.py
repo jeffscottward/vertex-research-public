@@ -8,6 +8,7 @@ import sys
 import tempfile
 import types
 import unittest
+import zlib
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -361,6 +362,23 @@ class CollectTest(unittest.TestCase):
         self.assertEqual(self.run_collect(again), 0)
         self.assertEqual(again.calls[2:], ["C500BID", "C500ASK"])
         self.assertEqual(oq.file_health(folder / "SPY-20261119-C-500.csv.gz", DAY), (0, 1))
+
+    def test_damaged_deflate_data_is_asked_again(self):
+        self.assertEqual(self.run_collect(FakeSource(chain())), 0)
+        folder = self.root / "2026-11-19"
+        oq.write_status(folder, state="partial", reason="test")
+        path = folder / "SPY-20261119-C-500.csv.gz"
+        data = bytearray(path.read_bytes())
+        start = data.index(0, 10) + 1 if data[3] & 0x08 else 10  # skip the stored file name (gzip FNAME field)
+        data[start] = 0xFF  # first deflate block header: reserved block type
+        path.write_bytes(bytes(data))
+        with self.assertRaises(zlib.error):  # not an OSError: file_health must catch it by name
+            with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
+                f.read()
+        self.assertIsNone(oq.file_health(path, DAY))
+        again = FakeSource(chain())
+        self.assertEqual(self.run_collect(again), 0)
+        self.assertEqual(again.calls[2:], ["C500BID", "C500ASK"])
 
     def test_in_range_row_without_a_readable_file_keeps_the_day_partial(self):
         self.assertEqual(self.run_collect(FakeSource(chain())), 0)

@@ -41,9 +41,9 @@ Stale session (Amendment 2026-11-28 (f)-(g) in `docs/specs/strategies/noise-band
 that `FileQuoteBook` uses to exclude a day): at least 20% of the contracts inside the range are frozen (a run of 30
 or more session minutes from 09:30 ET with the same bid and ask bar opens, ask open above $0.10 and close = open on
 both sides) or crossed (10 or more session bars with ask open < bid open). On 2026-11-25 IBKR answered the 16:20 run
-with 37 of 50 in-range contracts frozen or crossed; each frozen contract stopped changing 2 h 23 min to 2 h 32 min
-before its request. While a day is `partial`, the next run (17:45 or 19:00 ET) asks again for every contract whose
-stored file is frozen or crossed (in-range and wing), and keeps the stored file when the new answer has no BID or ASK
-bars. A stored file that is missing or cannot be read counts as not stored. A complete day can still have frozen
-or crossed in-range contracts below the 20% limit (`stale_in_range` in `status.txt`); `FileQuoteBook` skips trades
-on their stale minutes.
+with 37 of 50 in-range contracts frozen; each of the 51 frozen contracts (wings included) stopped changing 2 h 23 min
+to 2 h 33 min before its file was written. While a day is `partial`, the next run (17:45 or 19:00 ET) asks again
+for every contract whose stored file is frozen or crossed (in-range and wing), and keeps the stored file when the
+new answer has no BID or ASK bars. A stored file that is missing or cannot be read counts as not stored. A complete
+day can still have frozen or crossed in-range contracts below the 20% limit (`stale_in_range` in `status.txt`);
+`FileQuoteBook` skips trades on their stale minutes.

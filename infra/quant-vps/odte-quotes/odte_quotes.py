@@ -53,6 +53,7 @@ import sys
 import threading
 import time
 import urllib.request
+import zlib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -165,7 +166,7 @@ def file_health(path: Path, day: date) -> tuple[int, int] | None:
     try:
         with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
             return quote_health(list(csv.reader(f))[1:], day)
-    except (OSError, EOFError, ValueError, IndexError, csv.Error):
+    except (OSError, EOFError, zlib.error, ValueError, IndexError, csv.Error):  # zlib.error: damaged deflate data
         return None
 
 
@@ -355,9 +356,9 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
         return stop(f"{len(core_empty)} contracts inside the day's range have no BID or ASK bars or no readable file, "
                     f"e.g. {core_empty[0]}", low=f"{low:g}", high=f"{high:g}")
     # IBKR can also answer with an afternoon of frozen or crossed bars (2026-11-25: 37 of 50 in-range contracts; each
-    # frozen one stopped changing 2 h 23 min to 2 h 32 min before its request). A day that the stale-session rule of
-    # FileQuoteBook would exclude therefore stays partial, and the next run (17:45 or 19:00 ET) asks again for every
-    # frozen or crossed contract.
+    # frozen one stopped changing 2 h 23 min to 2 h 33 min before its file was written). A day that the stale-session
+    # rule of FileQuoteBook would exclude therefore stays partial, and the next run (17:45 or 19:00 ET) asks again for
+    # every frozen or crossed contract.
     stale = [n for n in core if is_stale(health_of[n])]
     if core and len(stale) / len(core) >= STALE_DAY_FRACTION:
         return stop(f"stale session: {len(stale)} of {len(core)} contracts inside the day's range are frozen "
