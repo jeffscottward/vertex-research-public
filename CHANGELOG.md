@@ -4,6 +4,10 @@ Notable changes to DarkFactory will be documented in this file. The format is ba
 
 ## [Unreleased]
 
+### Security
+
+- JEV verdict log is append-only for the table owner too (card `vertex-jev-verdict-log-owner-grants`): on production `vertex_research` owns `jev_verdict_log`, so the 0082 grant did not limit it. Migration `0104_jev_verdict_log_append_only` adds triggers that reject `UPDATE`, `DELETE` and `TRUNCATE` for every role, with a rollback file and a real-Postgres test run as the owner.
+
 ### Removed
 
 - Retired OpenBB `sec-insider` job and `openbb_sec_insider_trades` table (Vertex, research only; card `vertex-sec-insider-retire-cleanup`, plan `docs/vertex-rebuild/designs/smart-money/plan-sec-insider-retire.md`): after `sec-form4` reached 31 EDGAR index days and a restore-verified backup of the 363 rows was saved, removes `sec-insider` from `services/openbb`, removes `sec-insider`, `sec_insider_trades`, the `retired` schedule kind/status flag, and nullable `maxAgeSeconds` from `packages/api`, regenerates `packages/api/openapi.json`, and drops `openbb_sec_insider_trades` in migration `0102_drop_openbb_sec_insider_trades` (non-CASCADE, with full guarded rollback). `openbb.sec` continues returning `insiderTrades` from the four Form 4 tables, and historical `openbb_ingest_runs` rows stay as audit history.

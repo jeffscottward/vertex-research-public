@@ -34,7 +34,7 @@ The log keeps every verdict, also several for the same symbol and data date. It 
 
 ## Append-only
 
-The repository has only `append` and `listForecasts`. The migration grants the app role `vertex_research` only `SELECT` and `INSERT` on the table, so the app cannot update or delete rows.
+The repository has only `append` and `listForecasts`. The migration grants the app role `vertex_research` only `SELECT` and `INSERT` on the table, so the app cannot update or delete rows. On production the migrations run as `vertex_research`, so that role owns the table and the grant does not limit it; migration 0104 adds triggers that reject `UPDATE`, `DELETE` and `TRUNCATE` for every role, the owner included.
 
 ## Rollback
 
