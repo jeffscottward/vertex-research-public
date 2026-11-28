@@ -500,7 +500,7 @@ Source of the parser: the old workspace (see "Sources"), file apps/server/src/sw
 
 Read (`readSwinglytics`, a new bounded HTML read in the evidence module; `fetchBoundedJson` accepts only JSON and `fetchBoundedText` sends an RSS header, so neither fits):
 
-- GET `https://www.swinglytics.com/`, headers `accept: text/html` and `user-agent: Vertex Research/1.0 (low-frequency public context)`, `redirect: "error"`, timeout 10,000 ms.
+- GET `https://www.swinglytics.com/`, headers `accept: text/html` and `user-agent: Vertex Research/1.0 (low-frequency public context)`, `redirect: "manual"` (workerd rejects `"error"`; a 3xx is refused as `provider-http`), timeout 10,000 ms.
 - Refuse: a status that is not 2xx; a content type other than `text/html`; a `content-length` above 1,000,000; a body above 1,000,000 bytes (the read stops at the limit); bytes that are not valid UTF-8.
 
 Parse (`parseSwinglyticsHtml(html)`, pure, in the new module packages/api/src/swinglytics.ts):
