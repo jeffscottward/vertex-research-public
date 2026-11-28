@@ -100,26 +100,28 @@ In `checkAppliedMigrations`, each structural check adds the owning migration's `
     - `stripSqlComments` preserving dollar-quoted function bodies with embedded apostrophes/comments before `--> statement-breakpoint` + `CREATE TRIGGER`, plus `scanDollarQuoted` rejecting digit-leading tags.
     - `CREATE [OR REPLACE] FUNCTION`, `DROP FUNCTION` (single, comma-separated with arg commas, `CASCADE` removing dependent triggers only for 0-arg/omitted-arg drops, ignoring non-public schema drops), `DO LANGUAGE plpgsql $$ ... $$`.
     - `CREATE [OR REPLACE] TRIGGER` (`BEFORE`/`AFTER`, `UPDATE OF` with quoted `"on"` column, `WHEN (...)` containing `'EXECUTE FUNCTION fake()'`, `EXECUTE FUNCTION` and `EXECUTE PROCEDURE`, quoted names with dots and escaped `""`, non-public table skipped, non-public target function `fn: null`, `PUBLIC` vs `"PUBLIC"` schema distinction), `DROP TRIGGER`, and `DROP TABLE` removing only triggers on the dropped table (not `"a.b"` when dropping `a`).
-    - Extend `it("parses all real repository migrations cleanly", ...)` to assert the exact verified inventory across all 104 migrations:
+    - Extend `it("parses all real repository migrations cleanly", ...)` to assert the exact verified inventory across all repository migrations (including `0104_jev_verdict_log_append_only` after PR #501):
       - `0005_workflow_durability`: functions `reject_workflow_journal_mutation`, `delete_workflow_run_outbox_events`; triggers `workflow_journal.workflow_journal_immutable`, `workflow_runs.workflow_runs_delete_outbox`.
       - `0008_vertex_buildout`: functions `vertex_reject_epoch_transition_mutation`, `vertex_reject_native_approval_audit_mutation`; triggers `vertex_portfolio_epoch_transitions.vertex_epoch_transition_immutable`, `vertex_portfolio_epoch_transitions.vertex_epoch_transition_no_truncate`, `vertex_native_approval_audit.vertex_native_approval_audit_immutable`, `vertex_native_approval_audit.vertex_native_approval_audit_no_truncate`.
       - `0012_vertex_research_chat_copy_inventory`: function `vertex_chat_copy_immutable`; triggers `vertex_research_chat_copy_families.vertex_copy_family_immutable`, `vertex_research_chat_copy_allocations.vertex_copy_allocation_immutable`, `vertex_research_chat_copy_content_bindings.vertex_copy_content_immutable`, `vertex_research_chat_copy_dependencies.vertex_copy_dependency_immutable`, `vertex_research_chat_copy_closures.vertex_copy_closure_immutable`.
       - `0013_vertex_research_chat_copy_cleanup`: trigger `vertex_research_chat_copy_cleanup_intents.vertex_copy_cleanup_immutable` (`fn: "vertex_chat_copy_immutable"`).
+      - `0104_jev_verdict_log_append_only`: function `jev_verdict_log_reject_mutation`; triggers `jev_verdict_log.jev_verdict_log_immutable`, `jev_verdict_log.jev_verdict_log_no_truncate`.
     - `parsePostgresSnapshot` with `F` and `TR` rows (including quoted function names containing colons, trailing spaces, and malformed `TR` fail-closed error).
     - `checkAppliedMigrations` for: trigger-only migration matching `0104_jev_verdict_log_append_only.sql` unapplied (exit 3, flags missing function and both triggers), applied without Drizzle ledger (exit 0, counted in `structuralCount`), disabled trigger (`D`), replica-only trigger (`R`), wrong function (including cross-schema `other.fn`), disabled + wrong function emitting both reasons, and parent-table missing suppression.
   - Verify **100% statements, branches, functions, and lines** on `scripts/migrations/check-applied.ts` (`scripts/ci/coverage-baseline.json` records per-file coverage minimums for legacy files; unlisted files must reach 100%).
 - **`tests/integration/database/migration-guard.test.ts`**:
-  - Append steps 5–7 to the existing sequential `it(...)` block (updating its test title):
+  - Append steps 5–8 to the existing sequential `it(...)` block (updating its test title):
     - Step 5: `DROP TRIGGER workflow_journal_immutable ON public.workflow_journal` -> flags `0005_workflow_durability` with `missing trigger workflow_journal.workflow_journal_immutable`.
     - Step 6: `ALTER TABLE public.vertex_portfolio_epoch_transitions DISABLE TRIGGER vertex_epoch_transition_immutable` -> flags `0008_vertex_buildout` with `trigger vertex_portfolio_epoch_transitions.vertex_epoch_transition_immutable is disabled`.
     - Step 7: `DROP FUNCTION public.vertex_reject_native_approval_audit_mutation() CASCADE` -> flags `0008_vertex_buildout` with `expect.arrayContaining(["missing function vertex_reject_native_approval_audit_mutation", "missing trigger vertex_native_approval_audit.vertex_native_approval_audit_immutable", "missing trigger vertex_native_approval_audit.vertex_native_approval_audit_no_truncate"])`.
+    - Step 8: `DROP FUNCTION public.jev_verdict_log_reject_mutation() CASCADE` -> flags `0104_jev_verdict_log_append_only` with `expect.arrayContaining(["missing function jev_verdict_log_reject_mutation", "missing trigger jev_verdict_log.jev_verdict_log_immutable", "missing trigger jev_verdict_log.jev_verdict_log_no_truncate"])`.
 - **Documentation**:
   - Update header comments in `scripts/migrations/check-applied.ts` and `infra/quantvps/restart-when-idle.sh`, and the Migration guard bullet in `infra/quantvps/README.md`.
 
 ## Phasing & Checkpoints
 
 1. **Phase 1 — Snapshot + Extractor + Checker + Unit Tests (`check-applied.ts`, `check-applied.test.ts`)**: Implement all code and unit tests together so `DatabaseSnapshot` and test helpers stay type-safe in one atomic step. Checkpoint: `pnpm exec vitest run --coverage scripts/migrations/check-applied.test.ts` passes with 100% coverage on `check-applied.ts`.
-2. **Phase 2 — Integration Test + Docs (`migration-guard.test.ts`, `restart-when-idle.sh`, `README.md`)**: Add real-Postgres steps 5–7 and update comments/docs. Checkpoint: `pnpm exec vitest run infra/quantvps/restart-when-idle.test.ts`, `bun run verify:prepush` (repository pre-push lint/typecheck/unit/contract/operations gate), and `node scripts/public-names.ts` (public-repo leak scanner) all pass.
+2. **Phase 2 — Integration Test + Docs (`migration-guard.test.ts`, `restart-when-idle.sh`, `README.md`)**: Add real-Postgres steps 5–8 and update comments/docs. Checkpoint: `pnpm exec vitest run infra/quantvps/restart-when-idle.test.ts`, `bun run verify:prepush` (repository pre-push lint/typecheck/unit/contract/operations gate), and `node scripts/public-names.ts` (public-repo leak scanner) all pass.
 3. **Phase 3 — Drift Check + Fresh-Context Code Review + CI**: Run Elephant-Goldfish Model (EGM) drift report against `plan.md`, run fresh-context code review of the full diff, open/ready PR to `vertex/rebuild-darkfactory-20260921`, and confirm required `ci-gate` (including real-Postgres `verify:integration`) passes.
 
 ## Risks and rollback
@@ -144,5 +146,5 @@ In `checkAppliedMigrations`, each structural check adds the owning migration's `
 3. `pnpm exec vitest run --coverage scripts/migrations/check-applied.test.ts` passes with **100% statements, branches, functions, and lines** on `scripts/migrations/check-applied.ts`.
 4. `pnpm exec vitest run infra/quantvps/restart-when-idle.test.ts` passes.
 5. `bun run verify:prepush` and `node scripts/public-names.ts` pass with zero errors.
-6. Real-Postgres integration test (`tests/integration/database/migration-guard.test.ts`, including steps 5–7) passes in full CI (`ci-gate` green on the reviewed head SHA).
+6. Real-Postgres integration test (`tests/integration/database/migration-guard.test.ts`, including steps 5–8) passes in full CI (`ci-gate` green on the reviewed head SHA).
 7. EGM drift report shows zero drift between `plan.md` and the implemented code, and fresh-context code review passes with zero open findings.

@@ -380,6 +380,29 @@ describe("extractMigrationExpectations", () => {
       tag: "0013_vertex_research_chat_copy_cleanup",
       trigger: "vertex_copy_cleanup_immutable",
     });
+    expect(exp.functions.get("jev_verdict_log_reject_mutation")).toBe(
+      "0104_jev_verdict_log_append_only"
+    );
+    expect(
+      exp.triggers.get(
+        makeTriggerKey("jev_verdict_log", "jev_verdict_log_immutable")
+      )
+    ).toEqual({
+      fn: "jev_verdict_log_reject_mutation",
+      table: "jev_verdict_log",
+      tag: "0104_jev_verdict_log_append_only",
+      trigger: "jev_verdict_log_immutable",
+    });
+    expect(
+      exp.triggers.get(
+        makeTriggerKey("jev_verdict_log", "jev_verdict_log_no_truncate")
+      )
+    ).toEqual({
+      fn: "jev_verdict_log_reject_mutation",
+      table: "jev_verdict_log",
+      tag: "0104_jev_verdict_log_append_only",
+      trigger: "jev_verdict_log_no_truncate",
+    });
   });
 
   it("tracks functions, triggers, dollar-quoted bodies, DO LANGUAGE blocks, drops, and schema guards", () => {

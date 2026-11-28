@@ -205,5 +205,30 @@ describe("QuantVPS migration guard against real Postgres", {
         tag: "0008_vertex_buildout",
       })
     );
+
+    // 8. Drop 0104 trigger function (CASCADE) -> proves trigger-only migration 0104_jev_verdict_log_append_only is caught.
+    await testDatabase.query(
+      "DROP FUNCTION public.jev_verdict_log_reject_mutation() CASCADE"
+    );
+    const missing0104Raw = await captureSnapshot();
+    const missing0104Parsed = parsePostgresSnapshot(missing0104Raw);
+    expect(missing0104Parsed.ok).toBe(true);
+    if (!missing0104Parsed.ok) return;
+
+    const missing0104Report = checkAppliedMigrations(
+      loaded.migrations,
+      missing0104Parsed.snapshot
+    );
+    expect(missing0104Report.ok).toBe(false);
+    expect(missing0104Report.missing).toContainEqual(
+      expect.objectContaining({
+        reasons: expect.arrayContaining([
+          "missing function jev_verdict_log_reject_mutation",
+          "missing trigger jev_verdict_log.jev_verdict_log_immutable",
+          "missing trigger jev_verdict_log.jev_verdict_log_no_truncate",
+        ]),
+        tag: "0104_jev_verdict_log_append_only",
+      })
+    );
   });
 });
