@@ -119,7 +119,8 @@ class Underlying:
         return max(0, (expiry - self.dates[i]).days) / 365
 
     def rate(self, i: int) -> float:
-        return self.rates[i] if self.rates is not None else 0.0
+        # Floor at 0.0: Yahoo ^IRX dipped slightly negative in March 2020, and bs_price requires r >= 0.
+        return max(0.0, self.rates[i]) if self.rates is not None else 0.0
 
     def leg_mid(self, leg: Leg, spot: float, t: float, atm: float, r: float = 0.0) -> float:
         if t <= 0:
