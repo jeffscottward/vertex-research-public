@@ -9,7 +9,7 @@ Keep each request cheap and bounded on Cloudflare Workers and Postgres.
 
 ## Responsibilities
 
-- Check the database hot path: one `pg` client per request, opened by the request scope and capped per isolate by `REQUEST_DATABASE_POOL_MAX_CONNECTIONS` (`packages/db/src/server/client.ts`).
+- Check the database hot path: one `pg` client per request, opened by the request scope and capped per isolate by `REQUEST_DATABASE_POOL_MAX_CONNECTIONS` (`packages/db/src/server/request-slots.ts`); a slot is held at most 7 min (`REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS`).
 - Check that capacity errors surface as `503 DATABASE_CAPACITY` with `retry-after`, not as a 500.
 - Review queries for N+1 patterns, missing indexes, unbounded result sets and missing pagination (cursor-based, as in the admin users repository).
 - Review Worker limits: the `cpu_ms` limit in `apps/web/wrangler.jsonc`, body size limits, and timeouts on outbound calls.

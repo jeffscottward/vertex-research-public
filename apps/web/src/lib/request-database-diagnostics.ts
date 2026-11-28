@@ -17,9 +17,15 @@ type RequestDatabaseDiagnosticAdapterOptions = Readonly<{
   requestId: string;
 }>;
 
+type EventProfile = Readonly<{
+  name: string;
+  errorCategory: string;
+  attributes?: Readonly<Record<string, string | number>>;
+}>;
+
 const eventProfileFor = (
   diagnostic: RequestDatabaseDiagnostic
-): Readonly<{ name: string; errorCategory: string }> | undefined => {
+): EventProfile | undefined => {
   switch (diagnostic.code) {
     case "REQUEST_DATABASE_CLIENT_ERROR": {
       return Object.freeze({
@@ -31,6 +37,19 @@ const eventProfileFor = (
       return Object.freeze({
         name: "request-database.client-close-failed",
         errorCategory: "REQUEST_DATABASE_CLIENT_CLOSE_ERROR",
+      });
+    }
+    case "REQUEST_DATABASE_SLOT_RECLAIMED": {
+      // Reported by the request that held the slot when it ends its own client at the age limit,
+      // or by the request that took the slot back when the holder's request context is gone.
+      // The attributes name the holder (its route label, never a query string) and its age.
+      return Object.freeze({
+        name: "request-database.slot-reclaimed",
+        errorCategory: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        attributes: Object.freeze({
+          reclaimedRoute: diagnostic.route,
+          ageSeconds: diagnostic.ageSeconds,
+        }),
       });
     }
     default: {
@@ -53,6 +72,9 @@ export const createRequestDatabaseDiagnosticSink = (
       outcome: "failure",
       source: "worker",
       errorCategory: profile.errorCategory,
+      ...(profile.attributes === undefined
+        ? {}
+        : { attributes: profile.attributes }),
     });
     const emission = Promise.resolve().then(() => options.sink.emit(event));
     try {
