@@ -59,6 +59,8 @@ import {
 // RequestInit through workerd in CI closes that gap across all packages.
 
 type AdapterReplayCase = Readonly<{
+  /** HTTP methods that must be observed in the 200 pass (guards multi-method adapters against dead POST paths). */
+  expectedMethods?: readonly string[];
   /** Whether the adapter is expected to send redirect:"manual" and never follow 302s. */
   expectManualRedirect: boolean;
   /** Repo-relative source file covered by this case. */
@@ -117,10 +119,22 @@ const createInternalProcedureClient = () =>
           url: "https://quantvps.tailnet.test:8443/vertex-ibkr-recovery/v1/",
         },
         operatorEmails: [OPERATOR_EMAIL],
-        repositories: {} as unknown as Repositories,
+        repositories: {
+          nautilusArmAudit: {
+            countSince: async () => 0,
+            record: async () => undefined,
+          },
+        } as unknown as Repositories,
         requestId: "workerd-replay-req",
         requireRole: async () => fakeOperatorSession(),
         requireSession: async () => fakeOperatorSession(),
+        semanticEvents: {
+          emit: async () => ({
+            analytics: "skipped",
+            span: "skipped",
+            structuredEvent: "emitted",
+          }),
+        },
       });
       return await handleApiRequest(request, context);
     },
@@ -426,9 +440,26 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
     },
   },
   {
+    expectedMethods: ["GET", "POST"],
     expectManualRedirect: true,
     file: "packages/api/src/server/ibkr-recovery.ts",
     name: "api/ibkr-recovery: status (GET) and request (POST)",
+    okResponse: {
+      body: JSON.stringify({
+        cooldown: { seconds: 900, until: null },
+        gateway: {
+          loginState: "logged-out",
+          needsLogin: true,
+          reason: "2fa-timeout",
+          since: "2026-11-25T14:50:00Z",
+        },
+        generatedAt: "2026-11-25T14:59:59Z",
+        history: [],
+        request: null,
+        schema: "vertex-ibkr-recovery-status-v1",
+        version: "1.0.0",
+      }),
+    },
     run: async (replayFetch) => {
       setIbkrRecoveryDependenciesForTesting({
         fetch: (url, init) => replayFetch(url, init),
@@ -520,6 +551,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
     },
   },
   {
+    expectedMethods: ["GET", "POST"],
     expectManualRedirect: true,
     file: "packages/api/src/server/nautilus-arm.ts",
     name: "api/nautilus-arm: status (GET) and disarm (POST)",
@@ -662,6 +694,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
     },
   },
   {
+    expectedMethods: ["GET", "POST"],
     expectManualRedirect: true,
     file: "packages/api/src/server/vertex-orders-gateway.ts",
     name: "api/vertex-orders-gateway: account (GET) and cancel (POST)",
@@ -710,6 +743,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
     },
   },
   {
+    expectedMethods: ["GET", "POST"],
     expectManualRedirect: true,
     file: "apps/web/src/lib/server-theme-api.ts",
     name: "web/server-theme-api: forwardThemeApiRequest (GET and POST)",
@@ -849,6 +883,17 @@ describe("workerd outbound adapter RequestInit runtime replay", () => {
       for (const record of okHandle.records) {
         expect(record.responseStatus).toBe(200);
         expect(record.followedRedirect).toBe(false);
+      }
+      if (adapterCase.expectedMethods !== undefined) {
+        const seenMethods = new Set(
+          okHandle.records.map((record) => record.method.toUpperCase())
+        );
+        for (const expectedMethod of adapterCase.expectedMethods) {
+          expect(
+            seenMethods.has(expectedMethod),
+            `${adapterCase.name} [200] did not invoke ${expectedMethod} (observed: ${[...seenMethods].join(", ")})`
+          ).toBe(true);
+        }
       }
 
       // 2. Loopback 302 pass: workerd must accept RequestInit; manual-redirect adapters must not follow 302.
