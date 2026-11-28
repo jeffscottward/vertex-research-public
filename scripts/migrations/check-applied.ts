@@ -2,7 +2,8 @@
 // before `infra/quantvps/restart-when-idle.sh` restarts `vertex-web`.
 // QuantVPS applies individual migrations with `psql` (leaving `drizzle.__drizzle_migrations`
 // incomplete), so this checker inspects the live catalog (tables, columns, nullability, indexes,
-// constraints, replaced CHECK literals, and `vertex_research` grants) alongside the Drizzle ledger.
+// constraints, replaced CHECK literals, `vertex_research` grants, functions, and triggers)
+// alongside the Drizzle ledger.
 // Used by: scripts/db-migrations-check.ts (called by infra/quantvps/restart-when-idle.sh).
 // See: infra/quantvps/README.md (Migration guard); card vertex-deploy-migration-guard.
 import { spawnSync } from "node:child_process";
@@ -34,6 +35,12 @@ const TABLE_CONSTRAINT_KEYWORDS: Record<string, true> = {
   LIKE: true,
   PRIMARY: true,
   UNIQUE: true,
+};
+const VALID_TRIGGER_ENABLED: Record<string, true> = {
+  A: true,
+  D: true,
+  O: true,
+  R: true,
 };
 
 /**
@@ -90,7 +97,24 @@ FROM (
   WHERE r.rolname = '${APP_ROLE}'
     AND has_table_privilege(r.oid, format('%I.%I', 'public', tbl.tablename), priv.p)
   UNION ALL
-  SELECT 9 AS ord, '@@END'::text AS kind, ''::text AS a, ''::text AS b, ''::text AS c
+  SELECT 8 AS ord, 'F'::text AS kind, p.proname::text AS a, ''::text AS b, ''::text AS c
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_namespace ns ON ns.oid = p.pronamespace
+  WHERE ns.nspname = 'public'
+    AND p.prokind = 'f'
+  GROUP BY p.proname
+  UNION ALL
+  SELECT 9 AS ord, 'TR'::text AS kind, cls.relname::text AS a, tg.tgname::text AS b,
+         (tg.tgenabled::text || ':' || CASE WHEN fn_ns.nspname = 'public' THEN fn.proname ELSE fn_ns.nspname || '.' || fn.proname END)::text AS c
+  FROM pg_catalog.pg_trigger tg
+  JOIN pg_catalog.pg_class cls ON cls.oid = tg.tgrelid
+  JOIN pg_catalog.pg_namespace ns ON ns.oid = cls.relnamespace
+  JOIN pg_catalog.pg_proc fn ON fn.oid = tg.tgfoid
+  JOIN pg_catalog.pg_namespace fn_ns ON fn_ns.oid = fn.pronamespace
+  WHERE ns.nspname = 'public'
+    AND NOT tg.tgisinternal
+  UNION ALL
+  SELECT 10 AS ord, '@@END'::text AS kind, ''::text AS a, ''::text AS b, ''::text AS c
 ) snapshot
 ORDER BY ord, a, b;`;
 
@@ -99,14 +123,26 @@ export interface MigrationSource {
   readonly tag: string;
 }
 
+export interface SnapshotTrigger {
+  readonly enabled: string;
+  readonly fn: string;
+}
+
+/** Composite key for `(table, trigger)` using NUL, which PostgreSQL forbids in identifiers. */
+export function makeTriggerKey(table: string, trigger: string): string {
+  return `${table}\0${trigger}`;
+}
+
 export interface DatabaseSnapshot {
   readonly appGrants: ReadonlySet<string>;
   readonly columns: ReadonlyMap<string, string>;
   readonly constraints: ReadonlyMap<string, string>;
+  readonly functions: ReadonlySet<string>;
   readonly indexes: ReadonlySet<string>;
   readonly ledgerHashes: ReadonlySet<string>;
   readonly roles: ReadonlySet<string>;
   readonly tables: ReadonlySet<string>;
+  readonly triggers: ReadonlyMap<string, SnapshotTrigger>;
 }
 
 export type SnapshotParseResult =
@@ -156,14 +192,23 @@ interface RequiredLiteral {
   readonly tag: string;
 }
 
+interface TriggerRule {
+  readonly fn: string | null;
+  readonly table: string;
+  readonly tag: string;
+  readonly trigger: string;
+}
+
 interface MigrationExpectations {
   readonly columns: Map<string, string>;
   readonly constraints: Map<string, string>;
+  readonly functions: Map<string, string>;
   readonly grants: Map<string, string>;
   readonly indexes: Map<string, IndexRule>;
   readonly nullability: Map<string, NullabilityRule>;
   readonly requiredLiterals: Map<string, RequiredLiteral[]>;
   readonly tables: Map<string, string>;
+  readonly triggers: Map<string, TriggerRule>;
 }
 
 interface ExtractionState extends MigrationExpectations {
@@ -176,14 +221,16 @@ interface MutableSnapshot {
   readonly appGrants: Set<string>;
   readonly columns: Map<string, string>;
   readonly constraints: Map<string, string>;
+  readonly functions: Set<string>;
   readonly indexes: Set<string>;
   readonly ledgerHashes: Set<string>;
   readonly roles: Set<string>;
   readonly tables: Set<string>;
+  readonly triggers: Map<string, SnapshotTrigger>;
 }
 
-const IDENT = '(?:(?:"public"|public)\\.)?(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_]*)';
-const SIMPLE_IDENT = '(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_]*)';
+const SIMPLE_IDENT = '(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_]*)';
+const IDENT = `(?:(?:"public"|public)\\.)?${SIMPLE_IDENT}`;
 const IDENT_END = "(?=$|[\\s;(,])";
 
 const CREATE_TABLE_RE = new RegExp(
@@ -235,6 +282,31 @@ const DROP_INDEX_RE = new RegExp(
   `^DROP\\s+INDEX(?:\\s+CONCURRENTLY)?(?:\\s+IF\\s+EXISTS)?\\s+(${IDENT})${IDENT_END}`,
   "iu"
 );
+const CREATE_FUNCTION_RE = new RegExp(
+  `^CREATE(?:\\s+OR\\s+REPLACE)?\\s+FUNCTION\\s+(?:(${SIMPLE_IDENT})\\.)?(${SIMPLE_IDENT})\\s*\\(`,
+  "iu"
+);
+const DROP_FUNCTION_RE = /^DROP\s+FUNCTION(?:\s+IF\s+EXISTS)?\s+([\s\S]+)$/iu;
+const DROP_FUNCTION_ITEM_RE = new RegExp(
+  `^(?:(${SIMPLE_IDENT})\\.)?(${SIMPLE_IDENT})(?:\\s*\\(([\\s\\S]*)\\))?\\s*$`,
+  "iu"
+);
+const CREATE_TRIGGER_HEAD_RE = new RegExp(
+  `^CREATE(?:\\s+OR\\s+REPLACE)?\\s+TRIGGER\\s+(${SIMPLE_IDENT})\\s+(?:BEFORE|AFTER)\\s+`,
+  "iu"
+);
+const TRIGGER_ON_RE = new RegExp(
+  `^ON\\s+(?:(${SIMPLE_IDENT})\\.)?(${SIMPLE_IDENT})${IDENT_END}`,
+  "iu"
+);
+const TRIGGER_EXECUTE_RE = new RegExp(
+  `^EXECUTE\\s+(?:FUNCTION|PROCEDURE)\\s+(?:(${SIMPLE_IDENT})\\.)?(${SIMPLE_IDENT})\\s*\\(`,
+  "iu"
+);
+const DROP_TRIGGER_RE = new RegExp(
+  `^DROP\\s+TRIGGER(?:\\s+IF\\s+EXISTS)?\\s+(${SIMPLE_IDENT})\\s+ON\\s+(?:(${SIMPLE_IDENT})\\.)?(${SIMPLE_IDENT})${IDENT_END}`,
+  "iu"
+);
 /** Truncates a PostgreSQL identifier to NAMEDATALEN - 1 (63 UTF-8 bytes), folding unquoted names. */
 export function truncatePgIdent(raw: string, quoted: boolean): string {
   const folded = quoted ? raw : raw.toLowerCase();
@@ -266,6 +338,20 @@ export function parseIdentToken(token: string): string {
   return truncatePgIdent(withoutSchema, false);
 }
 
+function parsePublicQualifiedIdent(
+  schema: string | undefined,
+  name: string
+): string | null {
+  if (
+    schema !== undefined &&
+    schema !== '"public"' &&
+    (schema.startsWith('"') || schema.toLowerCase() !== "public")
+  ) {
+    return null;
+  }
+  return parseIdentToken(name);
+}
+
 /** Advances past a quoted string/identifier starting at `start`, returning the next index. */
 function scanQuoted(text: string, start: number, quote: "'" | '"'): number {
   let i = start + 1;
@@ -284,7 +370,7 @@ function scanQuoted(text: string, start: number, quote: "'" | '"'): number {
 
 /** Advances past a dollar-quoted block starting at `start`, or returns -1 if not at a tag. */
 function scanDollarQuoted(text: string, start: number): number {
-  const match = /^\$[A-Za-z0-9_]*\$/u.exec(text.slice(start));
+  const match = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/u.exec(text.slice(start));
   if (!match) {
     return -1;
   }
@@ -293,19 +379,30 @@ function scanDollarQuoted(text: string, start: number): number {
   return closeIdx >= 0 ? closeIdx + tag.length : text.length;
 }
 
-/** Strips SQL line and block comments while keeping single/double-quoted text intact. */
+function scanProtectedLiteral(text: string, start: number): number {
+  const ch = text[start];
+  if (ch === "'" || ch === '"') {
+    return scanQuoted(text, start, ch);
+  }
+  if (ch === "$") {
+    return scanDollarQuoted(text, start);
+  }
+  return -1;
+}
+
+/** Strips SQL line and block comments while keeping quoted and dollar-quoted text intact. */
 export function stripSqlComments(sql: string): string {
   let out = "";
   let i = 0;
   while (i < sql.length) {
-    const ch = sql[i];
-    const next = sql[i + 1];
-    if (ch === "'" || ch === '"') {
-      const end = scanQuoted(sql, i, ch);
-      out += sql.slice(i, end);
-      i = end;
+    const protectedEnd = scanProtectedLiteral(sql, i);
+    if (protectedEnd >= 0) {
+      out += sql.slice(i, protectedEnd);
+      i = protectedEnd;
       continue;
     }
+    const ch = sql[i];
+    const next = sql[i + 1];
     if (ch === "-" && next === "-") {
       const newline = sql.indexOf("\n", i + 2);
       i = newline >= 0 ? newline : sql.length;
@@ -330,18 +427,12 @@ export function splitTopLevel(text: string, delimiter: ";" | ","): string[] {
   let depth = 0;
   let i = 0;
   while (i < text.length) {
-    const ch = text[i];
-    if (ch === "'" || ch === '"') {
-      i = scanQuoted(text, i, ch);
+    const protectedEnd = scanProtectedLiteral(text, i);
+    if (protectedEnd >= 0) {
+      i = protectedEnd;
       continue;
     }
-    if (ch === "$") {
-      const end = scanDollarQuoted(text, i);
-      if (end >= 0) {
-        i = end;
-        continue;
-      }
-    }
+    const ch = text[i];
     if (ch === "(") {
       depth += 1;
     } else if (ch === ")" && depth > 0) {
@@ -376,6 +467,43 @@ function findMatchingParen(text: string, openIndex: number): number {
     i += 1;
   }
   return -1;
+}
+
+function findTopLevelMatch(
+  text: string,
+  start: number,
+  pattern: RegExp
+): { readonly end: number; readonly match: RegExpExecArray } | null {
+  let depth = 0;
+  let i = start;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') {
+      i = scanQuoted(text, i, ch);
+      continue;
+    }
+    if (ch === "(") {
+      depth += 1;
+      i += 1;
+      continue;
+    }
+    if (ch === ")" && depth > 0) {
+      depth -= 1;
+      i += 1;
+      continue;
+    }
+    if (
+      depth === 0 &&
+      (i === start || !/[A-Za-z0-9_]/u.test(text.charAt(i - 1)))
+    ) {
+      const match = pattern.exec(text.slice(i));
+      if (match) {
+        return { end: i + match[0].length, match };
+      }
+    }
+    i += 1;
+  }
+  return null;
 }
 
 function extractSafeCheckLiterals(expr: string): Set<string> {
@@ -486,6 +614,70 @@ function recordDropTable(table: string, state: ExtractionState): void {
   deleteByPrefix(state.previousConstraintLiterals, prefix);
   deleteByPrefix(state.previousRequiredLiterals, prefix);
   deleteByPrefix(state.grants, `${table}:`);
+  for (const [key, rule] of [...state.triggers]) {
+    if (rule.table === table) {
+      state.triggers.delete(key);
+    }
+  }
+}
+
+function recordDropFunction(
+  rawTargetList: string,
+  state: ExtractionState
+): void {
+  const cascade = /\s+CASCADE\s*$/iu.test(rawTargetList);
+  const stripped = rawTargetList
+    .replace(/\s+(?:CASCADE|RESTRICT)\s*$/iu, "")
+    .trim();
+  for (const rawItem of splitTopLevel(stripped, ",")) {
+    const match = DROP_FUNCTION_ITEM_RE.exec(rawItem.trim());
+    if (!match) {
+      continue;
+    }
+    const fnName = parsePublicQualifiedIdent(match[1], String(match[2]));
+    if (fnName === null) {
+      continue;
+    }
+    state.functions.delete(fnName);
+    const args = match[3];
+    if (cascade && (args === undefined || args.trim().length === 0)) {
+      for (const [key, rule] of [...state.triggers]) {
+        if (rule.fn === fnName) {
+          state.triggers.delete(key);
+        }
+      }
+    }
+  }
+}
+
+function recordCreateTrigger(
+  stmt: string,
+  headMatch: RegExpExecArray,
+  tag: string,
+  state: ExtractionState
+): void {
+  const onFound = findTopLevelMatch(stmt, headMatch[0].length, TRIGGER_ON_RE);
+  if (!onFound) {
+    return;
+  }
+  const table = parsePublicQualifiedIdent(
+    onFound.match[1],
+    String(onFound.match[2])
+  );
+  if (table === null) {
+    return;
+  }
+  const execFound = findTopLevelMatch(stmt, onFound.end, TRIGGER_EXECUTE_RE);
+  const fn = execFound
+    ? parsePublicQualifiedIdent(execFound.match[1], String(execFound.match[2]))
+    : null;
+  const trigger = parseIdentToken(String(headMatch[1]));
+  state.triggers.set(makeTriggerKey(table, trigger), {
+    fn,
+    table,
+    tag,
+    trigger,
+  });
 }
 
 function recordAddConstraint(
@@ -617,8 +809,7 @@ function processDoBlock(
   tag: string,
   state: ExtractionState
 ): void {
-  recordGrantStatements(stmt, tag, state.grants);
-  const tagMatch = /\$[A-Za-z0-9_]*\$/u.exec(stmt);
+  const tagMatch = /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/u.exec(stmt);
   if (!tagMatch) {
     return;
   }
@@ -628,10 +819,14 @@ function processDoBlock(
   if (bodyEnd <= bodyStart) {
     return;
   }
-  const body = stmt.slice(bodyStart, bodyEnd);
+  const body = stripSqlComments(stmt.slice(bodyStart, bodyEnd));
+  recordGrantStatements(body, tag, state.grants);
   for (const rawPiece of splitTopLevel(body, ";")) {
     const inner = rawPiece.trim().replace(DO_BLOCK_PREFIX_RE, "").trim();
-    if (inner.length > 0 && !/^(?:DO\s+\$|GRANT\b)/iu.test(inner)) {
+    if (
+      inner.length > 0 &&
+      !/^(?:DO\s+(?:LANGUAGE\s+\S+\s+)?\$|GRANT\b)/iu.test(inner)
+    ) {
       processStatement(inner, tag, state);
     }
   }
@@ -642,7 +837,7 @@ function processStatement(
   tag: string,
   state: ExtractionState
 ): void {
-  if (/^DO\s+\$/iu.test(stmt)) {
+  if (/^DO\s+(?:LANGUAGE\s+\S+\s+)?\$/iu.test(stmt)) {
     processDoBlock(stmt, tag, state);
     return;
   }
@@ -682,6 +877,36 @@ function processStatement(
   const dropIndex = DROP_INDEX_RE.exec(stmt);
   if (dropIndex) {
     state.indexes.delete(parseIdentToken(String(dropIndex[1])));
+    return;
+  }
+  const createFn = CREATE_FUNCTION_RE.exec(stmt);
+  if (createFn) {
+    const fnName = parsePublicQualifiedIdent(createFn[1], String(createFn[2]));
+    if (fnName !== null) {
+      state.functions.set(fnName, tag);
+    }
+    return;
+  }
+  const dropFn = DROP_FUNCTION_RE.exec(stmt);
+  if (dropFn) {
+    recordDropFunction(String(dropFn[1]), state);
+    return;
+  }
+  const createTrigger = CREATE_TRIGGER_HEAD_RE.exec(stmt);
+  if (createTrigger) {
+    recordCreateTrigger(stmt, createTrigger, tag, state);
+    return;
+  }
+  const dropTrigger = DROP_TRIGGER_RE.exec(stmt);
+  if (dropTrigger) {
+    const table = parsePublicQualifiedIdent(
+      dropTrigger[2],
+      String(dropTrigger[3])
+    );
+    if (table !== null) {
+      const trigger = parseIdentToken(String(dropTrigger[1]));
+      state.triggers.delete(makeTriggerKey(table, trigger));
+    }
   }
 }
 
@@ -693,6 +918,7 @@ export function extractMigrationExpectations(
     columns: new Map(),
     constraintLiterals: new Map(),
     constraints: new Map(),
+    functions: new Map(),
     grants: new Map(),
     indexes: new Map(),
     nullability: new Map(),
@@ -700,6 +926,7 @@ export function extractMigrationExpectations(
     previousRequiredLiterals: new Map(),
     requiredLiterals: new Map(),
     tables: new Map(),
+    triggers: new Map(),
   };
 
   for (const migration of migrations) {
@@ -715,12 +942,38 @@ export function extractMigrationExpectations(
   return {
     columns: state.columns,
     constraints: state.constraints,
+    functions: state.functions,
     grants: state.grants,
     indexes: state.indexes,
     nullability: state.nullability,
     requiredLiterals: state.requiredLiterals,
     tables: state.tables,
+    triggers: state.triggers,
   };
+}
+
+function applyTriggerRecord(
+  table: string,
+  trigger: string,
+  payload: string,
+  snap: MutableSnapshot
+): string | null {
+  if (!(table && trigger)) {
+    return null;
+  }
+  const enabled = payload.slice(0, 1);
+  if (
+    payload.length <= 2 ||
+    payload[1] !== ":" ||
+    !Object.hasOwn(VALID_TRIGGER_ENABLED, enabled)
+  ) {
+    return "malformed trigger record in Postgres migration snapshot";
+  }
+  snap.triggers.set(makeTriggerKey(table, trigger), {
+    enabled,
+    fn: payload.slice(2),
+  });
+  return null;
 }
 
 function applySnapshotRecord(
@@ -764,6 +1017,13 @@ function applySnapshotRecord(
         snap.appGrants.add(`${a}:${b}`);
       }
       return null;
+    case "F":
+      if (a) {
+        snap.functions.add(a);
+      }
+      return null;
+    case "TR":
+      return applyTriggerRecord(a, b, c, snap);
     default:
       return `unexpected record kind '${kind}' in Postgres migration snapshot`;
   }
@@ -771,10 +1031,7 @@ function applySnapshotRecord(
 
 /** Parses tab-delimited output produced by `MIGRATIONS_SNAPSHOT_SQL`. */
 export function parsePostgresSnapshot(raw: string): SnapshotParseResult {
-  const lines = raw
-    .split(/\r?\n/u)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0);
+  const lines = raw.split(/\r?\n/u).filter((line) => line.trim().length > 0);
   const startIdx = lines.findIndex((line) => line.split("\t")[0] === "@@START");
   const endIdx = lines.findIndex((line) => line.split("\t")[0] === "@@END");
   if (startIdx < 0 || endIdx <= startIdx) {
@@ -789,10 +1046,12 @@ export function parsePostgresSnapshot(raw: string): SnapshotParseResult {
     appGrants: new Set(),
     columns: new Map(),
     constraints: new Map(),
+    functions: new Set(),
     indexes: new Set(),
     ledgerHashes: new Set(),
     roles: new Set(),
     tables: new Set(),
+    triggers: new Map(),
   };
 
   for (const line of lines.slice(startIdx + 1, endIdx)) {
@@ -919,6 +1178,48 @@ function checkAppGrants(
   }
 }
 
+function checkFunctionsAndTriggers(
+  expectations: MigrationExpectations,
+  snapshot: DatabaseSnapshot,
+  structuralTags: Set<string>,
+  reasonsByTag: Map<string, string[]>
+): void {
+  for (const [fnName, tag] of expectations.functions) {
+    structuralTags.add(tag);
+    if (!snapshot.functions.has(fnName)) {
+      addReason(reasonsByTag, tag, `missing function ${fnName}`);
+    }
+  }
+  for (const [key, rule] of expectations.triggers) {
+    structuralTags.add(rule.tag);
+    if (!snapshot.tables.has(rule.table)) {
+      continue;
+    }
+    const label = `${rule.table}.${rule.trigger}`;
+    const actual = snapshot.triggers.get(key);
+    if (actual === undefined) {
+      addReason(reasonsByTag, rule.tag, `missing trigger ${label}`);
+      continue;
+    }
+    if (actual.enabled === "D") {
+      addReason(reasonsByTag, rule.tag, `trigger ${label} is disabled`);
+    } else if (actual.enabled === "R") {
+      addReason(
+        reasonsByTag,
+        rule.tag,
+        `trigger ${label} is replica-only (not active on origin)`
+      );
+    }
+    if (rule.fn !== null && actual.fn !== rule.fn) {
+      addReason(
+        reasonsByTag,
+        rule.tag,
+        `trigger ${label} calls ${actual.fn} (expected ${rule.fn})`
+      );
+    }
+  }
+}
+
 /** Verifies every build migration's net structural expectations against a Postgres snapshot. */
 export function checkAppliedMigrations(
   migrations: readonly MigrationSource[],
@@ -936,6 +1237,12 @@ export function checkAppliedMigrations(
     reasonsByTag
   );
   checkAppGrants(expectations, snapshot, structuralTags, reasonsByTag);
+  checkFunctionsAndTriggers(
+    expectations,
+    snapshot,
+    structuralTags,
+    reasonsByTag
+  );
 
   let ledgerCount = 0;
   const missing: MissingMigration[] = [];
