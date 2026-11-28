@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { describe, expect, it, vi } from "vitest";
 
-import type { VertexOrderInput } from "./contracts/vertex-orders.ts";
+import type {
+  VertexComboInput,
+  VertexOrderInput,
+} from "./contracts/vertex-orders.ts";
 import {
   CONFIRM_TTL_MS,
   consumeConfirmToken,
@@ -878,13 +883,25 @@ describe("vertex order gateways", () => {
     expect(account.netLiquidation).toBe(1);
     // The bridge reports the engine policy it enforces on openings (go-live sends need it).
     expect(account.gates.orderPolicy).toBe("options_only_defined_risk_v3");
+    const combo: VertexComboInput = {
+      symbol: "ABC",
+      quantity: 1,
+      limitPrice: 1.5,
+      legs: [
+        { expiry: LEAPS, ratio: 1, right: "C", side: "BUY", strike: 100 },
+        { expiry: LEAPS, ratio: 1, right: "C", side: "SELL", strike: 110 },
+      ],
+    };
     expect(await gateway.place(order(), "vertex-2")).toEqual(reply);
+    expect(await gateway.placeCombo(combo, "vertex-3")).toEqual(reply);
     expect(await gateway.cancel(5)).toEqual(reply);
     expect(calls.map(([url, init]) => `${init?.method} ${url}`)).toEqual([
       "GET http://127.0.0.1:3470/account",
       "POST http://127.0.0.1:3470/orders",
+      "POST http://127.0.0.1:3470/combos",
       "POST http://127.0.0.1:3470/cancel",
     ]);
+    for (const [, init] of calls) expect(init?.redirect).toBe("manual");
     expect(JSON.parse(String(calls[1]?.[1]?.body))).toMatchObject({
       orderRef: "vertex-2",
     });
@@ -944,8 +961,145 @@ describe("vertex order gateways", () => {
       ),
       "UPSTREAM_ERROR"
     );
+    await fail(
+      createBridgeOrderGateway(
+        "http://localhost:1",
+        async () => new Response("not json", { status: 200 }),
+        TOKEN
+      ),
+      "UPSTREAM_ERROR"
+    );
     expect(new OrderGatewayError("UPSTREAM_ERROR", "m").name).toBe(
       "OrderGatewayError"
     );
+  });
+
+  it("bridge gateway sets redirect manual and refuses 3xx responses before reading JSON", async () => {
+    for (const status of [301, 302, 303, 307, 308]) {
+      const nullBodyFetch = vi.fn(
+        async (_url: string, _init?: RequestInit) =>
+          new Response(null, {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status,
+          })
+      );
+      const nullGateway = createBridgeOrderGateway(
+        "http://127.0.0.1:3470",
+        nullBodyFetch,
+        TOKEN
+      );
+      await expect(nullGateway.account()).rejects.toMatchObject({
+        code: "UPSTREAM_ERROR",
+        message: `Order bridge redirected (HTTP ${status}); redirects are not followed`,
+      });
+      expect(nullBodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
+
+      const jsonSpy = vi.fn(async () => ({
+        state: "submitted",
+        permId: 9,
+        message: "ok",
+      }));
+      const bodyFetch = vi.fn(async (_url: string, _init?: RequestInit) => {
+        const response = new Response(
+          JSON.stringify({ state: "submitted", permId: 9, message: "ok" }),
+          {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status,
+          }
+        );
+        vi.spyOn(response, "json").mockImplementation(jsonSpy);
+        return response;
+      });
+      const bodyGateway = createBridgeOrderGateway(
+        "http://127.0.0.1:3470",
+        bodyFetch,
+        TOKEN
+      );
+      const err = await bodyGateway
+        .place(order(), "vertex-redir")
+        .catch((error: unknown) => error);
+      expect(err).toBeInstanceOf(OrderGatewayError);
+      expect(err).toMatchObject({
+        code: "UPSTREAM_ERROR",
+        message: `Order bridge redirected (HTTP ${status}); redirects are not followed`,
+      });
+      expect((err as Error).message).not.toContain("steal");
+      expect((err as Error).message).not.toContain(TOKEN);
+      expect(bodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
+      expect(jsonSpy).not.toHaveBeenCalled();
+    }
+
+    const errorJsonSpy = vi.fn(async () => ({ error: "boom" }));
+    const errorGateway = createBridgeOrderGateway(
+      "http://127.0.0.1:3470",
+      async () => {
+        const response = new Response("nope", { status: 500 });
+        vi.spyOn(response, "json").mockImplementation(errorJsonSpy);
+        return response;
+      },
+      TOKEN
+    );
+    await expect(errorGateway.account()).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+      message: "Order bridge returned an invalid response (HTTP 500)",
+    });
+    expect(errorJsonSpy).not.toHaveBeenCalled();
+  });
+
+  it("bridge gateway does not follow real loopback 307 redirects or forward the bridge token", async () => {
+    let stealHits = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/steal") {
+        stealHits += 1;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({ state: "submitted", permId: 7, message: "ok" })
+        );
+        return;
+      }
+      const address = server.address() as AddressInfo;
+      res.writeHead(307, {
+        location: `http://127.0.0.1:${address.port}/steal`,
+      });
+      res.end();
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    try {
+      const address = server.address() as AddressInfo;
+      const gateway = createBridgeOrderGateway(
+        `http://127.0.0.1:${address.port}`,
+        undefined,
+        TOKEN
+      );
+      const combo: VertexComboInput = {
+        symbol: "ABC",
+        quantity: 1,
+        limitPrice: 1.5,
+        legs: [
+          { expiry: LEAPS, ratio: 1, right: "C", side: "BUY", strike: 100 },
+          { expiry: LEAPS, ratio: 1, right: "C", side: "SELL", strike: 110 },
+        ],
+      };
+      const expected = {
+        code: "UPSTREAM_ERROR",
+        message:
+          "Order bridge redirected (HTTP 307); redirects are not followed",
+      };
+      await expect(gateway.account()).rejects.toMatchObject(expected);
+      await expect(gateway.place(order(), "vertex-r1")).rejects.toMatchObject(
+        expected
+      );
+      await expect(
+        gateway.placeCombo(combo, "vertex-r2")
+      ).rejects.toMatchObject(expected);
+      await expect(gateway.cancel(5)).rejects.toMatchObject(expected);
+      expect(stealHits).toBe(0);
+    } finally {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
   });
 });

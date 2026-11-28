@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -63,6 +65,7 @@ describe("createBridgeQuotesReader", () => {
     const [url, init = {}] = fetch.mock.calls[0] ?? [];
     expect(url).toBe(`${URL_}/quotes`);
     expect(init.method).toBe("POST");
+    expect(init.redirect).toBe("manual");
     expect(
       (init.headers as Record<string, string>)["x-vertex-bridge-token"]
     ).toBe(TOKEN);
@@ -134,6 +137,90 @@ describe("createBridgeQuotesReader", () => {
         await createBridgeQuotesReader(base, token, { fetch })([SPREAD])
       ).toEqual([null]);
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it("sets redirect manual and refuses 3xx responses before reading JSON", async () => {
+    for (const status of [301, 302, 303, 307, 308]) {
+      const nullBodyFetch = vi.fn(
+        async (_url: string, _init?: RequestInit) =>
+          new Response(null, {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status,
+          })
+      );
+      expect(
+        await createBridgeQuotesReader(URL_, TOKEN, {
+          fetch: nullBodyFetch,
+        })([SPREAD])
+      ).toEqual([null]);
+      expect(nullBodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
+
+      const jsonSpy = vi.fn(async () => ({
+        asOf: AS_OF,
+        legs: [leg(600), leg(610)],
+        state: "complete",
+      }));
+      const bodyFetch = vi.fn(async (_url: string, _init?: RequestInit) => {
+        const response = new Response(
+          JSON.stringify({
+            asOf: AS_OF,
+            legs: [leg(600), leg(610)],
+            state: "complete",
+          }),
+          {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status,
+          }
+        );
+        vi.spyOn(response, "json").mockImplementation(jsonSpy);
+        return response;
+      });
+      expect(
+        await createBridgeQuotesReader(URL_, TOKEN, {
+          fetch: bodyFetch,
+        })([SPREAD])
+      ).toEqual([null]);
+      expect(bodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
+      expect(jsonSpy).not.toHaveBeenCalled();
+    }
+  });
+
+  it("does not follow a real loopback 307 redirect or forward the bridge token", async () => {
+    let stealHits = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/steal") {
+        stealHits += 1;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            asOf: AS_OF,
+            legs: [leg(600), leg(610)],
+            state: "complete",
+          })
+        );
+        return;
+      }
+      const address = server.address() as AddressInfo;
+      res.writeHead(307, {
+        location: `http://127.0.0.1:${address.port}/steal`,
+      });
+      res.end();
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    try {
+      const address = server.address() as AddressInfo;
+      const read = createBridgeQuotesReader(
+        `http://127.0.0.1:${address.port}`,
+        TOKEN
+      );
+      expect(await read([SPREAD])).toEqual([null]);
+      expect(stealHits).toBe(0);
+    } finally {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
   });
 
   it("reuses a spread quote for the cache window, then reads again", async () => {

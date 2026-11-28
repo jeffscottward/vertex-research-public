@@ -171,12 +171,17 @@ export const createBridgeQuotesReader = (
           "x-vertex-bridge-token": token,
         },
         method: "POST",
+        // workerd rejects redirect "error"; "manual" returns any 3xx as-is and !response.ok refuses it below.
+        redirect: "manual",
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       return none;
     }
-    if (!response.ok) return none;
+    if (!response.ok) {
+      void response.body?.cancel();
+      return none;
+    }
     const parsed = BridgeQuotesSchema.safeParse(
       await response.json().catch(() => null)
     );
