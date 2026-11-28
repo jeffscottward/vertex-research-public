@@ -273,7 +273,7 @@ describe("createYahooOptionsSource", () => {
       let cookieCalls = 0;
       let failStuck: (error: Error) => void = () => undefined;
       const doFetch = vi.fn<YahooFetch>(async (url) => {
-        if (url.startsWith("https://fc.yahoo.com")) {
+        if (new URL(url).hostname === "fc.yahoo.com") {
           cookieCalls += 1;
           return cookieCalls === 1
             ? await new Promise<Response>((_resolve, reject) => {
