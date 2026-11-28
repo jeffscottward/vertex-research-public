@@ -50,6 +50,9 @@ const CACHE_TTL_MS = 60_000;
 // its waiters then get UNAVAILABLE and the next read starts again. Accepted: waiters hold their
 // request database slots while they wait, so a longer wait would lengthen a full-admission spell.
 const SHARED_READ_WAIT_MS = 45_000;
+// The longest a request waits for a Nasdaq open-interest read that another request started: the
+// Nasdaq source ends its own read after 8 s (one timeout for both asset classes), plus 2 s.
+const NASDAQ_SHARED_WAIT_MS = 10_000;
 const CACHE_MAX_ENTRIES = 200;
 
 type Failed = Readonly<{
@@ -335,6 +338,22 @@ const readChain = (
   return value;
 };
 
+// Same rule as waitForShared, for the Nasdaq read of a chain. Nasdaq only adds open interest, so
+// a waiter that times out serves the chain with the Nasdaq source failed instead of an error.
+const waitForSharedNasdaq = async (
+  key: string,
+  entry: NasdaqCacheEntry
+): Promise<OptionsSourceRead<OptionsOpenInterestSnapshot>> => {
+  const waited = await waitAtMost(entry.value, NASDAQ_SHARED_WAIT_MS);
+  if (!waited.timedOut) return waited.value;
+  if (nasdaqCache.get(key) === entry) nasdaqCache.delete(key);
+  return {
+    message:
+      "Nasdaq open interest read did not finish in 10 s; chain shown without it",
+    status: "failed",
+  };
+};
+
 const readNasdaqOpenInterest = (
   symbol: string,
   expiry: string,
@@ -347,7 +366,7 @@ const readNasdaqOpenInterest = (
   const key = `${symbol}|${expiry}`;
   const hit = nasdaqCache.get(key);
   if (hit !== undefined && now.getTime() - hit.at < CACHE_TTL_MS)
-    return hit.value;
+    return waitForSharedNasdaq(key, hit);
   nasdaqSource ??=
     injected.nasdaq ?? createNasdaqOptionsOpenInterestSource({ now: clock });
   const source = nasdaqSource;

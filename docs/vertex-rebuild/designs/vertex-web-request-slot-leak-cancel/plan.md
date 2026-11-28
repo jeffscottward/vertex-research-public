@@ -12,12 +12,12 @@ On 2026-11-27 from 21:15:46 to 21:28:40 UTC, `vertex-web` (the Vertex web app; i
 
 This plan bounds the outage in two layers:
 
-1. **Bounded shared waits.** Five places let one request wait for a promise that another request started. Each waiter gets its own deadline, from a timer that the waiter creates (`packages/api/src/server/bounded-wait.ts#waitAtMost`).
+1. **Bounded shared waits.** Six places let one request wait for a promise that another request started; this change bounds five of them (the sixth, `golive-live-quotes.ts`, has a follow-up card). Each waiter gets its own deadline, from a timer that the waiter creates (`packages/api/src/server/bounded-wait.ts#waitAtMost`).
 2. **Slot age limit.** A request holds its database slot for at most 7 min. At that age the request ends its own client and frees the slot. If its request context is gone, so that its timer cannot run, the next request that asks for a slot takes it back at 7 min 10 s. Both report the event `request-database.slot-reclaimed`.
 
 ## Goals and non-goals
 
-- **Goal:** a shared step that never ends delays other callers by at most its deadline (13–45 s), not until a restart.
+- **Goal:** a shared step that never ends delays other callers by at most its deadline (10–45 s), not until a restart.
 - **Goal:** a leak that layer 1 does not catch fills admission for at most about 7 min, and each such slot is named in the journal.
 - **Goal:** no manual restart for this failure mode.
 - **Non-goal:** changing the cap (8 slots), the 2 s admission wait, the `503 DATABASE_CAPACITY` body or `retry-after: 1`.
@@ -45,6 +45,7 @@ This plan bounds the outage in two layers:
   - `quantdata-client.ts`: one client per configuration (`options-analytics.ts#quantDataClientFor`) ran every QuantData call of the isolate through one promise chain (`queue.then(step)`). A step that never ends stops every later call, and each stopped caller holds its slot.
   - `options-chain-yahoo.ts`: one Yahoo adapter per isolate keeps one session promise. A session start that never ends stops every later Yahoo read.
   - `options-chain.ts`: a module-level cache keeps the in-flight chain read for 60 s; other requests await it.
+  - `options-chain.ts`: a module-level cache keeps the in-flight Nasdaq open-interest read for 60 s; other `optionsChain.chain` requests await it. Base commit `8f1c2c9c` added it after the incident.
   - `instant-backtest.ts#columnsFor`: a module-level cache keeps the in-flight bar column load; other requests await it.
   - `golive-live-quotes.ts`: a module-level reader keeps in-flight quote reads for up to 100 s (handled by a follow-up card; see Alternatives).
 - **`workerd` behavior (measured with a Miniflare harness on the rig, `workerd` 1.20261023.1 as on QuantVPS, real `packages/db` code, local Postgres; files in the job's private evidence folder):**
@@ -72,6 +73,7 @@ On timeout a site redoes the work where it is local and cheap, and fails fast wh
 | Yahoo session (`options-chain-yahoo.ts`) | 22 s: two fetch timeouts (cookie, crumb) of 10 s + 2 s | One waiter starts a new session; the others wait for that one |
 | Options chain in-flight read (`options-chain.ts`) | 45 s: above the slowest live read (Yahoo session 22 s + options fetch 10 s; QuantData two steps of up to 13 s) | The entry is dropped; the request fails with `UNAVAILABLE` "Options chain read did not finish in time; retry" |
 | Bar column load (`instant-backtest.ts`) | 30 s: one bars query (10 s query timeout) plus decoding | The entry is dropped; the request waits (bounded) for a newer load that another waiter started, else loads with its own connection |
+| Nasdaq open-interest read (`options-chain.ts`) | 10 s: the Nasdaq source ends its own read after 8 s (one timeout for both asset classes) + 2 s | The entry is dropped; the chain is served with the Nasdaq source `failed` ("Nasdaq open interest read did not finish in 10 s; chain shown without it"), because Nasdaq only adds open interest |
 
 The QuantData turn uses a time lease, the same pattern as `vertex-orders.ts#onePlacementAtATime`: one record `{ startedAt }` of the running step and a first-come-first-served line of waiters. A finished step hands the turn to the first waiter at once, so a caller that calls again right away queues behind it. The handed-over turn is a 2 s claim: a waiter whose request context ended never claims it, and the next waiter takes over after those 2 s (every waiter is woken to measure the claim). A waiter waits while the running step is younger than 13 s, then takes the turn. After a takeover two steps can run at once; the 1 s spacing and the per-minute budget are still checked before every start, because `send` reads `lastStart` and the `starts` window synchronously.
 
@@ -123,7 +125,7 @@ The QuantData turn uses a time lease, the same pattern as `vertex-orders.ts#oneP
 ## Detailed Implementation Plan
 
 1. **Files.** Create: `packages/api/src/server/bounded-wait.ts`, `packages/db/src/server/request-slots.ts`, `packages/db/src/server/request-slots.test.ts`, `packages/api/src/request-slot-age.test.ts`. Modify: `packages/api/src/server/quantdata-client.ts`, `options-chain-yahoo.ts`, `options-chain.ts`, `instant-backtest.ts`; `packages/api/src/options-analytics.test.ts`, `options-chain.test.ts`, `instant-backtest.test.ts`; `packages/db/src/server/client.ts`, `client.test.ts`, `request-scope.ts` (comment), `semantic-layer.ts`, `semantic-layer.test.ts`, `index.ts`; `apps/web/src/server/request-scope.ts`, `request-scope.test.ts`, `apps/web/src/lib/request-database-diagnostics.ts` and its test; `docs/debugging.md`, `ARCHITECTURE.md`; this folder.
-2. **Commit 1, shared waits (`packages/api`).** `waitAtMost` and its four sites with their tests. Clocks: the QuantData turn uses `Date.now` and the global timer (not the injected `now`/`sleep`, so a test clock that jumps cannot hand the turn early); tests use `vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })`.
+2. **Commit 1, shared waits (`packages/api`).** `waitAtMost` and its four sites with their tests; a later commit adds the fifth, the Nasdaq open-interest read, which arrived with a base merge. Clocks: the QuantData turn uses `Date.now` and the global timer (not the injected `now`/`sleep`, so a test clock that jumps cannot hand the turn early); tests use `vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })`.
 3. **Commit 2, slot age limit (`packages/db`).** `request-slots.ts` (`acquireRequestSlot({ route, onReclaim })`, `releaseRequestSlot(lease)`, `resetRequestSlotsForTesting()`), `client.ts` (`manageRequestClient`: close and the age timer; `route` option; the diagnostic union member `{ code: "REQUEST_DATABASE_SLOT_RECLAIMED", route, ageSeconds }`; re-export of the constants), `semantic-layer.ts` route, `index.ts` export of `REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS`, tests.
 4. **Commit 3, web wiring.** `requestRouteLabel`, the `route` option in `withRequestScope`, the event mapping, tests.
 5. **Commit 4, docs.** `docs/debugging.md` (503 row: the age limit and the event; event row: `request-database.slot-reclaimed` and its attributes) and `ARCHITECTURE.md` (connection cap paragraph: the age limit; the shared-promise rule; "the 30 s `waitUntil` limit is not enforced by `workerd` as run on QuantVPS").

@@ -25,6 +25,7 @@ import {
   type OptionsChainSource,
   OptionsChainSourceError,
   OptionsChainSourceOff,
+  type OptionsOpenInterestSnapshot,
   type OptionsOpenInterestSource,
   type OptionsQuoteSnapshot,
   type OptionsQuoteSource,
@@ -2152,6 +2153,71 @@ describe("optionsChain source fallback", () => {
     for (let index = 0; index < 201; index += 1)
       await uninjectedApi.optionsChain.chain({ symbol: `SYM${index}` });
     expect(fetchSpy).toHaveBeenCalledTimes(201);
+  });
+
+  it("open interest: stops waiting for another request's Nasdaq read that never settles and serves the chain without it", async () => {
+    // The first Nasdaq read models a read whose workerd request context ended: it stays pending.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const zeroedYahoo = yahooFake(async () => ({
+        ...snapshot,
+        calls: snapshot.calls.map((quote) =>
+          quote.strike === 100 ? { ...quote, openInterest: 0 } : quote
+        ),
+      }));
+      let calls = 0;
+      const nasdaq = nasdaqFake(async (_symbol, expiry) => {
+        calls += 1;
+        return calls === 1
+          ? await new Promise<OptionsOpenInterestSnapshot>(() => undefined)
+          : {
+              expiry,
+              rows: [{ openInterest: 79_198, right: "call", strike: 100 }],
+            };
+      });
+      setOptionsChainForTesting({ nasdaq, now: () => NOW, yahoo: zeroedYahoo });
+      const api = operator();
+      void api.optionsChain.chain({ symbol: "DEMO" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(nasdaq.read).toHaveBeenCalledTimes(1);
+      const waiting = api.optionsChain.chain({ symbol: "DEMO" });
+      let settled = false;
+      void waiting.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      const second = api.optionsChain.chain({ symbol: "DEMO" });
+      await vi.advanceTimersByTimeAsync(9998);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const degraded = await waiting;
+      expect(degraded.sources[3]).toEqual({
+        message:
+          "Nasdaq open interest read did not finish in 10 s; chain shown without it",
+        source: "nasdaq",
+        status: "failed",
+      });
+      // Yahoo's false 0 is still not shown.
+      expect(atmCall(degraded)).toMatchObject({
+        openInterest: null,
+        sources: { openInterest: null },
+      });
+      // A second waiter on the same read finds the entry already dropped.
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(second).resolves.toMatchObject({
+        sources: [{}, {}, {}, { source: "nasdaq", status: "failed" }],
+      });
+      expect(nasdaq.read).toHaveBeenCalledTimes(1);
+      // The entry was dropped: the next request reads Nasdaq again.
+      const next = await api.optionsChain.chain({ symbol: "DEMO" });
+      expect(atmCall(next)).toMatchObject({
+        openInterest: 79_198,
+        sources: { openInterest: "nasdaq" },
+      });
+      return expect(nasdaq.read).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -1,6 +1,6 @@
 // What: Bounds a wait on a promise that another request may own, with a timer of the waiting request.
 // Used by: quantdata-client.ts (step turn), options-chain-yahoo.ts (shared session), options-chain.ts (shared chain
-// read), instant-backtest.ts (shared column load).
+// read and shared Nasdaq open-interest read), instant-backtest.ts (shared column load).
 // See: docs/vertex-rebuild/designs/vertex-web-request-slot-leak-cancel/plan.md (Design, Layer 1).
 
 /**
