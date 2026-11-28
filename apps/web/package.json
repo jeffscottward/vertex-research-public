@@ -35,7 +35,7 @@
     "@darkfactory/state": "workspace:*",
     "@darkfactory/storage": "workspace:*",
     "@darkfactory/ui": "workspace:*",
-    "@tanstack/charts": "0.18.0",
+    "@tanstack/charts": "1.5.0",
     "@tanstack/react-form": "catalog:",
     "@vinext/cloudflare": "catalog:",
     "cmdk": "catalog:",
