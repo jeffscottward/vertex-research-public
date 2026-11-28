@@ -4,7 +4,7 @@
   width="1200"
   height="620"
   role="img"
-  aria-label="Before and after: replaying 28 outbound adapters in pinned workerd in CI"
+  aria-label="Before and after: replaying 31 outbound adapters in pinned workerd in CI"
 >
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -86,7 +86,7 @@
     font-size="14"
   >
     workerd@1.20261023.1 · compat 2026-07-22 + nodejs_compat · loopback 200 /
-    302 · 28 adapters across 6 packages
+    302 · 31 fetch/SDK adapters across 6 packages
   </text>
 
   <!-- BEFORE Panel -->
@@ -135,7 +135,6 @@
   </text>
 
   <!-- Before Flow -->
-  <!-- Node icon + Adapters -->
   <rect
     x="76"
     y="182"
@@ -160,13 +159,12 @@
     font-size="13"
     font-weight="700"
   >
-    28 Adapters
+    31 Adapters
   </text>
   <text x="126" y="230" fill="#94a3b8" font-family="monospace" font-size="11">
     RequestInit
   </text>
 
-  <!-- Arrow to Node CI -->
   <line
     x1="220"
     y1="219"
@@ -177,7 +175,6 @@
     marker-end="url(#arrowBlue)"
   />
 
-  <!-- Node CI box -->
   <rect
     x="272"
     y="182"
@@ -209,7 +206,6 @@
     undici fetch
   </text>
 
-  <!-- Arrow to Green Check -->
   <line
     x1="410"
     y1="219"
@@ -220,7 +216,6 @@
     marker-end="url(#arrowGreen)"
   />
 
-  <!-- False Green badge -->
   <circle
     cx="496"
     cy="219"
@@ -249,7 +244,6 @@
     CI PASSES
   </text>
 
-  <!-- Static regex partial shield -->
   <rect
     x="76"
     y="294"
@@ -281,7 +275,6 @@
     catches literal redirect:"error" · misses cache:"default", vars, SDKs
   </text>
 
-  <!-- Deploy arrow down to Production Crash -->
   <line
     x1="341"
     y1="352"
@@ -302,7 +295,6 @@
     deploy to QuantVPS
   </text>
 
-  <!-- Prod workerd crash -->
   <rect
     x="76"
     y="412"
@@ -395,7 +387,7 @@
     font-size="14"
     font-weight="600"
   >
-    CI replays every RequestInit in pinned workerd
+    CI replays RequestInit in pinned workerd
   </text>
 
   <!-- After Flow Row 1: Adapters -> workerd -> Loopback -->
@@ -417,7 +409,7 @@
     font-size="18"
     font-weight="800"
   >
-    28
+    31
   </text>
   <text
     x="710"
@@ -451,7 +443,6 @@
     marker-end="url(#arrowGold)"
   />
 
-  <!-- Pinned workerd box -->
   <rect
     x="822"
     y="176"
@@ -523,7 +514,6 @@
     marker-end="url(#arrowGold)"
   />
 
-  <!-- Loopback 200 / 302 targets -->
   <rect
     x="1020"
     y="182"
@@ -607,7 +597,6 @@
     Verified Gates (pre-push + CI coverage shards)
   </text>
 
-  <!-- 3 visual stat pills -->
   <rect
     x="664"
     y="342"
@@ -626,7 +615,7 @@
     font-size="18"
     font-weight="800"
   >
-    28 / 28
+    31 / 31
   </text>
   <text
     x="735"
@@ -688,7 +677,7 @@
     font-size="18"
     font-weight="800"
   >
-    ~3.1s
+    ~4.5s
   </text>
   <text
     x="1043"
@@ -698,7 +687,7 @@
     font-family="system-ui, sans-serif"
     font-size="11"
   >
-    41 tests in CI
+    44 tests in CI
   </text>
 
   <!-- Guardrails footer inside AFTER -->
@@ -731,7 +720,7 @@
     Self-check negative controls
   </text>
   <text x="702" y="476" fill="#94a3b8" font-family="monospace" font-size="11">
-    redirect:"error" + cache:"default" -> TypeError (0 hits)
+    redirect:"error" + cache:"default" (incl. Request) -> TypeError
   </text>
 
   <circle cx="676" cy="512" r="14" fill="#064e3b" stroke="#34d399" />
@@ -750,10 +739,10 @@
     font-size="13"
     font-weight="700"
   >
-    Inventory drift guard (37 tracked fetch files)
+    TypeScript AST inventory guard (39 tracked files)
   </text>
   <text x="702" y="526" fill="#94a3b8" font-family="monospace" font-size="11">
-    CI fails if a new outbound adapter is not added
+    CI fails if a new fetch or Resend/Groq adapter is not added
   </text>
 
   <!-- Footer -->

@@ -1,10 +1,12 @@
 import type { SafeAuthSession } from "@darkfactory/auth/server";
 import type { Repositories } from "@darkfactory/db/server";
+import { RECOVERY_CONFIRMATION } from "../../packages/shared/src/vertex/index.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuthenticatedDashboardFetch } from "../../apps/web/src/lib/dashboard-transport.ts";
 import { getPortalSession } from "../../apps/web/src/lib/server-session.ts";
 import { forwardThemeApiRequest } from "../../apps/web/src/lib/server-theme-api.ts";
+import { fetchThemeApiRequest } from "../../apps/web/src/lib/theme-api-timeout.ts";
 import { createGroqAiPort } from "../../packages/ai/src/server/groq.ts";
 import { createPostHogAnalyticsPort } from "../../packages/analytics/src/server/posthog.ts";
 import { createApiClient } from "../../packages/api/src/client.ts";
@@ -34,7 +36,9 @@ import {
   setResearchScreenOptionsForTesting,
 } from "../../packages/api/src/server/research-screen-evidence.ts";
 import { createBridgeOrderGateway } from "../../packages/api/src/server/vertex-orders-gateway.ts";
+import { createResendContactEmailPort } from "../../packages/email/src/server/contact.ts";
 import { createResendNotificationEmailPort } from "../../packages/email/src/server/notification.ts";
+import { createResendEmailPort } from "../../packages/email/src/server/provider.ts";
 import { createRemotePreviewEmailPort } from "../../packages/email/src/server/remote-preview.ts";
 import { createNtfyNotificationAdapter } from "../../packages/notifications/src/server/ntfy.ts";
 
@@ -43,15 +47,16 @@ import {
   type LoopbackResponseConfig,
   type ReplayRecord,
   startWorkerdReplayHarness,
+  withCapturedRequestCache,
   type WorkerdReplayHarness,
 } from "./workerd-replay.ts";
 
-// Replays every workerd-reachable outbound HTTP adapter's actual RequestInit inside the
-// repository's pinned workerd binary (configured with apps/web/wrangler.jsonc's
-// compatibility_date and compatibility_flags) against a loopback 200/302 server.
-// Node accepts fetch options that workerd rejects with a TypeError before sending any
-// request (e.g. redirect:"error", cache:"default"); running every adapter's real RequestInit
-// through workerd in CI closes that gap across all packages.
+// Replays every workerd-reachable fetch-based and fetch-SDK outbound adapter's actual
+// RequestInit inside the repository's pinned workerd binary (configured with
+// apps/web/wrangler.jsonc's compatibility_date and compatibility_flags) against a loopback
+// 200/302 server. Node accepts fetch options that workerd rejects with a TypeError before
+// sending any request (e.g. redirect:"error", cache:"default"); running every adapter's real
+// RequestInit through workerd in CI closes that gap across all packages.
 
 type AdapterReplayCase = Readonly<{
   /** Whether the adapter is expected to send redirect:"manual" and never follow 302s. */
@@ -127,6 +132,20 @@ const ignoreAdapterOutcome = async (
   await operation.catch(() => undefined);
 };
 
+/** Temporarily binds globalThis.fetch for vendor SDKs (Resend) that do not expose a fetch option. */
+const withScopedGlobalFetch = async (
+  replayFetch: typeof globalThis.fetch,
+  operation: () => Promise<void>
+): Promise<void> => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = replayFetch;
+  try {
+    await operation();
+  } finally {
+    globalThis.fetch = previous;
+  }
+};
+
 const ADAPTER_CASES: readonly AdapterReplayCase[] = [
   {
     expectManualRedirect: true,
@@ -147,6 +166,29 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
           properties: { outcome: "success", source: "api" },
         })
       );
+    },
+  },
+  {
+    expectManualRedirect: false,
+    file: "packages/email/src/server/contact.ts",
+    name: "email/contact: createResendContactEmailPort (resend SDK)",
+    okResponse: { body: '{"id":"msg-contact-1"}' },
+    run: async (replayFetch) => {
+      const port = createResendContactEmailPort({
+        apiKey: "re_workerd_replay_test",
+        from: "alerts@domain.test",
+        recipient: "owner@domain.test",
+      });
+      await withScopedGlobalFetch(replayFetch, async () => {
+        await ignoreAdapterOutcome(
+          port.sendContact({
+            email: "sender@domain.test",
+            message: "Workerd replay contact message",
+            name: "Sender",
+            subject: "Replay contact",
+          })
+        );
+      });
     },
   },
   {
@@ -171,6 +213,31 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
           new AbortController().signal
         )
       );
+    },
+  },
+  {
+    expectManualRedirect: false,
+    file: "packages/email/src/server/provider.ts",
+    name: "email/provider: createResendEmailPort (resend SDK)",
+    okResponse: { body: '{"id":"msg-verify-1"}' },
+    run: async (replayFetch) => {
+      const port = createResendEmailPort({
+        apiKey: "re_workerd_replay_test",
+        appEnvironment: "test",
+        enabled: true,
+        from: "alerts@domain.test",
+        trustedAppOrigin: "https://app.example.test",
+      });
+      await withScopedGlobalFetch(replayFetch, async () => {
+        await ignoreAdapterOutcome(
+          port.sendEmailVerification({
+            expiresInMinutes: 15,
+            to: "owner@domain.test",
+            verificationUrl:
+              "https://app.example.test/api/auth/verify-email?token=hdr.payload.sig&callbackURL=%2Fverify-email%3Fverified%3D1",
+          })
+        );
+      });
     },
   },
   {
@@ -361,7 +428,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
   {
     expectManualRedirect: true,
     file: "packages/api/src/server/ibkr-recovery.ts",
-    name: "api/ibkr-recovery: ibkrRecoveryRouter.status",
+    name: "api/ibkr-recovery: status (GET) and request (POST)",
     run: async (replayFetch) => {
       setIbkrRecoveryDependenciesForTesting({
         fetch: (url, init) => replayFetch(url, init),
@@ -369,6 +436,9 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
       try {
         const client = createInternalProcedureClient();
         await ignoreAdapterOutcome(client.ibkrRecovery.status({}));
+        await ignoreAdapterOutcome(
+          client.ibkrRecovery.request({ confirmation: RECOVERY_CONFIRMATION })
+        );
       } finally {
         setIbkrRecoveryDependenciesForTesting({});
       }
@@ -452,7 +522,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
   {
     expectManualRedirect: true,
     file: "packages/api/src/server/nautilus-arm.ts",
-    name: "api/nautilus-arm: nautilusArmRouter.status",
+    name: "api/nautilus-arm: status (GET) and disarm (POST)",
     run: async (replayFetch) => {
       setNautilusArmDependenciesForTesting({
         fetch: (url, init) => replayFetch(url, init),
@@ -460,6 +530,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
       try {
         const client = createInternalProcedureClient();
         await ignoreAdapterOutcome(client.nautilusArm.status({}));
+        await ignoreAdapterOutcome(client.nautilusArm.disarm({}));
       } finally {
         setNautilusArmDependenciesForTesting({});
       }
@@ -593,7 +664,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
   {
     expectManualRedirect: true,
     file: "packages/api/src/server/vertex-orders-gateway.ts",
-    name: "api/vertex-orders-gateway: createBridgeOrderGateway",
+    name: "api/vertex-orders-gateway: account (GET) and cancel (POST)",
     run: async (replayFetch) => {
       const gateway = createBridgeOrderGateway(
         "http://127.0.0.1:8788",
@@ -601,6 +672,7 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
         TEST_TOKEN
       );
       await ignoreAdapterOutcome(gateway.account());
+      await ignoreAdapterOutcome(gateway.cancel(12_345));
     },
   },
   {
@@ -672,9 +744,25 @@ const ADAPTER_CASES: readonly AdapterReplayCase[] = [
       );
     },
   },
+  {
+    expectManualRedirect: true,
+    file: "apps/web/src/lib/theme-api-timeout.ts",
+    name: "web/theme-api-timeout: fetchThemeApiRequest",
+    run: async (replayFetch) => {
+      await ignoreAdapterOutcome(
+        fetchThemeApiRequest({
+          fetchRequest: (request) => replayFetch(request),
+          request: new Request(
+            "https://app.example.test/api/rpc/preferences.theme.get",
+            { cache: "no-store", method: "GET", redirect: "manual" }
+          ),
+        })
+      );
+    },
+  },
 ];
 
-/** Tracked non-test files with fetch/fetcher/fetchImpl that do NOT run outbound network fetches in workerd. */
+/** Tracked non-test files matched by the AST fetch scanner that do NOT run outbound network fetches in workerd. */
 const NON_WORKERD_OR_CLIENT_FETCH_FILES: Readonly<Record<string, string>> = {
   "apps/desktop/src/desktop-api.ts": "Electron desktop client, not workerd",
   "apps/desktop/src/electron-ports.ts":
@@ -689,8 +777,6 @@ const NON_WORKERD_OR_CLIENT_FETCH_FILES: Readonly<Record<string, string>> = {
     "Browser client click telemetry helper, not workerd",
   "apps/web/src/features/experience/browser-provider.tsx":
     "Browser client oRPC provider, not workerd",
-  "apps/web/src/lib/server-internal-dispatch.ts":
-    "In-process auth/oRPC router dispatch; performs no outbound network fetch",
   "packages/jobs/src/server/model-relay.ts":
     "Node/Linux sandbox worker (packages/jobs maps workerd export to unsupported.ts)",
 };
@@ -716,29 +802,30 @@ const assertNoWorkerdRejection = (
 };
 
 describe("workerd outbound adapter RequestInit runtime replay", () => {
-  let harness: WorkerdReplayHarness;
+  let harness: WorkerdReplayHarness | undefined;
 
   beforeAll(async () => {
     harness = await startWorkerdReplayHarness();
   });
 
   afterAll(async () => {
-    await harness.close();
+    await harness?.close();
   });
 
   it("self-checks that pinned workerd rejects redirect:'error' and cache:'default'", async () => {
-    expect(harness.compatibilityDate).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
-    expect(harness.compatibilityFlags).toContain("nodejs_compat");
-    harness.setLoopbackResponse({ mode: "200" });
+    const active = harness as WorkerdReplayHarness;
+    expect(active.compatibilityDate).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    expect(active.compatibilityFlags).toContain("nodejs_compat");
+    active.setLoopbackResponse({ mode: "200" });
 
-    const rejectedRedirect = await harness.replayRaw("/self-check-redirect", {
+    const rejectedRedirect = await active.replayRaw("/self-check-redirect", {
       method: "GET",
       redirect: "error",
     });
     expect(rejectedRedirect.serverHits).toBe(0);
     expect(rejectedRedirect.workerdError?.name).toBe("TypeError");
 
-    const rejectedCache = await harness.replayRaw("/self-check-cache", {
+    const rejectedCache = await active.replayRaw("/self-check-cache", {
       cache: "default",
       method: "GET",
       redirect: "manual",
@@ -750,13 +837,14 @@ describe("workerd outbound adapter RequestInit runtime replay", () => {
   it.each(ADAPTER_CASES)(
     "replays $name against loopback 200 and 302 in pinned workerd",
     async (adapterCase) => {
+      const active = harness as WorkerdReplayHarness;
       // 1. Loopback 200 pass: workerd must accept RequestInit and reach the server.
-      harness.setLoopbackResponse({
+      active.setLoopbackResponse({
         mode: "200",
         ...adapterCase.okResponse,
       });
-      const okHandle = harness.createAdapterFetch();
-      await adapterCase.run(okHandle.fetch);
+      const okHandle = active.createAdapterFetch();
+      await withCapturedRequestCache(() => adapterCase.run(okHandle.fetch));
       assertNoWorkerdRejection(`${adapterCase.name} [200]`, okHandle.records);
       for (const record of okHandle.records) {
         expect(record.responseStatus).toBe(200);
@@ -764,9 +852,11 @@ describe("workerd outbound adapter RequestInit runtime replay", () => {
       }
 
       // 2. Loopback 302 pass: workerd must accept RequestInit; manual-redirect adapters must not follow 302.
-      harness.setLoopbackResponse({ mode: "302" });
-      const redirectHandle = harness.createAdapterFetch();
-      await adapterCase.run(redirectHandle.fetch);
+      active.setLoopbackResponse({ mode: "302" });
+      const redirectHandle = active.createAdapterFetch();
+      await withCapturedRequestCache(() =>
+        adapterCase.run(redirectHandle.fetch)
+      );
       assertNoWorkerdRejection(
         `${adapterCase.name} [302]`,
         redirectHandle.records
@@ -784,7 +874,7 @@ describe("workerd outbound adapter RequestInit runtime replay", () => {
     }
   );
 
-  it("covers every tracked workerd-reachable outbound fetch file in packages/ and apps/", () => {
+  it("covers every tracked workerd-reachable fetch/SDK file in packages/ and apps/", () => {
     const discovered = discoverOutboundFetchFiles();
     const covered = new Set(ADAPTER_CASES.map((entry) => entry.file));
     const excluded = new Set(Object.keys(NON_WORKERD_OR_CLIENT_FETCH_FILES));

@@ -9,10 +9,14 @@ import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { parse as parseJsonc } from "jsonc-parser";
+import ts from "typescript-api";
 import { z } from "zod";
 
 const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const REDIRECT_TARGET_PATH = "/__workerd-redirect-target";
+const REPLAY_PATH_PREFIX = "/__r/";
+const DEFAULT_STARTUP_TIMEOUT_MS = 10_000;
+const DEFAULT_STOP_TIMEOUT_MS = 3000;
 
 const WranglerConfigSchema = z.object({
   compatibility_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
@@ -106,9 +110,63 @@ export type WorkerdReplayHarness = Readonly<{
 
 export type WorkerdReplayHarnessOptions = Readonly<{
   binaryPath?: string;
+  listenHost?: string;
+  startupTimeoutMs?: number;
+  stopTimeoutMs?: number;
   webPackageJsonPath?: string;
   wranglerConfigPath?: string;
 }>;
+
+// Tracks explicit `cache` passed to `new Request(input, init)` while running under
+// `withCapturedRequestCache`, so `new Request(url, { cache: "default" })` is distinguished
+// from omitting `cache` (Node exposes `.cache === "default"` for both, while workerd rejects
+// explicit `cache: "default"`).
+const explicitRequestCache = new WeakMap<Request, RequestCache>();
+
+const attachCloneCachePropagation = (
+  request: Request,
+  cache: RequestCache
+): void => {
+  explicitRequestCache.set(request, cache);
+  const originalClone = request.clone.bind(request);
+  Object.defineProperty(request, "clone", {
+    configurable: true,
+    value: (): Request => {
+      const cloned = originalClone();
+      attachCloneCachePropagation(cloned, cache);
+      return cloned;
+    },
+  });
+};
+
+/** Runs an async operation while tracking explicit `cache` options passed to `new Request(...)`. */
+export const withCapturedRequestCache = async <T>(
+  operation: () => Promise<T>
+): Promise<T> => {
+  const OriginalRequest = globalThis.Request;
+  const TrackedRequest = new Proxy(OriginalRequest, {
+    construct(target, args, newTarget) {
+      const instance = Reflect.construct(target, args, newTarget) as Request;
+      const input = args[0] as unknown;
+      const init = args[1] as RequestInit | undefined;
+      const explicit =
+        init?.cache ??
+        (input instanceof OriginalRequest
+          ? explicitRequestCache.get(input)
+          : undefined);
+      if (explicit !== undefined) {
+        attachCloneCachePropagation(instance, explicit);
+      }
+      return instance;
+    },
+  });
+  globalThis.Request = TrackedRequest;
+  try {
+    return await operation();
+  } finally {
+    globalThis.Request = OriginalRequest;
+  }
+};
 
 /** Reads compatibility_date and compatibility_flags from apps/web/wrangler.jsonc. */
 export const readWorkerdConfig = (configPath: string): WorkerdConfig => {
@@ -195,33 +253,28 @@ const REQUEST_SKIP_KEYS: Readonly<Record<string, true>> = {
   method: true,
   mode: true,
   redirect: true,
+  referrer: true,
   referrerPolicy: true,
 };
 
 const EMPTY_SKIP_KEYS: Readonly<Record<string, true>> = {};
 
-const mergeRequestHeaders = (
-  base: Headers,
-  override: HeadersInit | undefined
-): Record<string, string> => {
-  const merged = new Headers(base);
-  if (override !== undefined) {
-    for (const [key, value] of new Headers(override).entries()) {
-      merged.set(key, value);
-    }
-  }
-  return Object.fromEntries(merged.entries());
-};
-
 const serializeRequestInput = async (
   input: Request,
   init: RequestInit | undefined,
-  rewriteOrigin: string
+  rewriteOrigin: string,
+  pathPrefix: string
 ): Promise<SerializedFetchCall> => {
   const method = init?.method ?? input.method;
+  // Fetch spec: init.headers replaces input.headers rather than merging onto them.
+  const headers = Object.fromEntries(
+    new Headers(
+      init?.headers === undefined ? input.headers : init.headers
+    ).entries()
+  );
   const serializedInit: Record<string, unknown> = {
     credentials: init?.credentials ?? input.credentials,
-    headers: mergeRequestHeaders(input.headers, init?.headers),
+    headers,
     integrity: init?.integrity ?? input.integrity,
     keepalive: init?.keepalive ?? input.keepalive,
     method,
@@ -229,11 +282,15 @@ const serializeRequestInput = async (
     redirect: init?.redirect ?? input.redirect,
     referrerPolicy: init?.referrerPolicy ?? input.referrerPolicy,
   };
-  // Node's Request defaults `.cache` to "default" when omitted; workerd rejects "default".
-  // Forward an explicit init.cache verbatim, and forward non-default Request.cache (e.g. "no-store").
   const cache =
-    init?.cache ?? (input.cache === "default" ? undefined : input.cache);
+    init?.cache ??
+    explicitRequestCache.get(input) ??
+    (input.cache === "default" ? undefined : input.cache);
   if (cache !== undefined) serializedInit["cache"] = cache;
+  const referrer =
+    init?.referrer ??
+    (input.referrer === "about:client" ? undefined : input.referrer);
+  if (referrer !== undefined) serializedInit["referrer"] = referrer;
   if (init?.body !== undefined && init.body !== null) {
     serializedInit["body"] = normalizeBody(init.body);
   } else if (input.body !== null) {
@@ -246,7 +303,7 @@ const serializeRequestInput = async (
     method,
     originalUrl: input.url,
     signalAborted: extra.signalAborted || input.signal.aborted,
-    targetUrl: `${rewriteOrigin}${parsedUrl.pathname}${parsedUrl.search}`,
+    targetUrl: `${rewriteOrigin}${pathPrefix}${parsedUrl.pathname}${parsedUrl.search}`,
     viaRequest: true,
     withSignal: true,
   });
@@ -256,10 +313,11 @@ const serializeRequestInput = async (
 export const serializeFetchCall = async (
   input: string | URL | Request,
   init: RequestInit | undefined,
-  rewriteOrigin: string
+  rewriteOrigin: string,
+  pathPrefix = ""
 ): Promise<SerializedFetchCall> => {
   if (input instanceof Request) {
-    return await serializeRequestInput(input, init, rewriteOrigin);
+    return await serializeRequestInput(input, init, rewriteOrigin, pathPrefix);
   }
   const originalUrl = String(input);
   const parsedUrl = new URL(originalUrl);
@@ -274,7 +332,7 @@ export const serializeFetchCall = async (
     method,
     originalUrl,
     signalAborted: extra.signalAborted,
-    targetUrl: `${rewriteOrigin}${parsedUrl.pathname}${parsedUrl.search}`,
+    targetUrl: `${rewriteOrigin}${pathPrefix}${parsedUrl.pathname}${parsedUrl.search}`,
     viaRequest: false,
     withSignal: extra.withSignal,
   });
@@ -346,9 +404,77 @@ const WORKER_SCRIPT = [
 const TEST_FILE =
   /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.(tsx?|jsx?|mjs|mts|cts)$/u;
 const SOURCE_EXTENSION = /\.(?:ts|tsx|js|mjs|mts|cts)$/u;
-const FETCH_CALL = /\bglobalThis\.fetch\b|\b(?:fetch|fetcher|fetchImpl)\s*\(/u;
+const FETCH_CALLEES: Readonly<Record<string, true>> = {
+  fetch: true,
+  fetcher: true,
+  fetchImpl: true,
+  fetchRequest: true,
+};
+const GLOBAL_FETCH_HOSTS: Readonly<Record<string, true>> = {
+  global: true,
+  globalThis: true,
+  self: true,
+  window: true,
+};
+const HTTP_SDK_CONSTRUCTORS: Readonly<Record<string, true>> = {
+  Groq: true,
+  Resend: true,
+};
 
-/** Lists every tracked non-test source file under packages/ and apps/ that calls fetch / fetcher / fetchImpl. */
+/** AST check for runtime fetch/fetcher/fetchImpl/fetchRequest calls, global fetch references, or HTTP SDK constructors. */
+export const sourceHasOutboundFetch = (
+  filePath: string,
+  source: string
+): boolean => {
+  if (!/(?:fetch|Resend|Groq)/u.test(source)) return false;
+  const scriptKind =
+    filePath.endsWith(".tsx") || filePath.endsWith(".jsx")
+      ? ts.ScriptKind.TSX
+      : ts.ScriptKind.TS;
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    false,
+    scriptKind
+  );
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      Object.hasOwn(GLOBAL_FETCH_HOSTS, node.expression.text) &&
+      node.name.text === "fetch"
+    ) {
+      found = true;
+      return;
+    }
+    if (ts.isCallExpression(node)) {
+      const expr = node.expression;
+      if (
+        (ts.isIdentifier(expr) && Object.hasOwn(FETCH_CALLEES, expr.text)) ||
+        (ts.isPropertyAccessExpression(expr) && expr.name.text === "fetch")
+      ) {
+        found = true;
+        return;
+      }
+    }
+    if (
+      ts.isNewExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      Object.hasOwn(HTTP_SDK_CONSTRUCTORS, node.expression.text)
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+};
+
+/** Lists every tracked non-test source file under packages/ and apps/ with runtime outbound fetch or HTTP SDK calls. */
 export const discoverOutboundFetchFiles = (
   repoRoot: string = REPO_ROOT
 ): readonly string[] => {
@@ -364,14 +490,9 @@ export const discoverOutboundFetchFiles = (
     );
   return Object.freeze(
     files
-      .filter((file) => {
-        const stripped = readFileSync(join(repoRoot, file), "utf8")
-          .replace(/\/\*[\s\S]*?\*\//gu, "")
-          .split("\n")
-          .filter((line) => !line.trimStart().startsWith("//"))
-          .join("\n");
-        return FETCH_CALL.test(stripped);
-      })
+      .filter((file) =>
+        sourceHasOutboundFetch(file, readFileSync(join(repoRoot, file), "utf8"))
+      )
       .sort()
   );
 };
@@ -382,60 +503,146 @@ const drainRequestBody = async (req: IncomingMessage): Promise<void> => {
   }
 };
 
+const parseReplayId = (requestUrl: string): string => {
+  if (requestUrl.startsWith(REPLAY_PATH_PREFIX)) {
+    const rest = requestUrl.slice(REPLAY_PATH_PREFIX.length);
+    const slash = rest.indexOf("/");
+    return slash === -1 ? rest : rest.slice(0, slash);
+  }
+  const parsed = new URL(requestUrl, "http://127.0.0.1");
+  return parsed.searchParams.get("rid") ?? "";
+};
+
 const waitForListenPort = (
   proc: ChildProcess,
   controlStream: Readable,
-  stderrStream: Readable
+  stderrStream: Readable,
+  startupTimeoutMs: number
 ): Promise<number> => {
   const { promise, reject, resolve } = Promise.withResolvers<number>();
   let buffer = "";
   let stderr = "";
-  stderrStream.on("data", (chunk: Buffer) => {
+  let controlEndTimer: NodeJS.Timeout | undefined;
+
+  const cleanup = (): void => {
+    clearTimeout(timer);
+    clearTimeout(controlEndTimer);
+    proc.off("close", onClose);
+    proc.off("error", onError);
+    controlStream.off("data", onControlData);
+    controlStream.off("end", onControlEnd);
+    stderrStream.off("data", onStderrData);
+  };
+
+  const fail = (error: Error): void => {
+    cleanup();
+    reject(error);
+  };
+
+  const onStderrData = (chunk: Buffer): void => {
     stderr += chunk.toString("utf8");
-  });
-  const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
-    reject(
+  };
+
+  const onError = (error: Error): void => {
+    fail(new Error(`workerd failed to spawn: ${error.message}`));
+  };
+
+  const onClose = (
+    code: number | null,
+    signal: NodeJS.Signals | null
+  ): void => {
+    fail(
       new Error(
         `workerd exited before listening (code=${String(code)}, signal=${String(signal)}): ${stderr.trim()}`
       )
     );
   };
-  proc.once("exit", onExit);
-  controlStream.on("data", (chunk: Buffer) => {
+
+  const onControlEnd = (): void => {
+    // Brief grace window so a dying process delivers its real exit code via `close` first.
+    controlEndTimer = setTimeout(() => {
+      fail(
+        new Error(
+          `workerd closed control-fd before listening: ${stderr.trim()}`
+        )
+      );
+    }, 25);
+    controlEndTimer.unref();
+  };
+  const onControlData = (chunk: Buffer): void => {
     buffer += chunk.toString("utf8");
     let newlineIndex = buffer.indexOf("\n");
     while (newlineIndex !== -1) {
       const line = buffer.slice(0, newlineIndex).trim();
       buffer = buffer.slice(newlineIndex + 1);
       if (line !== "") {
-        const parsed = ControlMessageSchema.safeParse(JSON.parse(line));
+        let rawJson: unknown;
+        try {
+          rawJson = JSON.parse(line);
+        } catch {
+          fail(new Error(`workerd emitted malformed control-fd JSON: ${line}`));
+          return;
+        }
+        const parsed = ControlMessageSchema.safeParse(rawJson);
         if (
           parsed.success &&
           parsed.data.event === "listen" &&
           parsed.data.socket === "http" &&
           parsed.data.port !== undefined
         ) {
-          proc.off("exit", onExit);
+          cleanup();
           resolve(parsed.data.port);
           return;
         }
       }
       newlineIndex = buffer.indexOf("\n");
     }
-  });
+  };
+
+  const timer = setTimeout(() => {
+    fail(
+      new Error(
+        `workerd did not listen within ${startupTimeoutMs}ms: ${stderr.trim()}`
+      )
+    );
+  }, startupTimeoutMs);
+  timer.unref();
+
+  stderrStream.on("data", onStderrData);
+  proc.once("error", onError);
+  proc.once("close", onClose);
+  controlStream.on("data", onControlData);
+  controlStream.once("end", onControlEnd);
+
   return promise;
 };
 
-const stopProcess = async (proc: ChildProcess): Promise<void> => {
-  if (proc.exitCode !== null) return;
+const stopProcess = async (
+  proc: ChildProcess,
+  stopTimeoutMs: number
+): Promise<void> => {
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
   const { promise, resolve } = Promise.withResolvers<void>();
-  proc.once("exit", () => resolve());
+  const finish = (): void => {
+    clearTimeout(killTimer);
+    proc.off("close", finish);
+    proc.off("error", finish);
+    resolve();
+  };
+  const killTimer = setTimeout(() => {
+    proc.kill("SIGKILL");
+  }, stopTimeoutMs);
+  killTimer.unref();
+  proc.once("close", finish);
+  proc.once("error", finish);
   proc.kill("SIGTERM");
   await promise;
 };
 
 const closeHttpServer = (server: Server): Promise<void> => {
+  if (!server.listening) return Promise.resolve();
   const { promise, resolve } = Promise.withResolvers<void>();
+  server.closeAllConnections();
   server.close(() => resolve());
   return promise;
 };
@@ -457,10 +664,14 @@ type ReplayExecutionResult =
 export const startWorkerdReplayHarness = async (
   options: WorkerdReplayHarnessOptions = {}
 ): Promise<WorkerdReplayHarness> => {
+  const hostFetch = globalThis.fetch.bind(globalThis);
   const wranglerConfigPath =
     options.wranglerConfigPath ?? join(REPO_ROOT, "apps/web/wrangler.jsonc");
   const webPackageJsonPath =
     options.webPackageJsonPath ?? join(REPO_ROOT, "apps/web/package.json");
+  const startupTimeoutMs =
+    options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
+  const stopTimeoutMs = options.stopTimeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
   const config = readWorkerdConfig(wranglerConfigPath);
   const binary =
     options.binaryPath === undefined
@@ -468,127 +679,157 @@ export const startWorkerdReplayHarness = async (
       : { binaryPath: options.binaryPath, version: "custom" };
 
   let loopbackResponse: LoopbackResponseConfig = { mode: "200" };
-  let hitCount = 0;
-  let followedRedirectCount = 0;
+  let nextReplaySeq = 0;
+  const statsByReplayId = new Map<
+    string,
+    { followedRedirect: boolean; hits: number }
+  >();
 
   const loopbackServer = createServer((req, res) => {
-    void drainRequestBody(req).then(() => {
-      if (req.url === REDIRECT_TARGET_PATH) {
-        followedRedirectCount += 1;
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end('{"redirected":true}');
-        return;
-      }
-      hitCount += 1;
-      if (loopbackResponse.mode === "302") {
-        res.writeHead(302, {
-          location: REDIRECT_TARGET_PATH,
+    void drainRequestBody(req)
+      .then(() => {
+        const reqUrl = String(req.url);
+        const rid = parseReplayId(reqUrl);
+        const entry = statsByReplayId.get(rid);
+        if (reqUrl.startsWith(REDIRECT_TARGET_PATH)) {
+          if (entry !== undefined) entry.followedRedirect = true;
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end('{"redirected":true}');
+          return;
+        }
+        if (entry !== undefined) entry.hits += 1;
+        if (loopbackResponse.mode === "302") {
+          res.writeHead(302, {
+            location: `${REDIRECT_TARGET_PATH}?rid=${encodeURIComponent(rid)}`,
+            ...loopbackResponse.headers,
+          });
+          res.end();
+          return;
+        }
+        res.writeHead(loopbackResponse.status ?? 200, {
+          "content-type": "application/json",
           ...loopbackResponse.headers,
         });
-        res.end();
-        return;
-      }
-      res.writeHead(loopbackResponse.status ?? 200, {
-        "content-type": "application/json",
-        ...loopbackResponse.headers,
-      });
-      res.end(loopbackResponse.body ?? "{}");
-    });
+        res.end(loopbackResponse.body ?? "{}");
+      })
+      .catch(() => undefined);
   });
-  const listened = Promise.withResolvers<void>();
-  loopbackServer.listen(0, "127.0.0.1", () => listened.resolve());
-  await listened.promise;
-  const loopbackPort = (loopbackServer.address() as AddressInfo).port;
-  const loopbackOrigin = `http://127.0.0.1:${loopbackPort}`;
 
-  const tempDir = mkdtempSync(join(tmpdir(), "vertex-workerd-replay-"));
-  const capnpPath = join(tempDir, "config.capnp");
-  writeFileSync(join(tempDir, "worker.mjs"), WORKER_SCRIPT);
-  writeFileSync(capnpPath, buildCapnpConfig(config));
+  let tempDir: string | null = null;
+  let proc: ChildProcess | null = null;
 
-  const proc = spawn(
-    binary.binaryPath,
-    ["serve", "--control-fd=3", capnpPath],
-    {
-      stdio: ["ignore", "pipe", "pipe", "pipe"],
-    }
-  );
-  const controlStream = proc.stdio[3] as Readable;
-  const stderrStream = proc.stderr as Readable;
+  const cleanupResources = async (): Promise<void> => {
+    if (proc !== null) await stopProcess(proc, stopTimeoutMs);
+    await closeHttpServer(loopbackServer);
+    if (tempDir !== null) rmSync(tempDir, { force: true, recursive: true });
+  };
 
+  let loopbackOrigin: string;
   let workerdPort: number;
   try {
-    workerdPort = await waitForListenPort(proc, controlStream, stderrStream);
+    const listened = Promise.withResolvers<void>();
+    loopbackServer.once("error", listened.reject);
+    loopbackServer.listen(0, options.listenHost ?? "127.0.0.1", () => {
+      loopbackServer.off("error", listened.reject);
+      listened.resolve();
+    });
+    await listened.promise;
+    const loopbackPort = (loopbackServer.address() as AddressInfo).port;
+    loopbackOrigin = `http://127.0.0.1:${loopbackPort}`;
+
+    tempDir = mkdtempSync(join(tmpdir(), "vertex-workerd-replay-"));
+    const capnpPath = join(tempDir, "config.capnp");
+    writeFileSync(join(tempDir, "worker.mjs"), WORKER_SCRIPT);
+    writeFileSync(capnpPath, buildCapnpConfig(config));
+
+    proc = spawn(binary.binaryPath, ["serve", "--control-fd=3", capnpPath], {
+      stdio: ["ignore", "ignore", "pipe", "pipe"],
+    });
+    const controlStream = proc.stdio[3] as Readable;
+    const stderrStream = proc.stderr as Readable;
+    workerdPort = await waitForListenPort(
+      proc,
+      controlStream,
+      stderrStream,
+      startupTimeoutMs
+    );
   } catch (error) {
-    await stopProcess(proc);
-    await closeHttpServer(loopbackServer);
-    rmSync(tempDir, { force: true, recursive: true });
+    await cleanupResources();
     throw error;
   }
 
   const workerdUrl = `http://127.0.0.1:${workerdPort}/`;
 
   const executeReplay = async (
+    replayId: string,
     call: SerializedFetchCall
   ): Promise<ReplayExecutionResult> => {
-    const hitsBefore = hitCount;
-    const redirectsBefore = followedRedirectCount;
-    const raw = await globalThis.fetch(workerdUrl, {
-      body: JSON.stringify({
-        init: call.init,
-        signalAborted: call.signalAborted,
-        url: call.targetUrl,
-        viaRequest: call.viaRequest,
-        withSignal: call.withSignal,
-      }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    const parsed = ReplayWorkerResponseSchema.parse(await raw.json());
-    const serverHits = hitCount - hitsBefore;
-    const followedRedirect = followedRedirectCount > redirectsBefore;
-    if (!parsed.ok) {
+    const stats = { followedRedirect: false, hits: 0 };
+    statsByReplayId.set(replayId, stats);
+    try {
+      const raw = await hostFetch(workerdUrl, {
+        body: JSON.stringify({
+          init: call.init,
+          signalAborted: call.signalAborted,
+          url: call.targetUrl,
+          viaRequest: call.viaRequest,
+          withSignal: call.withSignal,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const parsed = ReplayWorkerResponseSchema.parse(await raw.json());
+      if (!parsed.ok) {
+        const record: ReplayRecord = Object.freeze({
+          followedRedirect: stats.followedRedirect,
+          init: call.init,
+          method: call.method,
+          originalUrl: call.originalUrl,
+          responseStatus: null,
+          serverHits: stats.hits,
+          viaRequest: call.viaRequest,
+          withSignal: call.withSignal,
+          workerdError: Object.freeze({
+            message: parsed.message,
+            name: parsed.name,
+          }),
+        });
+        return { ok: false, record };
+      }
       const record: ReplayRecord = Object.freeze({
-        followedRedirect,
+        followedRedirect: stats.followedRedirect,
         init: call.init,
         method: call.method,
         originalUrl: call.originalUrl,
-        responseStatus: null,
-        serverHits,
+        responseStatus: parsed.status,
+        serverHits: stats.hits,
         viaRequest: call.viaRequest,
         withSignal: call.withSignal,
-        workerdError: Object.freeze({
-          message: parsed.message,
-          name: parsed.name,
-        }),
+        workerdError: null,
       });
-      return { ok: false, record };
+      return {
+        body: parsed.body,
+        headers: parsed.headers,
+        ok: true,
+        record,
+        status: parsed.status,
+      };
+    } finally {
+      statsByReplayId.delete(replayId);
     }
-    const record: ReplayRecord = Object.freeze({
-      followedRedirect,
-      init: call.init,
-      method: call.method,
-      originalUrl: call.originalUrl,
-      responseStatus: parsed.status,
-      serverHits,
-      viaRequest: call.viaRequest,
-      withSignal: call.withSignal,
-      workerdError: null,
-    });
-    return {
-      body: parsed.body,
-      headers: parsed.headers,
-      ok: true,
-      record,
-      status: parsed.status,
-    };
   };
 
   const createAdapterFetch = (): AdapterReplayHandle => {
     const records: ReplayRecord[] = [];
     const adapterFetch: typeof globalThis.fetch = async (input, init) => {
-      const call = await serializeFetchCall(input, init, loopbackOrigin);
-      const result = await executeReplay(call);
+      const replayId = `r${++nextReplaySeq}`;
+      const call = await serializeFetchCall(
+        input,
+        init,
+        loopbackOrigin,
+        `${REPLAY_PATH_PREFIX}${replayId}`
+      );
+      const result = await executeReplay(replayId, call);
       records.push(result.record);
       if (!result.ok) {
         const err = result.record.workerdError as Readonly<{
@@ -611,12 +852,13 @@ export const startWorkerdReplayHarness = async (
     init: Readonly<Record<string, unknown>>,
     replayOptions: Readonly<{ viaRequest?: boolean; withSignal?: boolean }> = {}
   ): Promise<ReplayRecord> => {
-    const targetUrl = `${loopbackOrigin}${path}`;
+    const replayId = `r${++nextReplaySeq}`;
+    const targetUrl = `${loopbackOrigin}${REPLAY_PATH_PREFIX}${replayId}${path}`;
     const method = typeof init["method"] === "string" ? init["method"] : "GET";
-    const result = await executeReplay({
+    const result = await executeReplay(replayId, {
       init,
       method,
-      originalUrl: targetUrl,
+      originalUrl: `${loopbackOrigin}${path}`,
       signalAborted: false,
       targetUrl,
       viaRequest: replayOptions.viaRequest ?? false,
@@ -625,14 +867,8 @@ export const startWorkerdReplayHarness = async (
     return result.record;
   };
 
-  const close = async (): Promise<void> => {
-    await stopProcess(proc);
-    await closeHttpServer(loopbackServer);
-    rmSync(tempDir, { force: true, recursive: true });
-  };
-
   return Object.freeze({
-    close,
+    close: cleanupResources,
     compatibilityDate: config.compatibilityDate,
     compatibilityFlags: config.compatibilityFlags,
     createAdapterFetch,
