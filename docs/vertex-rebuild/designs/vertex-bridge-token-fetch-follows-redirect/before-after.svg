@@ -1,0 +1,670 @@
+<svg
+  font-family="DejaVu Sans, Liberation Sans, sans-serif"
+  height="640"
+  viewBox="0 0 1200 640"
+  width="1200"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>Vertex Bridge-Token Fetch: Before vs After</title>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="goldBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#d4a843" />
+      <stop offset="100%" stop-color="#f5d07a" />
+    </linearGradient>
+    <marker
+      id="arrowRed"
+      markerHeight="8"
+      markerWidth="8"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="arrowGold"
+      markerHeight="8"
+      markerWidth="8"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#d4a843" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      markerHeight="8"
+      markerWidth="8"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowMuted"
+      markerHeight="8"
+      markerWidth="8"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#64748b" />
+    </marker>
+    <!-- Key pictogram -->
+    <g id="keyIcon">
+      <circle
+        cx="8"
+        cy="8"
+        fill="none"
+        r="5"
+        stroke="#f5d07a"
+        stroke-width="2.2"
+      />
+      <path
+        d="M13,8 L24,8 M20,8 L20,12 M23,8 L23,11"
+        stroke="#f5d07a"
+        stroke-linecap="round"
+        stroke-width="2.2"
+      />
+    </g>
+    <!-- Shield pictogram -->
+    <g id="shieldIcon">
+      <path
+        d="M16,2 L28,7 L28,16 C28,23 22.5,28 16,31 C9.5,28 4,23 4,16 L4,7 Z"
+        fill="#064e3b"
+        stroke="#34d399"
+        stroke-width="2.2"
+      />
+      <path
+        d="M11,16 L14.5,19.5 L22,12"
+        fill="none"
+        stroke="#34d399"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2.5"
+      />
+    </g>
+    <!-- Warning pictogram -->
+    <g id="warnIcon">
+      <path
+        d="M16,3 L30,27 L2,27 Z"
+        fill="#450a0a"
+        stroke="#f87171"
+        stroke-linejoin="round"
+        stroke-width="2.2"
+      />
+      <line
+        stroke="#f87171"
+        stroke-linecap="round"
+        stroke-width="2.4"
+        x1="16"
+        x2="16"
+        y1="11"
+        y2="19"
+      />
+      <circle cx="16" cy="23" fill="#f87171" r="1.5" />
+    </g>
+    <!-- Server rack pictogram -->
+    <g id="serverIcon">
+      <rect
+        fill="#1e293b"
+        height="9"
+        rx="2"
+        stroke="#94a3b8"
+        stroke-width="1.6"
+        width="26"
+        x="2"
+        y="3"
+      />
+      <rect
+        fill="#1e293b"
+        height="9"
+        rx="2"
+        stroke="#94a3b8"
+        stroke-width="1.6"
+        width="26"
+        x="2"
+        y="15"
+      />
+      <circle cx="7" cy="7.5" fill="#d4a843" r="1.4" />
+      <circle cx="7" cy="19.5" fill="#34d399" r="1.4" />
+      <line
+        stroke="#64748b"
+        stroke-width="1.6"
+        x1="13"
+        x2="23"
+        y1="7.5"
+        y2="7.5"
+      />
+      <line
+        stroke="#64748b"
+        stroke-width="1.6"
+        x1="13"
+        x2="23"
+        y1="19.5"
+        y2="19.5"
+      />
+    </g>
+  </defs>
+
+  <!-- Canvas -->
+  <rect fill="url(#bg)" height="640" width="1200" />
+  <rect fill="url(#goldBar)" height="4" width="1200" x="0" y="0" />
+
+  <!-- Title -->
+  <text fill="#f8fafc" font-size="22" font-weight="700" x="40" y="42">
+    Vertex Bridge-Token Fetch: Before vs After
+  </text>
+  <text fill="#94a3b8" font-size="13" x="40" y="65">
+    golive-live-quotes.ts (POST /quotes) · vertex-orders-gateway.ts (GET
+    /account, POST /orders, /combos, /cancel)
+  </text>
+
+  <!-- ==================== BEFORE BAND ==================== -->
+  <rect
+    fill="#131926"
+    height="244"
+    rx="14"
+    stroke="#7f1d1d"
+    stroke-width="1.6"
+    width="1136"
+    x="32"
+    y="88"
+  />
+  <rect fill="#7f1d1d" height="30" rx="8" width="120" x="32" y="88" />
+  <text
+    fill="#fecaca"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="92"
+    y="108"
+  >
+    BEFORE
+  </text>
+  <text fill="#fca5a5" font-size="13" font-weight="600" x="168" y="108">
+    Default redirect: "follow" — auto-follows 3xx hop &amp; reads non-OK body in
+    orders gateway
+  </text>
+
+  <!-- Node 1: Bridge Client -->
+  <rect
+    fill="#0f172a"
+    height="148"
+    rx="12"
+    stroke="#475569"
+    stroke-width="1.6"
+    width="230"
+    x="64"
+    y="142"
+  />
+  <use href="#serverIcon" x="80" y="158" />
+  <text fill="#f8fafc" font-size="14" font-weight="700" x="118" y="171">
+    Bridge Client
+  </text>
+  <text fill="#94a3b8" font-size="11" x="118" y="188">fetch(url, init)</text>
+  <rect
+    fill="#1e293b"
+    height="28"
+    rx="6"
+    stroke="#d4a843"
+    stroke-width="1"
+    width="198"
+    x="80"
+    y="206"
+  />
+  <use href="#keyIcon" x="88" y="212" />
+  <text fill="#f5d07a" font-size="11" font-weight="600" x="118" y="224">
+    X-Vertex-Bridge-Token
+  </text>
+  <rect
+    fill="#450a0a"
+    height="28"
+    rx="6"
+    stroke="#f87171"
+    stroke-width="1"
+    width="198"
+    x="80"
+    y="244"
+  />
+  <text
+    fill="#fca5a5"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="179"
+    y="262"
+  >
+    redirect: (default "follow")
+  </text>
+
+  <!-- Arrow 1 -> 2 -->
+  <line
+    marker-end="url(#arrowGold)"
+    stroke="#d4a843"
+    stroke-width="2.5"
+    x1="296"
+    x2="424"
+    y1="194"
+    y2="194"
+  />
+  <use href="#keyIcon" x="342" y="166" />
+  <text fill="#cbd5e1" font-size="11" text-anchor="middle" x="360" y="213">
+    GET / POST
+  </text>
+
+  <!-- Node 2: Loopback Bridge returning 3xx -->
+  <rect
+    fill="#0f172a"
+    height="148"
+    rx="12"
+    stroke="#f87171"
+    stroke-width="1.6"
+    width="218"
+    x="430"
+    y="142"
+  />
+  <text
+    fill="#f8fafc"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="539"
+    y="168"
+  >
+    127.0.0.1:3470
+  </text>
+  <text fill="#94a3b8" font-size="11" text-anchor="middle" x="539" y="185">
+    Loopback Bridge
+  </text>
+  <rect
+    fill="#450a0a"
+    height="68"
+    rx="8"
+    stroke="#f87171"
+    stroke-width="1.2"
+    width="174"
+    x="452"
+    y="202"
+  />
+  <text
+    fill="#fecaca"
+    font-size="15"
+    font-weight="700"
+    text-anchor="middle"
+    x="539"
+    y="226"
+  >
+    HTTP 302 / 307
+  </text>
+  <text fill="#fca5a5" font-size="11" text-anchor="middle" x="539" y="247">
+    Location: /other-hop
+  </text>
+  <text fill="#fca5a5" font-size="10" text-anchor="middle" x="539" y="262">
+    (or unintended target)
+  </text>
+
+  <!-- Arrow 2 -> 3: Auto-follow! -->
+  <path
+    d="M650,216 C705,216 705,216 782,216"
+    marker-end="url(#arrowRed)"
+    stroke="#f87171"
+    stroke-dasharray="7,5"
+    stroke-width="2.8"
+  />
+  <use href="#keyIcon" x="700" y="184" />
+  <text
+    fill="#fca5a5"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="716"
+    y="206"
+  >
+    AUTO-FOLLOWS
+  </text>
+  <text fill="#fca5a5" font-size="10" text-anchor="middle" x="716" y="236">
+    token / POST body
+  </text>
+
+  <!-- Node 3: Redirect Target (danger) -->
+  <rect
+    fill="#1c1117"
+    height="148"
+    rx="12"
+    stroke="#f87171"
+    stroke-width="2"
+    width="346"
+    x="790"
+    y="142"
+  />
+  <use href="#warnIcon" x="808" y="156" />
+  <text fill="#fecaca" font-size="14" font-weight="700" x="850" y="172">
+    Redirect Hop Executed
+  </text>
+  <text fill="#fca5a5" font-size="12" x="850" y="191">
+    • Follows 301/302/303/307/308 silently
+  </text>
+  <text fill="#fca5a5" font-size="12" x="850" y="211">
+    • Re-sends token &amp; 307/308 POST payload
+  </text>
+  <text fill="#fca5a5" font-size="12" x="850" y="231">
+    • Accepts redirected 200 JSON as valid
+  </text>
+  <text fill="#fca5a5" font-size="12" x="850" y="253">
+    • Orders gateway parses response.json()
+  </text>
+  <text fill="#fca5a5" font-size="11" x="860" y="270">
+    before checking response status
+  </text>
+
+  <!-- ==================== AFTER BAND ==================== -->
+  <rect
+    fill="#0f1a1c"
+    height="258"
+    rx="14"
+    stroke="#065f46"
+    stroke-width="1.6"
+    width="1136"
+    x="32"
+    y="352"
+  />
+  <rect fill="#065f46" height="30" rx="8" width="120" x="32" y="352" />
+  <text
+    fill="#a7f3d0"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="92"
+    y="372"
+  >
+    AFTER
+  </text>
+  <text fill="#6ee7b7" font-size="13" font-weight="600" x="168" y="372">
+    redirect: "manual" (workerd-safe) + refuse 3xx / !response.ok before
+    response.json()
+  </text>
+
+  <!-- Node 1: Hardened Client -->
+  <rect
+    fill="#0f172a"
+    height="174"
+    rx="12"
+    stroke="#34d399"
+    stroke-width="1.6"
+    width="230"
+    x="64"
+    y="404"
+  />
+  <use href="#serverIcon" x="80" y="420" />
+  <text fill="#f8fafc" font-size="14" font-weight="700" x="118" y="433">
+    Bridge Client
+  </text>
+  <text fill="#94a3b8" font-size="11" x="118" y="450">fetch(url, init)</text>
+  <rect
+    fill="#1e293b"
+    height="28"
+    rx="6"
+    stroke="#d4a843"
+    stroke-width="1"
+    width="198"
+    x="80"
+    y="468"
+  />
+  <use href="#keyIcon" x="88" y="474" />
+  <text fill="#f5d07a" font-size="11" font-weight="600" x="118" y="486">
+    X-Vertex-Bridge-Token
+  </text>
+  <rect
+    fill="#064e3b"
+    height="28"
+    rx="6"
+    stroke="#34d399"
+    stroke-width="1.2"
+    width="198"
+    x="80"
+    y="506"
+  />
+  <text
+    fill="#a7f3d0"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="179"
+    y="524"
+  >
+    redirect: "manual"
+  </text>
+  <text fill="#94a3b8" font-size="10.5" text-anchor="middle" x="179" y="556">
+    workerd rejects "error";
+  </text>
+  <text fill="#94a3b8" font-size="10.5" text-anchor="middle" x="179" y="570">
+    "manual" returns 3xx as-is
+  </text>
+
+  <!-- Arrow 1 -> 2 -->
+  <line
+    marker-end="url(#arrowGold)"
+    stroke="#d4a843"
+    stroke-width="2.5"
+    x1="296"
+    x2="424"
+    y1="468"
+    y2="468"
+  />
+  <text fill="#cbd5e1" font-size="11" text-anchor="middle" x="360" y="458">
+    1 hop only
+  </text>
+
+  <!-- Node 2: Loopback Bridge returning 3xx -->
+  <rect
+    fill="#0f172a"
+    height="174"
+    rx="12"
+    stroke="#475569"
+    stroke-width="1.6"
+    width="200"
+    x="430"
+    y="404"
+  />
+  <text
+    fill="#f8fafc"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="530"
+    y="432"
+  >
+    127.0.0.1:3470
+  </text>
+  <text fill="#94a3b8" font-size="11" text-anchor="middle" x="530" y="449">
+    Loopback Bridge
+  </text>
+  <rect
+    fill="#1e293b"
+    height="54"
+    rx="8"
+    stroke="#f59e0b"
+    stroke-width="1.2"
+    width="160"
+    x="450"
+    y="468"
+  />
+  <text
+    fill="#fde68a"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+    x="530"
+    y="492"
+  >
+    HTTP 301..308
+  </text>
+  <text fill="#cbd5e1" font-size="10.5" text-anchor="middle" x="530" y="510">
+    Location: /other-hop
+  </text>
+  <text
+    fill="#34d399"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="530"
+    y="552"
+  >
+    0 requests to hop
+  </text>
+  <text fill="#94a3b8" font-size="10.5" text-anchor="middle" x="530" y="568">
+    token never forwarded
+  </text>
+
+  <!-- Blocked hop arrow + Gate -->
+  <line
+    marker-end="url(#arrowGreen)"
+    stroke="#34d399"
+    stroke-width="2.5"
+    x1="632"
+    x2="722"
+    y1="491"
+    y2="491"
+  />
+
+  <!-- Shield Gate -->
+  <rect
+    fill="#06281e"
+    height="174"
+    rx="12"
+    stroke="#34d399"
+    stroke-width="2"
+    width="176"
+    x="730"
+    y="404"
+  />
+  <use href="#shieldIcon" x="802" y="418" />
+  <text
+    fill="#a7f3d0"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+    x="818"
+    y="468"
+  >
+    Status Gate
+  </text>
+  <text fill="#d1fae5" font-size="11.5" text-anchor="middle" x="818" y="490">
+    if (!response.ok)
+  </text>
+  <text fill="#6ee7b7" font-size="11" text-anchor="middle" x="818" y="510">
+    refuses 3xx, 4xx, 5xx,
+  </text>
+  <text fill="#6ee7b7" font-size="11" text-anchor="middle" x="818" y="525">
+    opaqueredirect (0)
+  </text>
+  <text fill="#94a3b8" font-size="10.5" text-anchor="middle" x="818" y="549">
+    body?.cancel()
+  </text>
+  <text fill="#94a3b8" font-size="10.5" text-anchor="middle" x="818" y="565">
+    skips response.json()
+  </text>
+
+  <!-- Outcomes -->
+  <line
+    marker-end="url(#arrowGreen)"
+    stroke="#34d399"
+    stroke-width="2.2"
+    x1="908"
+    x2="948"
+    y1="452"
+    y2="452"
+  />
+  <line
+    marker-end="url(#arrowGreen)"
+    stroke="#34d399"
+    stroke-width="2.2"
+    x1="908"
+    x2="948"
+    y1="532"
+    y2="532"
+  />
+
+  <!-- Outcome A: Quotes -->
+  <rect
+    fill="#0f172a"
+    height="78"
+    rx="10"
+    stroke="#34d399"
+    stroke-width="1.4"
+    width="188"
+    x="954"
+    y="408"
+  />
+  <text
+    fill="#f8fafc"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1048"
+    y="431"
+  >
+    golive-live-quotes.ts
+  </text>
+  <text
+    fill="#6ee7b7"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1048"
+    y="451"
+  >
+    → returns null
+  </text>
+  <text fill="#94a3b8" font-size="10.5" text-anchor="middle" x="1048" y="470">
+    draft stays unapprovable
+  </text>
+
+  <!-- Outcome B: Orders -->
+  <rect
+    fill="#0f172a"
+    height="82"
+    rx="10"
+    stroke="#34d399"
+    stroke-width="1.4"
+    width="188"
+    x="954"
+    y="496"
+  />
+  <text
+    fill="#f8fafc"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1048"
+    y="518"
+  >
+    vertex-orders-gateway.ts
+  </text>
+  <text
+    fill="#6ee7b7"
+    font-size="11.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="1048"
+    y="537"
+  >
+    → UPSTREAM_ERROR
+  </text>
+  <text fill="#cbd5e1" font-size="9.5" text-anchor="middle" x="1048" y="555">
+    Order bridge redirected (HTTP 3xx);
+  </text>
+  <text fill="#cbd5e1" font-size="9.5" text-anchor="middle" x="1048" y="569">
+    redirects are not followed
+  </text>
+</svg>

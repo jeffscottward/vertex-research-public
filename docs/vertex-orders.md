@@ -121,7 +121,9 @@ The bridge is `market_watch/vertexbridge.py` in market-watch-bot (`python -m mar
 127.0.0.1:3470 on QuantVPS, unit `vertex-order-bridge.service`). It runs
 `ops/vertex_order_tail.py` (appended to `ops/ibkr_reentry_gateway.py` after the 2% max-loss gate
 source) in the IBKR container as its own client id 211 (never 194/196/197/198). Every request
-needs header `X-Vertex-Bridge-Token` equal to its 0600 token file; no token file refuses all. The
+needs header `X-Vertex-Bridge-Token` equal to its 0600 token file; no token file refuses all. Both
+bridge clients (`createBridgeOrderGateway` and `createBridgeQuotesReader`) send `redirect: "manual"`
+and refuse any `3xx` response without following it. The
 kill switch is the execution engine stop file (`/opt/vertex-exec-node/data/KILL_SWITCH`); it
 blocks opening and increasing orders only. Closes and cancels stay allowed. Before a close, any live order of any client on the
 same contract (for example a client-196 conditional LEAPS exit) must be cancelled first; the tail
