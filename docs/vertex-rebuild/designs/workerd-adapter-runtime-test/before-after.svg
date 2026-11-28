@@ -1,0 +1,753 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 620"
+  width="1200"
+  height="620"
+  role="img"
+  aria-label="Before and after: replaying 31 outbound adapters in pinned workerd in CI"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1017" />
+      <stop offset="100%" stop-color="#131b26" />
+    </linearGradient>
+    <linearGradient id="panelRed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1319" />
+      <stop offset="100%" stop-color="#131018" />
+    </linearGradient>
+    <linearGradient id="panelGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#101c1a" />
+      <stop offset="100%" stop-color="#0f171b" />
+    </linearGradient>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrowBlue"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#60a5fa" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="620" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="48"
+    y="54"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="26"
+    font-weight="700"
+  >
+    Outbound Adapter Fetch Verification in Pinned workerd
+  </text>
+  <text
+    x="48"
+    y="82"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+  >
+    workerd@1.20261023.1 · compat 2026-07-22 + nodejs_compat · loopback 200 /
+    302 · 31 fetch/SDK adapters across 6 packages
+  </text>
+
+  <!-- BEFORE Panel -->
+  <rect
+    x="44"
+    y="108"
+    width="540"
+    height="468"
+    rx="16"
+    fill="url(#panelRed)"
+    stroke="#ef4444"
+    stroke-opacity="0.35"
+    stroke-width="1.5"
+  />
+  <rect
+    x="68"
+    y="128"
+    width="94"
+    height="28"
+    rx="14"
+    fill="#ef4444"
+    fill-opacity="0.2"
+    stroke="#ef4444"
+    stroke-width="1"
+  />
+  <text
+    x="115"
+    y="147"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="176"
+    y="147"
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    Node CI blind to workerd TypeErrors
+  </text>
+
+  <!-- Before Flow -->
+  <rect
+    x="76"
+    y="182"
+    width="144"
+    height="74"
+    rx="12"
+    fill="#1e293b"
+    stroke="#475569"
+  />
+  <circle cx="102" cy="212" r="14" fill="#334155" />
+  <path
+    d="M96,212 L108,212 M102,206 L102,218"
+    stroke="#94a3b8"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text
+    x="126"
+    y="210"
+    fill="#f1f5f9"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    31 Adapters
+  </text>
+  <text x="126" y="230" fill="#94a3b8" font-family="monospace" font-size="11">
+    RequestInit
+  </text>
+
+  <line
+    x1="220"
+    y1="219"
+    x2="266"
+    y2="219"
+    stroke="#60a5fa"
+    stroke-width="2.5"
+    marker-end="url(#arrowBlue)"
+  />
+
+  <rect
+    x="272"
+    y="182"
+    width="138"
+    height="74"
+    rx="12"
+    fill="#172554"
+    stroke="#3b82f6"
+  />
+  <text
+    x="341"
+    y="210"
+    text-anchor="middle"
+    fill="#dbeafe"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    Node Unit CI
+  </text>
+  <text
+    x="341"
+    y="230"
+    text-anchor="middle"
+    fill="#93c5fd"
+    font-family="monospace"
+    font-size="11"
+  >
+    undici fetch
+  </text>
+
+  <line
+    x1="410"
+    y1="219"
+    x2="452"
+    y2="219"
+    stroke="#34d399"
+    stroke-width="2.5"
+    marker-end="url(#arrowGreen)"
+  />
+
+  <circle
+    cx="496"
+    cy="219"
+    r="32"
+    fill="#064e3b"
+    stroke="#34d399"
+    stroke-width="2"
+  />
+  <path
+    d="M483,219 L492,228 L510,208"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="3.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <text
+    x="496"
+    y="268"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+  >
+    CI PASSES
+  </text>
+
+  <rect
+    x="76"
+    y="294"
+    width="472"
+    height="58"
+    rx="10"
+    fill="#1e293b"
+    fill-opacity="0.7"
+    stroke="#eab308"
+    stroke-dasharray="5 4"
+  />
+  <polygon
+    points="104,310 118,316 118,328 104,338 90,328 90,316"
+    fill="none"
+    stroke="#eab308"
+    stroke-width="2"
+  />
+  <text
+    x="134"
+    y="319"
+    fill="#fde047"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+  >
+    Static regex guard only
+  </text>
+  <text x="134" y="338" fill="#94a3b8" font-family="monospace" font-size="11">
+    catches literal redirect:"error" · misses cache:"default", vars, SDKs
+  </text>
+
+  <line
+    x1="341"
+    y1="352"
+    x2="341"
+    y2="404"
+    stroke="#f87171"
+    stroke-width="2.5"
+    marker-end="url(#arrowRed)"
+  />
+  <text
+    x="353"
+    y="384"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+  >
+    deploy to QuantVPS
+  </text>
+
+  <rect
+    x="76"
+    y="412"
+    width="472"
+    height="132"
+    rx="12"
+    fill="#2a1215"
+    stroke="#ef4444"
+    stroke-width="1.5"
+  />
+  <circle
+    cx="118"
+    cy="462"
+    r="24"
+    fill="#7f1d1d"
+    stroke="#f87171"
+    stroke-width="2"
+  />
+  <path
+    d="M108,452 L128,472 M128,452 L108,472"
+    stroke="#fca5a5"
+    stroke-width="3.5"
+    stroke-linecap="round"
+  />
+  <text
+    x="158"
+    y="446"
+    fill="#fecaca"
+    font-family="system-ui, sans-serif"
+    font-size="15"
+    font-weight="700"
+  >
+    Production workerd rejects before wire
+  </text>
+  <text x="158" y="472" fill="#f87171" font-family="monospace" font-size="12">
+    TypeError: Invalid redirect value ("error")
+  </text>
+  <text x="158" y="492" fill="#f87171" font-family="monospace" font-size="12">
+    TypeError: Unsupported cache mode ("default")
+  </text>
+  <text
+    x="158"
+    y="522"
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+  >
+    0 requests sent · Nasdaq OI paused · alerts dropped
+  </text>
+
+  <!-- AFTER Panel -->
+  <rect
+    x="616"
+    y="108"
+    width="540"
+    height="468"
+    rx="16"
+    fill="url(#panelGreen)"
+    stroke="#10b981"
+    stroke-opacity="0.45"
+    stroke-width="1.5"
+  />
+  <rect
+    x="640"
+    y="128"
+    width="84"
+    height="28"
+    rx="14"
+    fill="#10b981"
+    fill-opacity="0.2"
+    stroke="#10b981"
+    stroke-width="1"
+  />
+  <text
+    x="682"
+    y="147"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="738"
+    y="147"
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="600"
+  >
+    CI replays RequestInit in pinned workerd
+  </text>
+
+  <!-- After Flow Row 1: Adapters -> workerd -> Loopback -->
+  <rect
+    x="644"
+    y="182"
+    width="132"
+    height="86"
+    rx="12"
+    fill="#1e293b"
+    stroke="#eab308"
+  />
+  <text
+    x="710"
+    y="208"
+    text-anchor="middle"
+    fill="#fef08a"
+    font-family="system-ui, sans-serif"
+    font-size="18"
+    font-weight="800"
+  >
+    31
+  </text>
+  <text
+    x="710"
+    y="228"
+    text-anchor="middle"
+    fill="#f1f5f9"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+  >
+    Live Adapters
+  </text>
+  <text
+    x="710"
+    y="248"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="monospace"
+    font-size="10"
+  >
+    6 packages + web
+  </text>
+
+  <line
+    x1="776"
+    y1="225"
+    x2="816"
+    y2="225"
+    stroke="#eab308"
+    stroke-width="2.5"
+    marker-end="url(#arrowGold)"
+  />
+
+  <rect
+    x="822"
+    y="176"
+    width="154"
+    height="98"
+    rx="12"
+    fill="#142923"
+    stroke="#10b981"
+    stroke-width="2"
+  />
+  <text
+    x="899"
+    y="202"
+    text-anchor="middle"
+    fill="#34d399"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    Pinned workerd
+  </text>
+  <text
+    x="899"
+    y="222"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="monospace"
+    font-size="11"
+  >
+    1.20261023.1
+  </text>
+  <text
+    x="899"
+    y="240"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="monospace"
+    font-size="10"
+  >
+    compat 2026-07-22
+  </text>
+  <text
+    x="899"
+    y="256"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="monospace"
+    font-size="10"
+  >
+    allow=["local"]
+  </text>
+
+  <line
+    x1="976"
+    y1="208"
+    x2="1014"
+    y2="208"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrowGreen)"
+  />
+  <line
+    x1="976"
+    y1="242"
+    x2="1014"
+    y2="242"
+    stroke="#eab308"
+    stroke-width="2"
+    marker-end="url(#arrowGold)"
+  />
+
+  <rect
+    x="1020"
+    y="182"
+    width="110"
+    height="40"
+    rx="8"
+    fill="#064e3b"
+    stroke="#34d399"
+  />
+  <text
+    x="1075"
+    y="200"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    HTTP 200
+  </text>
+  <text
+    x="1075"
+    y="214"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+  >
+    reaches wire
+  </text>
+
+  <rect
+    x="1020"
+    y="228"
+    width="110"
+    height="40"
+    rx="8"
+    fill="#422006"
+    stroke="#eab308"
+  />
+  <text
+    x="1075"
+    y="246"
+    text-anchor="middle"
+    fill="#fde047"
+    font-family="monospace"
+    font-size="12"
+    font-weight="700"
+  >
+    HTTP 302
+  </text>
+  <text
+    x="1075"
+    y="260"
+    text-anchor="middle"
+    fill="#fef08a"
+    font-family="system-ui, sans-serif"
+    font-size="10"
+  >
+    0 redirects
+  </text>
+
+  <!-- Proof Metrics Bar -->
+  <rect
+    x="644"
+    y="302"
+    width="486"
+    height="106"
+    rx="12"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text
+    x="664"
+    y="328"
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    Verified Gates (pre-push + CI coverage shards)
+  </text>
+
+  <rect
+    x="664"
+    y="342"
+    width="142"
+    height="50"
+    rx="8"
+    fill="#142923"
+    stroke="#10b981"
+  />
+  <text
+    x="735"
+    y="364"
+    text-anchor="middle"
+    fill="#34d399"
+    font-family="system-ui, sans-serif"
+    font-size="18"
+    font-weight="800"
+  >
+    31 / 31
+  </text>
+  <text
+    x="735"
+    y="382"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    adapters replayed
+  </text>
+
+  <rect
+    x="818"
+    y="342"
+    width="142"
+    height="50"
+    rx="8"
+    fill="#172554"
+    stroke="#60a5fa"
+  />
+  <text
+    x="889"
+    y="364"
+    text-anchor="middle"
+    fill="#60a5fa"
+    font-family="system-ui, sans-serif"
+    font-size="18"
+    font-weight="800"
+  >
+    100%
+  </text>
+  <text
+    x="889"
+    y="382"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    harness coverage
+  </text>
+
+  <rect
+    x="972"
+    y="342"
+    width="142"
+    height="50"
+    rx="8"
+    fill="#3b2608"
+    stroke="#eab308"
+  />
+  <text
+    x="1043"
+    y="364"
+    text-anchor="middle"
+    fill="#facc15"
+    font-family="system-ui, sans-serif"
+    font-size="18"
+    font-weight="800"
+  >
+    ~4.5s
+  </text>
+  <text
+    x="1043"
+    y="382"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+  >
+    44 tests in CI
+  </text>
+
+  <!-- Guardrails footer inside AFTER -->
+  <rect
+    x="644"
+    y="426"
+    width="486"
+    height="118"
+    rx="12"
+    fill="#10211d"
+    stroke="#10b981"
+    stroke-opacity="0.6"
+  />
+  <circle cx="676" cy="462" r="14" fill="#064e3b" stroke="#34d399" />
+  <path
+    d="M670,462 L674,466 L683,456"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="2.5"
+    stroke-linecap="round"
+  />
+  <text
+    x="702"
+    y="458"
+    fill="#f1f5f9"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    Self-check negative controls
+  </text>
+  <text x="702" y="476" fill="#94a3b8" font-family="monospace" font-size="11">
+    redirect:"error" + cache:"default" (incl. Request) -> TypeError
+  </text>
+
+  <circle cx="676" cy="512" r="14" fill="#064e3b" stroke="#34d399" />
+  <path
+    d="M670,512 L674,516 L683,506"
+    fill="none"
+    stroke="#34d399"
+    stroke-width="2.5"
+    stroke-linecap="round"
+  />
+  <text
+    x="702"
+    y="508"
+    fill="#f1f5f9"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    TypeScript AST inventory guard (39 tracked files)
+  </text>
+  <text x="702" y="526" fill="#94a3b8" font-family="monospace" font-size="11">
+    CI fails if a new fetch or Resend/Groq adapter is not added
+  </text>
+
+  <!-- Footer -->
+  <text x="48" y="602" fill="#64748b" font-family="monospace" font-size="11">
+    scripts/ci/workerd-replay.ts · scripts/ci/workerd-adapter-fetch.test.ts ·
+    zero new npm dependencies
+  </text>
+</svg>
