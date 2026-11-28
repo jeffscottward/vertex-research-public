@@ -77,6 +77,7 @@ const chain = (
     { message: null, source: "quantdata", status: "used" },
     { message: null, source: "ibkr", status: "off" },
     { message: null, source: "yahoo", status: "used" },
+    { message: null, source: "nasdaq", status: "off" },
   ],
   spot: 645.04,
   spotSource: "quantdata",

@@ -7,8 +7,9 @@ import {
   liveQuotes,
   mergeOptionsChain,
   mergeOptionsExpiries,
+  nasdaqSkipReason,
   OPTIONS_CHAIN_PRIORITY,
-  type OptionsChainReads,
+  type OptionsPrimaryChainReads,
   type OptionsSourceRead,
 } from "../options-chain-merge.ts";
 import { computeOptionsExpectedMove } from "../options-expected-move.ts";
@@ -17,6 +18,7 @@ import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { quantDataClientFor } from "./options-analytics.ts";
 import { createIbkrOptionsQuoteSource } from "./options-chain-ibkr.ts";
+import { createNasdaqOptionsOpenInterestSource } from "./options-chain-nasdaq.ts";
 import { createQuantDataOptionsSource } from "./options-chain-quantdata.ts";
 import { optionsChainSnapshotHandlers } from "./options-chain-snapshots.ts";
 import {
@@ -26,6 +28,8 @@ import {
   OptionsChainSourceError,
   type OptionsChainSourceErrorCode,
   OptionsChainSourceOff,
+  type OptionsOpenInterestSnapshot,
+  type OptionsOpenInterestSource,
   type OptionsQuoteSource,
 } from "./options-chain-source.ts";
 import { createYahooOptionsSource } from "./options-chain-yahoo.ts";
@@ -53,14 +57,19 @@ type Outcome<Data> =
   | Failed;
 
 type ChainRead = Readonly<{
-  reads: OptionsChainReads;
+  reads: OptionsPrimaryChainReads;
   // The expiry to show; null when no source has a chain for the request.
   expiry: string | null;
 }>;
 type CacheEntry = Readonly<{ at: number; value: Promise<ChainRead> }>;
+type NasdaqCacheEntry = Readonly<{
+  at: number;
+  value: Promise<OptionsSourceRead<OptionsOpenInterestSnapshot>>;
+}>;
 
 type Injected = Readonly<{
   ibkr?: OptionsQuoteSource;
+  nasdaq?: OptionsOpenInterestSource;
   quantData?: OptionsAnalyticsSource;
   yahoo?: OptionsChainSource;
   now?: () => Date;
@@ -69,16 +78,26 @@ type Injected = Readonly<{
 let injected: Injected = {};
 // One Yahoo adapter per process: it holds the Yahoo session.
 let yahooSource: OptionsChainSource | null = null;
+// One Nasdaq adapter per process: it holds the asset-class cache and failure cooldown.
+let nasdaqSource: OptionsOpenInterestSource | null = null;
 const systemClock = (): Date => new Date();
 let clock = systemClock;
 const cache = new Map<string, CacheEntry>();
+const nasdaqCache = new Map<string, NasdaqCacheEntry>();
 
-/** Test seam: replaces any of the three sources and the clock, and clears the cache. */
+const NASDAQ_NOT_ASKED_ENDPOINT = {
+  message: "Not asked: endpoint does not display open interest",
+  status: "off",
+} as const;
+
+/** Test seam: replaces any of the sources and the clock, and clears the caches. */
 export const setOptionsChainForTesting = (options: Injected = {}): void => {
   injected = options;
   yahooSource = null;
+  nasdaqSource = null;
   clock = options.now ?? systemClock;
   cache.clear();
+  nasdaqCache.clear();
 };
 
 const outcome = async <Data>(
@@ -155,9 +174,9 @@ const QUANT_DATA_NOT_CONFIGURED = {
 // The Quant Data read as it is cached: only the rows of the expiry being shown. The answer
 // holds the contracts of every expiry, and the merge reads one.
 const forExpiry = (
-  quantdata: OptionsChainReads["quantdata"],
+  quantdata: OptionsPrimaryChainReads["quantdata"],
   expiry: string | null
-): OptionsChainReads["quantdata"] =>
+): OptionsPrimaryChainReads["quantdata"] =>
   quantdata.status === "ok"
     ? {
         ...quantdata,
@@ -292,6 +311,38 @@ const readChain = (
   return value;
 };
 
+const readNasdaqOpenInterest = (
+  symbol: string,
+  expiry: string,
+  reads: OptionsPrimaryChainReads,
+  now: Date
+): Promise<OptionsSourceRead<OptionsOpenInterestSnapshot>> => {
+  const skip = nasdaqSkipReason(reads, expiry);
+  if (skip !== null)
+    return Promise.resolve({ message: skip, status: "off" } as const);
+  const key = `${symbol}|${expiry}`;
+  const hit = nasdaqCache.get(key);
+  if (hit !== undefined && now.getTime() - hit.at < CACHE_TTL_MS)
+    return hit.value;
+  nasdaqSource ??=
+    injected.nasdaq ?? createNasdaqOptionsOpenInterestSource({ now: clock });
+  const source = nasdaqSource;
+  const value = outcome("Nasdaq", () => source.read(symbol, expiry)).then(
+    (result) => {
+      if (result.status !== "ok" && nasdaqCache.get(key)?.value === value)
+        nasdaqCache.delete(key);
+      return result;
+    }
+  );
+  nasdaqCache.delete(key);
+  nasdaqCache.set(key, { at: now.getTime(), value });
+  for (const oldest of nasdaqCache.keys()) {
+    if (nasdaqCache.size <= CACHE_MAX_ENTRIES) break;
+    nasdaqCache.delete(oldest);
+  }
+  return value;
+};
+
 const api = implement(appContract).$context<ApiContext>();
 
 type ChainErrors = Readonly<
@@ -315,7 +366,11 @@ const expiries = api.optionsChain.expiries
     const now = clock();
     try {
       const read = await readChain(context, input.symbol, undefined, now);
-      return mergeOptionsExpiries(read.reads, read.expiry, now);
+      return mergeOptionsExpiries(
+        { ...read.reads, nasdaq: NASDAQ_NOT_ASKED_ENDPOINT },
+        read.expiry,
+        now
+      );
     } catch (error) {
       throw mapFailure(error, errors);
     }
@@ -338,7 +393,13 @@ const chain = api.optionsChain.chain
             ? `No listed options for ${input.symbol}`
             : `No ${input.symbol} options expire on ${input.expiry}`,
       });
-    return mergeOptionsChain(read.reads, read.expiry, now);
+    const nasdaq = await readNasdaqOpenInterest(
+      input.symbol,
+      read.expiry,
+      read.reads,
+      now
+    );
+    return mergeOptionsChain({ ...read.reads, nasdaq }, read.expiry, now);
   });
 
 const expectedMove = api.optionsChain.expectedMove
@@ -359,7 +420,11 @@ const expectedMove = api.optionsChain.expectedMove
             : `No ${input.symbol} options expire on ${input.expiry}`,
       });
     return computeOptionsExpectedMove(
-      mergeOptionsChain(read.reads, read.expiry, now),
+      mergeOptionsChain(
+        { ...read.reads, nasdaq: NASDAQ_NOT_ASKED_ENDPOINT },
+        read.expiry,
+        now
+      ),
       now
     );
   });
@@ -380,7 +445,11 @@ const spread = api.optionsChain.spread
       throw errors.NOT_FOUND({
         message: `No ${input.symbol} options expire on ${input.expiry}`,
       });
-    const merged = mergeOptionsChain(read.reads, read.expiry, now);
+    const merged = mergeOptionsChain(
+      { ...read.reads, nasdaq: NASDAQ_NOT_ASKED_ENDPOINT },
+      read.expiry,
+      now
+    );
     const store = context.repositories.marketDailySeries;
     const index = STRATEGY_IV_INDEX[input.symbol];
     const ids = index === undefined ? ["IRX"] : [index, "IRX"];

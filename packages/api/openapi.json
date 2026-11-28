@@ -164185,6 +164185,7 @@
                                           {
                                             "enum": [
                                               "yahoo",
+                                              "nasdaq",
                                               "quantdata"
                                             ],
                                             "type": "string"
@@ -164445,6 +164446,7 @@
                                           {
                                             "enum": [
                                               "yahoo",
+                                              "nasdaq",
                                               "quantdata"
                                             ],
                                             "type": "string"
@@ -164613,6 +164615,40 @@
                             },
                             "source": {
                               "const": "yahoo"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "message",
+                            "source",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "nasdaq"
                             },
                             "status": {
                               "enum": [
@@ -165442,6 +165478,40 @@
                             "status"
                           ],
                           "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "nasdaq"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "message",
+                            "source",
+                            "status"
+                          ],
+                          "type": "object"
                         }
                       ],
                       "type": "array"
@@ -166044,6 +166114,40 @@
                             },
                             "source": {
                               "const": "yahoo"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "message",
+                            "source",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "nasdaq"
                             },
                             "status": {
                               "enum": [
