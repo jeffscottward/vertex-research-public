@@ -73,9 +73,10 @@ This worker ran in an isolated cloud sandbox on Friday 2026-11-27 after 17:18 ET
      - Shared timeout budget: create **one** `AbortSignal.timeout(timeoutMs)` (default `8_000` ms) at the top of `read(symbol, expiry)` and reuse it across both requests if an uncached ETF falls back from `stocks` to `etf`, capping total Nasdaq tail latency at `timeoutMs` (never `2 * timeoutMs`).
      - Asset-class resolution & bounded cache: store `Map<string, "stocks" | "etf">` capped at `500` entries (FIFO eviction of oldest key). If uncached, try `"stocks"`, and on `rCode === 400` retry once with `"etf"`. If a cached `assetClass` later returns `rCode === 400`, evict it and try the alternate class once. Cache the working class only when `rCode === 200` with non-null `data` (never cache on transient errors).
      - Complete HTTP & `rCode` error matrix (fixed safe messages only; never copy `status.bCodeMessage`, URL, or raw body):
-       - Network / timeout / `redirect: "error"` throw -> `UNAVAILABLE`
+       - Network / timeout throw -> `UNAVAILABLE`
        - HTTP `404` -> `NOT_FOUND`
-       - HTTP `403`, `429`, or `>= 500` -> `UNAVAILABLE`
+       - HTTP `3xx`, `403`, `429`, or `>= 500` -> `UNAVAILABLE`
+       - Superseded 2026-11-28 by `docs/vertex-rebuild/designs/workerd-fetch-redirect/plan.md`: workerd rejects `redirect: "error"` before any request, so the adapter sends `redirect: "manual"` and refuses a 3xx as `UNAVAILABLE`.
        - Other non-200 HTTP -> `UPSTREAM_ERROR`
        - Body > 4 MiB (`readCappedText`) or invalid JSON or schema mismatch -> `UPSTREAM_ERROR`
        - `rCode === 200` with `data === null`, `data.table === null`, or `data.table.rows === null` -> `{ expiry, rows: [] }`

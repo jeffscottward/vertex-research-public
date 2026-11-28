@@ -229,7 +229,9 @@ export const createResendNotificationEmailPort = (
           if (controller.signal.aborted) return { acceptance: "not-sent" };
           const response = await fetcher("https://api.resend.com/emails", {
             method: "POST",
-            redirect: "error",
+            // workerd rejects redirect "error"; "manual" returns a 3xx as-is and the 2xx check
+            // below reads it as "unknown", so a redirect is never followed.
+            redirect: "manual",
             credentials: "omit",
             cache: "no-store",
             signal: controller.signal,

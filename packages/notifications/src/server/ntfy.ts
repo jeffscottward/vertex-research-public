@@ -177,7 +177,9 @@ export const createNtfyNotificationAdapter = (
             async (requestSignal): Promise<NotificationProviderOutcome> => {
               const response = await fetcher(`${config.origin}/`, {
                 method: "POST",
-                redirect: "error",
+                // workerd rejects redirect "error"; "manual" returns a 3xx as-is and the 2xx
+                // check below reads it as "unknown", so a redirect is never followed.
+                redirect: "manual",
                 credentials: "omit",
                 cache: "no-store",
                 signal: requestSignal,

@@ -189,7 +189,7 @@ describe("createPostHogAnalyticsPort", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "omit",
-        redirect: "error",
+        redirect: "manual",
         referrerPolicy: "no-referrer",
         headers: { "content-type": "application/json" },
         signal: expect.any(AbortSignal),
@@ -263,7 +263,7 @@ describe("createPostHogAnalyticsPort", () => {
     });
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch.mock.calls[0]?.[0]).toBe("https://eu.posthog.com/i/v0/e/");
-    return expect(fetch.mock.calls[0]?.[1]?.redirect).toBe("error");
+    return expect(fetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
   });
 
   it.each([200, 201, 204, 299])(

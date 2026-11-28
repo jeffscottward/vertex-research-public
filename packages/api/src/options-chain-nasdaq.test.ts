@@ -223,6 +223,11 @@ describe("createNasdaqOptionsOpenInterestSource", () => {
     // Both fallback attempts share the exact same AbortSignal.
     expect(signals).toHaveLength(2);
     expect(signals[0]).toBe(signals[1]);
+    // workerd rejects redirect "error"; every request must use "manual".
+    expect(doFetch.mock.calls.map(([, init]) => init.redirect)).toEqual([
+      "manual",
+      "manual",
+    ]);
 
     // Second SPY call uses cached assetclass=etf directly (1 call).
     await source.read("SPY", "2026-12-04");
@@ -334,6 +339,12 @@ describe("createNasdaqOptionsOpenInterestSource", () => {
       [async () => new Response("slow down", { status: 429 }), "UNAVAILABLE"],
       [async () => new Response("down", { status: 502 }), "UNAVAILABLE"],
       [async () => new Response("teapot", { status: 418 }), "UPSTREAM_ERROR"],
+      // redirect "manual" hands a 3xx back as-is; it is refused, never followed, and counts
+      // as UNAVAILABLE (a redirect is often a bot wall).
+      [
+        async () => Response.redirect("https://example.test/", 302),
+        "UNAVAILABLE",
+      ],
       [
         async () =>
           new Response("{not-json", {
@@ -404,5 +415,21 @@ describe("createNasdaqOptionsOpenInterestSource", () => {
       expiry: "2026-12-04",
       rows: [],
     });
+  });
+
+  it("pauses after repeated 3xx answers, like other UNAVAILABLE answers", async () => {
+    const doFetch = vi.fn<NasdaqFetch>(async () =>
+      Response.redirect("https://example.test/", 302)
+    );
+    const source = createNasdaqOptionsOpenInterestSource({ fetch: doFetch });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(source.read("SPY", "2026-12-04")).rejects.toThrow(
+        expect.objectContaining({ code: "UNAVAILABLE" }) as unknown as Error
+      );
+    }
+    await expect(source.read("SPY", "2026-12-04")).rejects.toBeInstanceOf(
+      OptionsChainSourceOff
+    );
+    expect(doFetch).toHaveBeenCalledTimes(3);
   });
 });

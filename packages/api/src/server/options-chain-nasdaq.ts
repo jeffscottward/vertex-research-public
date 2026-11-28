@@ -182,7 +182,10 @@ const readDocument = async (
         referer: "https://www.nasdaq.com/",
         "user-agent": USER_AGENT,
       },
-      redirect: "error",
+      // workerd rejects redirect "error" (TypeError before any request), so every call failed
+      // as "could not be reached" on QuantVPS. "manual" returns a 3xx as-is; it is refused
+      // below as UNAVAILABLE (a redirect is often a bot wall), so it counts toward the pause.
+      redirect: "manual",
       signal,
     });
   } catch {
@@ -197,6 +200,7 @@ const readDocument = async (
       "Nasdaq has no options data for this symbol"
     );
   if (
+    (response.status >= 300 && response.status < 400) ||
     response.status === 403 ||
     response.status === 429 ||
     response.status >= 500
