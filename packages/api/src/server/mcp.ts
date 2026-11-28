@@ -746,7 +746,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "openbb_status",
     title: "OpenBB ingest status",
     description:
-      "Last run (ok, partial, failed or blocked_upstream; rows, warnings, error; for a blocked job the start of the block and the next retry time) of every OpenBB job, per-source overdue state (sources[] with kind openbb/flow, label, maxAgeSeconds, lastOkAt, overdue, overdueSince, reason, smartMoney, retired; flow samples cover SPY while market_premium reads flow_market_premium_sessions; overdueCount and checkedAt), and the row count and newest date of every OpenBB table. Use it to judge how fresh the other openbb_* and smart-money tools are. Research input only, not a trade signal; nothing here places or changes orders.",
+      "Last run (ok, partial, failed or blocked_upstream; rows, warnings, error; for a blocked job the start of the block and the next retry time) of every OpenBB job, per-source overdue state (sources[] with kind openbb/flow, label, maxAgeSeconds, lastOkAt, overdue, overdueSince, reason, smartMoney; flow samples cover SPY while market_premium reads flow_market_premium_sessions; overdueCount and checkedAt), and the row count and newest date of every OpenBB table. Use it to judge how fresh the other openbb_* and smart-money tools are. Research input only, not a trade signal; nothing here places or changes orders.",
     procedure: "openbb/status",
     input: z.object({}),
     readOnly: true,

@@ -1,0 +1,833 @@
+<svg
+  aria-label="Before and after: QuantVPS migration guard checks functions and triggers"
+  role="img"
+  viewBox="0 0 1120 520"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#131926" />
+    </linearGradient>
+    <linearGradient id="redGlow" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f85149" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#f85149" stop-opacity="0.04" />
+    </linearGradient>
+    <linearGradient id="greenGlow" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0.04" />
+    </linearGradient>
+    <marker
+      id="arrowMuted"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 Z" fill="#8b949e" />
+    </marker>
+    <marker
+      id="arrowRed"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 Z" fill="#f85149" />
+    </marker>
+    <marker
+      id="arrowGold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 Z" fill="#d4af37" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 Z" fill="#3fb950" />
+    </marker>
+  </defs>
+
+  <rect fill="url(#bg)" height="520" rx="14" width="1120" />
+
+  <!-- Title -->
+  <text
+    fill="#f0f6fc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="21"
+    font-weight="700"
+    text-anchor="middle"
+    x="560"
+    y="42"
+  >
+    QuantVPS Migration Guard: Trigger &amp; Function Verification
+  </text>
+  <text
+    fill="#8b949e"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    text-anchor="middle"
+    x="560"
+    y="64"
+  >
+    scripts/migrations/check-applied.ts · pg_catalog.pg_proc (F) +
+    pg_catalog.pg_trigger (TR)
+  </text>
+
+  <!-- Divider -->
+  <line
+    stroke="#263042"
+    stroke-dasharray="6 6"
+    stroke-width="2"
+    x1="560"
+    x2="560"
+    y1="90"
+    y2="495"
+  />
+
+  <!-- ==================== LEFT: BEFORE ==================== -->
+  <rect
+    fill="url(#redGlow)"
+    height="404"
+    rx="12"
+    stroke="#f85149"
+    stroke-opacity="0.45"
+    stroke-width="1.5"
+    width="510"
+    x="28"
+    y="88"
+  />
+  <rect
+    fill="#f85149"
+    fill-opacity="0.2"
+    height="26"
+    rx="13"
+    stroke="#f85149"
+    stroke-width="1"
+    width="96"
+    x="46"
+    y="104"
+  />
+  <text
+    fill="#ff7b72"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="94"
+    y="121"
+  >
+    BEFORE
+  </text>
+  <text
+    fill="#c9d1d9"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    x="156"
+    y="122"
+  >
+    Trigger-only migration slips past guard
+  </text>
+
+  <!-- Left: SQL file icon -->
+  <g transform="translate(56, 175)">
+    <path
+      d="M0,8 Q0,0 8,0 L56,0 L76,20 L76,94 Q76,102 68,102 L8,102 Q0,102 0,94 Z"
+      fill="#161b22"
+      stroke="#d4af37"
+      stroke-width="1.8"
+    />
+    <path
+      d="M56,0 L56,20 L76,20"
+      fill="none"
+      stroke="#d4af37"
+      stroke-width="1.5"
+    />
+    <text
+      fill="#d4af37"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+      x="38"
+      y="38"
+    >
+      0104.sql
+    </text>
+    <!-- Function gear glyph -->
+    <circle
+      cx="24"
+      cy="60"
+      fill="none"
+      r="8"
+      stroke="#a371f7"
+      stroke-width="2"
+    />
+    <text
+      fill="#a371f7"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="24"
+      y="64"
+    >
+      f
+    </text>
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="10"
+      text-anchor="middle"
+      x="52"
+      y="64"
+    >
+      1 fn
+    </text>
+    <!-- Trigger bolt glyph -->
+    <path d="M26,75 L19,86 L25,86 L22,95 L31,83 L25,83 Z" fill="#f0883e" />
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="10"
+      text-anchor="middle"
+      x="52"
+      y="88"
+    >
+      2 trig
+    </text>
+  </g>
+
+  <!-- Left: Guard shield with gap -->
+  <g transform="translate(198, 152)">
+    <path
+      d="M62,0 L124,22 L124,78 C124,116 96,144 62,158 C28,144 0,116 0,78 L0,22 Z"
+      fill="#161b22"
+      stroke="#6e7681"
+      stroke-width="2"
+    />
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+      x="62"
+      y="36"
+    >
+      CHECKER
+    </text>
+    <!-- Checked items -->
+    <text
+      fill="#3fb950"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      x="22"
+      y="58"
+    >
+      ✓ T C I
+    </text>
+    <text
+      fill="#3fb950"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      x="22"
+      y="75"
+    >
+      ✓ K R G
+    </text>
+    <!-- Blind spot -->
+    <rect
+      fill="#f85149"
+      fill-opacity="0.16"
+      height="42"
+      rx="6"
+      stroke="#f85149"
+      stroke-dasharray="4 3"
+      width="92"
+      x="16"
+      y="88"
+    />
+    <text
+      fill="#ff7b72"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="62"
+      y="106"
+    >
+      ✗ F (blind)
+    </text>
+    <text
+      fill="#ff7b72"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="62"
+      y="122"
+    >
+      ✗ TR (blind)
+    </text>
+  </g>
+
+  <!-- Arrow SQL -> bypass curve under shield -> False pass -->
+  <path
+    d="M132,226 L190,226"
+    marker-end="url(#arrowMuted)"
+    stroke="#8b949e"
+    stroke-width="2"
+  />
+  <path
+    d="M132,256 C165,338 320,338 378,248"
+    fill="none"
+    marker-end="url(#arrowRed)"
+    stroke="#f85149"
+    stroke-dasharray="6 4"
+    stroke-width="2.4"
+  />
+  <text
+    fill="#ff7b72"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+    x="255"
+    y="346"
+  >
+    0 expectations extracted
+  </text>
+
+  <!-- Left: False green deploy gate -->
+  <g transform="translate(388, 174)">
+    <rect
+      fill="#161b22"
+      height="104"
+      rx="12"
+      stroke="#f85149"
+      stroke-width="2"
+      width="122"
+      x="0"
+      y="0"
+    />
+    <circle
+      cx="61"
+      cy="36"
+      fill="#f85149"
+      fill-opacity="0.2"
+      r="18"
+      stroke="#f85149"
+      stroke-width="2"
+    />
+    <text
+      fill="#ff7b72"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="18"
+      font-weight="700"
+      text-anchor="middle"
+      x="61"
+      y="42"
+    >
+      !
+    </text>
+    <text
+      fill="#f0f6fc"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+      x="61"
+      y="72"
+    >
+      EXIT 0
+    </text>
+    <text
+      fill="#ff7b72"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="11"
+      text-anchor="middle"
+      x="61"
+      y="90"
+    >
+      Deploys unguarded
+    </text>
+  </g>
+
+  <!-- Left: Prod DB missing triggers -->
+  <g transform="translate(115, 384)">
+    <ellipse
+      cx="32"
+      cy="14"
+      fill="#21262d"
+      rx="28"
+      ry="10"
+      stroke="#8b949e"
+      stroke-width="1.6"
+    />
+    <path
+      d="M4,14 L4,48 C4,54 16,58 32,58 C48,58 60,54 60,48 L60,14"
+      fill="#161b22"
+      stroke="#8b949e"
+      stroke-width="1.6"
+    />
+    <ellipse
+      cx="32"
+      cy="14"
+      fill="#21262d"
+      rx="28"
+      ry="10"
+      stroke="#8b949e"
+      stroke-width="1.6"
+    />
+    <text
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      text-anchor="middle"
+      x="32"
+      y="40"
+    >
+      PG
+    </text>
+    <text
+      fill="#f0f6fc"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="12"
+      font-weight="600"
+      x="80"
+      y="26"
+    >
+      Prod DB without 0104
+    </text>
+    <text
+      fill="#ff7b72"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="11"
+      x="80"
+      y="46"
+    >
+      Missing function + triggers undetected
+    </text>
+  </g>
+
+  <!-- ==================== RIGHT: AFTER ==================== -->
+  <rect
+    fill="url(#greenGlow)"
+    height="404"
+    rx="12"
+    stroke="#3fb950"
+    stroke-opacity="0.45"
+    stroke-width="1.5"
+    width="510"
+    x="582"
+    y="88"
+  />
+  <rect
+    fill="#3fb950"
+    fill-opacity="0.2"
+    height="26"
+    rx="13"
+    stroke="#3fb950"
+    stroke-width="1"
+    width="88"
+    x="600"
+    y="104"
+  />
+  <text
+    fill="#56d364"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="644"
+    y="121"
+  >
+    AFTER
+  </text>
+  <text
+    fill="#c9d1d9"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    x="702"
+    y="122"
+  >
+    Functions &amp; enabled triggers verified
+  </text>
+
+  <!-- Right: SQL file icon -->
+  <g transform="translate(610, 175)">
+    <path
+      d="M0,8 Q0,0 8,0 L56,0 L76,20 L76,94 Q76,102 68,102 L8,102 Q0,102 0,94 Z"
+      fill="#161b22"
+      stroke="#d4af37"
+      stroke-width="1.8"
+    />
+    <path
+      d="M56,0 L56,20 L76,20"
+      fill="none"
+      stroke="#d4af37"
+      stroke-width="1.5"
+    />
+    <text
+      fill="#d4af37"
+      font-family="ui-monospace, monospace"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+      x="38"
+      y="38"
+    >
+      0104.sql
+    </text>
+    <circle
+      cx="24"
+      cy="60"
+      fill="none"
+      r="8"
+      stroke="#a371f7"
+      stroke-width="2"
+    />
+    <text
+      fill="#a371f7"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="24"
+      y="64"
+    >
+      f
+    </text>
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="10"
+      text-anchor="middle"
+      x="52"
+      y="64"
+    >
+      1 fn
+    </text>
+    <path d="M26,75 L19,86 L25,86 L22,95 L31,83 L25,83 Z" fill="#f0883e" />
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="10"
+      text-anchor="middle"
+      x="52"
+      y="88"
+    >
+      2 trig
+    </text>
+  </g>
+
+  <!-- Right: Full Guard Shield -->
+  <g transform="translate(750, 148)">
+    <path
+      d="M68,0 L136,24 L136,84 C136,124 105,154 68,168 C31,154 0,124 0,84 L0,24 Z"
+      fill="#161b22"
+      stroke="#d4af37"
+      stroke-width="2.2"
+    />
+    <text
+      fill="#d4af37"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+      x="68"
+      y="36"
+    >
+      CHECKER
+    </text>
+    <text
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      x="24"
+      y="58"
+    >
+      ✓ T C I K
+    </text>
+    <text
+      fill="#8b949e"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      x="24"
+      y="75"
+    >
+      ✓ R G
+    </text>
+    <rect
+      fill="#3fb950"
+      fill-opacity="0.16"
+      height="52"
+      rx="6"
+      stroke="#3fb950"
+      width="104"
+      x="16"
+      y="86"
+    />
+    <text
+      fill="#56d364"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="68"
+      y="104"
+    >
+      ✓ F pg_proc
+    </text>
+    <text
+      fill="#56d364"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      font-weight="700"
+      text-anchor="middle"
+      x="68"
+      y="119"
+    >
+      ✓ TR pg_trigger
+    </text>
+    <text
+      fill="#79c0ff"
+      font-family="ui-monospace, monospace"
+      font-size="9"
+      text-anchor="middle"
+      x="68"
+      y="133"
+    >
+      enabled + fn
+    </text>
+  </g>
+
+  <!-- Arrows on right -->
+  <path
+    d="M686,226 L742,226"
+    marker-end="url(#arrowGold)"
+    stroke="#d4af37"
+    stroke-width="2.2"
+  />
+
+  <!-- Branch 1: Missing or Disabled -> Block -->
+  <path
+    d="M886,204 L938,186"
+    marker-end="url(#arrowRed)"
+    stroke="#f85149"
+    stroke-width="2.2"
+  />
+  <g transform="translate(946, 152)">
+    <rect
+      fill="#161b22"
+      height="72"
+      rx="10"
+      stroke="#f85149"
+      stroke-width="2"
+      width="128"
+      x="0"
+      y="0"
+    />
+    <polygon
+      fill="#f85149"
+      fill-opacity="0.25"
+      points="24,18 34,18 41,25 41,35 34,42 24,42 17,35 17,25"
+      stroke="#f85149"
+      stroke-width="1.6"
+    />
+    <text
+      fill="#ff7b72"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+      text-anchor="middle"
+      x="29"
+      y="34"
+    >
+      ✕
+    </text>
+    <text
+      fill="#ff7b72"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+      x="82"
+      y="28"
+    >
+      EXIT 3 / 15
+    </text>
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="10"
+      text-anchor="middle"
+      x="82"
+      y="45"
+    >
+      Blocks restart
+    </text>
+    <text
+      fill="#8b949e"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="9"
+      text-anchor="middle"
+      x="64"
+      y="62"
+    >
+      missing / disabled / wrong fn
+    </text>
+  </g>
+
+  <!-- Branch 2: Applied & Enabled -> Pass -->
+  <path
+    d="M886,256 L938,274"
+    marker-end="url(#arrowGreen)"
+    stroke="#3fb950"
+    stroke-width="2.2"
+  />
+  <g transform="translate(946, 244)">
+    <rect
+      fill="#161b22"
+      height="72"
+      rx="10"
+      stroke="#3fb950"
+      stroke-width="2"
+      width="128"
+      x="0"
+      y="0"
+    />
+    <circle
+      cx="29"
+      cy="30"
+      fill="#3fb950"
+      fill-opacity="0.22"
+      r="12"
+      stroke="#3fb950"
+      stroke-width="1.6"
+    />
+    <text
+      fill="#56d364"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="13"
+      font-weight="700"
+      text-anchor="middle"
+      x="29"
+      y="34"
+    >
+      ✓
+    </text>
+    <text
+      fill="#56d364"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+      x="82"
+      y="28"
+    >
+      EXIT 0
+    </text>
+    <text
+      fill="#c9d1d9"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="10"
+      text-anchor="middle"
+      x="82"
+      y="45"
+    >
+      Safe to deploy
+    </text>
+    <text
+      fill="#8b949e"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="9"
+      text-anchor="middle"
+      x="64"
+      y="62"
+    >
+      proven structurally applied
+    </text>
+  </g>
+
+  <!-- Right: Prod DB catalog query -->
+  <g transform="translate(658, 384)">
+    <ellipse
+      cx="32"
+      cy="14"
+      fill="#21262d"
+      rx="28"
+      ry="10"
+      stroke="#3fb950"
+      stroke-width="1.6"
+    />
+    <path
+      d="M4,14 L4,48 C4,54 16,58 32,58 C48,58 60,54 60,48 L60,14"
+      fill="#161b22"
+      stroke="#3fb950"
+      stroke-width="1.6"
+    />
+    <ellipse
+      cx="32"
+      cy="14"
+      fill="#21262d"
+      rx="28"
+      ry="10"
+      stroke="#3fb950"
+      stroke-width="1.6"
+    />
+    <text
+      fill="#56d364"
+      font-family="ui-monospace, monospace"
+      font-size="10"
+      text-anchor="middle"
+      x="32"
+      y="40"
+    >
+      PG
+    </text>
+    <path
+      d="M62,10 C98,-12 130,-32 152,-56"
+      fill="none"
+      marker-end="url(#arrowGreen)"
+      stroke="#3fb950"
+      stroke-dasharray="4 3"
+      stroke-width="1.8"
+    />
+    <text
+      fill="#f0f6fc"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="12"
+      font-weight="600"
+      x="84"
+      y="26"
+    >
+      Single read-only catalog query
+    </text>
+    <text
+      fill="#56d364"
+      font-family="ui-sans-serif, system-ui, sans-serif"
+      font-size="11"
+      x="84"
+      y="46"
+    >
+      F (pg_proc) + TR (pg_trigger, non-internal)
+    </text>
+  </g>
+</svg>

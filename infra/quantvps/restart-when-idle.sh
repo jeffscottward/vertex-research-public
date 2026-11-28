@@ -19,7 +19,7 @@
 #  1d. Migration guard (after runtime guard 1c): every database migration of the new build commit
 #     must be applied on QuantVPS Postgres (vertex-postgres, database vertex_research_development).
 #     Queries the live catalog (tables, columns, nullability, indexes, constraints, widened CHECK
-#     literals and vertex_research grants) alongside drizzle.__drizzle_migrations with one read-only
+#     literals, vertex_research grants, functions and triggers) alongside drizzle.__drizzle_migrations with one read-only
 #     SELECT; never touches ibkr-nautilus-exec-node-postgres-1. Unapplied migration(s) or an
 #     unreadable database/commit stops the run with no restart (exit 15) and lists each missing
 #     migration. --allow-unapplied-migrations <reason> skips only the unapplied-migration refusal
