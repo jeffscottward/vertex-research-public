@@ -44,5 +44,6 @@ both sides) or crossed (10 or more session bars with ask open < bid open). On 20
 with 37 of 50 in-range contracts frozen or crossed; each frozen contract stopped changing 2 h 23 min to 2 h 32 min
 before its request. While a day is `partial`, the next run (17:45 or 19:00 ET) asks again for every contract whose
 stored file is frozen or crossed (in-range and wing), and keeps the stored file when the new answer has no BID or ASK
-bars. A complete day can still have frozen or crossed in-range contracts below the 20% limit (`stale_in_range` in
-`status.txt`); `FileQuoteBook` skips trades on their stale minutes.
+bars. A stored file that is missing or cannot be read counts as not stored. A complete day can still have frozen
+or crossed in-range contracts below the 20% limit (`stale_in_range` in `status.txt`); `FileQuoteBook` skips trades
+on their stale minutes.

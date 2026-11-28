@@ -141,6 +141,15 @@ class StaleRuleTest(unittest.TestCase):
         shifted = [(t - 5 * 60, *rest) for t, *rest in pre[("C", 1.0, "BID")]]
         self.assertEqual(health(shifted, [(t - 5 * 60, *rest) for t, *rest in pre[("C", 1.0, "ASK")]])[0], 5)
 
+    def test_blank_closes_count_as_equal_and_the_last_row_of_a_minute_wins(self):
+        def row(m, bid, ask, bid_close="", ask_close=""):
+            return [str(OPEN + 60 * m), str(bid), "", "", bid_close, str(ask), "", "", ask_close]
+
+        self.assertEqual(oq.quote_health([row(m, 1.0, 1.1) for m in range(30)], DAY), (0, 30))
+        self.assertEqual(oq.quote_health([row(m, 1.0, 1.1, "1.0", "1.2") for m in range(30)], DAY), (0, 0))
+        self.assertEqual(oq.quote_health([row(5, 1.2, 1.1), row(5, 1.0, 1.1)], DAY), (0, 1))  # crossed row replaced
+        self.assertEqual(oq.quote_health(list(reversed([row(m, 1.0, 1.1) for m in range(30)])), DAY), (0, 30))
+
     def test_crossed_opens_count_bar_opens_only(self):
         ten = crossed(("C", 1.0), opens=10)
         self.assertEqual(health(ten[("C", 1.0, "BID")], ten[("C", 1.0, "ASK")]), (10, 1))
@@ -342,6 +351,29 @@ class CollectTest(unittest.TestCase):
         again = FakeSource(chain())
         self.assertEqual(self.run_collect(again), 0)
         self.assertEqual(again.calls[2:], ["C500BID", "C500ASK"])
+
+    def test_unreadable_stored_file_is_asked_again(self):
+        self.assertEqual(self.run_collect(FakeSource(chain())), 0)
+        folder = self.root / "2026-11-19"
+        oq.write_status(folder, state="partial", reason="test")
+        (folder / "SPY-20261119-C-500.csv.gz").write_bytes(b"cut short")
+        again = FakeSource(chain())
+        self.assertEqual(self.run_collect(again), 0)
+        self.assertEqual(again.calls[2:], ["C500BID", "C500ASK"])
+        self.assertEqual(oq.file_health(folder / "SPY-20261119-C-500.csv.gz", DAY), (0, 1))
+
+    def test_in_range_row_without_a_readable_file_keeps_the_day_partial(self):
+        self.assertEqual(self.run_collect(FakeSource(chain())), 0)
+        folder = self.root / "2026-11-19"
+        oq.write_status(folder, state="partial", reason="test")
+        (folder / "SPY-20261119-C-500.csv.gz").write_bytes(b"cut short")
+        unlisted = [c for c in chain() if (c.right, c.strike) != ("C", 500.0)]  # IBKR no longer lists C 500
+        again = FakeSource(unlisted)
+        self.assertEqual(self.run_collect(again), 1)
+        self.assertEqual(again.calls, ["contracts", "SPY"])
+        self.assertIn("1 contracts inside the day's range have no BID or ASK bars, e.g. SPY-20261119-C-500.csv.gz",
+                      oq.read_status(folder)["reason"])
+        self.assertIsNone(oq.file_health(folder / "missing.csv.gz", DAY))
 
     def test_new_answer_without_a_side_keeps_the_stored_frozen_file(self):
         four = (*self.STALE_PAIR, ("C", 501.0), ("P", 501.0))

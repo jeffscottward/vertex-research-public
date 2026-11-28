@@ -29,7 +29,8 @@ QuantVPS IB gateway also serves vertex-history (client 77, at most 6 per 120 s =
 allows 60 historical requests per 10 min, so both together stay at 50. The first IBKR error other than
 "no data" (pacing violation, lost connection, ...) stops the day with state=partial and exit 1; the next
 run resumes and asks only for contracts not stored with both sides, plus every frozen or crossed contract
-(judged from its stored file; a new answer without BID or ASK bars leaves the stored file in place).
+(judged from its stored file; a new answer without BID or ASK bars leaves the stored file in place). A
+stored file that is missing or cannot be read is asked for again, and in range it keeps the day partial.
 
 `check`: for each weekday of the last --days days (default 7) whose check time (20:30 ET) has passed,
 a day without state complete or no_expiry (including no folder) is a missed day. It posts one #omp-alerts
@@ -158,10 +159,14 @@ def is_stale(health: tuple[int, int]) -> bool:
     return longest >= STALE_FLAT_MINUTES or crossed >= STALE_CROSSED_OPENS
 
 
-def file_health(path: Path, day: date) -> tuple[int, int]:
-    """quote_health of a stored contract file (written by write_gz_csv with the QUOTE_FIELDS header)."""
-    with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
-        return quote_health(list(csv.reader(f))[1:], day)
+def file_health(path: Path, day: date) -> tuple[int, int] | None:
+    """quote_health of a stored contract file (written by write_gz_csv with the QUOTE_FIELDS header); None when the
+    file is missing or cannot be read (for example cut short by a full disk), so the caller treats it as not stored."""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
+            return quote_health(list(csv.reader(f))[1:], day)
+    except (OSError, EOFError, ValueError, IndexError, csv.Error):
+        return None
 
 
 def select_contracts(contracts: Sequence[OptionContract], low: float, high: float,
@@ -315,9 +320,11 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
     log(f"{day}: SPY low {low:g} high {high:g}; {len(wanted)} contracts, {len(manifest)} already stored")
     for c in wanted:  # nearest the middle of the day's range first (select_contracts)
         name = contract_file(day, c)
-        stored = name in manifest and (day_dir / name).exists() and has_both_sides(manifest[name])
-        if stored and not is_stale(file_health(day_dir / name, day)):
+        stored = name in manifest and has_both_sides(manifest[name])
+        health = file_health(day_dir / name, day) if stored else None
+        if health is not None and not is_stale(health):
             continue
+        stored = health is not None  # a missing or unreadable file is asked again like a contract never stored
         sides: dict[str, list[Bar]] = {}
         for what in ("BID", "ASK"):
             requests += 1
@@ -338,11 +345,12 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
         write_manifest(day_dir, manifest)
     write_manifest(day_dir, manifest)
     # IBKR answers "no data" when it has dropped an expired contract's bars. A contract the day traded through
-    # (strike inside the day's whole-dollar range) without BID or ASK bars, or without its file, therefore keeps the
-    # day partial, so the check alerts and the next run asks again. Wing strikes may stay empty.
+    # (strike inside the day's whole-dollar range) without BID or ASK bars, or without a readable file, therefore
+    # keeps the day partial, so the check alerts and the next run asks again. Wing strikes may stay empty.
     core = sorted(n for n, row in manifest.items() if math.floor(low) <= float(row["strike"]) <= math.ceil(high))
     empty = [n for n, row in manifest.items() if not has_both_sides(row)]
-    core_empty = [n for n in core if not has_both_sides(manifest[n]) or not (day_dir / n).exists()]
+    health_of = {n: file_health(day_dir / n, day) for n in core}
+    core_empty = [n for n in core if not has_both_sides(manifest[n]) or health_of[n] is None]
     if core_empty:
         return stop(f"{len(core_empty)} contracts inside the day's range have no BID or ASK bars, e.g. {core_empty[0]}",
                     low=f"{low:g}", high=f"{high:g}")
@@ -350,7 +358,7 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
     # frozen one stopped changing 2 h 23 min to 2 h 32 min before its request). A day that the stale-session rule of
     # FileQuoteBook would exclude therefore stays partial, and the next run (17:45 or 19:00 ET) asks again for every
     # frozen or crossed contract.
-    stale = [n for n in core if is_stale(file_health(day_dir / n, day))]
+    stale = [n for n in core if is_stale(health_of[n])]
     if core and len(stale) / len(core) >= STALE_DAY_FRACTION:
         return stop(f"stale session: {len(stale)} of {len(core)} contracts inside the day's range are frozen "
                     f"(>= {STALE_FLAT_MINUTES} min flat above ${STALE_ASK_FLOOR:.2f}) or crossed "

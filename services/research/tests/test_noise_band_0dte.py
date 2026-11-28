@@ -323,6 +323,7 @@ def test_collector_stale_rule_matches_file_quote_book(tmp_path):
     import gzip
 
     from strategies import noise_band_0dte as nb
+    from strategies.noise_band_0dte import FileQuoteBook
 
     oq = _collector()
     assert (oq.STALE_FLAT_MINUTES, oq.STALE_ASK_FLOOR, oq.STALE_CROSSED_OPENS, oq.STALE_DAY_FRACTION) == (
@@ -340,8 +341,14 @@ def test_collector_stale_rule_matches_file_quote_book(tmp_path):
     for right, strike in cases:
         path = folder / f"SPY-{D:%Y%m%d}-{right}-{strike:g}.csv.gz"
         _, crossed, flat = nb._load_contract(path, D)
+        loader_stale = bool(flat) or len(crossed) >= nb.STALE_CROSSED_CONTRACT_MINUTES
         with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
-            got_crossed, got_longest = oq.quote_health(list(csv.reader(f))[1:], D)
-        assert (got_crossed, got_longest >= oq.STALE_FLAT_MINUTES) == (len(crossed), bool(flat)), (right, strike)
-        verdicts.append((len(crossed), bool(flat)))
-    assert verdicts == [(40, True), (0, False), (0, False), (0, False), (0, True), (12, False)]
+            health = oq.quote_health(list(csv.reader(f))[1:], D)
+        assert (health[0], health[1] >= oq.STALE_FLAT_MINUTES) == (len(crossed), bool(flat)), (right, strike)
+        assert oq.is_stale(health) == loader_stale, (right, strike)
+        assert oq.file_health(path, D) == health
+        verdicts.append(loader_stale)
+    assert verdicts == [True, False, False, False, True, True]
+    # day verdict: 3 of 6 in-range contracts stale -> the loader excludes the day, the collector keeps it partial
+    assert D in FileQuoteBook(tmp_path).excluded_days()
+    assert sum(verdicts) / len(verdicts) >= oq.STALE_DAY_FRACTION
