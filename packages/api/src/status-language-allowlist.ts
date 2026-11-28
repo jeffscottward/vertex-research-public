@@ -1310,7 +1310,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "server/vertex-orders.ts",
     text: "unknown",
-    count: 4,
+    count: 3,
     reason:
       "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
