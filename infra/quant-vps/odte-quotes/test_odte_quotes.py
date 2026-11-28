@@ -371,8 +371,8 @@ class CollectTest(unittest.TestCase):
         again = FakeSource(unlisted)
         self.assertEqual(self.run_collect(again), 1)
         self.assertEqual(again.calls, ["contracts", "SPY"])
-        self.assertIn("1 contracts inside the day's range have no BID or ASK bars, e.g. SPY-20261119-C-500.csv.gz",
-                      oq.read_status(folder)["reason"])
+        self.assertIn("1 contracts inside the day's range have no BID or ASK bars or no readable file, "
+                      "e.g. SPY-20261119-C-500.csv.gz", oq.read_status(folder)["reason"])
         self.assertIsNone(oq.file_health(folder / "missing.csv.gz", DAY))
 
     def test_new_answer_without_a_side_keeps_the_stored_frozen_file(self):

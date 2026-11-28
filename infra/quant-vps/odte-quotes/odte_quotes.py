@@ -352,8 +352,8 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
     health_of = {n: file_health(day_dir / n, day) for n in core}
     core_empty = [n for n in core if not has_both_sides(manifest[n]) or health_of[n] is None]
     if core_empty:
-        return stop(f"{len(core_empty)} contracts inside the day's range have no BID or ASK bars, e.g. {core_empty[0]}",
-                    low=f"{low:g}", high=f"{high:g}")
+        return stop(f"{len(core_empty)} contracts inside the day's range have no BID or ASK bars or no readable file, "
+                    f"e.g. {core_empty[0]}", low=f"{low:g}", high=f"{high:g}")
     # IBKR can also answer with an afternoon of frozen or crossed bars (2026-11-25: 37 of 50 in-range contracts; each
     # frozen one stopped changing 2 h 23 min to 2 h 32 min before its request). A day that the stale-session rule of
     # FileQuoteBook would exclude therefore stays partial, and the next run (17:45 or 19:00 ET) asks again for every
