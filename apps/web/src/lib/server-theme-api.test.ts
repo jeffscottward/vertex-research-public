@@ -1,13 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  INDETERMINATE_THEME,
-  resolveRequestTheme,
-} from "./lib/server-theme.ts";
+import { INDETERMINATE_THEME, resolveRequestTheme } from "./server-theme.ts";
 import {
   forwardThemeApiRequest,
   loadApiThemePreference,
   type ThemeApiRequestOptions,
-} from "./lib/server-theme-api.ts";
+} from "./server-theme-api.ts";
 
 const ACTIVE_SESSION_COOKIE = "better-auth.session_token=trusted";
 const SECURE_SESSION_COOKIE = "__Secure-better-auth.session_token=trusted";
