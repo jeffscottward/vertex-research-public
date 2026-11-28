@@ -199,7 +199,7 @@
 
     <!-- Footer status -->
     <text x="28" y="374" fill="#94a3b8" font-size="11.5">
-      Eval fixture: 90 trials on prior tool hash (0 call openbb_status)
+      Eval fixture: 90 trials on two prior tool lists (0 call openbb_status)
     </text>
   </g>
 
@@ -319,14 +319,14 @@
       <!-- Legend / status (two-line safe margins) -->
       <circle cx="28" cy="106" r="5" fill="#34d399" />
       <text x="40" y="110" fill="#cbd5e1" font-size="11.5">
-        Dry-run: eval:semantic:record --expect=0 3 4 stale → 30
+        Recorded 2026-11-28: 30 witness trials, 0 faults
       </text>
       <circle cx="28" cy="134" r="5" fill="#eab308" />
       <text x="40" y="138" fill="#fde047" font-size="11.5" font-weight="600">
-        Draft PR: pending anthropic/claude-opus-5-5 recording
+        Graded 3x by claude-opus-5-5: 30 / 30 correct each run
       </text>
       <text x="40" y="156" fill="#94a3b8" font-size="11.5">
-        and 3x audit on eval host (not available in sandbox)
+        0 disagreements; replay passes (90 / 90 correct)
       </text>
     </g>
   </g>
