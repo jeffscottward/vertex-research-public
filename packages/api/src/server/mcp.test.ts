@@ -102,6 +102,16 @@ describe("MCP tool registry", () => {
     ]);
   });
 
+  it("describes openbb_status sources without the removed retired field", () => {
+    const description = String(
+      listMcpTools().find((entry) => entry["name"] === "openbb_status")?.[
+        "description"
+      ]
+    );
+    expect(description).toContain("reason, smartMoney;");
+    expect(description).not.toContain("retired");
+  });
+
   return it("omits backtest series unless asked", () => {
     const value = {
       backtest: {
