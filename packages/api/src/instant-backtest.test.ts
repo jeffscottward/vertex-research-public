@@ -341,6 +341,42 @@ describe("instantBacktest procedures", () => {
     expect(shared.loadColumns).toHaveBeenCalledTimes(1);
   });
 
+  it("loads its own columns when a shared load never settles", async () => {
+    // The first load models a load on a request whose workerd context ended: it stays pending.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const repository = fakeRepository();
+      const loadColumns = vi.mocked(repository.loadColumns);
+      loadColumns.mockImplementationOnce(
+        () => new Promise<MarketBarColumns>(() => undefined)
+      );
+      const client = clientFor(session("operator"), repository);
+      void client.instantBacktest.run(runInput);
+      await vi.waitFor(() => expect(loadColumns).toHaveBeenCalledTimes(1));
+      const waiting = client.instantBacktest.run(runInput);
+      let settled = false;
+      void waiting.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      // A second waiter on the same load finds a newer load when its wait ends.
+      const second = client.instantBacktest.run(runInput);
+      await vi.advanceTimersByTimeAsync(29_998);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const answer = await waiting;
+      expect(answer.timing.cache).toBe("miss");
+      await vi.advanceTimersByTimeAsync(1);
+      // It waits for that newer load instead of starting a third.
+      await expect(second).resolves.toMatchObject({
+        timing: { cache: "hit" },
+      });
+      return expect(loadColumns).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("forgets a failed load unless a newer version replaced it", async () => {
     let imported = at;
     const loads: Array<(error: Error) => void> = [];

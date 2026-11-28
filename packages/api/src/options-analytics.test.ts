@@ -932,6 +932,121 @@ describe("quantdata client", () => {
     ]);
     return expect(client.freeStarts()).toBe(54 - 5);
   });
+
+  it("lets later requests run when a step never settles (its request context ended)", async () => {
+    // In workerd a step whose request context ended stays pending, and its own 10 s abort timer
+    // never fires. The first fetch below ignores its abort signal to model that step.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let finishStuck: (response: Response) => void = () => undefined;
+      let finishNewer: (response: Response) => void = () => undefined;
+      const doFetch = vi
+        .fn<QuantDataFetch>()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishStuck = resolve;
+            })
+        )
+        .mockImplementationOnce(async () => json({ data: 2 }))
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishNewer = resolve;
+            })
+        )
+        .mockImplementation(async () => json({ data: 2 }));
+      const client = createQuantDataClient(config, {
+        fetch: doFetch,
+        minIntervalMs: 0,
+      });
+      void client.request("orderFlow", { stuck: 1 }, 1000);
+      const later = client.request("orderFlow", { later: 1 }, 1000);
+      let settled = false;
+      void later.then(() => {
+        settled = true;
+      });
+      // The step deadline: minIntervalMs 0 + timeoutMs 10 000 + 2000 margin.
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(settled).toBe(false);
+      expect(doFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(later).resolves.toMatchObject({ data: 2, ok: true });
+      // A newer step runs; the stuck step ends late and must not end the newer turn.
+      const newer = client.request("orderFlow", { newer: 1 }, 1000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finishStuck(json({ data: 1 }));
+      await vi.advanceTimersByTimeAsync(0);
+      const behind = client.request("orderFlow", { behind: 1 }, 1000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finishNewer(json({ data: 2 }));
+      await expect(newer).resolves.toMatchObject({ data: 2, ok: true });
+      await expect(behind).resolves.toMatchObject({ data: 2, ok: true });
+      return expect(doFetch).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives a waiter that claims a handed-over turn a full turn, not the 2 s claim", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const finish: Array<(response: Response) => void> = [];
+      const doFetch = vi.fn<QuantDataFetch>(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish.push(resolve);
+          })
+      );
+      const client = createQuantDataClient(config, {
+        fetch: doFetch,
+        minIntervalMs: 0,
+      });
+      const first = client.request("orderFlow", { id: "a" }, 0);
+      const second = client.request("orderFlow", { id: "b" }, 0);
+      const third = client.request("orderFlow", { id: "c" }, 0);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(1);
+      // The first step ends: the second caller claims the turn, and its step runs on.
+      finish[0]?.(json({ data: 1 }));
+      await expect(first).resolves.toMatchObject({ ok: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(2);
+      // Past the 2 s claim the third caller still waits: the claimed turn is a full one.
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(doFetch).toHaveBeenCalledTimes(2);
+      // At the step deadline (0 + 10 000 + 2000) the third caller takes over.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finish[1]?.(json({ data: 1 }));
+      finish[2]?.(json({ data: 1 }));
+      await expect(second).resolves.toMatchObject({ ok: true });
+      return expect(third).resolves.toMatchObject({ ok: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("serves waiting callers in order, also when the caller before them calls again at once", async () => {
+    const order: string[] = [];
+    const doFetch = vi.fn<QuantDataFetch>(async (_url, init) => {
+      order.push(String((JSON.parse(String(init.body)) as { id: string }).id));
+      return json({ data: 1 });
+    });
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+    });
+    const steady = (async () => {
+      for (const id of ["x0", "x1", "x2"])
+        await client.request("orderFlow", { id }, 0);
+    })();
+    const waiter = client.request("orderFlow", { id: "w" }, 0);
+    await Promise.all([steady, waiter]);
+    return expect(order).toEqual(["x0", "w", "x1", "x2"]);
+  });
 });
 
 describe("options analytics engine", () => {

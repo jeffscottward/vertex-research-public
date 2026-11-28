@@ -310,7 +310,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # dev fallback password; both come from the root .env (card sec20-exec-node-db-hardening).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "97e328453f529c4fa7496f7cb0e46cbe200a1458540b3f623b4d79311b9bfa16",
+        "docker-compose.yml": "f05d2222c7961bfaae3df49c82d9bd2fe9233352619182f9c1bb8997467009f5",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
@@ -320,6 +320,12 @@ class OwnedRuntimeTests(unittest.TestCase):
         text = (RUNTIME / "docker-compose.yml").read_text()
         self.assertNotIn("charan", text.lower())
         self.assertNotIn("PORTFOLIO_AUTH", text.split("  nautilus-trader:")[1].split("  watchdog:")[0])
+
+    def test_ib_gateway_image_is_pinned_to_a_digest(self):
+        # Card ib-gateway-image-pin: a floating tag restarted the gateway mid-session on 2026-11-25.
+        text = (RUNTIME / "docker-compose.yml").read_text()
+        gateway = text.split("  ib-gateway:")[1].split("\n  nautilus-trader:")[0]
+        self.assertRegex(gateway, r"\n    image: gnzsnz/ib-gateway@sha256:[0-9a-f]{64}\n")
 
     def test_compose_requires_database_secrets(self):
         text = (RUNTIME / "docker-compose.yml").read_text()

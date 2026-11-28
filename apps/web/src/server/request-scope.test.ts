@@ -72,7 +72,11 @@ import { handleAuthRequest } from "../app/api/auth/[...all]/handler.ts";
 import { handleStrictSignOutRequest } from "../app/api/auth/strict-sign-out/handler.ts";
 import { handleOrpcRuntimeRequest } from "../app/api/orpc/[...rest]/route.ts";
 import { dispatchInternalAuthRequest } from "../lib/server-internal-dispatch.ts";
-import { type WebRequestScope, withRequestScope } from "./request-scope.ts";
+import {
+  requestRouteLabel,
+  type WebRequestScope,
+  withRequestScope,
+} from "./request-scope.ts";
 
 const request = (headers: Record<string, string> = {}) =>
   new Request("https://darkfactory.localhost/api/auth/get-session", {
@@ -114,6 +118,8 @@ describe("withRequestScope composition", () => {
     );
     expect(mocks.openRequestScope).toHaveBeenCalledWith({
       connectionString: "postgres://hyperdrive.invalid/db",
+      // The URL path only: it names the request if its slot is ever reclaimed.
+      route: "/api/auth/get-session",
       schedule: waitUntil,
       diagnosticSink: expect.any(Function),
     });
@@ -352,5 +358,34 @@ describe("request id trust boundary", () => {
 
     expect(await response.text()).toBe("session");
     expect(response.headers.get("x-request-id")).toBe("8f1e2d3c4b5a6978-SJC");
+  });
+});
+
+describe("requestRouteLabel", () => {
+  it("keeps oRPC procedure paths and drops query strings", () => {
+    expect(
+      requestRouteLabel(
+        "https://darkfactory.localhost/api/orpc/optionsChain/chain?symbol=SPY"
+      )
+    ).toBe("/api/orpc/optionsChain/chain");
+    return expect(
+      requestRouteLabel(
+        "https://darkfactory.localhost/api/orpc/agentOps/backtests/list"
+      )
+    ).toBe("/api/orpc/agentOps/backtests/list");
+  });
+
+  it("never names a path token: other paths keep three plain segments", () => {
+    expect(
+      requestRouteLabel(
+        "https://darkfactory.localhost/api/auth/reset-password/secret-reset-token?callbackURL=x"
+      )
+    ).toBe("/api/auth/reset-password");
+    expect(
+      requestRouteLabel("https://darkfactory.localhost/api/auth/%20bad%3Bseg")
+    ).toBe("/api/auth/:param");
+    return expect(requestRouteLabel("https://darkfactory.localhost/")).toBe(
+      "/"
+    );
   });
 });

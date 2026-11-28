@@ -685,7 +685,11 @@ describe("semantic layer persistence errors", () => {
         requestDatabase.resource = undefined;
       }
       expect(requestDatabase.calls).toEqual([
-        { connectionString: READER_URL, connectionTimeoutMillis: 5000 },
+        {
+          connectionString: READER_URL,
+          connectionTimeoutMillis: 5000,
+          route: "semantic-layer/reader",
+        },
       ]);
       expect(fake.calls.at(-1)).toBe("close");
     });
