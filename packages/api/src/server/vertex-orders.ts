@@ -46,8 +46,8 @@ import {
   evaluateCombo,
   evaluateOpeningCombo,
   evaluateOrder,
-  GOLIVE_ENGINE_ORDER_POLICY,
   type GatewayOpenOrder,
+  GOLIVE_ENGINE_ORDER_POLICY,
   type OrderAccount,
   sameContract,
 } from "./vertex-orders-rules.ts";
