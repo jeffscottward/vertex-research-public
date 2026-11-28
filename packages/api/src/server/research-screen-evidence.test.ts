@@ -558,7 +558,7 @@ describe("readSwinglytics", () => {
             "user-agent": "Vertex Research/1.0 (low-frequency public context)",
           },
           method: "GET",
-          redirect: "error",
+          redirect: "manual",
           signal: expect.any(AbortSignal),
         },
         url: SWINGLYTICS_URL,
@@ -566,7 +566,7 @@ describe("readSwinglytics", () => {
     ]);
   });
 
-  it.each([404, 429, 503])("refuses HTTP %i", async (status) => {
+  it.each([302, 404, 429, 503])("refuses HTTP %i", async (status) => {
     useFetch(() => new Response(null, { status }));
 
     await expectError(`Swinglytics returned HTTP ${status}`);
