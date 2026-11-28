@@ -29,9 +29,20 @@ user, so the files keep one owner:
 --gateway /run/vertex-history/gateway`. A day already `complete` is
 skipped; a `partial` day resumes.
 
-States: `complete` (every contract inside the day's whole-dollar range has BID and ASK bars; wing
-contracts may be empty, counted in `empty_wings`), `no_expiry` (no SPY option expired and SPY did not trade:
-a market holiday), `partial` (stopped on an IBKR error, no SPY bars 09:30-16:00, a contract inside the range
-without BID or ASK bars, or SPY traded but IBKR listed no expiring option). The check treats every weekday
-from 2026-11-19 that is not `complete` or `no_expiry` (including no folder) as
+States: `complete` (every contract inside the day's whole-dollar range has BID and ASK bars and the day is not a
+stale session; wing contracts may be empty, counted in `empty_wings`; in-range contracts that are frozen or crossed
+below the stale-session limit are counted in `stale_in_range`), `no_expiry` (no SPY option expired and SPY did not
+trade: a market holiday), `partial` (stopped on an IBKR error, no SPY bars 09:30-16:00, a contract inside the range
+without BID or ASK bars, a stale session, or SPY traded but IBKR listed no expiring option). The check treats every
+weekday from 2026-11-19 that is not `complete` or `no_expiry` (including no folder) as
 missed, alerts once per day and records it in `alerted.txt` in the same folder.
+
+Stale session (Amendment 2026-11-28 (f)-(g) in `docs/specs/strategies/noise-band-intraday-momentum.md`, the rule
+that `FileQuoteBook` uses to exclude a day): at least 20% of the contracts inside the range are frozen (a run of 30
+or more session minutes from 09:30 ET with the same bid and ask bar opens, ask open above $0.10 and close = open on
+both sides) or crossed (10 or more session bars with ask open < bid open). On 2026-11-25 IBKR answered the 16:20 run
+with 37 of 50 in-range contracts frozen or crossed; each frozen contract stopped changing 2 h 23 min to 2 h 32 min
+before its request. While a day is `partial`, the next run (17:45 or 19:00 ET) asks again for every contract whose
+stored file is frozen or crossed (in-range and wing), and keeps the stored file when the new answer has no BID or ASK
+bars. A complete day can still have frozen or crossed in-range contracts below the 20% limit (`stale_in_range` in
+`status.txt`); `FileQuoteBook` skips trades on their stale minutes.

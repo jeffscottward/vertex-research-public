@@ -24,10 +24,12 @@ def bar(minute: int, o: float, h: float | None = None, low: float | None = None,
 
 
 class FakeSource:
-    def __init__(self, contracts, fail_at: int | None = None, no_data: set | None = None) -> None:
+    def __init__(self, contracts, fail_at: int | None = None, no_data: set | None = None,
+                 bars: dict | None = None) -> None:
         self.contracts = contracts
         self.fail_at = fail_at
         self.no_data = no_data or set()
+        self.bars = bars or {}  # (right, strike, what) -> bars that replace the default answer
         self.calls: list[str] = []
 
     def underlying_bars(self, day):
@@ -45,6 +47,8 @@ class FakeSource:
             raise oq.IbError("IBKR 162 pacing violation")
         if (c.right, c.strike, what) in self.no_data:
             raise oq.NoData("no data")
+        if (c.right, c.strike, what) in self.bars:
+            return self.bars[(c.right, c.strike, what)]
         base = 1.0 if what == "BID" else 1.1
         return [bar(0, base), bar(375, base / 2)]
 
@@ -54,6 +58,29 @@ def chain(strikes=range(490, 512), extra=(495.5, 520.0)):
     for k in list(strikes) + list(extra):
         for r in "CP":
             out.append(oq.OptionContract(r, float(k), 1000 + int(k * 10) + (r == "P")))
+    return out
+
+
+def flat_run(start: int, minutes: int, price: float) -> list[tuple]:
+    """`minutes` consecutive bars from session minute `start` with open = high = low = close = `price`."""
+    return [bar(start + m, price) for m in range(minutes)]
+
+
+def frozen(*contracts: tuple[str, float], minutes: int = 40) -> dict:
+    """FakeSource bars: each (right, strike) quotes 1.00 / 1.10 unchanged for `minutes` minutes from 09:30."""
+    out = {}
+    for right, strike in contracts:
+        out[(right, strike, "BID")] = flat_run(0, minutes, 1.0)
+        out[(right, strike, "ASK")] = flat_run(0, minutes, 1.1)
+    return out
+
+
+def crossed(*contracts: tuple[str, float], opens: int = 10) -> dict:
+    """FakeSource bars: each (right, strike) has `opens` moving bars whose bid open is above the ask open."""
+    out = {}
+    for right, strike in contracts:
+        out[(right, strike, "BID")] = [bar(m, 1.2 + 0.01 * m) for m in range(opens)]
+        out[(right, strike, "ASK")] = [bar(m, 1.1 + 0.01 * m) for m in range(opens)]
     return out
 
 
@@ -82,6 +109,44 @@ class PureTest(unittest.TestCase):
         self.assertEqual(rows[0][5:], ["", "", "", ""])
         self.assertEqual(rows[2][1:5], ["", "", "", ""])
         self.assertEqual(rows[1], [str(OPEN + 60), "1.2", "1.2", "1.2", "1.2", "1.3", "1.3", "1.3", "1.3"])
+
+
+def health(bid: list[tuple], ask: list[tuple]) -> tuple[int, int]:
+    return oq.quote_health(oq.merge_quotes(bid, ask), DAY)
+
+
+class StaleRuleTest(unittest.TestCase):
+    """quote_health and is_stale follow Amendment 2026-11-28 (f)-(g), the rule of FileQuoteBook."""
+
+    def test_flat_run_needs_30_minutes_with_ask_above_ten_cents(self):
+        self.assertEqual(health(flat_run(0, 30, 1.0), flat_run(0, 30, 1.1)), (0, 30))
+        self.assertEqual(health(flat_run(0, 29, 1.0), flat_run(0, 29, 1.1)), (0, 29))
+        self.assertEqual(health(flat_run(0, 40, 0.05), flat_run(0, 40, 0.10)), (0, 0))
+        self.assertEqual(health(flat_run(0, 40, 0.05), flat_run(0, 40, 0.11)), (0, 40))
+        self.assertTrue(oq.is_stale((0, 30)))
+        self.assertFalse(oq.is_stale((9, 29)))
+
+    def test_a_gap_a_blank_side_a_new_pair_or_a_moving_bar_ends_a_run(self):
+        bid, gap = flat_run(0, 40, 1.0), flat_run(0, 20, 1.0) + flat_run(21, 19, 1.0)
+        self.assertEqual(health(gap, flat_run(0, 20, 1.1) + flat_run(21, 19, 1.1)), (0, 20))  # no bar at minute 20
+        self.assertEqual(health(gap, flat_run(0, 40, 1.1)), (0, 20))  # minute 20 has no bid
+        self.assertEqual(health(bid, flat_run(0, 15, 1.1) + flat_run(15, 25, 1.2)), (0, 25))  # the ask moved once
+        moving = flat_run(0, 20, 1.1) + [bar(20, 1.1, 1.2, 1.1, 1.15)] + flat_run(21, 19, 1.1)
+        self.assertEqual(health(bid, moving), (0, 20))  # close != open at minute 20
+
+    def test_only_bars_from_0930_count(self):
+        self.assertEqual(health(flat_run(-40, 40, 1.0), flat_run(-40, 40, 1.1)), (0, 0))
+        self.assertEqual(health(flat_run(-10, 40, 1.0), flat_run(-10, 40, 1.1)), (0, 30))
+        pre = crossed(("C", 1.0), opens=10)
+        shifted = [(t - 5 * 60, *rest) for t, *rest in pre[("C", 1.0, "BID")]]
+        self.assertEqual(health(shifted, [(t - 5 * 60, *rest) for t, *rest in pre[("C", 1.0, "ASK")]])[0], 5)
+
+    def test_crossed_opens_count_bar_opens_only(self):
+        ten = crossed(("C", 1.0), opens=10)
+        self.assertEqual(health(ten[("C", 1.0, "BID")], ten[("C", 1.0, "ASK")]), (10, 1))
+        self.assertEqual(health([bar(0, 1.0, 1.3, 1.0, 1.25)], [bar(0, 1.1, 1.2, 1.1, 1.2)]), (0, 0))  # close crossed
+        self.assertTrue(oq.is_stale((10, 1)))
+        self.assertFalse(oq.is_stale((9, 1)))
 
 
 class FormatTest(unittest.TestCase):
@@ -125,11 +190,13 @@ class CollectTest(unittest.TestCase):
         self.assertEqual(status["state"], "complete")
         self.assertEqual(status["contracts"], "32")
         self.assertEqual(status["empty_wings"], "1")
+        self.assertEqual(status["stale_in_range"], "0")
         self.assertEqual(status["requests"], str(2 + 64))
         manifest = oq.read_manifest(folder)
         self.assertEqual(len(manifest), 32)
         row = manifest["SPY-20261119-C-500.csv.gz"]
         self.assertEqual((row["bid_bars"], row["ask_bars"], row["first_epoch"]), ("2", "2", str(OPEN)))
+        self.assertEqual(oq.file_health(folder / "SPY-20261119-C-500.csv.gz", DAY), (0, 1))
         self.assertEqual(manifest["SPY-20261119-P-508.csv.gz"]["ask_bars"], "0")
         quotes = read_gz(folder / "SPY-20261119-C-500.csv.gz")
         self.assertEqual(quotes[0], oq.QUOTE_FIELDS)
@@ -213,6 +280,82 @@ class CollectTest(unittest.TestCase):
 
         self.assertEqual(self.run_collect(Down(chain())), 1)
         self.assertEqual(oq.read_status(self.root / "2026-11-19")["state"], "partial")
+
+    # In-range contracts here: strikes 499..502 (floor(499.6)..ceil(501.3)), calls and puts: 8 contracts, so the
+    # stale-session limit (20%) is 2 of them.
+    STALE_PAIR = (("C", 500.0), ("P", 500.0))
+
+    def test_frozen_session_stays_partial_and_next_run_asks_again_for_the_frozen_contracts(self):
+        first = FakeSource(chain(), bars=frozen(*self.STALE_PAIR))
+        self.assertEqual(self.run_collect(first), 1)
+        folder = self.root / "2026-11-19"
+        status = oq.read_status(folder)
+        self.assertEqual(status["state"], "partial")
+        self.assertIn("stale session: 2 of 8 contracts", status["reason"])
+        self.assertIn("e.g. SPY-20261119-C-500.csv.gz", status["reason"])
+        self.assertEqual((status["stale_in_range"], status["low"], status["high"]), ("2", "499.6", "501.3"))
+        self.assertEqual(oq.file_health(folder / "SPY-20261119-P-500.csv.gz", DAY), (0, 40))
+        second = FakeSource(chain())
+        self.assertEqual(self.run_collect(second), 0)
+        self.assertEqual(second.calls, ["contracts", "SPY", "C500BID", "C500ASK", "P500BID", "P500ASK"])
+        status = oq.read_status(folder)
+        self.assertEqual((status["state"], status["stale_in_range"]), ("complete", "0"))
+        self.assertEqual(oq.file_health(folder / "SPY-20261119-P-500.csv.gz", DAY), (0, 1))
+
+    def test_crossed_session_stays_partial(self):
+        self.assertEqual(self.run_collect(FakeSource(chain(), bars=crossed(*self.STALE_PAIR))), 1)
+        status = oq.read_status(self.root / "2026-11-19")
+        self.assertIn("stale session: 2 of 8 contracts", status["reason"])
+        self.assertEqual(oq.file_health(self.root / "2026-11-19" / "SPY-20261119-C-500.csv.gz", DAY), (10, 1))
+
+    def test_stale_contracts_below_the_limit_leave_the_day_complete(self):
+        src = FakeSource(chain(), bars={**frozen(("C", 501.0)), **crossed(("P", 502.0), opens=9),
+                                        **frozen(("C", 508.0), ("P", 490.0))})  # 1 in range; 9 crossed; 2 wings
+        self.assertEqual(self.run_collect(src), 0)
+        status = oq.read_status(self.root / "2026-11-19")
+        self.assertEqual((status["state"], status["stale_in_range"]), ("complete", "1"))
+
+    def test_range_bounds_are_floor_low_and_ceil_high(self):
+        inside = FakeSource(chain(), bars=frozen(("C", 499.0), ("P", 502.0)))  # floor(499.6) and ceil(501.3)
+        self.assertEqual(self.run_collect(inside), 1)
+        self.assertIn("stale session: 2 of 8 contracts", oq.read_status(self.root / "2026-11-19")["reason"])
+        outside = FakeSource(chain(), bars=frozen(("C", 498.0), ("P", 503.0)))  # wings: not counted
+        self.assertEqual(oq.collect(lambda: outside, self.root / "other", DAY, self.log.append, self.now), 0)
+        status = oq.read_status(self.root / "other" / "2026-11-19")
+        self.assertEqual((status["state"], status["stale_in_range"]), ("complete", "0"))
+
+    def test_a_retry_that_is_still_frozen_replaces_the_file_and_keeps_the_day_partial(self):
+        self.assertEqual(self.run_collect(FakeSource(chain(), bars=frozen(*self.STALE_PAIR))), 1)
+        again = FakeSource(chain(), bars=frozen(*self.STALE_PAIR, minutes=35))
+        self.assertEqual(self.run_collect(again), 1)
+        self.assertEqual(again.calls[2:], ["C500BID", "C500ASK", "P500BID", "P500ASK"])
+        folder = self.root / "2026-11-19"
+        self.assertEqual(oq.file_health(folder / "SPY-20261119-C-500.csv.gz", DAY), (0, 35))
+        self.assertEqual(oq.read_manifest(folder)["SPY-20261119-C-500.csv.gz"]["bid_bars"], "35")
+        self.assertIn("stale session: 2 of 8 contracts", oq.read_status(folder)["reason"])
+
+    def test_missing_file_of_an_in_range_contract_is_asked_again(self):
+        self.assertEqual(self.run_collect(FakeSource(chain())), 0)
+        folder = self.root / "2026-11-19"
+        oq.write_status(folder, state="partial", reason="test")
+        (folder / "SPY-20261119-C-500.csv.gz").unlink()
+        again = FakeSource(chain())
+        self.assertEqual(self.run_collect(again), 0)
+        self.assertEqual(again.calls[2:], ["C500BID", "C500ASK"])
+
+    def test_new_answer_without_a_side_keeps_the_stored_frozen_file(self):
+        four = (*self.STALE_PAIR, ("C", 501.0), ("P", 501.0))
+        self.assertEqual(self.run_collect(FakeSource(chain(), bars=frozen(*four))), 1)
+        second = FakeSource(chain(), no_data={("C", 500.0, "ASK")})
+        self.assertEqual(self.run_collect(second), 0)  # 1 of 8 still frozen: below the limit
+        self.assertEqual(len(second.calls), 2 + 8)
+        folder = self.root / "2026-11-19"
+        status = oq.read_status(folder)
+        self.assertEqual((status["state"], status["stale_in_range"]), ("complete", "1"))
+        row = oq.read_manifest(folder)["SPY-20261119-C-500.csv.gz"]
+        self.assertEqual(row["ask_bars"], "40")
+        self.assertEqual(oq.file_health(folder / "SPY-20261119-C-500.csv.gz", DAY), (0, 40))
+        self.assertTrue(any("C-500.csv.gz: no BID or ASK bars on the new request" in line for line in self.log))
 
 
 class CheckTest(unittest.TestCase):
