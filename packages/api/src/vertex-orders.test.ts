@@ -1587,6 +1587,42 @@ describe("vertexOrders procedures", () => {
     expect(rows.at(-1)).toBe("vertex.order.result unknown");
   });
 
+  it.each([
+    ["submitted", "placed"],
+    ["unconfirmed", "unknown"],
+    ["unknown", "unknown"],
+    ["aborted", "not-taken"],
+    ["engine_refused", "refused"],
+  ] as const)(
+    "live: a single-order bridge answer %s is stored as %s, like a combo",
+    async (state, outcome) => {
+      clock = new Date(at);
+      const on = { ...OFF, enabled: true, submission: "enabled" };
+      bridgeFetch.mockImplementation(async (input: string) =>
+        Response.json(
+          input.endsWith("/account")
+            ? {
+                caps: { leapsMinDays: 365, leapsPct: 6, shortPct: 2 },
+                gates: { killSwitch: false, optionsOnly: true },
+                netLiquidation: 200_000,
+                openOrders: [],
+                positions: [],
+              }
+            : { message: "bridge", permId: null, state }
+        )
+      );
+      const { store, rows } = intentStore();
+      const client = clientFor({ config: on, intents: store });
+      const preview = await client.vertexOrders.preview(order({ quantity: 1 }));
+      await client.vertexOrders.submit({
+        confirm: true,
+        confirmToken: preview.confirmToken ?? "",
+        order: order({ quantity: 1 }),
+      });
+      expect(rows.at(-1)).toBe(`vertex.order.result ${outcome}`);
+    }
+  );
+
   it("live combo goes to the bridge /combos route", async () => {
     clock = new Date(at);
     bridgeFetch.mockImplementation(async (input: string) =>
