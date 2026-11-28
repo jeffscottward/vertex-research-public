@@ -15,9 +15,11 @@ import {
   loadMigrationsFromGit,
   MIGRATIONS_SNAPSHOT_SQL,
   type MigrationSource,
+  makeTriggerKey,
   parseIdentToken,
   parsePostgresSnapshot,
   runMigrationCheckCli,
+  type SnapshotTrigger,
   splitTopLevel,
   stripSqlComments,
   truncatePgIdent,
@@ -29,10 +31,12 @@ const emptySnapshot = (): DatabaseSnapshot => ({
   appGrants: new Set(),
   columns: new Map(),
   constraints: new Map(),
+  functions: new Set(),
   indexes: new Set(),
   ledgerHashes: new Set(),
   roles: new Set(),
   tables: new Set(),
+  triggers: new Map(),
 });
 
 const buildSnapshot = (
@@ -40,19 +44,23 @@ const buildSnapshot = (
     appGrants: string[];
     columns: [string, string][];
     constraints: [string, string][];
+    functions: string[];
     indexes: string[];
     ledgerHashes: string[];
     roles: string[];
     tables: string[];
+    triggers: [string, SnapshotTrigger][];
   }>
 ): DatabaseSnapshot => ({
   appGrants: new Set(overrides.appGrants ?? []),
   columns: new Map(overrides.columns ?? []),
   constraints: new Map(overrides.constraints ?? []),
+  functions: new Set(overrides.functions ?? []),
   indexes: new Set(overrides.indexes ?? []),
   ledgerHashes: new Set(overrides.ledgerHashes ?? []),
   roles: new Set(overrides.roles ?? []),
   tables: new Set(overrides.tables ?? []),
+  triggers: new Map(overrides.triggers ?? []),
 });
 
 describe("SQL and identifier helpers", () => {
@@ -92,6 +100,14 @@ describe("SQL and identifier helpers", () => {
     expect(stripSqlComments('SELECT "unterminated')).toBe(
       'SELECT "unterminated'
     );
+    expect(
+      stripSqlComments(
+        "CREATE FUNCTION f() AS $$ -- keep\nBEGIN PERFORM $1; END; $$;\n-- drop\nSELECT 1;"
+      )
+    ).toBe(
+      "CREATE FUNCTION f() AS $$ -- keep\nBEGIN PERFORM $1; END; $$;\n\nSELECT 1;"
+    );
+    expect(stripSqlComments("SELECT $1$ -- drop")).toBe("SELECT $1$ ");
   });
 
   it("splits top-level statements while respecting quotes, parens, and dollar-quoted blocks", () => {
@@ -261,6 +277,229 @@ describe("extractMigrationExpectations", () => {
       nullable: "YES",
       tag: "0090_golive_single_leg",
     });
+    expect(exp.functions.get("reject_workflow_journal_mutation")).toBe(
+      "0005_workflow_durability"
+    );
+    expect(exp.functions.get("delete_workflow_run_outbox_events")).toBe(
+      "0005_workflow_durability"
+    );
+    expect(
+      exp.triggers.get(
+        makeTriggerKey("workflow_journal", "workflow_journal_immutable")
+      )
+    ).toEqual({
+      fn: "reject_workflow_journal_mutation",
+      table: "workflow_journal",
+      tag: "0005_workflow_durability",
+      trigger: "workflow_journal_immutable",
+    });
+    expect(
+      exp.triggers.get(
+        makeTriggerKey("workflow_runs", "workflow_runs_delete_outbox")
+      )
+    ).toEqual({
+      fn: "delete_workflow_run_outbox_events",
+      table: "workflow_runs",
+      tag: "0005_workflow_durability",
+      trigger: "workflow_runs_delete_outbox",
+    });
+    expect(exp.functions.get("vertex_reject_epoch_transition_mutation")).toBe(
+      "0008_vertex_buildout"
+    );
+    expect(
+      exp.functions.get("vertex_reject_native_approval_audit_mutation")
+    ).toBe("0008_vertex_buildout");
+    expect(
+      exp.triggers.get(
+        makeTriggerKey(
+          "vertex_portfolio_epoch_transitions",
+          "vertex_epoch_transition_immutable"
+        )
+      )?.tag
+    ).toBe("0008_vertex_buildout");
+    expect(
+      exp.triggers.get(
+        makeTriggerKey(
+          "vertex_portfolio_epoch_transitions",
+          "vertex_epoch_transition_no_truncate"
+        )
+      )?.tag
+    ).toBe("0008_vertex_buildout");
+    expect(
+      exp.triggers.get(
+        makeTriggerKey(
+          "vertex_native_approval_audit",
+          "vertex_native_approval_audit_immutable"
+        )
+      )?.tag
+    ).toBe("0008_vertex_buildout");
+    expect(
+      exp.triggers.get(
+        makeTriggerKey(
+          "vertex_native_approval_audit",
+          "vertex_native_approval_audit_no_truncate"
+        )
+      )?.tag
+    ).toBe("0008_vertex_buildout");
+    expect(exp.functions.get("vertex_chat_copy_immutable")).toBe(
+      "0012_vertex_research_chat_copy_inventory"
+    );
+    for (const [table, trigger] of [
+      ["vertex_research_chat_copy_families", "vertex_copy_family_immutable"],
+      [
+        "vertex_research_chat_copy_allocations",
+        "vertex_copy_allocation_immutable",
+      ],
+      [
+        "vertex_research_chat_copy_content_bindings",
+        "vertex_copy_content_immutable",
+      ],
+      [
+        "vertex_research_chat_copy_dependencies",
+        "vertex_copy_dependency_immutable",
+      ],
+      ["vertex_research_chat_copy_closures", "vertex_copy_closure_immutable"],
+    ] as const) {
+      expect(exp.triggers.get(makeTriggerKey(table, trigger))).toEqual({
+        fn: "vertex_chat_copy_immutable",
+        table,
+        tag: "0012_vertex_research_chat_copy_inventory",
+        trigger,
+      });
+    }
+    expect(
+      exp.triggers.get(
+        makeTriggerKey(
+          "vertex_research_chat_copy_cleanup_intents",
+          "vertex_copy_cleanup_immutable"
+        )
+      )
+    ).toEqual({
+      fn: "vertex_chat_copy_immutable",
+      table: "vertex_research_chat_copy_cleanup_intents",
+      tag: "0013_vertex_research_chat_copy_cleanup",
+      trigger: "vertex_copy_cleanup_immutable",
+    });
+  });
+
+  it("tracks functions, triggers, dollar-quoted bodies, DO LANGUAGE blocks, drops, and schema guards", () => {
+    const migrations: MigrationSource[] = [
+      {
+        sql: `
+          CREATE TABLE "a" ("id" text PRIMARY KEY);
+          CREATE TABLE "a.b" ("id" text PRIMARY KEY);
+          CREATE TABLE "orders" ("id" text PRIMARY KEY, "on" text, "note" text);
+          CREATE FUNCTION public."fn_a"() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN
+            PERFORM $msg$it's -- not a comment$msg$;
+            RETURN NEW;
+          END;
+          $$;
+          --> statement-breakpoint
+          CREATE FUNCTION "fn_keep"() RETURNS trigger LANGUAGE plpgsql AS $fn$
+          BEGIN
+            RETURN NEW;
+          END;
+          $fn$;
+          --> statement-breakpoint
+          CREATE FUNCTION fn_drop_args(a int, b text) RETURNS void LANGUAGE sql AS $$ SELECT 1 $$;
+          CREATE FUNCTION fn_cascade() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$;
+          CREATE FUNCTION fn_cascade_kept() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$;
+          CREATE FUNCTION "PUBLIC"."wrong_schema_fn"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$;
+          CREATE FUNCTION analytics.other_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$;
+          CREATE TRIGGER "tr_a" BEFORE UPDATE ON "a" FOR EACH ROW EXECUTE FUNCTION "fn_a"();
+          CREATE TRIGGER "tr_ab" AFTER UPDATE OF "on", "note" ON "public"."a.b" FOR EACH ROW WHEN (NEW."note" = 'EXECUTE FUNCTION fake()') EXECUTE PROCEDURE "fn_keep"();
+          CREATE TRIGGER "tr_cascade" BEFORE DELETE ON "orders" FOR EACH ROW EXECUTE FUNCTION fn_cascade();
+          CREATE TRIGGER "tr_cascade_arg" BEFORE INSERT ON "orders" FOR EACH ROW EXECUTE FUNCTION fn_drop_args();
+          CREATE TRIGGER "tr_builtin" BEFORE UPDATE ON PUBLIC.orders FOR EACH ROW EXECUTE FUNCTION pg_catalog.suppress_redundant_updates_trigger();
+          CREATE TRIGGER "tr_quoted_fn" BEFORE UPDATE ON "orders" FOR EACH ROW EXECUTE FUNCTION "my""fn"();
+          CREATE TRIGGER "tr_no_exec" BEFORE INSERT ON "orders" FOR EACH ROW;
+          CREATE TRIGGER "tr_bad_no_on" BEFORE INSERT FOR EACH ROW EXECUTE FUNCTION fn_keep();
+          CREATE TRIGGER "tr_other_schema" BEFORE INSERT ON analytics.events FOR EACH ROW WHEN (EXISTS (SELECT 1 FROM a JOIN b ON a.id = b.id)) EXECUTE FUNCTION fn_keep();
+          CREATE TRIGGER "tr_upper_public" BEFORE INSERT ON "PUBLIC".orders FOR EACH ROW EXECUTE FUNCTION fn_keep();
+          CREATE TRIGGER "tr_temp" BEFORE DELETE ON "orders" FOR EACH ROW EXECUTE FUNCTION fn_cascade_kept();
+          DO LANGUAGE plpgsql $do$
+          BEGIN
+            -- comment before constraint and commented-out grant inside DO block
+            ALTER TABLE "orders" ADD CONSTRAINT "orders_note_ck" CHECK ("note" <> '');
+            -- GRANT SELECT ON TABLE "orders" TO "vertex_research";
+            GRANT INSERT ON TABLE "orders" TO "vertex_research";
+            CREATE OR REPLACE FUNCTION "do_fn"() RETURNS trigger LANGUAGE plpgsql AS $inner$ BEGIN RETURN NEW; END; $inner$;
+            CREATE OR REPLACE TRIGGER "do_trig" AFTER DELETE ON "orders" FOR EACH ROW EXECUTE FUNCTION "do_fn"();
+          END
+          $do$;
+        `,
+        tag: "0001_triggers",
+      },
+      {
+        sql: `
+          DROP TABLE "a";
+          DROP TRIGGER IF EXISTS "tr_temp" ON public."orders";
+          DROP TRIGGER IF EXISTS "tr_other" ON analytics.events;
+          DROP FUNCTION IF EXISTS fn_drop_args(a int, b text), fn_cascade(), analytics.other_fn(), ??? CASCADE;
+          DROP FUNCTION IF EXISTS fn_cascade_kept() RESTRICT;
+        `,
+        tag: "0002_cleanup",
+      },
+    ];
+
+    const exp = extractMigrationExpectations(migrations);
+    expect(exp.functions.get("fn_a")).toBe("0001_triggers");
+    expect(exp.functions.get("fn_keep")).toBe("0001_triggers");
+    expect(exp.functions.get("do_fn")).toBe("0001_triggers");
+    expect(exp.functions.has("fn_drop_args")).toBe(false);
+    expect(exp.functions.has("fn_cascade")).toBe(false);
+    expect(exp.functions.has("fn_cascade_kept")).toBe(false);
+    expect(exp.functions.has("wrong_schema_fn")).toBe(false);
+    expect(exp.functions.has("other_fn")).toBe(false);
+
+    expect(exp.triggers.has(makeTriggerKey("a", "tr_a"))).toBe(false);
+    expect(exp.triggers.get(makeTriggerKey("a.b", "tr_ab"))).toEqual({
+      fn: "fn_keep",
+      table: "a.b",
+      tag: "0001_triggers",
+      trigger: "tr_ab",
+    });
+    expect(exp.triggers.has(makeTriggerKey("orders", "tr_cascade"))).toBe(
+      false
+    );
+    expect(exp.triggers.has(makeTriggerKey("orders", "tr_cascade_arg"))).toBe(
+      true
+    );
+    expect(exp.triggers.has(makeTriggerKey("orders", "tr_temp"))).toBe(false);
+    expect(exp.triggers.get(makeTriggerKey("orders", "tr_builtin"))).toEqual({
+      fn: null,
+      table: "orders",
+      tag: "0001_triggers",
+      trigger: "tr_builtin",
+    });
+    expect(exp.triggers.get(makeTriggerKey("orders", "tr_quoted_fn"))).toEqual({
+      fn: 'my"fn',
+      table: "orders",
+      tag: "0001_triggers",
+      trigger: "tr_quoted_fn",
+    });
+    expect(exp.triggers.get(makeTriggerKey("orders", "tr_no_exec"))).toEqual({
+      fn: null,
+      table: "orders",
+      tag: "0001_triggers",
+      trigger: "tr_no_exec",
+    });
+    expect(exp.constraints.get("orders.orders_note_ck")).toBe("0001_triggers");
+    expect(exp.grants.has("orders:SELECT")).toBe(false);
+    expect(exp.grants.get("orders:INSERT")).toBe("0001_triggers");
+    expect(exp.triggers.get(makeTriggerKey("orders", "do_trig"))).toEqual({
+      fn: "do_fn",
+      table: "orders",
+      tag: "0001_triggers",
+      trigger: "do_trig",
+    });
+    expect(exp.triggers.has(makeTriggerKey("events", "tr_other_schema"))).toBe(
+      false
+    );
+    expect(exp.triggers.has(makeTriggerKey("orders", "tr_upper_public"))).toBe(
+      false
+    );
   });
 });
 
@@ -282,6 +521,12 @@ describe("parsePostgresSnapshot", () => {
       "R\t\t\t",
       "G\tresearch_screen_rows\tSELECT\t",
       "G\t\t\t",
+      "F\tjev_verdict_log_reject_mutation\t\t",
+      "F\tfn_space \t\t",
+      "F\t\t\t",
+      "TR\tjev_verdict_log\tjev_verdict_log_immutable\tO:jev_verdict_log_reject_mutation",
+      "TR\ta.b\ttr.colon\tA:quoted:fn ",
+      "TR\t\t\t",
       "@@END\t\t\t",
     ].join("\n");
 
@@ -307,6 +552,18 @@ describe("parsePostgresSnapshot", () => {
     expect(parsed.snapshot.appGrants.has("research_screen_rows:SELECT")).toBe(
       true
     );
+    expect(
+      parsed.snapshot.functions.has("jev_verdict_log_reject_mutation")
+    ).toBe(true);
+    expect(parsed.snapshot.functions.has("fn_space ")).toBe(true);
+    expect(
+      parsed.snapshot.triggers.get(
+        makeTriggerKey("jev_verdict_log", "jev_verdict_log_immutable")
+      )
+    ).toEqual({ enabled: "O", fn: "jev_verdict_log_reject_mutation" });
+    expect(
+      parsed.snapshot.triggers.get(makeTriggerKey("a.b", "tr.colon"))
+    ).toEqual({ enabled: "A", fn: "quoted:fn " });
   });
 
   it("rejects empty, truncated, or malformed snapshots", () => {
@@ -326,6 +583,16 @@ describe("parsePostgresSnapshot", () => {
       error: "unexpected record kind 'Z' in Postgres migration snapshot",
       ok: false,
     });
+    for (const badPayload of ["O", "O:", "X:fn", "OO:fn"]) {
+      expect(
+        parsePostgresSnapshot(
+          `@@START\t\t\t\nTR\ttbl\ttrg\t${badPayload}\n@@END\t\t\t\n`
+        )
+      ).toEqual({
+        error: "malformed trigger record in Postgres migration snapshot",
+        ok: false,
+      });
+    }
   });
 });
 
@@ -493,6 +760,123 @@ describe("checkAppliedMigrations", () => {
       ok: true,
       structuralCount: 0,
     });
+  });
+
+  it("verifies trigger-only migrations (0104 pattern), disabled/replica-only triggers, wrong functions, and missing parent suppression", () => {
+    const migrations: MigrationSource[] = [
+      {
+        sql: `CREATE TABLE "jev_verdict_log" ("id" text PRIMARY KEY);`,
+        tag: "0082_jev_verdict_log",
+      },
+      {
+        sql: `
+          CREATE FUNCTION jev_verdict_log_reject_mutation() RETURNS trigger
+          LANGUAGE plpgsql AS $$
+          BEGIN
+            RAISE EXCEPTION 'jev_verdict_log is append-only' USING ERRCODE = '23514';
+          END;
+          $$;
+          --> statement-breakpoint
+          CREATE TRIGGER jev_verdict_log_immutable
+          BEFORE UPDATE OR DELETE ON "jev_verdict_log"
+          FOR EACH ROW EXECUTE FUNCTION jev_verdict_log_reject_mutation();
+          --> statement-breakpoint
+          CREATE TRIGGER jev_verdict_log_no_truncate
+          BEFORE TRUNCATE ON "jev_verdict_log"
+          FOR EACH STATEMENT EXECUTE FUNCTION jev_verdict_log_reject_mutation();
+        `,
+        tag: "0104_jev_verdict_log_append_only",
+      },
+    ];
+
+    const unapplied = checkAppliedMigrations(
+      migrations,
+      buildSnapshot({
+        columns: [["jev_verdict_log.id", "NO"]],
+        tables: ["jev_verdict_log"],
+      })
+    );
+    expect(unapplied.ok).toBe(false);
+    expect(unapplied.structuralCount).toBe(2);
+    expect(unapplied.missing).toEqual([
+      {
+        reasons: [
+          "missing function jev_verdict_log_reject_mutation",
+          "missing trigger jev_verdict_log.jev_verdict_log_immutable",
+          "missing trigger jev_verdict_log.jev_verdict_log_no_truncate",
+        ],
+        tag: "0104_jev_verdict_log_append_only",
+      },
+    ]);
+
+    const applied = checkAppliedMigrations(
+      migrations,
+      buildSnapshot({
+        columns: [["jev_verdict_log.id", "NO"]],
+        functions: ["jev_verdict_log_reject_mutation"],
+        tables: ["jev_verdict_log"],
+        triggers: [
+          [
+            makeTriggerKey("jev_verdict_log", "jev_verdict_log_immutable"),
+            { enabled: "O", fn: "jev_verdict_log_reject_mutation" },
+          ],
+          [
+            makeTriggerKey("jev_verdict_log", "jev_verdict_log_no_truncate"),
+            { enabled: "A", fn: "jev_verdict_log_reject_mutation" },
+          ],
+        ],
+      })
+    );
+    expect(applied.ok).toBe(true);
+    expect(applied.missing).toEqual([]);
+    expect(applied.structuralCount).toBe(2);
+    expect(applied.ledgerCount).toBe(0);
+
+    const drifted = checkAppliedMigrations(
+      migrations,
+      buildSnapshot({
+        columns: [["jev_verdict_log.id", "NO"]],
+        functions: ["jev_verdict_log_reject_mutation"],
+        tables: ["jev_verdict_log"],
+        triggers: [
+          [
+            makeTriggerKey("jev_verdict_log", "jev_verdict_log_immutable"),
+            {
+              enabled: "D",
+              fn: "other_schema.jev_verdict_log_reject_mutation",
+            },
+          ],
+          [
+            makeTriggerKey("jev_verdict_log", "jev_verdict_log_no_truncate"),
+            { enabled: "R", fn: "jev_verdict_log_reject_mutation" },
+          ],
+        ],
+      })
+    );
+    expect(drifted.ok).toBe(false);
+    expect(drifted.missing).toEqual([
+      {
+        reasons: [
+          "trigger jev_verdict_log.jev_verdict_log_immutable is disabled",
+          "trigger jev_verdict_log.jev_verdict_log_immutable calls other_schema.jev_verdict_log_reject_mutation (expected jev_verdict_log_reject_mutation)",
+          "trigger jev_verdict_log.jev_verdict_log_no_truncate is replica-only (not active on origin)",
+        ],
+        tag: "0104_jev_verdict_log_append_only",
+      },
+    ]);
+
+    const noParent = checkAppliedMigrations(migrations, emptySnapshot());
+    expect(noParent.ok).toBe(false);
+    expect(noParent.missing).toEqual([
+      {
+        reasons: ["missing table jev_verdict_log"],
+        tag: "0082_jev_verdict_log",
+      },
+      {
+        reasons: ["missing function jev_verdict_log_reject_mutation"],
+        tag: "0104_jev_verdict_log_append_only",
+      },
+    ]);
   });
 });
 
