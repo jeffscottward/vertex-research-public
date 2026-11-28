@@ -300,3 +300,55 @@ def test_file_quote_book_edge_cases_crossed_only_close_diff_unsorted_and_empty_r
     assert book.is_stale(edge_day, 215, "P", 500.0) is True   # unsorted 32-min flat run still caught
     assert book.is_stale(edge_day, 30, "P", 500.0) is False   # duplicate epoch overwritten by uncrossed row
     assert book.quote(edge_day, 30, "P", 500.0) == (1.95, 2.00)
+
+
+def _collector():
+    """The QuantVPS collector (infra/quant-vps/odte-quotes/odte_quotes.py, standard library only), loaded by path."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[3] / "infra" / "quant-vps" / "odte-quotes" / "odte_quotes.py"
+    spec = importlib.util.spec_from_file_location("odte_quotes_parity", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_collector_stale_rule_matches_file_quote_book(tmp_path):
+    """The collector keeps a stale session partial with its own copy of the Amendment 2026-11-28 (f)-(g) rule
+    (card vertex-odte-quotes-stale-crossed-guard); both copies must give the same crossed opens and flat verdict."""
+    import csv
+    import gzip
+
+    from strategies import noise_band_0dte as nb
+    from strategies.noise_band_0dte import FileQuoteBook
+
+    oq = _collector()
+    assert (oq.STALE_FLAT_MINUTES, oq.STALE_ASK_FLOOR, oq.STALE_CROSSED_OPENS, oq.STALE_DAY_FRACTION) == (
+        nb.STALE_FLAT_MINUTES, nb.STALE_ASK_FLOOR, nb.STALE_CROSSED_CONTRACT_MINUTES, nb.STALE_DAY_FRACTION)
+    cases = {
+        ("C", 500.0): [(m, 2.66, 2.45) for m in range(280, 320)],  # frozen and crossed
+        ("P", 500.0): [(m, 1.0, 1.1, 1.0, 1.1) for m in range(29)],  # 29 flat minutes: not frozen
+        ("C", 501.0): [(m, 0.05, 0.10) for m in range(40)],  # flat at a $0.10 ask: not frozen
+        ("P", 501.0): [(m, 2.00, 2.05, 2.10, 2.15) for m in range(100, 135)],  # closes move: not flat
+        ("C", 502.0): list(reversed([(m, 2.50, 2.55) for m in range(200, 232)])) + [(30, 2.10, 2.00), (30, 1.95, 2.00)],
+        ("P", 502.0): [(m, round(2.0 + 0.05 * m, 2), round(1.9 + 0.05 * m, 2)) for m in range(-5, 12)],  # 12 crossed
+    }
+    folder = _write_day(tmp_path, D, "complete", cases, low=500.0, high=502.0)
+    verdicts = []
+    for right, strike in cases:
+        path = folder / f"SPY-{D:%Y%m%d}-{right}-{strike:g}.csv.gz"
+        _, crossed, flat = nb._load_contract(path, D)
+        loader_stale = bool(flat) or len(crossed) >= nb.STALE_CROSSED_CONTRACT_MINUTES
+        with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
+            health = oq.quote_health(list(csv.reader(f))[1:], D)
+        assert (health[0], health[1] >= oq.STALE_FLAT_MINUTES) == (len(crossed), bool(flat)), (right, strike)
+        assert oq.is_stale(health) == loader_stale, (right, strike)
+        assert oq.file_health(path, D) == health
+        verdicts.append(loader_stale)
+    assert verdicts == [True, False, False, False, True, True]
+    # day verdict: 3 of 6 in-range contracts stale -> the loader excludes the day, the collector keeps it partial
+    assert D in FileQuoteBook(tmp_path).excluded_days()
+    assert sum(verdicts) / len(verdicts) >= oq.STALE_DAY_FRACTION
