@@ -113,7 +113,6 @@ type BoundedRequest = Readonly<{
   /** Starts every error text. */
   label: string;
   headers: Record<string, string>;
-  redirect: "error" | "manual";
   maxBytes: number;
   /** The content type a 2xx answer must have; null accepts any. */
   contentType: RegExp | null;
@@ -161,7 +160,8 @@ const boundedRead = async <T>(
     const response = await doFetch(request.url, {
       headers: request.headers,
       method: "GET",
-      redirect: request.redirect,
+      // workerd rejects redirect "error"; "manual" returns a 3xx as-is and !ok refuses it.
+      redirect: "manual",
       signal: controller.signal,
     });
     if (response.status === 429)
@@ -220,7 +220,6 @@ export const readChart = async (
       },
       label: "Yahoo chart",
       maxBytes: YAHOO_MAX_BYTES,
-      redirect: "manual",
       url: researchScreenChartUrl(providerSymbol),
     },
     (text) => parseResearchScreenChart(chartJson(text))
@@ -309,7 +308,6 @@ export const readSwinglytics = async (): Promise<ReadSwinglyticsResult> => {
       headers: { accept: "text/html", "user-agent": SWINGLYTICS_USER_AGENT },
       label: "Swinglytics",
       maxBytes: SWINGLYTICS_MAX_BYTES,
-      redirect: "error",
       url: SWINGLYTICS_URL,
     },
     parseSwinglyticsHtml
