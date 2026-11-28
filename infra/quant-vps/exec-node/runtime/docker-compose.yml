@@ -85,7 +85,9 @@ services:
 
   # Profile-gated so the default Phase 01 prototype never needs IBKR credentials.
   ib-gateway:
-    image: gnzsnz/ib-gateway
+    # Pinned to the digest of the image that runs live (10.53, built 2026-11-24). An unpinned tag let a
+    # pull move the gateway mid-session on 2026-11-25 (card ib-gateway-image-pin). Change it on purpose only.
+    image: gnzsnz/ib-gateway@sha256:3a2fe376a1bb8c77026e41246ec5655f766d58e33404a5df28ba31964198963d
     profiles:
       - ibkr
     restart: unless-stopped
