@@ -46,8 +46,8 @@ import {
   evaluateCombo,
   evaluateOpeningCombo,
   evaluateOrder,
-  GOLIVE_ENGINE_ORDER_POLICY,
   type GatewayOpenOrder,
+  GOLIVE_ENGINE_ORDER_POLICY,
   type OrderAccount,
   sameContract,
 } from "./vertex-orders-rules.ts";
@@ -472,13 +472,13 @@ const writeIntent = async (
   return true;
 };
 
-// The outcome row of a combo submit, from the bridge state. "submitted": placed. "unconfirmed" (IBKR
-// has not acknowledged it yet) and "unknown" (the bridge could not tell): it may still be live, so
-// it stays an "unknown" outcome that reconciliation checks. "engine_refused":
+// The outcome row of a single or combo submit, from the bridge state. "submitted": placed.
+// "unconfirmed" (IBKR has not acknowledged it yet) and "unknown" (the bridge could not tell): it
+// may still be live, so it stays an "unknown" outcome that reconciliation checks. "engine_refused":
 // the bridge refused it before IBKR, so a go-live draft is free to be sent again. Any other state
 // (for example "aborted") did not place the order but is no proof that nothing reached IBKR:
 // "not-taken", never sent again.
-const comboOutcome = (
+const bridgeOutcome = (
   state: string
 ): "placed" | "unknown" | "refused" | "not-taken" => {
   if (state === "submitted") return "placed";
@@ -819,12 +819,10 @@ const submit = api.vertexOrders.submit
         });
       throw error;
     }
-    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
-    await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
+    // "unconfirmed" and "unknown" may still be live: stored as an unknown outcome and reconciled.
+    // "aborted" and other states are "not-taken", never stored as placed.
+    await outcomeOf(bridgeOutcome(result.state));
     // Only "submitted" and "unconfirmed" reached IBKR; any other state is audited as a failure.
-    // Known gap (single-order path, predates go-live; follow-up of card vertex-golive-exec-intake):
-    // a bridge "unknown" or "aborted" is stored as "placed" here, so it is not reconciled. The
-    // combo path maps states with comboOutcome instead ("unknown" stays an unknown outcome).
     await audit(
       context,
       "submit",
@@ -1053,7 +1051,7 @@ const comboSubmit = api.vertexOrders.comboSubmit
       throw error;
     }
     const engineRefused = result.state === "engine_refused";
-    await outcomeOf(comboOutcome(result.state));
+    await outcomeOf(bridgeOutcome(result.state));
     if (engineRefused) release();
     // Only "submitted" and "unconfirmed" reached IBKR. A bridge "unknown" may have reached it
     // (stored as an unknown outcome, reconciled and never resent); the audit outcome is binary,
