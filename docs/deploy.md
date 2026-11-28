@@ -156,7 +156,7 @@ Hyperdrive pools Postgres connections close to the Worker. The code path is the 
 3. Set `DATABASE_PROVIDER` to `hyperdrive` in that environment's `vars`, and delete its `DATABASE_URL` secret. Validation fails closed if the binding is missing, or if `DATABASE_URL` is also set.
 4. Run `DATABASE_PROVIDER=hyperdrive DATABASE_URL= bun run deploy:web:check`.
 
-For local Worker runs with the binding declared, export `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=<local Postgres URL>`; otherwise keep `DATABASE_PROVIDER=postgres` locally. The per-isolate client cap (`REQUEST_DATABASE_POOL_MAX_CONNECTIONS` in `packages/db/src/server/client.ts`) still applies; Hyperdrive's own pool size protects the origin database.
+For local Worker runs with the binding declared, export `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=<local Postgres URL>`; otherwise keep `DATABASE_PROVIDER=postgres` locally. The per-isolate client cap (`REQUEST_DATABASE_POOL_MAX_CONNECTIONS` in `packages/db/src/server/request-slots.ts`) still applies; Hyperdrive's own pool size protects the origin database.
 
 ## Migrations
 

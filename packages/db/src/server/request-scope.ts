@@ -47,7 +47,7 @@ export const requestDatabaseCapacityResponse = (): Response =>
   );
 
 /**
- * Opens one request connection (subject to the isolate cap in `client.ts`) and
+ * Opens one request connection (subject to the isolate cap in `request-slots.ts`) and
  * owns its lifecycle: tasks scheduled through the scope finish before the
  * connection closes, and close runs exactly once.
  *
@@ -56,8 +56,10 @@ export const requestDatabaseCapacityResponse = (): Response =>
  * client-canceled request with no pending `waitUntil` work is dropped and its
  * pending promises (connect, timers, `finally`) never settle; the slot then
  * stayed taken for the isolate's lifetime. `waitUntil` keeps a canceled
- * request running for up to 30 s more (Workers limit); a connection still open
- * after that can still be dropped.
+ * request running: on Cloudflare for up to 30 s more, in local workerd
+ * (`vite preview` on QuantVPS) with no limit. A slot whose request never
+ * closes is reclaimed after REQUEST_DATABASE_SLOT_MAX_AGE_MILLISECONDS
+ * (request-slots.ts); `route` names it in the reclaim diagnostic.
  */
 export const openRequestScope = async (
   options: RequestScopeOptions

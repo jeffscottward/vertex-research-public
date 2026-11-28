@@ -49,6 +49,27 @@ const withRequestIdHeader = (
   });
 };
 
+const ORPC_PATH_PREFIX = "/api/orpc/";
+const ROUTE_SEGMENT = /^[A-Za-z0-9_.-]{1,64}$/u;
+
+/**
+ * Names a request in request-database.slot-reclaimed without anything secret: oRPC paths are
+ * procedure names; any other path keeps its first three segments, so a token in a path (Better
+ * Auth's /api/auth/reset-password/<token>) never reaches a log. A segment that is not a plain
+ * name becomes ":param"; the query string is never used.
+ */
+export const requestRouteLabel = (url: string): string => {
+  const { pathname } = new URL(url);
+  const segments = pathname.split("/").filter((segment) => segment !== "");
+  const kept = pathname.startsWith(ORPC_PATH_PREFIX)
+    ? segments.slice(0, 6)
+    : segments.slice(0, 3);
+  const named = kept.map((segment) =>
+    ROUTE_SEGMENT.test(segment) ? segment : ":param"
+  );
+  return `/${named.join("/")}`;
+};
+
 /**
  * The single composition root for a DB-backed web request: env, request id,
  * evlog sink, request database (Hyperdrive-aware, capped in
@@ -88,6 +109,8 @@ export const withRequestScope = async (
   try {
     database = await openRequestScope({
       connectionString,
+      // Named in request-database.slot-reclaimed when this slot is reclaimed.
+      route: requestRouteLabel(request.url),
       schedule: waitUntil,
       diagnosticSink: createRequestDatabaseDiagnosticSink({
         sink,
