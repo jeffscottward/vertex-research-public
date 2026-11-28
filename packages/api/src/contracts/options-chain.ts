@@ -3,17 +3,35 @@ import { z } from "zod";
 
 // Read-only listed options chain for one stock symbol (optionsChain.*): the expiry list and,
 // per expiry, calls and puts by strike with quotes and Black-Scholes Greeks. The chain merges
-// three sources (Quant Data analytics first, then IBKR live quotes, then Yahoo Finance) and
-// names the source of each value; the order per field is OPTIONS_CHAIN_PRIORITY
-// (options-chain-merge.ts). Market data only: nothing here places, changes or cancels orders.
+// three primary sources (Quant Data analytics first, then IBKR live quotes, then Yahoo Finance)
+// plus Nasdaq as a conditional open-interest fallback, and names the source of each value;
+// the order per field is OPTIONS_CHAIN_PRIORITY (options-chain-merge.ts). Market data only:
+// nothing here places, changes or cancels orders.
 
-/** Data sources of the chain, in priority order (owner decision 2026-11-13: Quant Data first). */
-export const OPTIONS_CHAIN_SOURCES = ["quantdata", "ibkr", "yahoo"] as const;
+/** Primary chain sources that can supply spot, expiry lists, and contract rows. */
+export const OPTIONS_CHAIN_PRIMARY_SOURCES = [
+  "quantdata",
+  "ibkr",
+  "yahoo",
+] as const;
+export type OptionsChainPrimarySourceId =
+  (typeof OPTIONS_CHAIN_PRIMARY_SOURCES)[number];
+
+/** All data sources reported in chain status, in priority order. */
+export const OPTIONS_CHAIN_SOURCES = [
+  ...OPTIONS_CHAIN_PRIMARY_SOURCES,
+  "nasdaq",
+] as const;
 export type OptionsChainSourceId = (typeof OPTIONS_CHAIN_SOURCES)[number];
 
 export const OPTIONS_CHAIN_SOURCE_LABELS: Readonly<
   Record<OptionsChainSourceId, string>
-> = { ibkr: "IBKR", quantdata: "Quant Data", yahoo: "Yahoo Finance" };
+> = {
+  ibkr: "IBKR",
+  nasdaq: "Nasdaq",
+  quantdata: "Quant Data",
+  yahoo: "Yahoo Finance",
+};
 
 /** Output limits. The merge keeps to them (options-chain-merge.ts). */
 export const OPTIONS_CHAIN_MAX_ROWS = 2000;
@@ -80,7 +98,7 @@ export const OptionContractSourcesSchema = z
     // model: Black-Scholes from the chosen IV.
     delta: z.enum(["quantdata", "model"]).nullable(),
     iv: z.enum(["quantdata", "yahoo"]).nullable(),
-    openInterest: z.enum(["yahoo", "quantdata"]).nullable(),
+    openInterest: z.enum(["yahoo", "nasdaq", "quantdata"]).nullable(),
     // Bid and ask come from one source together.
     quote: z.enum(["ibkr", "yahoo"]).nullable(),
   })
@@ -142,6 +160,7 @@ export const OptionsChainSourceStatusesSchema = z.tuple([
   sourceStatus("quantdata"),
   sourceStatus("ibkr"),
   sourceStatus("yahoo"),
+  sourceStatus("nasdaq"),
 ]);
 
 const quoteFields = {
@@ -150,13 +169,13 @@ const quoteFields = {
   // The expiry list is the union of the lists of these sources: every source that gave at
   // least one listed expiry, in priority order, each at most once. Empty when none did.
   expiriesSources: z
-    .array(z.enum(OPTIONS_CHAIN_SOURCES))
-    .max(OPTIONS_CHAIN_SOURCES.length)
+    .array(z.enum(OPTIONS_CHAIN_PRIMARY_SOURCES))
+    .max(OPTIONS_CHAIN_PRIMARY_SOURCES.length)
     .refine(
       (sources) => {
         // The priority position of each source must rise from one entry to the next.
         const positions = sources.map((source) =>
-          OPTIONS_CHAIN_SOURCES.indexOf(source)
+          OPTIONS_CHAIN_PRIMARY_SOURCES.indexOf(source)
         );
         return positions.every(
           (position, index) => position > (positions[index - 1] ?? -1)
@@ -169,7 +188,7 @@ const quoteFields = {
   receivedAt: z.string(),
   sources: OptionsChainSourceStatusesSchema,
   spot: finite.positive().nullable(),
-  spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
+  spotSource: z.enum(OPTIONS_CHAIN_PRIMARY_SOURCES).nullable(),
   symbol: z.string(),
 };
 
@@ -539,7 +558,7 @@ export const OptionsSpreadOutputSchema = z
     receivedAt: z.string(),
     right: z.enum(["put", "call"]),
     spot: finite.positive().nullable(),
-    spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
+    spotSource: z.enum(OPTIONS_CHAIN_PRIMARY_SOURCES).nullable(),
     symbol: z.string(),
   })
   .strict();

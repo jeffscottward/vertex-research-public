@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  OPTIONS_CHAIN_SOURCES,
+  OPTIONS_CHAIN_PRIMARY_SOURCES,
   OptionContractSourcesSchema,
   OptionsChainExpiriesOutputSchema,
   OptionsChainOutputSchema,
@@ -11,6 +11,7 @@ import {
   liveQuotes,
   mergeOptionsChain,
   mergeOptionsExpiries,
+  nasdaqSkipReason,
   OPTIONS_CHAIN_FLOW_HOURS,
   OPTIONS_CHAIN_PRIORITY,
   OPTIONS_CHAIN_RISK_FREE_RATE,
@@ -19,6 +20,7 @@ import {
 import type {
   OptionsAnalyticsSnapshot,
   OptionsChainSnapshot,
+  OptionsOpenInterestSnapshot,
   OptionsQuoteSnapshot,
 } from "./server/options-chain-source.ts";
 import { parseYahooOptions } from "./server/options-chain-yahoo.ts";
@@ -102,8 +104,9 @@ const failed = { message: "Request failed", status: "failed" } as const;
 const reads = (
   overrides: Partial<OptionsChainReads> = {}
 ): OptionsChainReads => ({
-  quantdata: ok(quantDataSnapshot),
   ibkr: ok(ibkrSnapshot),
+  nasdaq: off,
+  quantdata: ok(quantDataSnapshot),
   symbol: "DEMO",
   yahoo: ok(yahooSnapshot),
   ...overrides,
@@ -117,15 +120,17 @@ describe("OPTIONS_CHAIN_PRIORITY", () => {
       delta: ["quantdata", "model"],
       expiries: ["quantdata", "ibkr", "yahoo"],
       iv: ["quantdata", "yahoo"],
-      // Yahoo first: a Quant Data print value only fills a contract that Yahoo does not have.
-      openInterest: ["yahoo", "quantdata"],
+      // Yahoo first (positive only), then Nasdaq fallback, then Quant Data print value.
+      openInterest: ["yahoo", "nasdaq", "quantdata"],
       // Quant Data has no live bid and ask.
       quote: ["ibkr", "yahoo"],
       spot: ["quantdata", "ibkr", "yahoo"],
     });
     // Quant Data first wherever it has the value, except open interest.
-    expect(OPTIONS_CHAIN_PRIORITY.spot).toEqual(OPTIONS_CHAIN_SOURCES);
-    expect(OPTIONS_CHAIN_PRIORITY.expiries).toEqual(OPTIONS_CHAIN_SOURCES);
+    expect(OPTIONS_CHAIN_PRIORITY.spot).toEqual(OPTIONS_CHAIN_PRIMARY_SOURCES);
+    expect(OPTIONS_CHAIN_PRIORITY.expiries).toEqual(
+      OPTIONS_CHAIN_PRIMARY_SOURCES
+    );
     for (const field of ["quote", "iv", "openInterest", "delta"] as const)
       expect(OptionContractSourcesSchema.shape[field].unwrap().options).toEqual(
         OPTIONS_CHAIN_PRIORITY[field]
@@ -168,6 +173,7 @@ describe("mergeOptionsChain", () => {
         { message: "Not asked", source: "quantdata", status: "off" },
         { message: "Not asked", source: "ibkr", status: "off" },
         { message: null, source: "yahoo", status: "used" },
+        { message: "Not asked", source: "nasdaq", status: "off" },
       ],
       spot: 100,
       spotSource: "yahoo",
@@ -210,9 +216,9 @@ describe("mergeOptionsChain", () => {
       "Spot price: Yahoo Finance. Expiry list: Yahoo Finance. Bid and ask: Yahoo Finance for 6 (of 6 contracts)."
     );
     expect(notes).toContain("can be delayed by 15 minutes or more");
-    // The whole note: without Quant Data rows no sentence on print values follows.
+    // The whole note: without Quant Data rows, only the 0-OI rule follows.
     expect(output.notes).toContain(
-      "IV: Yahoo Finance for 5. Open interest: Yahoo Finance for 6."
+      "IV: Yahoo Finance for 5. Open interest: Yahoo Finance for 6. Open interest of 0 is read as not reported."
     );
     expect(notes).toContain("from the chosen IV: risk-free rate 4.00 %");
     expect(notes).toContain("dividend yield 1.00 % (trailing)");
@@ -245,6 +251,7 @@ describe("mergeOptionsChain", () => {
         { message: null, source: "quantdata", status: "used" },
         { message: null, source: "ibkr", status: "used" },
         { message: null, source: "yahoo", status: "used" },
+        { message: "Not asked", source: "nasdaq", status: "off" },
       ],
       spot: 100.5,
       spotSource: "quantdata",
@@ -293,7 +300,7 @@ describe("mergeOptionsChain", () => {
       "Spot price: Quant Data. Expiry list: Quant Data, IBKR, Yahoo Finance. Bid and ask: IBKR live quotes for 2, Yahoo Finance for 5 (of 8 contracts)."
     );
     expect(notes).toContain(
-      "IV: Quant Data for 2, Yahoo Finance for 3. Open interest: Yahoo Finance for 6, Quant Data for 1. A Quant Data print value is used only when no other source has the open interest. A print value of 0 is read as not reported."
+      "IV: Quant Data for 2, Yahoo Finance for 3. Open interest: Yahoo Finance for 6, Quant Data for 1. Open interest of 0 is read as not reported. Quant Data print OI fills gaps only."
     );
     expect(notes).toContain(
       "Quant Data flow and print open interest come from the order-flow prints of the last 24 hours, so a contract without a print has neither."
@@ -302,8 +309,8 @@ describe("mergeOptionsChain", () => {
     expect(notes).toContain("3 contracts have no usable IV");
   });
 
-  it("shows an open interest of 0 from Yahoo, also when a Quant Data print carries a value", () => {
-    // Yahoo's 0 is a reported value: only a missing Yahoo value lets the print value in.
+  it("treats Yahoo open interest of 0 as unreported and falls back to Quant Data when Nasdaq has none", () => {
+    // Yahoo false 0 must never hide a positive second-source open interest.
     const output = mergeOptionsChain(
       reads({
         yahoo: ok({
@@ -318,9 +325,131 @@ describe("mergeOptionsChain", () => {
     );
     expect(output.rows[3]?.call).toMatchObject({
       flow,
-      openInterest: 0,
+      openInterest: 2500,
+      sources: { openInterest: "quantdata" },
+    });
+  });
+
+  it("fills Yahoo false 0 open interest from Nasdaq before Quant Data, ignores non-positive/non-finite values, and never creates Nasdaq-only rows", () => {
+    const nasdaqSnapshot: OptionsOpenInterestSnapshot = {
+      expiry: EXPIRY,
+      rows: [
+        // Replaces Yahoo 0 on strike 100 call (wins over Quant Data print 2500).
+        { openInterest: 79_198, right: "call", strike: 100 },
+        // Replaces Yahoo 0 on strike 100 put (where Quant Data has no OI).
+        { openInterest: 21_685, right: "put", strike: 100 },
+        // Non-positive or non-finite values are ignored.
+        { openInterest: 0, right: "call", strike: 90 },
+        { openInterest: Number.NaN, right: "put", strike: 95 },
+        // Strike 130 only exists in Nasdaq: must NOT invent a new chain row.
+        { openInterest: 9999, right: "call", strike: 130 },
+      ],
+    };
+    const output = OptionsChainOutputSchema.parse(
+      mergeOptionsChain(
+        reads({
+          nasdaq: ok(nasdaqSnapshot),
+          yahoo: ok({
+            ...yahooSnapshot,
+            calls: yahooSnapshot.calls.map((quote) =>
+              quote.strike === 100
+                ? { ...quote, openInterest: 0 }
+                : quote.strike === 110
+                  ? { ...quote, openInterest: Number.POSITIVE_INFINITY }
+                  : quote
+            ),
+            puts: yahooSnapshot.puts.map((quote) =>
+              quote.strike === 100
+                ? { ...quote, openInterest: 0 }
+                : quote.strike === 105
+                  ? { ...quote, openInterest: 12.7 }
+                  : quote
+            ),
+          }),
+        }),
+        EXPIRY,
+        NOW
+      )
+    );
+    expect(output.rows.some((row) => row.strike === 130)).toBe(false);
+    expect(output.rows[3]?.call).toMatchObject({
+      flow,
+      openInterest: 79_198,
+      sources: { openInterest: "nasdaq" },
+    });
+    expect(output.rows[3]?.put).toMatchObject({
+      openInterest: 21_685,
+      sources: { openInterest: "nasdaq" },
+    });
+    // Fractional finite positive truncated cleanly to integer.
+    expect(output.rows[4]?.put).toMatchObject({
+      openInterest: 12,
       sources: { openInterest: "yahoo" },
     });
+    // Infinity rejected as unreported.
+    expect(output.rows[5]?.call).toMatchObject({
+      openInterest: null,
+      sources: { openInterest: null },
+    });
+    expect(output.sources[3]).toEqual({
+      message: null,
+      source: "nasdaq",
+      status: "used",
+    });
+    expect(output.notes.join(" ")).toContain("Nasdaq for 2");
+  });
+
+  it("keeps worst-case IV and open interest notes within the 300-character schema limit at 2000 rows", () => {
+    const sampleCall = yahooSnapshot.calls[0];
+    const samplePut = yahooSnapshot.puts[0];
+    if (sampleCall === undefined || samplePut === undefined)
+      throw new Error("fixture missing sample rows");
+    const calls = Array.from({ length: 2000 }, (_, index) => ({
+      ...sampleCall,
+      contractSymbol: `DEMO261106C${String((index + 1) * 1000).padStart(8, "0")}`,
+      openInterest: index < 1000 ? 100 : 0,
+      strike: index + 1,
+    }));
+    const puts = Array.from({ length: 2000 }, (_, index) => ({
+      ...samplePut,
+      contractSymbol: `DEMO261106P${String((index + 1) * 1000).padStart(8, "0")}`,
+      openInterest: index < 1000 ? 100 : 0,
+      strike: index + 1,
+    }));
+    const nasdaqRows = Array.from({ length: 1000 }, (_, index) => ({
+      openInterest: 500,
+      right: "call" as const,
+      strike: index + 1001,
+    }));
+    const quantRows = Array.from({ length: 1000 }, (_, index) => ({
+      delta: -0.25,
+      expiry: EXPIRY,
+      flow: null,
+      iv: 0.3,
+      openInterest: 300,
+      right: "put" as const,
+      strike: index + 1001,
+    }));
+    const output = OptionsChainOutputSchema.parse(
+      mergeOptionsChain(
+        reads({
+          nasdaq: ok({ expiry: EXPIRY, rows: nasdaqRows }),
+          quantdata: ok({
+            expiries: [EXPIRY],
+            flowFirstPageOnly: true,
+            rows: quantRows,
+            spot: 1000,
+            warning: null,
+          }),
+          yahoo: ok({ ...yahooSnapshot, calls, puts }),
+        }),
+        EXPIRY,
+        NOW
+      )
+    );
+    expect(output.notes.length).toBeLessThanOrEqual(10);
+    for (const note of output.notes)
+      expect(note.length).toBeLessThanOrEqual(300);
   });
 
   it("gives a contract only IBKR or Quant Data knows its own row", () => {
@@ -383,6 +512,7 @@ describe("mergeOptionsChain", () => {
             { ask: 2.4, bid: 2.3, right: "call", strike: 1250 },
           ],
         }),
+        nasdaq: off,
         quantdata: off,
         symbol: "BRK.B",
         yahoo: failed,
@@ -408,6 +538,7 @@ describe("mergeOptionsChain", () => {
         { source: "quantdata", status: "used" },
         { source: "ibkr", status: "used" },
         { message: "Request failed", source: "yahoo", status: "failed" },
+        { message: "Not asked", source: "nasdaq", status: "off" },
       ],
       spotSource: "quantdata",
       symbol: "DEMO",
@@ -456,6 +587,7 @@ describe("mergeOptionsChain", () => {
         { message: null, source: "quantdata", status: "used" },
         { message: "Request failed", source: "ibkr", status: "failed" },
         { message: "Request failed", source: "yahoo", status: "failed" },
+        { message: "Not asked", source: "nasdaq", status: "off" },
       ],
       spot: 100.5,
       spotSource: "quantdata",
@@ -625,6 +757,7 @@ describe("mergeOptionsChain", () => {
           status: "empty",
         },
         { message: null, source: "yahoo", status: "used" },
+        { message: "Not asked", source: "nasdaq", status: "off" },
       ],
       spotSource: "yahoo",
     });
@@ -1184,6 +1317,7 @@ describe("mergeOptionsExpiries", () => {
         { source: "quantdata", status: "used" },
         { source: "ibkr", status: "used" },
         { source: "yahoo", status: "used" },
+        { message: "Not asked", source: "nasdaq", status: "off" },
       ],
       spotSource: "quantdata",
     });
@@ -1202,7 +1336,13 @@ describe("mergeOptionsExpiries", () => {
     ).toEqual(["2026-12-18", "2027-01-15"]);
     const nothing = OptionsChainExpiriesOutputSchema.parse(
       mergeOptionsExpiries(
-        { ibkr: off, quantdata: off, symbol: "NONE", yahoo: failed },
+        {
+          ibkr: off,
+          nasdaq: off,
+          quantdata: off,
+          symbol: "NONE",
+          yahoo: failed,
+        },
         null,
         NOW
       )
@@ -1324,5 +1464,51 @@ describe("liveQuotes and hasChain", () => {
         false
       )
     ).toBe(true);
+  });
+});
+
+describe("nasdaqSkipReason", () => {
+  it("skips when expiry is null, empty, or Yahoo covers every contract with positive OI; asks on any gap", () => {
+    expect(nasdaqSkipReason(yahooOnly, null)).toBe(
+      "Not asked: no option contracts for this expiry"
+    );
+    expect(
+      nasdaqSkipReason(
+        reads({
+          ibkr: off,
+          quantdata: off,
+          yahoo: ok({ ...yahooSnapshot, calls: [], puts: [] }),
+        }),
+        EXPIRY
+      )
+    ).toBe("Not asked: no option contracts for this expiry");
+    // Every contract in yahooOnly has positive Yahoo OI -> skipped.
+    expect(nasdaqSkipReason(yahooOnly, EXPIRY)).toBe(
+      "Not asked: Yahoo Finance reported open interest for every contract"
+    );
+    // Yahoo 0 on one contract -> needs Nasdaq.
+    expect(
+      nasdaqSkipReason(
+        {
+          ...yahooOnly,
+          yahoo: ok({
+            ...yahooSnapshot,
+            calls: yahooSnapshot.calls.map((quote) =>
+              quote.strike === 100 ? { ...quote, openInterest: 0 } : quote
+            ),
+          }),
+        },
+        EXPIRY
+      )
+    ).toBeNull();
+    // Quant Data or IBKR contract not in Yahoo -> needs Nasdaq.
+    expect(nasdaqSkipReason(reads(), EXPIRY)).toBeNull();
+    // Yahoo expiry mismatch while Quant Data/IBKR has contracts -> needs Nasdaq.
+    expect(
+      nasdaqSkipReason(
+        reads({ yahoo: ok({ ...yahooSnapshot, expiry: "2026-11-20" }) }),
+        EXPIRY
+      )
+    ).toBeNull();
   });
 });

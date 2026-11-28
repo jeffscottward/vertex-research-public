@@ -4,6 +4,7 @@ import { appContract } from "../contract.ts";
 import {
   OPTIONS_CHAIN_MAX_EXPIRIES,
   OPTIONS_CHAIN_MAX_ROWS,
+  OPTIONS_CHAIN_PRIMARY_SOURCES,
   OPTIONS_CHAIN_SNAPSHOT_MAX_INT32,
   OPTIONS_CHAIN_SNAPSHOT_MAX_IV,
   OPTIONS_CHAIN_SOURCE_LABELS,
@@ -48,6 +49,7 @@ const sources = [
     source: "yahoo",
     status: "failed",
   },
+  { message: null, source: "nasdaq", status: "used" },
 ];
 
 describe("optionsChain contract", () => {
@@ -115,10 +117,20 @@ describe("optionsChain contract", () => {
   });
 
   it("lists the sources in priority order with display labels", () => {
-    expect(OPTIONS_CHAIN_SOURCES).toEqual(["quantdata", "ibkr", "yahoo"]);
+    expect(OPTIONS_CHAIN_PRIMARY_SOURCES).toEqual([
+      "quantdata",
+      "ibkr",
+      "yahoo",
+    ]);
+    expect(OPTIONS_CHAIN_SOURCES).toEqual([
+      "quantdata",
+      "ibkr",
+      "yahoo",
+      "nasdaq",
+    ]);
     expect(
       OPTIONS_CHAIN_SOURCES.map((id) => OPTIONS_CHAIN_SOURCE_LABELS[id])
-    ).toEqual(["Quant Data", "IBKR", "Yahoo Finance"]);
+    ).toEqual(["Quant Data", "IBKR", "Yahoo Finance", "Nasdaq"]);
   });
 
   it("describes a chain with its assumptions", () => {
@@ -157,12 +169,17 @@ describe("optionsChain contract", () => {
       }).spotSource
     ).toBeNull();
     for (const broken of [
-      { ...output, sources: sources.slice(0, 2) },
-      { ...output, sources: [sources[1], sources[0], sources[2]] },
+      { ...output, sources: sources.slice(0, 3) },
+      { ...output, sources: [sources[1], sources[0], sources[2], sources[3]] },
       { ...output, sources: [...sources, sources[2]] },
       {
         ...output,
-        sources: [{ ...sources[0], status: "ok" }, sources[1], sources[2]],
+        sources: [
+          { ...sources[0], status: "ok" },
+          sources[1],
+          sources[2],
+          sources[3],
+        ],
       },
       {
         ...output,
@@ -170,19 +187,26 @@ describe("optionsChain contract", () => {
           { ...sources[0], message: "x".repeat(201) },
           sources[1],
           sources[2],
+          sources[3],
         ],
       },
       {
         ...output,
-        sources: [{ ...sources[0], url: "x" }, sources[1], sources[2]],
+        sources: [
+          { ...sources[0], url: "x" },
+          sources[1],
+          sources[2],
+          sources[3],
+        ],
       },
       { ...output, spotSource: "model" },
+      { ...output, spotSource: "nasdaq" },
       // The single expiry source is gone.
       { ...output, expiriesSource: "yahoo" },
       { ...output, expiriesSources: undefined },
       { ...output, expiriesSources: null },
       { ...output, expiriesSources: ["model"] },
-      // Priority order, each source at most once.
+      { ...output, expiriesSources: ["nasdaq"] },
       { ...output, expiriesSources: ["ibkr", "quantdata"] },
       { ...output, expiriesSources: ["yahoo", "yahoo"] },
       { ...output, expiriesSources: ["quantdata", "ibkr", "yahoo", "yahoo"] },
@@ -233,6 +257,11 @@ describe("optionsChain contract", () => {
           status: "off",
         },
         { message: null, source: "yahoo", status: "used" },
+        {
+          message: "Not asked: endpoint does not display open interest",
+          source: "nasdaq",
+          status: "off",
+        },
       ],
       spot: 100,
       spotSource: "yahoo",
@@ -404,6 +433,11 @@ describe("optionsChain contract", () => {
         },
         { message: null, source: "ibkr" as const, status: "used" as const },
         { message: null, source: "yahoo" as const, status: "used" as const },
+        {
+          message: "Not asked: endpoint does not display open interest",
+          source: "nasdaq" as const,
+          status: "off" as const,
+        },
       ],
       spot: 500,
       spotSource: "ibkr" as const,
