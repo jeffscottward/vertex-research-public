@@ -40,8 +40,9 @@ const eventProfileFor = (
       });
     }
     case "REQUEST_DATABASE_SLOT_RECLAIMED": {
-      // Reported by the request that took the slot back; the attributes name the request that
-      // held it (its URL path, never a query string) and how long it held it.
+      // Reported by the request that held the slot when it ends its own client at the age limit,
+      // or by the request that took the slot back when the holder's request context is gone.
+      // The attributes name the holder (its route label, never a query string) and its age.
       return Object.freeze({
         name: "request-database.slot-reclaimed",
         errorCategory: "REQUEST_DATABASE_SLOT_RECLAIMED",

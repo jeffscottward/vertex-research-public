@@ -40,8 +40,11 @@ import { buildOptionsSpread, type StoredCloses } from "./options-spread.ts";
 // ask). Operator-only. Nothing here can place, change or cancel orders.
 
 const CACHE_TTL_MS = 60_000;
-// The longest a request waits for a chain read that another request started: above the slowest
-// live read (Yahoo session 22 s + options fetch 10 s, QuantData two steps of up to 13 s each).
+// The longest a request waits for a chain read that another request started: above the usual
+// slowest live read (Yahoo session 22 s + options fetch 10 s, QuantData two steps of up to 13 s
+// each). A read that also renews its Yahoo session after HTTP 401 can take longer (about 64 s):
+// its waiters then get UNAVAILABLE and the next read starts again. Accepted: waiters hold their
+// request database slots while they wait, so a longer wait would lengthen a full-admission spell.
 const SHARED_READ_WAIT_MS = 45_000;
 const CACHE_MAX_ENTRIES = 200;
 
