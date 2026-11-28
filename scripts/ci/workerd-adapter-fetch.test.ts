@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { SafeAuthSession } from "@darkfactory/auth/server";
 import type { Repositories } from "@darkfactory/db/server";
 import { RECOVERY_CONFIRMATION } from "../../packages/shared/src/vertex/index.ts";
@@ -815,6 +816,18 @@ const NON_WORKERD_OR_CLIENT_FETCH_FILES: Readonly<Record<string, string>> = {
     "Node/Linux sandbox worker (packages/jobs maps workerd export to unsupported.ts)",
 };
 
+/**
+ * True when the workspace package (`apps/<name>` or `packages/<name>`) that holds `file` exists.
+ * `bun run init --without-operator` deletes the agent-SDLC packages (e.g. packages/jobs) and keeps
+ * this test, so an exclusion inside a deleted package is not stale.
+ */
+const workspacePackageExists = (file: string): boolean => {
+  const [area, name] = file.split("/");
+  return existsSync(
+    new URL(`../../${area}/${name}/package.json`, import.meta.url)
+  );
+};
+
 const assertNoWorkerdRejection = (
   label: string,
   records: readonly ReplayRecord[]
@@ -933,7 +946,7 @@ describe("workerd outbound adapter RequestInit runtime replay", () => {
     ).toEqual([]);
 
     const staleExclusions = [...excluded].filter(
-      (file) => !discovered.includes(file)
+      (file) => workspacePackageExists(file) && !discovered.includes(file)
     );
     expect(
       staleExclusions,
