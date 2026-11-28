@@ -100,7 +100,7 @@ def test_run_options_equity_and_counts():
 
 
 def _write_day(root, day, state, quotes, low=499.0, high=None):
-    """quotes: {(right, strike): [(minute, bid_open, ask_open), ...]} in the collector's file format."""
+    """quotes: {(right, strike): [(minute, bid_open, ask_open[, bid_close, ask_close]), ...]} in collector format."""
     import csv
     import gzip
     from datetime import datetime
@@ -108,9 +108,9 @@ def _write_day(root, day, state, quotes, low=499.0, high=None):
 
     folder = root / day.isoformat()
     folder.mkdir()
-    status_lines = [f"state={state}", f"low={low:g}"]
+    status_lines = [f"state={state}", f"low={'' if low == '' else f'{low:g}'}"]
     if high is not None:
-        status_lines.append(f"high={high:g}")
+        status_lines.append(f"high={'' if high == '' else f'{high:g}'}")
     (folder / "status.txt").write_text("\n".join(status_lines) + "\n", encoding="utf-8")
     open_ts = int(datetime(day.year, day.month, day.day, 9, 30, tzinfo=ZoneInfo("America/New_York")).timestamp())
     with (folder / "manifest.csv").open("w", newline="", encoding="utf-8") as m:
@@ -123,8 +123,11 @@ def _write_day(root, day, state, quotes, low=499.0, high=None):
                 w = csv.writer(f)
                 w.writerow(["epoch", "bid_open", "bid_high", "bid_low", "bid_close",
                             "ask_open", "ask_high", "ask_low", "ask_close"])
-                for minute, bid, ask in rows:
-                    w.writerow([open_ts + 60 * minute, bid, "", "", "", ask, "", "", ""])
+                for row in rows:
+                    minute, bid, ask = row[0], row[1], row[2]
+                    bc = row[3] if len(row) > 3 else ""
+                    ac = row[4] if len(row) > 4 else ""
+                    w.writerow([open_ts + 60 * minute, bid, "", "", bc, ask, "", "", ac])
     return folder
 
 
@@ -185,6 +188,23 @@ def test_crossed_quotes_skip_as_stale_quote_not_zero_credit():
     )
     assert t is None and why == "stale_quote"
 
+    # Vertical long exit crossed
+    t, why = price_trade(
+        Book({
+            (30, "C", 500.0): (1.95, 2.00), (30, "C", 505.0): (0.20, 0.25),
+            (120, "C", 500.0): (3.10, 3.00), (120, "C", 505.0): (0.50, 0.55),
+        }),
+        stock_trade(), 500.0, 501.0, 100_000.0, OptionParams(instrument="vertical"),
+    )
+    assert t is None and why == "stale_quote"
+
+    # Unaffordable entry is classified as too_expensive_for_cap even if exit is crossed
+    t, why = price_trade(
+        Book({(30, "C", 500.0): (30.0, 30.5), (120, "C", 500.0): (31.5, 31.0)}),
+        stock_trade(), 500.0, 501.0, 100_000.0, OptionParams(),
+    )
+    assert t is None and why == "too_expensive_for_cap"
+
 
 def test_file_quote_book_marks_isolated_stale_and_ignores_penny_flat(tmp_path):
     from strategies.noise_band_0dte import FileQuoteBook
@@ -243,3 +263,40 @@ def test_file_quote_book_excludes_widespread_stale_session(tmp_path):
     assert "stale_session" in book.excluded_days()[bad_day]
     assert list(book.strikes(bad_day)) == []
     assert book.quote(bad_day, 30, "C", 501.0) is None
+
+
+def test_file_quote_book_edge_cases_crossed_only_close_diff_unsorted_and_empty_range(tmp_path):
+    from strategies.noise_band_0dte import FileQuoteBook
+
+    # 1. Crossed-only exclusion (>=10 varying crossed bars, no flat run)
+    crossed_only_day = date(2024, 3, 6)
+    varying_crossed = [(m, round(2.00 + 0.05 * m, 2), round(1.90 + 0.05 * m, 2)) for m in range(10, 22)]
+    _write_day(tmp_path, crossed_only_day, "complete", {
+        ("C", 500.0): varying_crossed,
+        ("P", 500.0): [(30, 1.95, 2.00)],
+    }, low=500.0, high=500.0)
+
+    # 2. Close differing from open breaks flat run; unsorted + duplicate rows resolve by last write in minute order
+    edge_day = date(2024, 3, 7)
+    # Active intrabar moves (bid_close != bid_open) at same open -> NOT flat
+    active_close_bars = [(m, 2.00, 2.05, 2.10, 2.15) for m in range(100, 135)]
+    # Unsorted 30-min flat run plus a duplicate epoch where later uncrossed row overwrites earlier crossed row
+    unsorted_flat = list(reversed([(m, 2.50, 2.55, 2.50, 2.55) for m in range(200, 232)]))
+    unsorted_flat.extend([(30, 2.10, 2.00, 2.10, 2.00), (30, 1.95, 2.00, 1.95, 2.00)])
+    ok_bars = [(30, 1.40, 1.45)]
+    _write_day(tmp_path, edge_day, "complete", {
+        ("C", 500.0): active_close_bars,
+        ("P", 500.0): unsorted_flat,
+        ("C", 501.0): ok_bars,
+        ("P", 501.0): ok_bars,
+        ("C", 502.0): ok_bars,
+        ("P", 502.0): ok_bars,
+    }, low="", high="")  # empty low=/high= falls back safely without ValueError
+
+    book = FileQuoteBook(tmp_path)
+    assert crossed_only_day in book.excluded_days()
+    assert edge_day in book.days()
+    assert book.is_stale(edge_day, 120, "C", 500.0) is False  # intrabar move breaks flat run
+    assert book.is_stale(edge_day, 215, "P", 500.0) is True   # unsorted 32-min flat run still caught
+    assert book.is_stale(edge_day, 30, "P", 500.0) is False   # duplicate epoch overwritten by uncrossed row
+    assert book.quote(edge_day, 30, "P", 500.0) == (1.95, 2.00)
