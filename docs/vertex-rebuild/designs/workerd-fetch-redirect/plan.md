@@ -64,7 +64,7 @@ The Yahoo chart read in `research-screen-evidence.ts` (`readChart`) already sent
   - PostHog: the existing non-2xx check gives category `provider-rejected`, `retryable: false`.
   - Resend email and ntfy: a 3xx is not in the reject list (400, 401, 403, 404, 413, 422, 429), so it gives `acceptance: "unknown"`, with no retry.
 - The internal request type of the research-screen reader no longer lets a caller choose the redirect mode; the shared reader always sends `"manual"`.
-- CI guard `scripts/ci/fetch-redirect.test.ts`: it lists tracked `.ts` and `.tsx` files under `packages/` and `apps/` with `git ls-files`, skips test files, and fails with `file:line` for every line that matches the pattern. Browser source under `apps/` is included on purpose: `"manual"` works there too, and one rule for all files is simpler than a split between server and browser files. Comment lines are matched too, so comments must not write the forbidden form with a colon. The guard runs in the Vitest project `operations`, which runs in `verify:prepush` and in the CI coverage shards (`verify:coverage`); docs-only light-lane PRs skip it.
+- CI guard `scripts/ci/fetch-redirect.test.ts`: it lists tracked `.ts`, `.tsx`, `.js`, `.mjs`, `.mts` and `.cts` files under `packages/` and `apps/` with `git ls-files`, skips test files, and fails with `file:line` for every line that matches the pattern. Browser source under `apps/` is included on purpose: `"manual"` works there too, and one rule for all files is simpler than a split between server and browser files. Comment lines are matched too, so comments must not write the forbidden form with a colon. The guard runs in the Vitest project `operations`, which runs in `verify:prepush` and in the CI coverage shards (`verify:coverage`); docs-only light-lane PRs skip it.
 
 ## Alternatives considered
 
@@ -84,7 +84,7 @@ The Yahoo chart read in `research-screen-evidence.ts` (`readChart`) already sent
 | A provider answers with a 3xx | The failure category can change: PostHog `network` (retryable) becomes `provider-rejected` (not retryable); email and ntfy stay `unknown` | No redirect is followed. Tests cover a 3xx for Nasdaq, Swinglytics, PostHog, email and ntfy. |
 | Email and ntfy sends that failed in workerd now arrive | The owner can get notification emails (Resend is enabled on QuantVPS: `EMAIL_PROVIDER=resend`) and ntfy alerts that did not arrive before | This is the intended behavior. Enable flags, recipients and dispatch rules are unchanged. `unknown` results are never retried, so no backlog is flushed. The job receipt tells the owner. |
 | The Nasdaq adapter sends requests where it sent none before | More requests to Nasdaq | It runs only when Yahoo lacks a positive OI for a contract of the shown expiry. After 3 consecutive `UNAVAILABLE` answers (network error, 3xx, 403, 429, 5xx) it pauses for 5 minutes. |
-| The guard misses a form | A new fault can pass CI | The pattern matches single-line literal forms in tracked non-test `.ts`/`.tsx` files under `packages/` and `apps/`. It misses a value on the next line, a value in a variable, and `.mjs`, `.js`, `scripts/` and `infra/` files. Live check A checks Nasdaq end to end; the other four adapters rely on unit tests and on evidence item 4. |
+| The guard misses a form | A new fault can pass CI | The pattern matches single-line literal forms (also with a quoted key) in tracked non-test `.ts`, `.tsx`, `.js`, `.mjs`, `.mts` and `.cts` files under `packages/` and `apps/`. It misses a value on the next line, a value in a variable, and files in `scripts/` and `infra/`. Live check A checks Nasdaq end to end; the other four adapters rely on unit tests and on evidence item 4. |
 
 ## Acceptance check
 
@@ -110,9 +110,9 @@ Phase A: adapters and their tests (checkpoint: the focused Vitest run passes).
 Phase B: guard (checkpoint: positive and negative run).
 
 1. Create `scripts/ci/fetch-redirect.test.ts`:
-   - File list: `git ls-files -z -- packages/*.ts packages/*.tsx apps/*.ts apps/*.tsx`, minus files that match `/(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.tsx?$/u`; assert more than 100 files.
-   - Pattern: `/\bredirect\s*[:=]\s*["'`]error["'`]/u`, per line; expected hit list `[]`.
-   - Pattern test: the lines `redirect: "error",`, `redirect: 'error',`, `` init.redirect = `error`; ``, `redirect: "manual",`, `redirect: "follow",`, `const mode = "error";` give the line numbers `[1, 2, 3]`.
+   - File list: `git ls-files -z --` with `packages/*.<ext>` and `apps/*.<ext>` for the extensions `ts`, `tsx`, `js`, `mjs`, `mts`, `cts`, minus files that match `/(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.(tsx?|jsx?|mjs|mts|cts)$/u`; assert more than 100 files.
+   - Pattern: `/\b["'`]?redirect["'`]?\s*[:=]\s*["'`]error["'`]/u`, per line; expected hit list `[]`.
+   - Pattern test: the lines `redirect: "error",`, `redirect: 'error',`, `` init.redirect = `error`; ``, `redirect: "manual",`, `redirect: "follow",`, `const mode = "error";`, `"redirect": "error",` give the line numbers `[1, 2, 3, 7]`.
 
 Phase C: docs (checkpoint: `bun run docs:check`).
 
