@@ -99,7 +99,7 @@ def test_run_options_equity_and_counts():
     assert res.days[1].ret == 0.0
 
 
-def _write_day(root, day, state, quotes):
+def _write_day(root, day, state, quotes, low=499.0, high=None):
     """quotes: {(right, strike): [(minute, bid_open, ask_open), ...]} in the collector's file format."""
     import csv
     import gzip
@@ -108,7 +108,10 @@ def _write_day(root, day, state, quotes):
 
     folder = root / day.isoformat()
     folder.mkdir()
-    (folder / "status.txt").write_text(f"state={state}\nlow=499\n", encoding="utf-8")
+    status_lines = [f"state={state}", f"low={low:g}"]
+    if high is not None:
+        status_lines.append(f"high={high:g}")
+    (folder / "status.txt").write_text("\n".join(status_lines) + "\n", encoding="utf-8")
     open_ts = int(datetime(day.year, day.month, day.day, 9, 30, tzinfo=ZoneInfo("America/New_York")).timestamp())
     with (folder / "manifest.csv").open("w", newline="", encoding="utf-8") as m:
         mw = csv.writer(m)
@@ -136,6 +139,7 @@ def test_file_quote_book_reads_collector_files(tmp_path):
     _write_day(tmp_path, date(2024, 3, 4), "partial", {("C", 500.0): [(30, 1.0, 1.1)]})
     book = FileQuoteBook(tmp_path)
     assert book.days() == [D]
+    assert book.excluded_days() == {}
     assert list(book.strikes(D)) == [499.0, 500.0, 501.0]
     assert book.quote(D, 30, "C", 500.0) == (1.95, 2.00)
     assert book.quote(D, 375, "C", 500.0) is None  # blank ask side
@@ -144,3 +148,98 @@ def test_file_quote_book_reads_collector_files(tmp_path):
     assert list(book.strikes(date(2024, 3, 4))) == [] and book.quote(date(2024, 3, 4), 30, "C", 500.0) is None
     t, why = price_trade(book, stock_trade(), 500.2, 501.0, 100_000.0, OptionParams())
     assert why == "ok" and t.entry_price == 2.00 and t.exit_price == 2.50
+
+
+def test_crossed_quotes_skip_as_stale_quote_not_zero_credit():
+    # Single entry crossed
+    t, why = price_trade(
+        Book({(30, "C", 500.0): (2.10, 2.00), (120, "C", 500.0): (2.50, 2.55)}),
+        stock_trade(), 500.0, 501.0, 100_000.0, OptionParams(),
+    )
+    assert t is None and why == "stale_quote"
+
+    # Single exit crossed: must skip as stale_quote rather than pricing exit at 0 credit
+    t, why = price_trade(
+        Book({(30, "C", 500.0): (1.95, 2.00), (120, "C", 500.0): (2.66, 2.45)}),
+        stock_trade(), 500.0, 501.0, 100_000.0, OptionParams(),
+    )
+    assert t is None and why == "stale_quote"
+
+    # Vertical short entry crossed
+    t, why = price_trade(
+        Book({
+            (30, "C", 500.0): (1.95, 2.00), (30, "C", 505.0): (0.40, 0.30),
+            (120, "C", 500.0): (3.00, 3.05), (120, "C", 505.0): (0.50, 0.55),
+        }),
+        stock_trade(), 500.0, 501.0, 100_000.0, OptionParams(instrument="vertical"),
+    )
+    assert t is None and why == "stale_quote"
+
+    # Vertical short exit crossed
+    t, why = price_trade(
+        Book({
+            (30, "C", 500.0): (1.95, 2.00), (30, "C", 505.0): (0.20, 0.25),
+            (120, "C", 500.0): (3.00, 3.05), (120, "C", 505.0): (0.60, 0.50),
+        }),
+        stock_trade(), 500.0, 501.0, 100_000.0, OptionParams(instrument="vertical"),
+    )
+    assert t is None and why == "stale_quote"
+
+
+def test_file_quote_book_marks_isolated_stale_and_ignores_penny_flat(tmp_path):
+    from strategies.noise_band_0dte import FileQuoteBook
+
+    # 6 in-range contracts; only 1 has a 30-min flat run above $0.10 (16.7% < 20% threshold)
+    # Another has a 60-min flat run at $0.05/$0.06 (penny floor <= $0.10 -> not stale)
+    frozen_bars = [(30, 1.95, 2.00)] + [(m, 2.50, 2.55) for m in range(100, 135)]
+    penny_bars = [(m, 0.05, 0.06) for m in range(60, 130)]
+    ok_bars = [(30, 1.40, 1.45), (120, 1.80, 1.85)]
+    _write_day(tmp_path, D, "complete", {
+        ("C", 500.0): frozen_bars,
+        ("P", 500.0): ok_bars,
+        ("C", 501.0): ok_bars,
+        ("P", 501.0): ok_bars,
+        ("C", 502.0): penny_bars,
+        ("P", 502.0): ok_bars,
+    }, low=500.0, high=502.0)
+
+    book = FileQuoteBook(tmp_path)
+    assert book.days() == [D]
+    assert book.excluded_days() == {}
+    assert book.is_stale(D, 120, "C", 500.0) is True
+    assert book.is_stale(D, 30, "C", 500.0) is False
+    assert book.is_stale(D, 100, "C", 502.0) is False  # penny option <= $0.10 not flagged
+
+    # Trade exiting on frozen minute skips as stale_quote
+    t, why = price_trade(book, stock_trade(entry=30, exit_=120), 500.0, 501.0, 100_000.0, OptionParams())
+    assert t is None and why == "stale_quote"
+
+    # Healthy strike on the same day still prices normally
+    t, why = price_trade(book, stock_trade(entry=30, exit_=120), 501.0, 501.5, 100_000.0, OptionParams())
+    assert why == "ok" and t.entry_price == 1.45 and t.exit_price == 1.80
+
+
+def test_file_quote_book_excludes_widespread_stale_session(tmp_path):
+    from strategies.noise_band_0dte import FileQuoteBook
+
+    bad_day = date(2024, 3, 5)
+    frozen_bars = [(m, 2.66, 2.45) for m in range(280, 320)]
+    ok_bars = [(30, 1.95, 2.00), (120, 2.50, 2.55)]
+    # 2 of 4 in-range contracts frozen/crossed (50% >= 20% threshold)
+    _write_day(tmp_path, bad_day, "complete", {
+        ("C", 500.0): frozen_bars,
+        ("P", 500.0): frozen_bars,
+        ("C", 501.0): ok_bars,
+        ("P", 501.0): ok_bars,
+    }, low=500.0, high=501.0)
+    _write_day(tmp_path, D, "complete", {
+        ("C", 500.0): ok_bars,
+        ("P", 500.0): ok_bars,
+    }, low=500.0, high=500.0)
+
+    book = FileQuoteBook(tmp_path)
+    assert book.days() == [D]
+    assert bad_day in book.excluded_days()
+    assert "stale_session" in book.excluded_days()[bad_day]
+    assert list(book.strikes(bad_day)) == []
+    assert book.quote(bad_day, 30, "C", 501.0) is None
