@@ -946,6 +946,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
+    file: "server/options-chain-nasdaq.ts",
+    text: "UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
     file: "server/options-chain-quantdata.ts",
     text: "UNAVAILABLE",
     count: 1,

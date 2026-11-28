@@ -302,6 +302,8 @@ export const createBridgeOrderGateway = (
           "content-type": "application/json",
           "x-vertex-bridge-token": key,
         },
+        // workerd rejects redirect "error"; "manual" returns any 3xx as-is and we refuse it below.
+        redirect: "manual",
         signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
@@ -311,8 +313,18 @@ export const createBridgeOrderGateway = (
         "Order bridge did not answer"
       );
     }
+    const isRedirect = response.status >= 300 && response.status < 400;
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => undefined);
+      throw new OrderGatewayError(
+        "UPSTREAM_ERROR",
+        isRedirect
+          ? `Order bridge redirected (HTTP ${response.status}); redirects are not followed`
+          : `Order bridge returned an invalid response (HTTP ${response.status})`
+      );
+    }
     const parsed = schema.safeParse(await response.json().catch(() => null));
-    if (!(response.ok && parsed.success))
+    if (!parsed.success)
       throw new OrderGatewayError(
         "UPSTREAM_ERROR",
         `Order bridge returned an invalid response (HTTP ${response.status})`

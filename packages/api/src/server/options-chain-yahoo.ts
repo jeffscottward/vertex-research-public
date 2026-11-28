@@ -85,6 +85,11 @@ const nonNegative = (value: number | undefined): number | null =>
 const wholeCount = (value: number | undefined): number | null =>
   value !== undefined && value >= 0 ? Math.trunc(value) : null;
 
+// Yahoo reports false 0 open interest on liquid contracts (28 of 28 Yahoo zeros on SPY/NVDA
+// flow contracts on 2026-11-27 had positive Nasdaq OI). Read < 1 as not reported.
+const positiveCount = (value: number | undefined): number | null =>
+  value !== undefined && value >= 1 ? Math.trunc(value) : null;
+
 const contractRows = (rows: readonly unknown[]): OptionQuote[] =>
   rows.flatMap((row) => {
     const parsed = YahooContractSchema.safeParse(row);
@@ -110,7 +115,7 @@ const contractRows = (rows: readonly unknown[]): OptionQuote[] =>
           value.lastTradeDate === undefined
             ? null
             : new Date(value.lastTradeDate * 1000).toISOString(),
-        openInterest: wholeCount(value.openInterest),
+        openInterest: positiveCount(value.openInterest),
         strike: value.strike,
         volume: wholeCount(value.volume),
       },

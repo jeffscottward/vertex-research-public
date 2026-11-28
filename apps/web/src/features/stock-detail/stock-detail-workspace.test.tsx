@@ -499,7 +499,7 @@ describe("chain source and flow lines", () => {
       true
     );
     expect(lines?.querySelector("p")?.textContent).toBe(
-      "Sources · Quant Data: used · IBKR: used · Yahoo Finance: used"
+      "Sources · Quant Data: used · IBKR: used · Yahoo Finance: used · Nasdaq: off"
     );
     expect(lines?.querySelector("[data-source-message]")).toBeNull();
     const chain = await createFakeOptionsChainGateway().chain({
@@ -541,6 +541,11 @@ describe("chain source and flow lines", () => {
           source: "yahoo",
           status: "empty",
         },
+        {
+          message: "Not asked: no option contracts for this expiry",
+          source: "nasdaq",
+          status: "off",
+        },
       ],
     }));
     const container = await mount(workspace("NVDA", gateways));
@@ -566,6 +571,11 @@ describe("chain source and flow lines", () => {
         "yahoo",
         "empty",
         " · Yahoo Finance: no data (Yahoo Finance has no option rows for this expiry)",
+      ],
+      [
+        "nasdaq",
+        "off",
+        " · Nasdaq: off (Not asked: no option contracts for this expiry)",
       ],
     ]);
     // A long message without spaces breaks instead of overflowing a narrow screen.
@@ -593,11 +603,12 @@ describe("chain source and flow lines", () => {
         { message: warning, source: "quantdata", status: "used" },
         chain.sources[1],
         chain.sources[2],
+        chain.sources[3],
       ],
     }));
     const container = await mount(workspace("NVDA", gateways));
     expect(container.querySelector("[data-chain-sources] p")?.textContent).toBe(
-      `Sources · Quant Data: used (${warning}) · IBKR: used · Yahoo Finance: used`
+      `Sources · Quant Data: used (${warning}) · IBKR: used · Yahoo Finance: used · Nasdaq: off`
     );
     expect(container.querySelector("[data-chain-flow]")?.textContent).toMatch(
       /\(this expiry, first provider page only\)$/u

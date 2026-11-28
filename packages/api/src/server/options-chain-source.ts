@@ -1,10 +1,13 @@
-// Ports for the read-only options chain (optionsChain.*). Three sources, merged by
-// options-chain-merge.ts in the order of OPTIONS_CHAIN_PRIORITY (Quant Data, IBKR, Yahoo):
+// Ports for the read-only options chain (optionsChain.*). Four sources, merged by
+// options-chain-merge.ts in the order of OPTIONS_CHAIN_PRIORITY (Quant Data, IBKR, Yahoo,
+// and Nasdaq as open-interest fallback):
 // - OptionsAnalyticsSource: IV, delta, open interest and order flow per contract of every
 //   expiry, and the underlying price. Adapter: options-chain-quantdata.ts.
 // - OptionsQuoteSource: live bid and ask only. Adapter: options-chain-ibkr.ts.
 // - OptionsChainSource: one full provider snapshot (the quote, every listed expiry and the
 //   contracts of one expiry). Adapter: options-chain-yahoo.ts.
+// - OptionsOpenInterestSource: positive open interest per contract of one expiry, read only
+//   when Yahoo Finance lacks a positive value. Adapter: options-chain-nasdaq.ts.
 // Greeks are computed by the merge, never by an adapter. Dates are YYYY-MM-DD.
 
 import type { OptionRight } from "../options-chain-greeks.ts";
@@ -116,6 +119,30 @@ export type OptionsAnalyticsSnapshot = Readonly<{
 export interface OptionsAnalyticsSource {
   /** Reads the analytics of every expiry. Throws OptionsChainSourceError when every request failed. */
   readonly read: (symbol: string) => Promise<OptionsAnalyticsSnapshot>;
+}
+/** Positive open interest (>= 1) of one contract from a supplementary OI-only source. */
+export type OptionsOpenInterestRow = Readonly<{
+  strike: number;
+  right: OptionRight;
+  openInterest: number;
+}>;
+
+export type OptionsOpenInterestSnapshot = Readonly<{
+  // Expiry of `rows` (YYYY-MM-DD).
+  expiry: string;
+  // Contracts with a positive open interest (>= 1).
+  rows: readonly OptionsOpenInterestRow[];
+}>;
+
+export interface OptionsOpenInterestSource {
+  /**
+   * Reads positive open interest for one symbol and expiry (YYYY-MM-DD). Throws
+   * OptionsChainSourceOff when paused or not asked, OptionsChainSourceError on failure.
+   */
+  readonly read: (
+    symbol: string,
+    expiry: string
+  ) => Promise<OptionsOpenInterestSnapshot>;
 }
 
 export type OptionsChainSourceErrorCode =

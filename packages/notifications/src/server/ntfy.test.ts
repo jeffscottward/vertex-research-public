@@ -100,7 +100,7 @@ describe("opt-in ntfy phone boundary", () => {
       `${config.origin}/`,
       expect.objectContaining({
         method: "POST",
-        redirect: "error",
+        redirect: "manual",
         credentials: "omit",
         cache: "no-store",
         headers: {

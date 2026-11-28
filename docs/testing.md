@@ -148,6 +148,13 @@ A status that a person reads is a definite state with its reason (owner rule 202
 - An entry with `open: true` is a known ambiguous text, or a wire value that the app prints as it arrives. `MAX_OPEN` in each guard is the number of open entries; it only goes down.
 - After a deliberate change, run the guard with `UPDATE_STATUS_LANGUAGE=1`, write the reason of each `REASON REQUIRED` entry, then run `biome format --write` on the list.
 
+## Workerd outbound adapter runtime checks
+
+Node accepts `fetch` options that Cloudflare `workerd` rejects with a `TypeError` before sending any request (for example `redirect: "error"` and unsupported `cache` modes such as `"default"` or `"force-cache"`). Two operations tests cover this boundary on every push (`verify:prepush`) and in the CI coverage shards:
+
+- `scripts/ci/fetch-redirect.test.ts`: static source guard against literal `redirect: "error"` in non-test code under `packages/` and `apps/`.
+- `scripts/ci/workerd-adapter-fetch.test.ts` (powered by `scripts/ci/workerd-replay.ts`): boots the repository's pinned `workerd` binary (resolved from `apps/web` through `wrangler` and `miniflare`) with the exact `compatibility_date` and `compatibility_flags` from `apps/web/wrangler.jsonc` and loopback-only outbound networking (`allow = ["local"]`). It replays all 31 workerd-reachable fetch-based and fetch-SDK (`Resend`, `groq-sdk`) outbound adapters across `packages/` and `apps/web/` against a loopback `200`/`302` server, asserting zero `workerd` errors and confirming first-party manual-redirect adapters never follow `302` responses. A TypeScript AST inventory check (`sourceHasOutboundFetch`) fails when a new tracked `fetch`/`fetcher`/`fetchImpl`/`fetchRequest` or `Resend`/`Groq` file is added without either a replay case or a documented non-workerd exclusion. Note: `packages/observability/src/server/otel.ts` uses `@opentelemetry/exporter-*-otlp-http`, which selects Node's `node:http` transport under Node/Vitest rather than `fetch`, so it is outside this `fetch` replay harness.
+
 ## Test deadlines under load
 
 The default deadlines (5 s per test, 10 s per hook) scale with the CPU shortage of the host: `scripts/lib/test-timeout-scale.ts` computes a scale from 1 to 8 as the one-minute load average divided by the number of CPUs, times a factor for a CPU quota. A hung test still fails after at most 40 s, a hung hook after at most 80 s.
