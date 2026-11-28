@@ -52,6 +52,47 @@ describe("createRequestDatabaseDiagnosticSink", () => {
     }
   );
 
+  it("reports a reclaimed slot with the route and age of the request that held it", async () => {
+    const events: SemanticEvent[] = [];
+    const scheduled: Promise<unknown>[] = [];
+    const diagnosticSink = createRequestDatabaseDiagnosticSink({
+      sink: {
+        emit: (event: SemanticEvent) => {
+          events.push(event);
+        },
+      },
+      scheduleBackgroundTask: (task) => {
+        scheduled.push(task);
+      },
+      requestId: "request-that-reclaimed",
+    });
+
+    diagnosticSink(
+      Object.freeze({
+        ageSeconds: 421,
+        code: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        route: "/api/orpc/optionsChain/chain",
+      })
+    );
+    await Promise.all(scheduled);
+
+    return expect(events).toEqual([
+      {
+        eventId: expect.any(String),
+        name: "request-database.slot-reclaimed",
+        occurredAt: expect.any(String),
+        correlation: { requestId: "request-that-reclaimed" },
+        outcome: "failure",
+        source: "worker",
+        errorCategory: "REQUEST_DATABASE_SLOT_RECLAIMED",
+        attributes: {
+          ageSeconds: 421,
+          reclaimedRoute: "/api/orpc/optionsChain/chain",
+        },
+      },
+    ]);
+  });
+
   it("rejects forged diagnostic codes without scheduling or emitting", () => {
     const emit = vi.fn();
     const scheduleBackgroundTask = vi.fn();

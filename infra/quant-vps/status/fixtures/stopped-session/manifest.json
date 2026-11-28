@@ -4,8 +4,7 @@
   "files": {
     "/opt/vertex-exec-node/data/nautilus/health.json": "files/health.json",
     "/opt/vertex-exec-node/data/nautilus/logs/watchdog.log": "files/watchdog.jsonl",
-    "/opt/vertex-exec-node/data/nautilus/logs/prototype-runner.log": "files/prototype-runner.jsonl",
-    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-account-snapshot-20260918T201550Z.json": "files/reports/ibkr-account-snapshot-20260918T201550Z.json"
+    "/opt/vertex-exec-node/data/nautilus/logs/prototype-runner.log": "files/prototype-runner.jsonl"
   },
   "ibkr_monitor_snapshot": "ibkr-monitor-snapshot.json",
   "exists": {

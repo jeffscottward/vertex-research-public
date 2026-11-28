@@ -77,7 +77,7 @@ Line dispatch and lifecycle invariants in `createBridgeModel`:
 2. New scripted-stdin integration tests in `tests/integration/semantic-layer/recorder.test.ts` driving `createBridgeModel` + `recordRun` through a real `PassThrough` stream:
    - Malformed-but-keyed line (`model: ""` on `Q1.2#0`, plus blank lines ignored) fails only `Q1.2` as a fault while `Q1.1` and `Q1.3` complete and are stored in the recording file; also verify malformed keyed `fault: ""` / missing `content` and valid `BridgeFault` isolate only their trial.
    - Non-JSON line (`{not json`), missing-key JSON line, unknown-key JSON line (both valid shape and wrong shape), and stdin EOF (`input.end()`) while requests are open each close the bridge, fail open waiters, send no further requests, and ignore any trailing lines after `closed` (preserving the first error). Fatal-line tests with `concurrency >= 2` inject the fatal line deterministically once target waiters are open (or on the first request) so Postgres queries cannot race.
-3. Run `bun run test:integration`, `bun run verify:prepush` (includes `lint:knip`, Biome, typecheck, unit/contract/operations), and `bun run test:acceptance` (includes `scripts/init/init.acceptance.test.ts`).
+3. Run `bun run test:integration`, `bun run verify:prepush` (includes `lint:knip`, Biome, typecheck, unit/contract/operations), and `bun run test:acceptance` (includes the init acceptance test (scripts/init/init.acceptance.test.ts)).
 4. Fresh-context diff review + drift check at final head before PR ready; CI green before merge.
 
 Review findings and resolutions: [goldfish_review_report.md](goldfish_review_report.md) (9 findings, all 9 accepted via Auto accept).

@@ -36,48 +36,71 @@ import {
   oiFlags,
   oiFlagsKnown,
 } from "../flow-options.ts";
+import {
+  isNyseTradingDay,
+  isoDayOf,
+  nyseCloseMinute,
+  previousNyseTradingDay,
+  utcDay,
+} from "../nyse-calendar.ts";
 import { newYorkClock } from "../signal-alerts.ts";
-import { marketSession, newYorkParts } from "./gex-context.ts";
+import { newYorkParts } from "./gex-context.ts";
 
-/** Is this source's market open now (New York wall time; holidays are not modelled)? */
+/**
+ * The regular New York window [open, close) in minutes of a source that follows the NYSE
+ * calendar, or null for ES and NQ ticks and depth (CME Globex hours).
+ */
+const nyseWindowOf = (
+  source: Exclude<FlowSource, "market_premium">,
+  symbol: FlowOptionPrintSymbol
+): readonly [number, number] | null => {
+  if (source === "net_drift") return [9 * 60 + 30, 16 * 60 + 20];
+  if (source === "options")
+    return [9 * 60 + 30, FLOW_OPTION_STREAMS[symbol].closeMinuteEt];
+  if (source === "gex") return [9 * 60 + 30, 16 * 60 + 15];
+  // The stock tape (ticks and depth of a stock-session instrument): extended hours.
+  if (isFlowSymbol(symbol) && FLOW_INSTRUMENTS[symbol].session === "stock")
+    return [4 * 60, 20 * 60];
+  return null;
+};
+
+/** UTC day number of the New York calendar date of `parts` (from newYorkParts). */
+const newYorkDayOf = (parts: Record<string, string>): number =>
+  utcDay(
+    Number(parts["year"]),
+    Number(parts["month"]) - 1,
+    Number(parts["day"])
+  );
+
+/**
+ * Is this source's market open now (New York wall time)? Equity and option sources follow the
+ * NYSE calendar: closed on a holiday, and on an early close their close moves 180 minutes
+ * earlier. ES and NQ ticks and depth follow CME Globex hours; CME holidays are not modelled.
+ */
 export const flowSessionOpen = (
   source: FlowSource,
   symbol: FlowOptionPrintSymbol,
   now: Date
 ): boolean => {
-  const parts = newYorkParts(now);
-  const day = parts["weekday"];
-  const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
   // Market premium keeps its own live window and gap fill (flow-market-premium-collect.ts).
   if (source === "market_premium") return true;
-  if (source === "net_drift")
+  const parts = newYorkParts(now);
+  const weekdayName = parts["weekday"];
+  const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  const window = nyseWindowOf(source, symbol);
+  if (window !== null) {
+    const nyDay = newYorkDayOf(parts);
     return (
-      day !== "Sat" &&
-      day !== "Sun" &&
-      minutes >= 9 * 60 + 30 &&
-      minutes < 16 * 60 + 20
+      isNyseTradingDay(nyDay) &&
+      minutes >= window[0] &&
+      minutes < nyseCloseMinute(nyDay, window[1])
     );
-  if (source === "options")
-    return (
-      day !== "Sat" &&
-      day !== "Sun" &&
-      minutes >= 9 * 60 + 30 &&
-      minutes < FLOW_OPTION_STREAMS[symbol].closeMinuteEt
-    );
-  if (source === "gex")
-    return (
-      day !== "Sat" &&
-      day !== "Sun" &&
-      minutes >= 9 * 60 + 30 &&
-      minutes < 16 * 60 + 15
-    );
+  }
   if (!isFlowSymbol(symbol)) return false;
-  if (FLOW_INSTRUMENTS[symbol].session === "stock")
-    return marketSession(now) !== "closed";
   // CME Globex equity futures: Sunday 18:00 to Friday 17:00, daily break 17:00-18:00.
-  if (day === "Sat") return false;
-  if (day === "Sun") return minutes >= 18 * 60;
-  if (day === "Fri") return minutes < 17 * 60;
+  if (weekdayName === "Sat") return false;
+  if (weekdayName === "Sun") return minutes >= 18 * 60;
+  if (weekdayName === "Fri") return minutes < 17 * 60;
   return minutes < 17 * 60 || minutes >= 18 * 60;
 };
 
@@ -115,29 +138,16 @@ export const flowClockText = (date: Date): string => {
 };
 
 /**
- * The New York date of the newest session at or before now (YYYY-MM-DD): Friday on Saturday and
- * Sunday, and the previous weekday before 09:30 on a weekday.
+ * The New York date of the newest NYSE session at or before now (YYYY-MM-DD): today from 09:30 on
+ * a trading day, else the previous NYSE trading day (weekends and holidays are skipped).
  */
 export const flowSessionDate = (now: Date): string => {
   const parts = newYorkParts(now);
-  const weekday = parts["weekday"];
+  const today = newYorkDayOf(parts);
   const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
-  // Before 09:30 on a weekday today's session has not started: use the previous weekday.
-  const beforeOpen = minutes < 9 * 60 + 30;
-  const back = ((): number => {
-    if (weekday === "Sat") return 1;
-    if (weekday === "Sun") return 2;
-    if (!beforeOpen) return 0;
-    return weekday === "Mon" ? 3 : 1;
-  })();
-  const day = new Date(
-    Date.UTC(
-      Number(parts["year"]),
-      Number(parts["month"]) - 1,
-      Number(parts["day"]) - back
-    )
-  );
-  return day.toISOString().slice(0, 10);
+  return isNyseTradingDay(today) && minutes >= 9 * 60 + 30
+    ? isoDayOf(today)
+    : previousNyseTradingDay(today);
 };
 
 export type FlowSampleRow = Readonly<{

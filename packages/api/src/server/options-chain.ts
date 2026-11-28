@@ -7,16 +7,19 @@ import {
   liveQuotes,
   mergeOptionsChain,
   mergeOptionsExpiries,
+  nasdaqSkipReason,
   OPTIONS_CHAIN_PRIORITY,
-  type OptionsChainReads,
+  type OptionsPrimaryChainReads,
   type OptionsSourceRead,
 } from "../options-chain-merge.ts";
 import { computeOptionsExpectedMove } from "../options-expected-move.ts";
 import { STRATEGY_IV_INDEX } from "../strategy-dsl.ts";
+import { waitAtMost } from "./bounded-wait.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { quantDataClientFor } from "./options-analytics.ts";
 import { createIbkrOptionsQuoteSource } from "./options-chain-ibkr.ts";
+import { createNasdaqOptionsOpenInterestSource } from "./options-chain-nasdaq.ts";
 import { createQuantDataOptionsSource } from "./options-chain-quantdata.ts";
 import { optionsChainSnapshotHandlers } from "./options-chain-snapshots.ts";
 import {
@@ -26,6 +29,8 @@ import {
   OptionsChainSourceError,
   type OptionsChainSourceErrorCode,
   OptionsChainSourceOff,
+  type OptionsOpenInterestSnapshot,
+  type OptionsOpenInterestSource,
   type OptionsQuoteSource,
 } from "./options-chain-source.ts";
 import { createYahooOptionsSource } from "./options-chain-yahoo.ts";
@@ -39,6 +44,15 @@ import { buildOptionsSpread, type StoredCloses } from "./options-spread.ts";
 // ask). Operator-only. Nothing here can place, change or cancel orders.
 
 const CACHE_TTL_MS = 60_000;
+// The longest a request waits for a chain read that another request started: above the usual
+// slowest live read (Yahoo session 22 s + options fetch 10 s, QuantData two steps of up to 13 s
+// each). A read that also renews its Yahoo session after HTTP 401 can take longer (about 64 s):
+// its waiters then get UNAVAILABLE and the next read starts again. Accepted: waiters hold their
+// request database slots while they wait, so a longer wait would lengthen a full-admission spell.
+const SHARED_READ_WAIT_MS = 45_000;
+// The longest a request waits for a Nasdaq open-interest read that another request started: the
+// Nasdaq source ends its own read after 8 s (one timeout for both asset classes), plus 2 s.
+const NASDAQ_SHARED_WAIT_MS = 10_000;
 const CACHE_MAX_ENTRIES = 200;
 
 type Failed = Readonly<{
@@ -53,14 +67,19 @@ type Outcome<Data> =
   | Failed;
 
 type ChainRead = Readonly<{
-  reads: OptionsChainReads;
+  reads: OptionsPrimaryChainReads;
   // The expiry to show; null when no source has a chain for the request.
   expiry: string | null;
 }>;
 type CacheEntry = Readonly<{ at: number; value: Promise<ChainRead> }>;
+type NasdaqCacheEntry = Readonly<{
+  at: number;
+  value: Promise<OptionsSourceRead<OptionsOpenInterestSnapshot>>;
+}>;
 
 type Injected = Readonly<{
   ibkr?: OptionsQuoteSource;
+  nasdaq?: OptionsOpenInterestSource;
   quantData?: OptionsAnalyticsSource;
   yahoo?: OptionsChainSource;
   now?: () => Date;
@@ -69,16 +88,26 @@ type Injected = Readonly<{
 let injected: Injected = {};
 // One Yahoo adapter per process: it holds the Yahoo session.
 let yahooSource: OptionsChainSource | null = null;
+// One Nasdaq adapter per process: it holds the asset-class cache and failure cooldown.
+let nasdaqSource: OptionsOpenInterestSource | null = null;
 const systemClock = (): Date => new Date();
 let clock = systemClock;
 const cache = new Map<string, CacheEntry>();
+const nasdaqCache = new Map<string, NasdaqCacheEntry>();
 
-/** Test seam: replaces any of the three sources and the clock, and clears the cache. */
+const NASDAQ_NOT_ASKED_ENDPOINT = {
+  message: "Not asked: endpoint does not display open interest",
+  status: "off",
+} as const;
+
+/** Test seam: replaces any of the sources and the clock, and clears the caches. */
 export const setOptionsChainForTesting = (options: Injected = {}): void => {
   injected = options;
   yahooSource = null;
+  nasdaqSource = null;
   clock = options.now ?? systemClock;
   cache.clear();
+  nasdaqCache.clear();
 };
 
 const outcome = async <Data>(
@@ -155,9 +184,9 @@ const QUANT_DATA_NOT_CONFIGURED = {
 // The Quant Data read as it is cached: only the rows of the expiry being shown. The answer
 // holds the contracts of every expiry, and the merge reads one.
 const forExpiry = (
-  quantdata: OptionsChainReads["quantdata"],
+  quantdata: OptionsPrimaryChainReads["quantdata"],
   expiry: string | null
-): OptionsChainReads["quantdata"] =>
+): OptionsPrimaryChainReads["quantdata"] =>
   quantdata.status === "ok"
     ? {
         ...quantdata,
@@ -261,6 +290,23 @@ const load = async (
   };
 };
 
+// A cached read can still run for the request that started it. In workerd it can stay pending
+// for good when that request's context ends (bounded-wait.ts), so another request waits for it
+// at most SHARED_READ_WAIT_MS, then drops the entry and fails with UNAVAILABLE: its request ends
+// (and frees its database slot), and the next read starts fresh.
+const waitForShared = async (
+  key: string,
+  entry: CacheEntry
+): Promise<ChainRead> => {
+  const waited = await waitAtMost(entry.value, SHARED_READ_WAIT_MS);
+  if (!waited.timedOut) return waited.value;
+  if (cache.get(key) === entry) cache.delete(key);
+  throw new OptionsChainSourceError(
+    "UNAVAILABLE",
+    "Options chain read did not finish in time; retry"
+  );
+};
+
 const readChain = (
   context: ApiContext,
   symbol: string,
@@ -277,7 +323,7 @@ const readChain = (
   ].join("|");
   const hit = cache.get(key);
   if (hit !== undefined && now.getTime() - hit.at < CACHE_TTL_MS)
-    return hit.value;
+    return waitForShared(key, hit);
   const value = load(context, symbol, expiry, now);
   cache.delete(key);
   cache.set(key, { at: now.getTime(), value });
@@ -288,6 +334,54 @@ const readChain = (
   for (const oldest of cache.keys()) {
     if (cache.size <= CACHE_MAX_ENTRIES) break;
     cache.delete(oldest);
+  }
+  return value;
+};
+
+// Same rule as waitForShared, for the Nasdaq read of a chain. Nasdaq only adds open interest, so
+// a waiter that times out serves the chain with the Nasdaq source failed instead of an error.
+const waitForSharedNasdaq = async (
+  key: string,
+  entry: NasdaqCacheEntry
+): Promise<OptionsSourceRead<OptionsOpenInterestSnapshot>> => {
+  const waited = await waitAtMost(entry.value, NASDAQ_SHARED_WAIT_MS);
+  if (!waited.timedOut) return waited.value;
+  if (nasdaqCache.get(key) === entry) nasdaqCache.delete(key);
+  return {
+    message:
+      "Nasdaq open interest read did not finish in 10 s; chain shown without it",
+    status: "failed",
+  };
+};
+
+const readNasdaqOpenInterest = (
+  symbol: string,
+  expiry: string,
+  reads: OptionsPrimaryChainReads,
+  now: Date
+): Promise<OptionsSourceRead<OptionsOpenInterestSnapshot>> => {
+  const skip = nasdaqSkipReason(reads, expiry);
+  if (skip !== null)
+    return Promise.resolve({ message: skip, status: "off" } as const);
+  const key = `${symbol}|${expiry}`;
+  const hit = nasdaqCache.get(key);
+  if (hit !== undefined && now.getTime() - hit.at < CACHE_TTL_MS)
+    return waitForSharedNasdaq(key, hit);
+  nasdaqSource ??=
+    injected.nasdaq ?? createNasdaqOptionsOpenInterestSource({ now: clock });
+  const source = nasdaqSource;
+  const value = outcome("Nasdaq", () => source.read(symbol, expiry)).then(
+    (result) => {
+      if (result.status !== "ok" && nasdaqCache.get(key)?.value === value)
+        nasdaqCache.delete(key);
+      return result;
+    }
+  );
+  nasdaqCache.delete(key);
+  nasdaqCache.set(key, { at: now.getTime(), value });
+  for (const oldest of nasdaqCache.keys()) {
+    if (nasdaqCache.size <= CACHE_MAX_ENTRIES) break;
+    nasdaqCache.delete(oldest);
   }
   return value;
 };
@@ -315,7 +409,11 @@ const expiries = api.optionsChain.expiries
     const now = clock();
     try {
       const read = await readChain(context, input.symbol, undefined, now);
-      return mergeOptionsExpiries(read.reads, read.expiry, now);
+      return mergeOptionsExpiries(
+        { ...read.reads, nasdaq: NASDAQ_NOT_ASKED_ENDPOINT },
+        read.expiry,
+        now
+      );
     } catch (error) {
       throw mapFailure(error, errors);
     }
@@ -338,7 +436,13 @@ const chain = api.optionsChain.chain
             ? `No listed options for ${input.symbol}`
             : `No ${input.symbol} options expire on ${input.expiry}`,
       });
-    return mergeOptionsChain(read.reads, read.expiry, now);
+    const nasdaq = await readNasdaqOpenInterest(
+      input.symbol,
+      read.expiry,
+      read.reads,
+      now
+    );
+    return mergeOptionsChain({ ...read.reads, nasdaq }, read.expiry, now);
   });
 
 const expectedMove = api.optionsChain.expectedMove
@@ -359,7 +463,11 @@ const expectedMove = api.optionsChain.expectedMove
             : `No ${input.symbol} options expire on ${input.expiry}`,
       });
     return computeOptionsExpectedMove(
-      mergeOptionsChain(read.reads, read.expiry, now),
+      mergeOptionsChain(
+        { ...read.reads, nasdaq: NASDAQ_NOT_ASKED_ENDPOINT },
+        read.expiry,
+        now
+      ),
       now
     );
   });
@@ -380,7 +488,11 @@ const spread = api.optionsChain.spread
       throw errors.NOT_FOUND({
         message: `No ${input.symbol} options expire on ${input.expiry}`,
       });
-    const merged = mergeOptionsChain(read.reads, read.expiry, now);
+    const merged = mergeOptionsChain(
+      { ...read.reads, nasdaq: NASDAQ_NOT_ASKED_ENDPOINT },
+      read.expiry,
+      now
+    );
     const store = context.repositories.marketDailySeries;
     const index = STRATEGY_IV_INDEX[input.symbol];
     const ids = index === undefined ? ["IRX"] : [index, "IRX"];

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { waitAtMost } from "./bounded-wait.ts";
 import {
   type OptionQuote,
   type OptionsChainSnapshot,
@@ -30,6 +31,8 @@ const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const MAX_BYTES = 6 * 1024 * 1024;
 const TIMEOUT_MS = 10_000;
+// Added to two fetch timeouts before a read stops waiting for a session start of another request.
+const SESSION_WAIT_MARGIN_MS = 2000;
 
 const optionalNumber = z.number().finite().optional().catch(undefined);
 
@@ -82,6 +85,11 @@ const nonNegative = (value: number | undefined): number | null =>
 const wholeCount = (value: number | undefined): number | null =>
   value !== undefined && value >= 0 ? Math.trunc(value) : null;
 
+// Yahoo reports false 0 open interest on liquid contracts (28 of 28 Yahoo zeros on SPY/NVDA
+// flow contracts on 2026-11-27 had positive Nasdaq OI). Read < 1 as not reported.
+const positiveCount = (value: number | undefined): number | null =>
+  value !== undefined && value >= 1 ? Math.trunc(value) : null;
+
 const contractRows = (rows: readonly unknown[]): OptionQuote[] =>
   rows.flatMap((row) => {
     const parsed = YahooContractSchema.safeParse(row);
@@ -107,7 +115,7 @@ const contractRows = (rows: readonly unknown[]): OptionQuote[] =>
           value.lastTradeDate === undefined
             ? null
             : new Date(value.lastTradeDate * 1000).toISOString(),
-        openInterest: wholeCount(value.openInterest),
+        openInterest: positiveCount(value.openInterest),
         strike: value.strike,
         volume: wholeCount(value.volume),
       },
@@ -223,17 +231,31 @@ export const createYahooOptionsSource = (
   const sessionFor = (renew: boolean): Promise<Session> => {
     if (renew || session === null) {
       const next = openSession();
-      // A failed session start is not cached: the next request tries again.
+      // A failed session start is not cached: the next request tries again. A late failure of
+      // a replaced start must not drop the newer session.
       next.catch(() => {
-        session = null;
+        if (session === next) session = null;
       });
       session = next;
     }
     return session;
   };
 
+  // The session start may belong to another request. In workerd it can stay pending for good
+  // when that request's context ends (bounded-wait.ts), so a read waits for it at most two
+  // fetch timeouts (cookie, then crumb) plus a margin. Then it replaces that start, unless
+  // another read already did: it waits for the newer one instead, so reads that time out
+  // together start one new session, not one each.
+  const sessionWaitMs = 2 * timeoutMs + SESSION_WAIT_MARGIN_MS;
+  const currentSession = async (renew: boolean): Promise<Session> => {
+    const shared = sessionFor(renew);
+    const waited = await waitAtMost(shared, sessionWaitMs);
+    if (!waited.timedOut) return waited.value;
+    return await currentSession(session === shared);
+  };
+
   const request = async (url: string, renew: boolean): Promise<Response> => {
-    const current = await sessionFor(renew);
+    const current = await currentSession(renew);
     return await get(`${url}&crumb=${encodeURIComponent(current.crumb)}`, {
       accept: "application/json",
       cookie: current.cookie,

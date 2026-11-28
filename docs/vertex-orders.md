@@ -43,10 +43,12 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
   2 minutes, one use, bound to the user and the exact order). `vertexOrders.submit` refuses a
   missing, changed, expired or reused token. Cancel uses the same two steps
   (`cancelPreview`, `cancel`). There is no bulk send.
-- **Access.** Owner only: operator allow-list (`VERTEX_OPERATOR_EMAILS`) AND the admin role. A
-  read-only agent viewer (`VERTEX_AGENT_VIEWER_EMAILS`) can open the Close dialog, but every
-  `vertexOrders.*` call except `status` is refused with 403, and `status` needs admin. Agent API keys and MCP tools
-  cannot reach `vertexOrders.*`. The oRPC handler origin check blocks cross-site POSTs (CSRF).
+- **Access.** Owner only: operator allow-list (`VERTEX_OPERATOR_EMAILS`) AND the admin role.
+  Non-admin operators and read-only agent viewers (`VERTEX_AGENT_VIEWER_EMAILS`) see the read-only
+  Portfolio monitor without order buttons, the Vertex orders tab or `vertexOrders.status` calls,
+  and the server still refuses every `vertexOrders.*` call for non-owners with 403. Agent API keys
+  and MCP tools cannot reach `vertexOrders.*`. The oRPC handler origin check blocks cross-site
+  POSTs (CSRF).
 - **Rate limit.** Per user and per minute: 20 previews, 5 submits or cancels (in-process).
 - **One placement at a time.** While a `submit` or `comboSubmit` is placing, a second one is
   refused with `RATE_LIMITED` and keeps its confirm token. Each placement reads the account after
@@ -119,7 +121,9 @@ The bridge is `market_watch/vertexbridge.py` in market-watch-bot (`python -m mar
 127.0.0.1:3470 on QuantVPS, unit `vertex-order-bridge.service`). It runs
 `ops/vertex_order_tail.py` (appended to `ops/ibkr_reentry_gateway.py` after the 2% max-loss gate
 source) in the IBKR container as its own client id 211 (never 194/196/197/198). Every request
-needs header `X-Vertex-Bridge-Token` equal to its 0600 token file; no token file refuses all. The
+needs header `X-Vertex-Bridge-Token` equal to its 0600 token file; no token file refuses all. Both
+bridge clients (`createBridgeOrderGateway` and `createBridgeQuotesReader`) send `redirect: "manual"`
+and refuse any `3xx` response without following it. The
 kill switch is the execution engine stop file (`/opt/vertex-exec-node/data/KILL_SWITCH`); it
 blocks opening and increasing orders only. Closes and cancels stay allowed. Before a close, any live order of any client on the
 same contract (for example a client-196 conditional LEAPS exit) must be cancelled first; the tail

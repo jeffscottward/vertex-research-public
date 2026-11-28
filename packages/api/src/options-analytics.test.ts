@@ -22,6 +22,7 @@ import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
   buildOptionsAnalytics,
+  buildOptionsGreekHeatmap,
   flowWindow,
   setOptionsAnalyticsForTesting,
   storedPrintsSymbol,
@@ -51,6 +52,7 @@ import {
   termStructure,
   withProfileFlow,
 } from "./server/options-analytics-engine.ts";
+import { createQuantDataOptionsSource } from "./server/options-chain-quantdata.ts";
 import {
   createQuantDataClient,
   parseRetryAfter,
@@ -808,6 +810,243 @@ describe("quantdata client", () => {
     expect(spy).toHaveBeenCalledTimes(2);
     spy.mockRestore();
   });
+
+  it("makes one request start for two identical reads that overlap", async () => {
+    let clock = 1000;
+    const sleep = vi.fn(async (ms: number) => {
+      clock += ms;
+    });
+    const doFetch = vi.fn<QuantDataFetch>(async (url) =>
+      json({ data: url.endsWith("term-structure") ? "chain" : "oi" })
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      now: () => clock,
+      sleep,
+    });
+    // The second termStructure read waits behind openInterest (1 s) and then finds the answer of
+    // the first one in the cache.
+    const [first, other, second] = await Promise.all([
+      client.request("termStructure", { a: 1 }, 5000),
+      client.request("openInterest", { a: 1 }, 5000),
+      client.request("termStructure", { a: 1 }, 5000),
+    ]);
+    expect(doFetch).toHaveBeenCalledTimes(2);
+    expect(first).toMatchObject({ data: "chain", fetchedAt: 1000, ok: true });
+    expect(other).toMatchObject({ data: "oi", fetchedAt: 2000, ok: true });
+    expect(second).toEqual(first);
+    expect(clock).toBe(2000);
+    // The cache hit at the head of the queue is not a request start.
+    expect(client.freeStarts()).toBe(52);
+    // The hit does not extend the entry: it still expires 5 s after the first answer.
+    clock = 6000;
+    await client.request("termStructure", { a: 1 }, 5000);
+    return expect(doFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("makes a request start for each of two different reads that overlap", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+    });
+    const results = await Promise.all([
+      client.request("orderFlow", { t: 1 }, 60_000, "SPY 24h"),
+      client.request("orderFlow", { t: 1 }, 60_000, "SPY 6h"),
+    ]);
+    expect(results.map((result) => result.ok)).toEqual([true, true]);
+    return expect(doFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not feed a failed read to an identical read that overlaps it", async () => {
+    // A regression guard: the client before the queue-head cache check passed this test, too.
+    const doFetch = vi
+      .fn<QuantDataFetch>()
+      .mockResolvedValueOnce(json({ error: "busy" }, { status: 500 }))
+      .mockResolvedValue(json({ data: 2 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+    });
+    const [first, second] = await Promise.all([
+      client.request("termStructure", { a: 1 }, 60_000),
+      client.request("termStructure", { a: 1 }, 60_000),
+    ]);
+    expect(first).toMatchObject({ httpStatus: 500, ok: false, reason: "http" });
+    expect(second).toMatchObject({ data: 2, ok: true });
+    return expect(doFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not de-duplicate overlapping reads with ttlMs 0", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => 0,
+    });
+    await Promise.all([
+      client.request("termStructure", { a: 1 }, 0),
+      client.request("termStructure", { a: 1 }, 0),
+    ]);
+    return expect(doFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("spends at most 5 starts on one uncached symbol when the snapshot, the options chain and the heatmap read at the same time", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async (url) =>
+      json(
+        url.endsWith("term-structure")
+          ? { data: chainData, stockPrice: 100 }
+          : url.endsWith("open-interest-by-strike")
+            ? { data: oiData }
+            : url.endsWith("heat-map")
+              ? { data: {}, type: "contract" }
+              : { data: flowRows }
+      )
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => NOW.getTime(),
+    });
+    const deps = { client, now: () => NOW };
+    const [snapshot, chain, heatmap] = await Promise.all([
+      buildOptionsAnalytics(
+        OptionsAnalyticsInputSchema.parse({ symbol: "SPY" }),
+        deps
+      ),
+      createQuantDataOptionsSource(client, () => NOW).read("SPY"),
+      buildOptionsGreekHeatmap({ symbol: "SPY" }, deps),
+    ]);
+    expect(snapshot.rateLimited).toBe(false);
+    expect(chain.spot).toBe(100);
+    expect(heatmap.rateLimited).toBe(false);
+    const paths = doFetch.mock.calls.map(([url]) =>
+      url.replace("https://quantdata.domain.test/v1/options/tool/", "")
+    );
+    expect(paths.sort()).toEqual([
+      "heat-map",
+      "heat-map",
+      "open-interest-by-strike",
+      "order-flow/consolidated",
+      "term-structure",
+    ]);
+    return expect(client.freeStarts()).toBe(54 - 5);
+  });
+
+  it("lets later requests run when a step never settles (its request context ended)", async () => {
+    // In workerd a step whose request context ended stays pending, and its own 10 s abort timer
+    // never fires. The first fetch below ignores its abort signal to model that step.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let finishStuck: (response: Response) => void = () => undefined;
+      let finishNewer: (response: Response) => void = () => undefined;
+      const doFetch = vi
+        .fn<QuantDataFetch>()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishStuck = resolve;
+            })
+        )
+        .mockImplementationOnce(async () => json({ data: 2 }))
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              finishNewer = resolve;
+            })
+        )
+        .mockImplementation(async () => json({ data: 2 }));
+      const client = createQuantDataClient(config, {
+        fetch: doFetch,
+        minIntervalMs: 0,
+      });
+      void client.request("orderFlow", { stuck: 1 }, 1000);
+      const later = client.request("orderFlow", { later: 1 }, 1000);
+      let settled = false;
+      void later.then(() => {
+        settled = true;
+      });
+      // The step deadline: minIntervalMs 0 + timeoutMs 10 000 + 2000 margin.
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(settled).toBe(false);
+      expect(doFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(later).resolves.toMatchObject({ data: 2, ok: true });
+      // A newer step runs; the stuck step ends late and must not end the newer turn.
+      const newer = client.request("orderFlow", { newer: 1 }, 1000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finishStuck(json({ data: 1 }));
+      await vi.advanceTimersByTimeAsync(0);
+      const behind = client.request("orderFlow", { behind: 1 }, 1000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finishNewer(json({ data: 2 }));
+      await expect(newer).resolves.toMatchObject({ data: 2, ok: true });
+      await expect(behind).resolves.toMatchObject({ data: 2, ok: true });
+      return expect(doFetch).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives a waiter that claims a handed-over turn a full turn, not the 2 s claim", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const finish: Array<(response: Response) => void> = [];
+      const doFetch = vi.fn<QuantDataFetch>(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish.push(resolve);
+          })
+      );
+      const client = createQuantDataClient(config, {
+        fetch: doFetch,
+        minIntervalMs: 0,
+      });
+      const first = client.request("orderFlow", { id: "a" }, 0);
+      const second = client.request("orderFlow", { id: "b" }, 0);
+      const third = client.request("orderFlow", { id: "c" }, 0);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(1);
+      // The first step ends: the second caller claims the turn, and its step runs on.
+      finish[0]?.(json({ data: 1 }));
+      await expect(first).resolves.toMatchObject({ ok: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(doFetch).toHaveBeenCalledTimes(2);
+      // Past the 2 s claim the third caller still waits: the claimed turn is a full one.
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(doFetch).toHaveBeenCalledTimes(2);
+      // At the step deadline (0 + 10 000 + 2000) the third caller takes over.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(doFetch).toHaveBeenCalledTimes(3);
+      finish[1]?.(json({ data: 1 }));
+      finish[2]?.(json({ data: 1 }));
+      await expect(second).resolves.toMatchObject({ ok: true });
+      return expect(third).resolves.toMatchObject({ ok: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("serves waiting callers in order, also when the caller before them calls again at once", async () => {
+    const order: string[] = [];
+    const doFetch = vi.fn<QuantDataFetch>(async (_url, init) => {
+      order.push(String((JSON.parse(String(init.body)) as { id: string }).id));
+      return json({ data: 1 });
+    });
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+    });
+    const steady = (async () => {
+      for (const id of ["x0", "x1", "x2"])
+        await client.request("orderFlow", { id }, 0);
+    })();
+    const waiter = client.request("orderFlow", { id: "w" }, 0);
+    await Promise.all([steady, waiter]);
+    return expect(order).toEqual(["x0", "w", "x1", "x2"]);
+  });
 });
 
 describe("options analytics engine", () => {
@@ -1463,6 +1702,50 @@ describe("stored prints for the strike profiles", () => {
           ...day,
           ...flowWindow(1, saturday),
         })
+      ).complete
+    ).toBe(true);
+  });
+
+  it("on an NYSE holiday and after an early close needs a run that reached that session's close", async () => {
+    // Thanksgiving 2026-11-26 12:00 New York: the newest session closed 2026-11-25 16:15 ET (21:15Z),
+    // inside the 24-hour window.
+    const holiday = new Date("2026-11-26T17:00:00.000Z");
+    const holidayQuery = {
+      ...flowWindow(24, holiday),
+      now: holiday,
+      symbol: "SPY" as const,
+      today: "2026-11-26",
+    };
+    expect(
+      (
+        await storedProfileFlow(
+          storedRepository({ okAt: new Date("2026-11-25T21:14:00.000Z") }),
+          holidayQuery
+        )
+      ).complete
+    ).toBe(true);
+    // A collector that stopped at 14:00 ET on 2026-11-25 did not reach that close.
+    expect(
+      (
+        await storedProfileFlow(
+          storedRepository({ okAt: new Date("2026-11-25T19:00:00.000Z") }),
+          holidayQuery
+        )
+      ).complete
+    ).toBe(false);
+    // 2026-11-27 14:00 New York: the options session closed early at 13:15 ET (18:15Z).
+    const afterEarly = new Date("2026-11-27T19:00:00.000Z");
+    return expect(
+      (
+        await storedProfileFlow(
+          storedRepository({ okAt: new Date("2026-11-27T18:14:00.000Z") }),
+          {
+            ...flowWindow(6, afterEarly),
+            now: afterEarly,
+            symbol: "SPY",
+            today: "2026-11-27",
+          }
+        )
       ).complete
     ).toBe(true);
   });

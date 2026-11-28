@@ -25,6 +25,8 @@ import {
   type OptionsChainSource,
   OptionsChainSourceError,
   OptionsChainSourceOff,
+  type OptionsOpenInterestSnapshot,
+  type OptionsOpenInterestSource,
   type OptionsQuoteSnapshot,
   type OptionsQuoteSource,
 } from "./server/options-chain-source.ts";
@@ -119,6 +121,48 @@ describe("parseYahooOptions", () => {
       volume: null,
     });
     expect(snapshot.puts[2]).toMatchObject({ inTheMoney: false, volume: null });
+    // Yahoo false 0 (and < 1) open interest is read as not reported; volume 0 stays 0.
+    const withZeroOi = parseYahooOptions(
+      {
+        optionChain: {
+          result: [
+            {
+              expirationDates: [1_793_923_200],
+              options: [
+                {
+                  calls: [
+                    {
+                      contractSymbol: "NVDA270115C00160000",
+                      openInterest: 0,
+                      strike: 160,
+                      volume: 0,
+                    },
+                    {
+                      contractSymbol: "NVDA270115C00165000",
+                      openInterest: 0.9,
+                      strike: 165,
+                      volume: 12,
+                    },
+                  ],
+                  expirationDate: 1_793_923_200,
+                  puts: [],
+                },
+              ],
+              quote: { regularMarketPrice: 150 },
+            },
+          ],
+        },
+      },
+      "NVDA"
+    );
+    expect(withZeroOi.calls[0]).toMatchObject({
+      openInterest: null,
+      volume: 0,
+    });
+    expect(withZeroOi.calls[1]).toMatchObject({
+      openInterest: null,
+      volume: 12,
+    });
   });
 
   it("handles sparse documents and reports bad ones", () => {
@@ -263,6 +307,53 @@ describe("createYahooOptionsSource", () => {
       code: "UNAVAILABLE",
       message: "Yahoo options request failed or timed out",
     });
+  });
+
+  it("starts one new session when a shared session start never settles", async () => {
+    // A session start of a request whose workerd context ended stays pending, and its own
+    // abort timers never fire. The first cookie fetch below ignores its signal to model it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let cookieCalls = 0;
+      let failStuck: (error: Error) => void = () => undefined;
+      const doFetch = vi.fn<YahooFetch>(async (url) => {
+        if (new URL(url).hostname === "fc.yahoo.com") {
+          cookieCalls += 1;
+          return cookieCalls === 1
+            ? await new Promise<Response>((_resolve, reject) => {
+                failStuck = reject;
+              })
+            : sessionResponse();
+        }
+        if (url.includes("/getcrumb"))
+          return new Response("dummyCrumb2", { status: 200 });
+        return json(fixture);
+      });
+      const source = createYahooOptionsSource({ fetch: doFetch });
+      const reads = [source.read("DEMO"), source.read("DEMO")];
+      let settled = false;
+      void Promise.all(reads).then(() => {
+        settled = true;
+      });
+      // Two fetch timeouts (10 s each) plus the 2 s margin.
+      await vi.advanceTimersByTimeAsync(21_999);
+      expect(settled).toBe(false);
+      expect(cookieCalls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(Promise.all(reads)).resolves.toMatchObject([
+        { symbol: "DEMO" },
+        { symbol: "DEMO" },
+      ]);
+      // Both reads timed out together, and only one started a new session.
+      expect(cookieCalls).toBe(2);
+      // A late failure of the replaced start keeps the new session.
+      failStuck(new TypeError("socket closed"));
+      await vi.advanceTimersByTimeAsync(0);
+      await source.read("DEMO");
+      return expect(cookieCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("uses global fetch by default", async () => {
@@ -425,6 +516,13 @@ const ibkrFake = (
 const quantDataFake = (
   read: OptionsAnalyticsSource["read"]
 ): { read: Mock<OptionsAnalyticsSource["read"]> } => ({ read: vi.fn(read) });
+const nasdaqFake = (
+  read: OptionsOpenInterestSource["read"]
+): { read: Mock<OptionsOpenInterestSource["read"]> } => ({ read: vi.fn(read) });
+const nasdaqOff = () =>
+  nasdaqFake(async () => {
+    throw new OptionsChainSourceOff("Nasdaq disabled in test");
+  });
 
 const operator = () => apiFor(session("operator"));
 const atmCall = (chain: OptionsChainOutput) =>
@@ -467,6 +565,11 @@ describe("optionsChain procedures", () => {
         { source: "quantdata", status: "off" },
         { source: "ibkr", status: "off" },
         { message: null, source: "yahoo", status: "used" },
+        {
+          message: "Not asked: endpoint does not display open interest",
+          source: "nasdaq",
+          status: "off",
+        },
       ],
       spot: 100,
       spotSource: "yahoo",
@@ -474,7 +577,13 @@ describe("optionsChain procedures", () => {
     const chain = await api.optionsChain.chain({ symbol: "DEMO" });
     expect(chain.expiry).toBe("2026-11-06");
     expect(chain.rows).toHaveLength(5);
-    expect(chain.sources).toEqual(listed.sources);
+    expect(chain.sources.slice(0, 3)).toEqual(listed.sources.slice(0, 3));
+    expect(chain.sources[3]).toEqual({
+      message:
+        "Not asked: Yahoo Finance reported open interest for every contract",
+      source: "nasdaq",
+      status: "off",
+    });
     expect(source.read).toHaveBeenCalledTimes(1);
     expect(source.read).toHaveBeenCalledWith("DEMO", undefined);
     now = new Date(NOW.getTime() + 61_000);
@@ -612,6 +721,59 @@ describe("optionsChain procedures", () => {
       "UNAVAILABLE"
     );
     expect(spy).toHaveBeenCalled();
+  });
+
+  it("stops waiting for another request's chain read that never settles", async () => {
+    // The first read models a read whose workerd request context ended: it stays pending.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let calls = 0;
+      const source = yahooFake(async () => {
+        calls += 1;
+        return calls === 1
+          ? await new Promise<OptionsChainSnapshot>(() => undefined)
+          : snapshot;
+      });
+      setOptionsChainForTesting({ now: () => NOW, yahoo: source });
+      const api = operator();
+      void api.optionsChain.chain({ symbol: "DEMO" });
+      await vi.advanceTimersByTimeAsync(0);
+      const waiting = api.optionsChain.chain({ symbol: "DEMO" });
+      const outcome = waiting.then(
+        () => "answered",
+        (error: unknown) => error
+      );
+      await vi.advanceTimersByTimeAsync(1);
+      const second = api.optionsChain.chain({ symbol: "DEMO" });
+      const secondOutcome = second.then(
+        () => "answered",
+        (error: unknown) => error
+      );
+      await vi.advanceTimersByTimeAsync(44_998);
+      let settled = false;
+      void outcome.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(outcome).resolves.toMatchObject({
+        code: "UNAVAILABLE",
+        message: "Options chain read did not finish in time; retry",
+      });
+      // A second waiter on the same read finds the entry already dropped.
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(secondOutcome).resolves.toMatchObject({
+        code: "UNAVAILABLE",
+      });
+      // The next read starts fresh.
+      await expect(
+        api.optionsChain.chain({ symbol: "DEMO" })
+      ).resolves.toMatchObject({ expiry: "2026-11-06" });
+      return expect(source.read).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -841,6 +1003,7 @@ describe("optionsChain source fallback", () => {
     }));
     setOptionsChainForTesting({
       ibkr: ibkrFake(async () => ibkrSnapshot),
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       quantData,
       yahoo: yahoo(),
@@ -947,6 +1110,7 @@ describe("optionsChain source fallback", () => {
     }) => {
       setOptionsChainForTesting({
         ibkr: ibkrFake(sources.ibkr ?? down()),
+        nasdaq: nasdaqOff(),
         now: () => NOW,
         quantData: quantDataFake(sources.quantData ?? down()),
         yahoo: yahooFake(sources.yahoo ?? down()),
@@ -987,6 +1151,7 @@ describe("optionsChain source fallback", () => {
         expiry: expiry ?? "2026-11-06",
       }));
       setOptionsChainForTesting({
+        nasdaq: nasdaqOff(),
         now: () => NOW,
         yahoo: source,
         ...(with_.ibkr
@@ -1021,6 +1186,7 @@ describe("optionsChain source fallback", () => {
     ]);
     // A Quant Data answer without an open expiry gives no candidate: IBKR is next.
     setOptionsChainForTesting({
+      nasdaq: nasdaqOff(),
       ibkr: ibkrFake(async () => ({ ...ibkrSnapshot, expiry: "2026-11-20" })),
       now: () => NOW,
       quantData: quantDataFake(async () => ({
@@ -1062,6 +1228,7 @@ describe("optionsChain source fallback", () => {
   it("Yahoo failing with IBKR up: the chain is still served", async () => {
     setOptionsChainForTesting({
       ibkr: ibkrFake(async () => ibkrSnapshot),
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       quantData: quantDataFake(async () => quantDataSnapshot),
       yahoo: yahooDown(),
@@ -1080,6 +1247,7 @@ describe("optionsChain source fallback", () => {
           source: "yahoo",
           status: "failed",
         },
+        { source: "nasdaq", status: "off" },
       ],
       spotSource: "quantdata",
     });
@@ -1113,6 +1281,7 @@ describe("optionsChain source fallback", () => {
     // An unexpected Yahoo error gets a fixed text, never the error's own.
     setOptionsChainForTesting({
       ibkr: ibkrFake(async () => ibkrSnapshot),
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       yahoo: yahooFake(async () => {
         throw new Error("https://internal.example/?crumb=secret");
@@ -1136,6 +1305,7 @@ describe("optionsChain source fallback", () => {
           "IBKR option quotes request failed or timed out"
         );
       }),
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       quantData: quantDataFake(async () => quantDataSnapshot),
       yahoo: source,
@@ -1158,6 +1328,7 @@ describe("optionsChain source fallback", () => {
           source: "yahoo",
           status: "failed",
         },
+        { source: "nasdaq", status: "off" },
       ],
       spot: 100.5,
       spotSource: "quantdata",
@@ -1210,6 +1381,7 @@ describe("optionsChain source fallback", () => {
 
   it("Yahoo failing with Quant Data up and IBKR off: the chain is still served", async () => {
     setOptionsChainForTesting({
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       quantData: quantDataFake(async () => quantDataSnapshot),
       yahoo: yahooDown(),
@@ -1220,6 +1392,7 @@ describe("optionsChain source fallback", () => {
       "used",
       "off",
       "failed",
+      "off",
     ]);
     expect(atmCall(chain)?.sources).toEqual({
       delta: "quantdata",
@@ -1350,6 +1523,7 @@ describe("optionsChain source fallback", () => {
     const unlisted = yahooFake(async () => snapshot);
     setOptionsChainForTesting({
       ibkr: ibkrFake(async () => ({ ...ibkrSnapshot, expiry: "2026-11-13" })),
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       yahoo: unlisted,
     });
@@ -1360,6 +1534,7 @@ describe("optionsChain source fallback", () => {
     // The second Yahoo read fails: IBKR still serves the chain.
     setOptionsChainForTesting({
       ibkr: ibkrFake(async () => ({ ...ibkrSnapshot, expiry: "2026-11-20" })),
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       yahoo: yahooFake(async (_symbol, expiry) => {
         if (expiry !== undefined)
@@ -1416,6 +1591,7 @@ describe("optionsChain source fallback", () => {
       "off",
       "used",
       "used",
+      "off",
     ]);
     expect(source.read.mock.calls).toEqual([["DEMO", undefined]]);
   });
@@ -1615,6 +1791,7 @@ describe("optionsChain source fallback", () => {
           expiries: [],
           expiry: "2026-11-20",
         })),
+        nasdaq: nasdaqOff(),
         now: () => NOW,
         quantData: quantDataFake(async () => ({
           ...quantDataSnapshot,
@@ -1720,6 +1897,7 @@ describe("optionsChain source fallback", () => {
     expect(JSON.stringify(chain)).not.toContain(QUANTDATA.apiKey);
     // Yahoo lists no options: Quant Data is still asked, and its chain is served.
     setOptionsChainForTesting({
+      nasdaq: nasdaqOff(),
       now: () => NOW,
       yahoo: yahooFake(async () => ({
         ...snapshot,
@@ -1757,6 +1935,7 @@ describe("optionsChain source fallback", () => {
       "Quant Data request failed",
       "IBKR request failed",
       null,
+      "Not asked: Yahoo Finance reported open interest for every contract",
     ]);
   });
 
@@ -1794,7 +1973,11 @@ describe("optionsChain source fallback", () => {
         )
     );
     setOptionsAnalyticsForTesting({ fetch: doFetch, minIntervalMs: 0 });
-    setOptionsChainForTesting({ now: () => NOW, yahoo: yahoo() });
+    setOptionsChainForTesting({
+      nasdaq: nasdaqOff(),
+      now: () => NOW,
+      yahoo: yahoo(),
+    });
     const api = apiFor(session("operator"), { quantData: QUANTDATA });
     const chain = await api.optionsChain.chain({ symbol: "DEMO" });
     const put = (strike: number) =>
@@ -1824,6 +2007,217 @@ describe("optionsChain source fallback", () => {
       openInterest: null,
       sources: { openInterest: null },
     });
+  });
+
+  it("open interest: Yahoo false 0 falls back to Nasdaq, skips Nasdaq on complete chains and non-OI endpoints, caches by (symbol, expiry), and never caches failures", async () => {
+    const zeroedYahoo = yahooFake(async () => ({
+      ...snapshot,
+      calls: snapshot.calls.map((quote) =>
+        quote.strike === 100 ? { ...quote, openInterest: 0 } : quote
+      ),
+      puts: snapshot.puts.map((quote) =>
+        quote.strike === 100 ? { ...quote, openInterest: 0 } : quote
+      ),
+    }));
+    let now = NOW;
+    const nasdaq = nasdaqFake(async (_symbol, expiry) => ({
+      expiry,
+      rows: [
+        { openInterest: 79_198, right: "call", strike: 100 },
+        { openInterest: 21_685, right: "put", strike: 100 },
+      ],
+    }));
+    setOptionsChainForTesting({
+      nasdaq,
+      now: () => now,
+      yahoo: zeroedYahoo,
+    });
+    const api = operator();
+
+    // Non-OI endpoints never call Nasdaq.
+    const listed = await api.optionsChain.expiries({ symbol: "DEMO" });
+    expect(listed.sources[3]).toEqual({
+      message: "Not asked: endpoint does not display open interest",
+      source: "nasdaq",
+      status: "off",
+    });
+    await api.optionsChain.expectedMove({ symbol: "DEMO" });
+    expect(nasdaq.read).toHaveBeenCalledTimes(0);
+
+    // Chain with Yahoo 0 calls Nasdaq once and fills both legs.
+    const nearest = await api.optionsChain.chain({ symbol: "DEMO" });
+    expect(atmCall(nearest)).toMatchObject({
+      openInterest: 79_198,
+      sources: { openInterest: "nasdaq" },
+    });
+    expect(nearest.rows.find((row) => row.strike === 100)?.put).toMatchObject({
+      openInterest: 21_685,
+      sources: { openInterest: "nasdaq" },
+    });
+    expect(nearest.sources[3]).toEqual({
+      message: null,
+      source: "nasdaq",
+      status: "used",
+    });
+    expect(nasdaq.read).toHaveBeenCalledTimes(1);
+
+    // Explicit expiry matching nearest reuses the (symbol, expiry) Nasdaq cache.
+    await api.optionsChain.chain({ expiry: "2026-11-06", symbol: "DEMO" });
+    expect(nasdaq.read).toHaveBeenCalledTimes(1);
+
+    // After TTL (61 s), Nasdaq is read again.
+    now = new Date(NOW.getTime() + 61_000);
+    await api.optionsChain.chain({ expiry: "2026-11-06", symbol: "DEMO" });
+    expect(nasdaq.read).toHaveBeenCalledTimes(2);
+
+    // Failed Nasdaq read is not cached and falls back to Quant Data (> 0) or null (never 0).
+    let failOnce = true;
+    const flakyNasdaq = nasdaqFake(async (_symbol, expiry) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new OptionsChainSourceError(
+          "UNAVAILABLE",
+          "Nasdaq options returned HTTP 503"
+        );
+      }
+      return {
+        expiry,
+        rows: [{ openInterest: 79_198, right: "call", strike: 100 }],
+      };
+    });
+    setOptionsChainForTesting({
+      nasdaq: flakyNasdaq,
+      now: () => NOW,
+      quantData: quantDataFake(async () => quantDataSnapshot),
+      yahoo: zeroedYahoo,
+    });
+    const firstTry = await operator().optionsChain.chain({ symbol: "DEMO" });
+    expect(firstTry.sources[3]).toEqual({
+      message: "Nasdaq options returned HTTP 503",
+      source: "nasdaq",
+      status: "failed",
+    });
+    expect(atmCall(firstTry)).toMatchObject({
+      openInterest: 2500,
+      sources: { openInterest: "quantdata" },
+    });
+    expect(firstTry.rows.find((row) => row.strike === 100)?.put).toMatchObject({
+      openInterest: null,
+      sources: { openInterest: null },
+    });
+    // Retry immediately hits Nasdaq again because failed reads are not cached.
+    const secondTry = await operator().optionsChain.chain({ symbol: "DEMO" });
+    expect(atmCall(secondTry)).toMatchObject({
+      openInterest: 79_198,
+      sources: { openInterest: "nasdaq" },
+    });
+    expect(flakyNasdaq.read).toHaveBeenCalledTimes(2);
+
+    // Complete Yahoo chain never invokes Nasdaq.
+    const neverAsked = nasdaqFake(async () => ({
+      expiry: "2026-11-06",
+      rows: [],
+    }));
+    setOptionsChainForTesting({
+      nasdaq: neverAsked,
+      now: () => NOW,
+      yahoo: yahoo(),
+    });
+    const complete = await operator().optionsChain.chain({ symbol: "DEMO" });
+    expect(complete.sources[3].status).toBe("off");
+    expect(neverAsked.read).toHaveBeenCalledTimes(0);
+
+    // Default (uninjected) Nasdaq source path + cache eviction beyond 200 entries.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () =>
+        json({
+          data: {
+            table: {
+              rows: [
+                {
+                  c_Openinterest: "79198",
+                  drillDownURL: null,
+                  expirygroup: "",
+                  p_Openinterest: "21685",
+                  strike: "100.00",
+                },
+              ],
+            },
+          },
+          status: { rCode: 200 },
+        })
+      );
+    setOptionsChainForTesting({ now: () => NOW, yahoo: zeroedYahoo });
+    const uninjectedApi = operator();
+    for (let index = 0; index < 201; index += 1)
+      await uninjectedApi.optionsChain.chain({ symbol: `SYM${index}` });
+    expect(fetchSpy).toHaveBeenCalledTimes(201);
+  });
+
+  it("open interest: stops waiting for another request's Nasdaq read that never settles and serves the chain without it", async () => {
+    // The first Nasdaq read models a read whose workerd request context ended: it stays pending.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const zeroedYahoo = yahooFake(async () => ({
+        ...snapshot,
+        calls: snapshot.calls.map((quote) =>
+          quote.strike === 100 ? { ...quote, openInterest: 0 } : quote
+        ),
+      }));
+      let calls = 0;
+      const nasdaq = nasdaqFake(async (_symbol, expiry) => {
+        calls += 1;
+        return calls === 1
+          ? await new Promise<OptionsOpenInterestSnapshot>(() => undefined)
+          : {
+              expiry,
+              rows: [{ openInterest: 79_198, right: "call", strike: 100 }],
+            };
+      });
+      setOptionsChainForTesting({ nasdaq, now: () => NOW, yahoo: zeroedYahoo });
+      const api = operator();
+      void api.optionsChain.chain({ symbol: "DEMO" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(nasdaq.read).toHaveBeenCalledTimes(1);
+      const waiting = api.optionsChain.chain({ symbol: "DEMO" });
+      let settled = false;
+      void waiting.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(1);
+      const second = api.optionsChain.chain({ symbol: "DEMO" });
+      await vi.advanceTimersByTimeAsync(9998);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const degraded = await waiting;
+      expect(degraded.sources[3]).toEqual({
+        message:
+          "Nasdaq open interest read did not finish in 10 s; chain shown without it",
+        source: "nasdaq",
+        status: "failed",
+      });
+      // Yahoo's false 0 is still not shown.
+      expect(atmCall(degraded)).toMatchObject({
+        openInterest: null,
+        sources: { openInterest: null },
+      });
+      // A second waiter on the same read finds the entry already dropped.
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(second).resolves.toMatchObject({
+        sources: [{}, {}, {}, { source: "nasdaq", status: "failed" }],
+      });
+      expect(nasdaq.read).toHaveBeenCalledTimes(1);
+      // The entry was dropped: the next request reads Nasdaq again.
+      const next = await api.optionsChain.chain({ symbol: "DEMO" });
+      expect(atmCall(next)).toMatchObject({
+        openInterest: 79_198,
+        sources: { openInterest: "nasdaq" },
+      });
+      return expect(nasdaq.read).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

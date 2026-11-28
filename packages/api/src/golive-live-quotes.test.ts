@@ -1,9 +1,12 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   bridgeQuotesReaderFor,
   createBridgeQuotesReader,
   GOLIVE_QUOTES_CACHE_MS,
+  GOLIVE_QUOTES_TIMEOUT_MS,
 } from "./server/golive-live-quotes.ts";
 
 const TOKEN = "t".repeat(40);
@@ -39,6 +42,12 @@ const reply = (legs: unknown[], status = 200) =>
       })
   );
 
+// Simulates a cancelled workerd request whose fetch and AbortSignal never settle.
+const neverSettlingResponse = (): Promise<Response> =>
+  new Promise<Response>(() => {
+    // Intentionally unsettled.
+  });
+
 describe("createBridgeQuotesReader", () => {
   it("labels a spread ibkr_live when both legs are live", async () => {
     const fetch = reply([leg(600), leg(610, { ask: 1.15, bid: 1.05 })]);
@@ -56,6 +65,7 @@ describe("createBridgeQuotesReader", () => {
     const [url, init = {}] = fetch.mock.calls[0] ?? [];
     expect(url).toBe(`${URL_}/quotes`);
     expect(init.method).toBe("POST");
+    expect(init.redirect).toBe("manual");
     expect(
       (init.headers as Record<string, string>)["x-vertex-bridge-token"]
     ).toBe(TOKEN);
@@ -128,6 +138,114 @@ describe("createBridgeQuotesReader", () => {
       ).toEqual([null]);
     expect(fetch).not.toHaveBeenCalled();
   });
+  it("sets redirect manual and refuses 3xx responses before reading JSON", async () => {
+    for (const status of [301, 302, 303, 307, 308]) {
+      const nullBodyFetch = vi.fn(
+        async (_url: string, _init?: RequestInit) =>
+          new Response(null, {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status,
+          })
+      );
+      expect(
+        await createBridgeQuotesReader(URL_, TOKEN, {
+          fetch: nullBodyFetch,
+        })([SPREAD])
+      ).toEqual([null]);
+      expect(nullBodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
+
+      const jsonSpy = vi.fn(async () => ({
+        asOf: AS_OF,
+        legs: [leg(600), leg(610)],
+        state: "complete",
+      }));
+      const bodyFetch = vi.fn(async (_url: string, _init?: RequestInit) => {
+        const response = new Response(
+          JSON.stringify({
+            asOf: AS_OF,
+            legs: [leg(600), leg(610)],
+            state: "complete",
+          }),
+          {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status,
+          }
+        );
+        vi.spyOn(response, "json").mockImplementation(jsonSpy);
+        return response;
+      });
+      expect(
+        await createBridgeQuotesReader(URL_, TOKEN, {
+          fetch: bodyFetch,
+        })([SPREAD])
+      ).toEqual([null]);
+      expect(bodyFetch.mock.calls[0]?.[1]?.redirect).toBe("manual");
+      expect(jsonSpy).not.toHaveBeenCalled();
+    }
+
+    const erroredBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("socket reset"));
+      },
+    });
+    expect(
+      await createBridgeQuotesReader(URL_, TOKEN, {
+        fetch: async () =>
+          new Response(erroredBody, {
+            headers: { location: "http://127.0.0.1:9999/steal" },
+            status: 302,
+          }),
+      })([SPREAD])
+    ).toEqual([null]);
+  });
+
+  it("does not follow a real loopback 307 redirect or forward the bridge token", async () => {
+    let quotesHits = 0;
+    let stealHits = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/steal") {
+        stealHits += 1;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            asOf: AS_OF,
+            legs: [leg(600), leg(610)],
+            state: "complete",
+          })
+        );
+        return;
+      }
+      if (
+        req.url === "/quotes" &&
+        req.method === "POST" &&
+        req.headers["x-vertex-bridge-token"] === TOKEN
+      ) {
+        quotesHits += 1;
+      }
+      const address = server.address() as AddressInfo;
+      res.writeHead(307, {
+        location: `http://127.0.0.1:${address.port}/steal`,
+      });
+      res.end();
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    try {
+      const address = server.address() as AddressInfo;
+      const read = createBridgeQuotesReader(
+        `http://127.0.0.1:${address.port}`,
+        TOKEN
+      );
+      expect(await read([SPREAD])).toEqual([null]);
+      expect(quotesHits).toBe(1);
+      expect(stealHits).toBe(0);
+    } finally {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
+  });
 
   it("reuses a spread quote for the cache window, then reads again", async () => {
     let time = Date.parse(AS_OF);
@@ -155,7 +273,10 @@ describe("createBridgeQuotesReader", () => {
     const [a, b] = await Promise.all([read([SPREAD]), read([SPREAD])]);
     expect([a, b]).toEqual([[null], [null]]);
     expect(fetch).toHaveBeenCalledTimes(1);
-    time += 10_000;
+    time += 9999;
+    expect(await read([SPREAD])).toEqual([null]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    time += 1;
     await read([SPREAD]);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
@@ -189,6 +310,158 @@ describe("createBridgeQuotesReader", () => {
       expect(fetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+
+  it("bounds cross-request waits on an orphaned in-flight read and evicts it on timeout", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let time = Date.parse(AS_OF);
+      let calls = 0;
+      const fetch = vi.fn((_url: string, _init?: RequestInit) => {
+        calls += 1;
+        if (calls === 1) return neverSettlingResponse();
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              asOf: AS_OF,
+              legs: [leg(600), leg(610)],
+              state: "complete",
+            }),
+            { status: 200 }
+          )
+        );
+      });
+      const read = createBridgeQuotesReader(URL_, TOKEN, {
+        fetch,
+        now: () => new Date(time),
+      });
+
+      const first = read([SPREAD]);
+      time += 10_000;
+      const second = read([SPREAD]);
+      const third = read([SPREAD]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      // Joined 10 s after the first caller: remaining window is GOLIVE_QUOTES_TIMEOUT_MS - 10 s.
+      await vi.advanceTimersByTimeAsync(GOLIVE_QUOTES_TIMEOUT_MS - 10_001);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await second).toEqual([null]);
+      expect(await third).toEqual([null]);
+
+      // The orphaned entry was evicted, so a new caller starts a fresh bridge read immediately.
+      const fourth = await read([SPREAD]);
+      expect(fourth[0]?.source).toBe("ibkr_live");
+      expect(fetch).toHaveBeenCalledTimes(2);
+
+      // When the original caller's own timer later expires, it must not evict the newer live entry.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(await first).toEqual([null]);
+      expect(vi.getTimerCount()).toBe(0);
+
+      const fifth = await read([SPREAD]);
+      expect(fifth[0]?.source).toBe("ibkr_live");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("evicts an unsettled in-flight entry once its timeout window has elapsed", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let time = Date.parse(AS_OF);
+      let calls = 0;
+      const fetch = vi.fn((_url: string, _init?: RequestInit) => {
+        calls += 1;
+        if (calls === 1) return neverSettlingResponse();
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              asOf: AS_OF,
+              legs: [leg(600), leg(610)],
+              state: "complete",
+            }),
+            { status: 200 }
+          )
+        );
+      });
+      const read = createBridgeQuotesReader(URL_, TOKEN, {
+        fetch,
+        now: () => new Date(time),
+        timeoutMs: 200,
+      });
+
+      const orphaned = read([SPREAD, SPREAD]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      // Past timeoutMs (well inside GOLIVE_QUOTES_CACHE_MS): sweep evicts the hung entry immediately.
+      time += 200;
+      const recovered = await read([SPREAD, SPREAD]);
+      expect(recovered.map((quote) => quote?.source)).toEqual([
+        "ibkr_live",
+        "ibkr_live",
+      ]);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      // Original hung call settles via its own waitAtMost timers without evicting the recovered hit.
+      await vi.advanceTimersByTimeAsync(200);
+      expect(await orphaned).toEqual([null, null]);
+      expect(vi.getTimerCount()).toBe(0);
+      expect((await read([SPREAD]))[0]?.source).toBe("ibkr_live");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns fresh quotes alongside a timed-out shared read and clears timers on settlement", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let time = Date.parse(AS_OF);
+      const other = spreadAt(620);
+      let resolveSecond!: (response: Response) => void;
+      const fetch = vi.fn((_url: string, init?: RequestInit) => {
+        const { legs } = JSON.parse(String(init?.body)) as {
+          legs: { strike: number }[];
+        };
+        if (legs[0]?.strike === 600) return neverSettlingResponse();
+        return new Promise<Response>((resolve) => {
+          resolveSecond = resolve;
+        });
+      });
+      const read = createBridgeQuotesReader(URL_, TOKEN, {
+        fetch,
+        now: () => new Date(time),
+        timeoutMs: 500,
+      });
+
+      const hung = read([SPREAD]);
+      // Simulate slight backward clock skew: wait stays clamped to timeoutMs.
+      time -= 5000;
+      const mixed = read([SPREAD, other]);
+      const sharedOther = read([other]);
+
+      resolveSecond(
+        new Response(
+          JSON.stringify({
+            asOf: AS_OF,
+            legs: [leg(620), leg(630)],
+            state: "complete",
+          }),
+          { status: 200 }
+        )
+      );
+      expect((await sharedOther)[0]?.source).toBe("ibkr_live");
+
+      await vi.advanceTimersByTimeAsync(500);
+      const [firstQuote, secondQuote] = await mixed;
+      expect(firstQuote).toBeNull();
+      expect(secondQuote?.source).toBe("ibkr_live");
+      expect(await hung).toEqual([null]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

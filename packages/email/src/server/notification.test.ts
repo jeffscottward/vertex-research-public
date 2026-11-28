@@ -69,7 +69,7 @@ describe("additive notification email port", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "omit",
-        redirect: "error",
+        redirect: "manual",
         cache: "no-store",
         headers: {
           Authorization: "Bearer re_test_only",
@@ -200,6 +200,13 @@ describe("additive notification email port", () => {
     expect(await h.port.send(input, signal())).toEqual({
       acceptance: "unknown",
     });
+    // redirect "manual" hands a 3xx back as-is: unknown, never followed.
+    h.fetcher.mockResolvedValueOnce(
+      Response.redirect("https://example.test/", 302)
+    );
+    expect(await h.port.send(input, signal())).toEqual({
+      acceptance: "unknown",
+    });
     h.fetcher.mockResolvedValueOnce(Response.json({ id: "bad\nidentifier" }));
     expect(await h.port.send(input, signal())).toEqual({
       acceptance: "unknown",
@@ -210,7 +217,7 @@ describe("additive notification email port", () => {
     expect(await h.port.send(input, signal())).toEqual({
       acceptance: "unknown",
     });
-    return expect(h.fetcher).toHaveBeenCalledTimes(4);
+    return expect(h.fetcher).toHaveBeenCalledTimes(5);
   });
 
   it("bounds declared and streamed response size", async () => {

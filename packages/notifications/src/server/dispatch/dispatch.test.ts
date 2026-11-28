@@ -208,7 +208,7 @@ describe("one control notification handler", () => {
     const request = h.fetcher.mock.calls[0]!;
     expect(request[0]).toBe("https://notify.example/");
     expect(request[1]).toMatchObject({
-      redirect: "error",
+      redirect: "manual",
       credentials: "omit",
     });
     const body = JSON.parse(request[1].body as string);

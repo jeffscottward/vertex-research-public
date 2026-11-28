@@ -54,6 +54,7 @@ Operator (chat) -> agents -> tasks (+ events) -> artifacts (papers, strategies, 
    - Regime-Based Portfolio Allocation Using HMMs and Reinforcement Learning (arXiv 2605.27848v1).
    - Downside Risk Reduction Using Regime-Switching Signals: A Statistical Jump Model Approach (arXiv 2402.05272v3).
    - How To Use The Hidden Markov Model To Detect Market Regimes (Ruuj article; educational, not a paper).
+   Migration `0103_research_papers_reel_links.sql` (guarded rollback `packages/db/rollback/0103_research_papers_reel_links.down.sql`) additionally seeds three learning-material article links from reel `DfDt0GDR8Oa` (`jpmorganchase/python-training`, `quantopian/research_public`, `firmai/financial-machine-learning`; `ON CONFLICT DO NOTHING` plus case-insensitive `source_url` duplicate check).
    SSRN papers are added by the operator (URL or uploaded PDF); automated SSRN downloading stays off because SSRN's terms prohibit automated queries.
 6. **Navigation**: primary = Mission control, Chat, Agent runs, Papers, Watchlist. Scoped governed readers move to a secondary "Records" group. Starter template pages leave primary navigation.
 

@@ -119,6 +119,30 @@ describe("DraftsAndOrders", () => {
       "No drafts. IBKR orders: only the owner can read them."
     );
   });
+  it("skips the orders request for non-owners and still lists open drafts", async () => {
+    let finish: (value: GoLiveQueueOutput) => void = () => undefined;
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <DraftsAndOrders
+          gateway={{
+            drafts: () => new Promise((resolve) => (finish = resolve)),
+          }}
+        />
+      );
+    });
+    expect(container.textContent).toContain("Checking drafts…");
+    expect(container.textContent).not.toContain("Checking drafts and IBKR");
+    await act(async () => finish(QUEUE));
+    expect(container.textContent).toContain(
+      "1 open draft. IBKR orders: only the owner can read them."
+    );
+    expect(
+      container.querySelector('a[href="/drafts#draft-d1"]')
+    ).not.toBeNull();
+  });
 
   it("lists no orders in simulated mode and says IBKR was not read", async () => {
     const view = await render({

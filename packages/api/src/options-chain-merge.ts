@@ -1,7 +1,8 @@
-// Pure merge of the three options chain sources into one optionsChain.* response: Quant Data
-// analytics first, then IBKR live quotes, then the Yahoo Finance snapshot. Each merged value
-// names the source it came from. The order per field is OPTIONS_CHAIN_PRIORITY; nothing else in the code
-// decides which source wins. No I/O and no clock reads.
+// Pure merge of the options chain sources into one optionsChain.* response: Quant Data
+// analytics first, then IBKR live quotes, then Yahoo Finance, with Nasdaq as conditional
+// open-interest fallback. Each merged value names the source it came from. The order per
+// field is OPTIONS_CHAIN_PRIORITY; nothing else in the code decides which source wins.
+// No I/O and no clock reads.
 
 import {
   OPTIONS_CHAIN_MAX_EXPIRIES,
@@ -10,6 +11,7 @@ import {
   type OptionContract,
   type OptionsChainExpiriesOutput,
   type OptionsChainOutput,
+  type OptionsChainPrimarySourceId,
   type OptionsChainRow,
   type OptionsChainSourceId,
 } from "./contracts/options-chain.ts";
@@ -26,6 +28,7 @@ import type {
   OptionsAnalyticsSnapshot,
   OptionsChainSnapshot,
   OptionsLiveQuote,
+  OptionsOpenInterestSnapshot,
   OptionsQuoteSnapshot,
 } from "./server/options-chain-source.ts";
 
@@ -42,13 +45,12 @@ export const OPTIONS_CHAIN_PRIORITY = {
   // carry the bid and ask at the time of a past trade, and that is never shown as a quote.
   quote: ["ibkr", "yahoo"],
   iv: ["quantdata", "yahoo"],
-  // Yahoo first: the exception to "Quant Data first". Quant Data has no chain open interest,
-  // only the value on an order-flow print. In a check against Yahoo and the Nasdaq option
-  // chain, that value was 0 or lower than both for about a third of the contracts, and Yahoo
-  // was equal to Nasdaq (numbers in docs/data-sources-and-platform-roles.md, "Options chain
-  // on /stock/<SYMBOL>"). A print value fills a contract that Yahoo does not have, for example
-  // on the day it expires. Yahoo's own 0 is a reported value and is shown.
-  openInterest: ["yahoo", "quantdata"],
+  // Yahoo first (positive values only), then Nasdaq fallback, then Quant Data print value
+  // (positive values only). Both Yahoo Finance and Quant Data prints can report false 0s
+  // for contracts with real OCC open interest (numbers in
+  // docs/vertex-rebuild/designs/vertex-chain-oi-yahoo-false-zero/plan.md). Open interest
+  // below 1 is read as not reported so fallback fills it or leaves it null ("no OI").
+  openInterest: ["yahoo", "nasdaq", "quantdata"],
   // model: Black-Scholes from the chosen IV.
   delta: ["quantdata", "model"],
   spot: ["quantdata", "ibkr", "yahoo"],
@@ -59,8 +61,8 @@ export const OPTIONS_CHAIN_PRIORITY = {
       ContractSources[Field]
     >[];
   } & {
-    spot: readonly OptionsChainSourceId[];
-    expiries: readonly OptionsChainSourceId[];
+    spot: readonly OptionsChainPrimarySourceId[];
+    expiries: readonly OptionsChainPrimarySourceId[];
   }
 >;
 
@@ -74,20 +76,25 @@ export type OptionsSourceRead<Data> =
   | Readonly<{ status: "ok"; data: Data }>
   | Readonly<{ status: "failed" | "off"; message: string }>;
 
-export type OptionsChainReads = Readonly<{
+export type OptionsPrimaryChainReads = Readonly<{
   symbol: string;
   quantdata: OptionsSourceRead<OptionsAnalyticsSnapshot>;
   ibkr: OptionsSourceRead<OptionsQuoteSnapshot>;
   yahoo: OptionsSourceRead<OptionsChainSnapshot>;
 }>;
 
+export type OptionsChainReads = OptionsPrimaryChainReads &
+  Readonly<{
+    nasdaq: OptionsSourceRead<OptionsOpenInterestSnapshot>;
+  }>;
+
 const SOURCE_MESSAGE_MAX = 200;
 const EMPTY_MESSAGES: Readonly<Record<OptionsChainSourceId, string>> = {
   ibkr: "IBKR answered without a live quote",
+  nasdaq: "Nasdaq has no open interest values for this expiry",
   quantdata: "Quant Data answered without a usable value",
   yahoo: "Yahoo Finance has no option rows for this expiry",
 };
-// How the notes name the source of a value.
 const NOTE_NAMES: Readonly<Record<OptionsChainSourceId | "model", string>> = {
   ...OPTIONS_CHAIN_SOURCE_LABELS,
   ibkr: `${OPTIONS_CHAIN_SOURCE_LABELS.ibkr} live quotes`,
@@ -118,7 +125,7 @@ export const liveQuotes = (
  * of the service): without it the service goes on to the next expiry it can try.
  */
 export const hasChain = (
-  reads: OptionsChainReads,
+  reads: OptionsPrimaryChainReads,
   expiry: string,
   allowEmpty: boolean
 ): boolean => {
@@ -174,13 +181,29 @@ type ContractIndex = Readonly<{
   live: ReadonlyMap<string, OptionsLiveQuote>;
   analytics: ReadonlyMap<string, OptionsAnalyticsRow>;
   snapshot: ReadonlyMap<string, OptionQuote>;
+  nasdaqOpenInterest: ReadonlyMap<string, number>;
 }>;
+
+const positiveOpenInterest = (
+  value: number | null | undefined
+): number | null => {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(value) ||
+    value < 1 ||
+    value > Number.MAX_SAFE_INTEGER
+  )
+    return null;
+  return Math.trunc(value);
+};
 
 const indexContracts = (
   expiry: string | null,
   ibkr: OptionsQuoteSnapshot | null,
   quantData: OptionsAnalyticsSnapshot | null,
-  yahoo: OptionsChainSnapshot | null
+  yahoo: OptionsChainSnapshot | null,
+  nasdaq: OptionsOpenInterestSnapshot | null
 ): ContractIndex => {
   const live = new Map<string, OptionsLiveQuote>();
   if (ibkr?.expiry === expiry)
@@ -197,7 +220,42 @@ const indexContracts = (
     for (const quote of yahoo.puts)
       snapshot.set(contractKey("put", quote.strike), quote);
   }
-  return { analytics, live, snapshot };
+  const nasdaqOpenInterest = new Map<string, number>();
+  if (nasdaq?.expiry === expiry)
+    for (const row of nasdaq.rows) {
+      const count = positiveOpenInterest(row.openInterest);
+      if (count !== null)
+        nasdaqOpenInterest.set(contractKey(row.right, row.strike), count);
+    }
+  return { analytics, live, nasdaqOpenInterest, snapshot };
+};
+
+/**
+ * Reason Nasdaq open-interest fallback is skipped for `expiry`, or `null` when Nasdaq should
+ * be queried because at least one contract of `expiry` lacks a positive Yahoo open interest.
+ */
+export const nasdaqSkipReason = (
+  reads: OptionsPrimaryChainReads,
+  expiry: string | null
+): string | null => {
+  if (expiry === null) return "Not asked: no option contracts for this expiry";
+  const index = indexContracts(
+    expiry,
+    liveQuotes(reads.ibkr),
+    dataOf(reads.quantdata),
+    dataOf(reads.yahoo),
+    null
+  );
+  const keys = new Set<string>([
+    ...index.live.keys(),
+    ...index.analytics.keys(),
+    ...index.snapshot.keys(),
+  ]);
+  if (keys.size === 0) return "Not asked: no option contracts for this expiry";
+  for (const key of keys)
+    if (positiveOpenInterest(index.snapshot.get(key)?.openInterest) === null)
+      return null;
+  return "Not asked: Yahoo Finance reported open interest for every contract";
 };
 
 type ChainFacts = Readonly<{
@@ -259,8 +317,9 @@ const mergeContract = (
     yahoo: yahooRow?.iv,
   });
   const openInterest = pick(OPTIONS_CHAIN_PRIORITY.openInterest, {
-    quantdata: analyticsRow?.openInterest,
-    yahoo: yahooRow?.openInterest,
+    nasdaq: index.nasdaqOpenInterest.get(key),
+    quantdata: positiveOpenInterest(analyticsRow?.openInterest),
+    yahoo: positiveOpenInterest(yahooRow?.openInterest),
   });
   const model =
     facts.spot === null || iv.value === null
@@ -355,16 +414,16 @@ const YAHOO_DELAY_NOTE =
   "Yahoo Finance values can be delayed by 15 minutes or more; its bid and ask can show 0 outside market hours.";
 const FLOW_FIRST_PAGE_NOTE =
   "Only the first provider page of prints was read: flow totals can be too low and contracts can be missing.";
-// OPTIONS_CHAIN_PRIORITY.openInterest and the 0 rule of options-chain-quantdata.ts, said to the
-// reader. It shares the IV and open interest note: the output contract allows at most 10 notes
-// of at most 300 characters, and 10 notes can already occur.
-const PRINT_OPEN_INTEREST_NOTE =
-  "A Quant Data print value is used only when no other source has the open interest. A print value of 0 is read as not reported.";
+// Open-interest zero and Quant Data print rules, said to the reader. Shares the IV and
+// open interest note so total notes stay <= 10 and every note stays <= 300 characters
+// (note: the age note above is already 297/300 chars; never append Nasdaq text to `age`).
+const ZERO_OPEN_INTEREST_NOTE = "Open interest of 0 is read as not reported.";
+const PRINT_OPEN_INTEREST_NOTE = "Quant Data print OI fills gaps only.";
 
 type NoteFacts = Readonly<{
   contracts: readonly OptionContract[];
-  spotSource: OptionsChainSourceId | null;
-  expiriesSources: readonly OptionsChainSourceId[];
+  spotSource: OptionsChainPrimarySourceId | null;
+  expiriesSources: readonly OptionsChainPrimarySourceId[];
   // Delayed Yahoo market values are in the response.
   yahooValues: boolean;
   // Quant Data has contracts of this expiry.
@@ -426,8 +485,8 @@ const chainNotes = (facts: NoteFacts): string[] => {
     `${spotNote}${expiriesNote}Bid and ask: ${split("quote")} (of ${contracts.length} contracts).`,
     ...optional(age !== "", age),
     `IV: ${split("iv")}. Open interest: ${split("openInterest")}.${
-      facts.quantDataRows ? ` ${PRINT_OPEN_INTEREST_NOTE}` : ""
-    }`,
+      contracts.length > 0 ? ` ${ZERO_OPEN_INTEREST_NOTE}` : ""
+    }${facts.quantDataRows ? ` ${PRINT_OPEN_INTEREST_NOTE}` : ""}`,
     ...optional(
       facts.quantDataRows,
       `Quant Data flow and print open interest come from the order-flow prints of the last ${OPTIONS_CHAIN_FLOW_HOURS} hours, so a contract without a print has neither.${
@@ -504,6 +563,7 @@ const merge = (
   const ibkr = liveQuotes(reads.ibkr);
   const quantData = dataOf(reads.quantdata);
   const yahoo = dataOf(reads.yahoo);
+  const nasdaq = dataOf(reads.nasdaq);
   const trailingYield = yahoo?.dividendYield ?? null;
   const dividendYield = trailingYield ?? 0;
 
@@ -514,7 +574,9 @@ const merge = (
   });
   // The expiry list is the union of the lists; a source that gave one of the shown expiries
   // is named, in priority order.
-  const listed: Readonly<Record<OptionsChainSourceId, readonly string[]>> = {
+  const listed: Readonly<
+    Record<OptionsChainPrimarySourceId, readonly string[]>
+  > = {
     ibkr: ibkr?.expiries ?? [],
     quantdata: quantData?.expiries ?? [],
     yahoo: yahoo?.expiries ?? [],
@@ -529,13 +591,15 @@ const merge = (
   );
   // The time of the spot quote, from the source of the spot. Quant Data sends none: its
   // client result does not carry the time the (cached) answer was fetched.
-  const quoteTimes: Readonly<Record<OptionsChainSourceId, string | null>> = {
+  const quoteTimes: Readonly<
+    Record<OptionsChainPrimarySourceId, string | null>
+  > = {
     ibkr: ibkr?.asOf ?? null,
     quantdata: null,
     yahoo: yahoo?.quoteTime ?? null,
   };
 
-  const index = indexContracts(expiry, ibkr, quantData, yahoo);
+  const index = indexContracts(expiry, ibkr, quantData, yahoo, nasdaq);
   const years = expiry === null ? 0 : yearsToExpiry(expiry, now);
   const strikes = shownStrikes(
     [
@@ -600,6 +664,7 @@ const merge = (
         sourceStatus("quantdata", reads.quantdata, used, quantData?.warning),
         sourceStatus("ibkr", reads.ibkr, used, dataOf(reads.ibkr)?.warning),
         sourceStatus("yahoo", reads.yahoo, used, null),
+        sourceStatus("nasdaq", reads.nasdaq, used, null),
       ],
       spot: spot.value,
       spotSource: spot.source,

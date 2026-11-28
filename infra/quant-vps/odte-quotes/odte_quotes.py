@@ -18,12 +18,19 @@ runs at 17:45 and 19:00 ET resume a stopped one. Both runs must be done on the e
    SPY-<YYYYMMDD>-<C|P>-<strike>.csv.gz per contract.
 3. manifest.csv (one line per stored contract) and status.txt (key=value lines; state=complete|no_expiry|
    partial). A contract inside floor(low)..ceil(high) without BID or ASK bars (IBKR answers "no data" once
-   it dropped the contract) keeps the day partial; empty wing contracts are counted in empty_wings.
+   it dropped the contract) keeps the day partial; empty wing contracts are counted in empty_wings. A stale
+   session also keeps the day partial: at least 20% of the contracts inside the range are frozen (a run of
+   30+ session minutes with the same bid and ask opens, ask above $0.10, close = open) or crossed (10+
+   session bars with ask open < bid open). This is the rule of Amendment 2026-11-28 (f)-(g) that the
+   research loader FileQuoteBook uses to exclude a day; IBKR sent such an afternoon on 2026-11-25. Fewer
+   stale contracts leave the day complete; status.txt counts them in stale_in_range.
 One request in flight, request starts at least --spacing seconds apart (default 30 s, 20 per 10 min). The
 QuantVPS IB gateway also serves vertex-history (client 77, at most 6 per 120 s = 30 per 10 min), and IBKR
 allows 60 historical requests per 10 min, so both together stay at 50. The first IBKR error other than
 "no data" (pacing violation, lost connection, ...) stops the day with state=partial and exit 1; the next
-run resumes and asks only for contracts not stored with both sides.
+run resumes and asks only for contracts not stored with both sides, plus every frozen or crossed contract
+(judged from its stored file; a new answer without BID or ASK bars leaves the stored file in place). A
+stored file that is missing or cannot be read is asked for again, and in range it keeps the day partial.
 
 `check`: for each weekday of the last --days days (default 7) whose check time (20:30 ET) has passed,
 a day without state complete or no_expiry (including no folder) is a missed day. It posts one #omp-alerts
@@ -46,6 +53,7 @@ import sys
 import threading
 import time
 import urllib.request
+import zlib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -67,6 +75,14 @@ COLLECTION_START = date(2026, 11, 19)  # first collected session; `check` ignore
 MANIFEST_FIELDS = ["file", "right", "strike", "con_id", "bid_bars", "ask_bars", "first_epoch", "last_epoch"]
 QUOTE_FIELDS = ["epoch", "bid_open", "bid_high", "bid_low", "bid_close",
                 "ask_open", "ask_high", "ask_low", "ask_close"]
+# Stale-quote rule of Amendment 2026-11-28 (f)-(g) in docs/specs/strategies/noise-band-intraday-momentum.md. The
+# research loader (services/research/strategies/noise_band_0dte.py) has the same numbers; its name for
+# STALE_CROSSED_OPENS is STALE_CROSSED_CONTRACT_MINUTES. This script is deployed alone to /opt/vertex-odte-quotes, so
+# it keeps its own copy; services/research/tests/test_noise_band_0dte.py checks that both copies agree.
+STALE_FLAT_MINUTES = 30  # a contract is frozen with a run of this many flat session minutes ...
+STALE_ASK_FLOOR = 0.10  # ... whose ask open is above this (decaying far-OTM penny options stay flat legally)
+STALE_CROSSED_OPENS = 10  # a contract is crossed with this many session bars whose ask open < bid open
+STALE_DAY_FRACTION = 0.20  # a day is a stale session when this share of its in-range contracts is frozen or crossed
 
 
 class NoData(Exception):
@@ -95,14 +111,63 @@ class Source(Protocol):
 
 # ---------------------------------------------------------------------------------------------- pure logic
 
+def session_open(day: date) -> int:
+    """Epoch seconds of 09:30 New York time on `day`."""
+    return int(datetime(day.year, day.month, day.day, 9, 30, tzinfo=NY).timestamp())
+
+
 def session_range(bars: Iterable[Bar], day: date) -> tuple[float, float] | None:
     """Low and high of the 1-min bars that start from 09:30 to 15:59 New York time on `day`."""
-    start = datetime(day.year, day.month, day.day, 9, 30, tzinfo=NY).timestamp()
+    start = session_open(day)
     end = start + 390 * 60
     rows = [b for b in bars if start <= b[0] < end]
     if not rows:
         return None
     return min(float(b[3]) for b in rows), max(float(b[2]) for b in rows)
+
+
+def quote_health(rows: Iterable[Sequence[str]], day: date) -> tuple[int, int]:
+    """(crossed opens, longest flat run in minutes) of one contract's quote rows (QUOTE_FIELDS order, as merge_quotes
+    writes them), over the bars that start at or after 09:30 New York time and have both a bid and an ask open.
+    Same rule as FileQuoteBook (Amendment 2026-11-28 (f)): a crossed open has ask open < bid open; a flat run is
+    consecutive minutes with the same (bid open, ask open), ask open > STALE_ASK_FLOOR and close = open on both
+    sides (a blank close counts as equal). A missing minute ends a run."""
+    start = session_open(day)
+    bars: dict[int, Sequence[str]] = {}
+    for row in rows:
+        if not row[1] or not row[5]:
+            continue
+        minute, rest = divmod(int(row[0]) - start, 60)
+        if minute >= 0 and rest == 0:
+            bars[minute] = row
+    crossed = longest = run = 0
+    prev: tuple[int, float, float] | None = None
+    for minute in sorted(bars):
+        row = bars[minute]
+        bid, ask = float(row[1]), float(row[5])
+        crossed += ask < bid
+        flat = ask > STALE_ASK_FLOOR and (not row[4] or float(row[4]) == bid) and (not row[8] or float(row[8]) == ask)
+        run = run + 1 if flat and prev == (minute - 1, bid, ask) else int(flat)
+        longest = max(longest, run)
+        prev = (minute, bid, ask)
+    return crossed, longest
+
+
+def is_stale(health: tuple[int, int]) -> bool:
+    """quote_health result -> frozen (a flat run of STALE_FLAT_MINUTES or more) or crossed (STALE_CROSSED_OPENS or
+    more crossed opens)."""
+    crossed, longest = health
+    return longest >= STALE_FLAT_MINUTES or crossed >= STALE_CROSSED_OPENS
+
+
+def file_health(path: Path, day: date) -> tuple[int, int] | None:
+    """quote_health of a stored contract file (written by write_gz_csv with the QUOTE_FIELDS header); None when the
+    file is missing or cannot be read (for example cut short by a full disk), so the caller treats it as not stored."""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
+            return quote_health(list(csv.reader(f))[1:], day)
+    except (OSError, EOFError, zlib.error, ValueError, IndexError, csv.Error):  # zlib.error: damaged deflate data
+        return None
 
 
 def select_contracts(contracts: Sequence[OptionContract], low: float, high: float,
@@ -202,7 +267,8 @@ def write_status(day_dir: Path, **fields: object) -> None:
 
 def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[[str], None] = print,
             now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> int:
-    """Collect one day. Returns the exit code: 0 complete, no_expiry or too early, 1 partial (stopped on an error).
+    """Collect one day. Returns the exit code: 0 complete, no_expiry or too early, 1 partial (stopped on an error,
+    an in-range contract without BID or ASK bars, or a stale session).
     Today is collected only from 16:15 New York time, so a catch-up run before the close never stores a part day.
     `connect` opens the IBKR session only after those checks, so a failed connection never downgrades a day that
     is already complete or no_expiry."""
@@ -253,10 +319,13 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
     low, high = rng
     wanted = select_contracts(listed, low, high)
     log(f"{day}: SPY low {low:g} high {high:g}; {len(wanted)} contracts, {len(manifest)} already stored")
-    for c in wanted:
+    for c in wanted:  # nearest the middle of the day's range first (select_contracts)
         name = contract_file(day, c)
-        if name in manifest and (day_dir / name).exists() and has_both_sides(manifest[name]):
+        stored = name in manifest and has_both_sides(manifest[name])
+        health = file_health(day_dir / name, day) if stored else None
+        if health is not None and not is_stale(health):
             continue
+        stored = health is not None  # a missing or unreadable file is asked again like a contract never stored
         sides: dict[str, list[Bar]] = {}
         for what in ("BID", "ASK"):
             requests += 1
@@ -266,6 +335,9 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
                 sides[what] = []
             except IbError as e:
                 return stop(f"{name} {what}: {e}", low=f"{low:g}", high=f"{high:g}")
+        if stored and not (sides["BID"] and sides["ASK"]):
+            log(f"{day}: {name}: no BID or ASK bars on the new request; the stored frozen/crossed file stays")
+            continue
         rows = merge_quotes(sides["BID"], sides["ASK"])
         write_gz_csv(day_dir / name, QUOTE_FIELDS, rows)
         manifest[name] = {"file": name, "right": c.right, "strike": strike_text(c.strike), "con_id": str(c.con_id),
@@ -274,17 +346,30 @@ def collect(connect: Callable[[], Source], root: Path, day: date, log: Callable[
         write_manifest(day_dir, manifest)
     write_manifest(day_dir, manifest)
     # IBKR answers "no data" when it has dropped an expired contract's bars. A contract the day traded through
-    # (strike inside the day's whole-dollar range) without BID or ASK bars therefore keeps the day partial, so
-    # the check alerts and the next run asks again. Wing strikes may stay empty.
+    # (strike inside the day's whole-dollar range) without BID or ASK bars, or without a readable file, therefore
+    # keeps the day partial, so the check alerts and the next run asks again. Wing strikes may stay empty.
+    core = sorted(n for n, row in manifest.items() if math.floor(low) <= float(row["strike"]) <= math.ceil(high))
     empty = [n for n, row in manifest.items() if not has_both_sides(row)]
-    core_empty = [n for n in empty if math.floor(low) <= float(manifest[n]["strike"]) <= math.ceil(high)]
+    health_of = {n: file_health(day_dir / n, day) for n in core}
+    core_empty = [n for n in core if not has_both_sides(manifest[n]) or health_of[n] is None]
     if core_empty:
-        return stop(f"{len(core_empty)} contracts inside the day's range have no BID or ASK bars, e.g. {core_empty[0]}",
-                    low=f"{low:g}", high=f"{high:g}")
+        return stop(f"{len(core_empty)} contracts inside the day's range have no BID or ASK bars or no readable file, "
+                    f"e.g. {core_empty[0]}", low=f"{low:g}", high=f"{high:g}")
+    # IBKR can also answer with an afternoon of frozen or crossed bars (2026-11-25: 37 of 50 in-range contracts; each
+    # frozen one stopped changing 2 h 23 min to 2 h 33 min before its file was written). A day that the stale-session
+    # rule of FileQuoteBook would exclude therefore stays partial, and the next run (17:45 or 19:00 ET) asks again for
+    # every frozen or crossed contract.
+    stale = [n for n in core if is_stale(health_of[n])]
+    if core and len(stale) / len(core) >= STALE_DAY_FRACTION:
+        return stop(f"stale session: {len(stale)} of {len(core)} contracts inside the day's range are frozen "
+                    f"(>= {STALE_FLAT_MINUTES} min flat above ${STALE_ASK_FLOOR:.2f}) or crossed "
+                    f"(>= {STALE_CROSSED_OPENS} crossed opens), e.g. {stale[0]}",
+                    low=f"{low:g}", high=f"{high:g}", stale_in_range=len(stale))
     write_status(day_dir, state="complete", low=f"{low:g}", high=f"{high:g}", contracts=len(manifest),
-                 empty_wings=len(empty), requests=requests, finished_utc=now().isoformat(timespec="seconds"))
-    log(f"{day}: complete, {len(manifest)} contracts ({len(empty)} wing contracts without bars), "
-        f"{requests} requests this run")
+                 empty_wings=len(empty), stale_in_range=len(stale), requests=requests,
+                 finished_utc=now().isoformat(timespec="seconds"))
+    log(f"{day}: complete, {len(manifest)} contracts ({len(empty)} wing contracts without bars, {len(stale)} in-range "
+        f"contracts frozen or crossed), {requests} requests this run")
     return 0
 
 

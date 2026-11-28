@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Deploy collect.py (2.3.0: status-v2 orders & fills from ibkr-monitor.service) on QuantVPS
-# and retire the transitional vertex-ibkr-open-orders-refresh.{service,timer} units.
+# Deploy collect.py (2.4.0: status-v2 positions, orders, fills & equity from ibkr-monitor.service)
+# on QuantVPS and retire any transitional vertex-ibkr-open-orders-refresh.{service,timer} units.
 # Run as root on QuantVPS outside market hours (after 16:00 ET or before 08:30 ET).
 # Installs collect.py only and retires only the transitional open-orders timer AFTER verifying
-# live status-v2 orders and fills from ibkr-monitor.service. Never touches trading units,
-# ibkr-monitor.service, Nautilus, IB Gateway, watchdog, compose, Caddy, or vertex-web.
+# live status-v2 positions, orders, fills, and equity from ibkr-monitor.service. Never touches
+# trading units, ibkr-monitor.service, Nautilus, IB Gateway, watchdog, compose, Caddy, or vertex-web.
 set -euo pipefail
 SRC_DIR="${1:-$(cd "$(dirname "$0")" && pwd)}"
 # market-hours-guard:start
@@ -30,7 +30,7 @@ STAGE=$(mktemp -d /tmp/vx-status-ibkr-monitor-XXXXXX)
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/pub" "$STAGE/priv"
 if ! python3 "$SRC_DIR/collect.py" --v2 --out "$STAGE/pub" --v2-out "$STAGE/priv" --verify-ibkr-monitor; then
-  echo "preflight dry-run failed (ibkr-monitor orders/fills not fresh); nothing changed"
+  echo "preflight dry-run failed (ibkr-monitor positions/orders/fills/equity not fresh); nothing changed"
   exit 4
 fi
 

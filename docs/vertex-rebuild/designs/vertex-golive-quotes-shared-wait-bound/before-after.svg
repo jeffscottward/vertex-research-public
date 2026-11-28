@@ -1,0 +1,1037 @@
+<svg
+  height="720"
+  viewBox="0 0 1280 720"
+  width="1280"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>Before vs after: golive-live-quotes waitAtMost bound</title>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="redBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#991b1b" />
+    </linearGradient>
+    <linearGradient id="greenBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <linearGradient id="amberBar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#a16207" />
+    </linearGradient>
+    <marker
+      id="arrowRed"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#4ade80" />
+    </marker>
+    <marker
+      id="arrowGold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#facc15" />
+    </marker>
+    <marker
+      id="arrowMuted"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <!-- Dark background -->
+  <rect fill="url(#bg)" height="720" width="1280" />
+
+  <!-- Header -->
+  <text
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="26"
+    font-weight="700"
+    x="48"
+    y="54"
+  >
+    golive-live-quotes: Bounded Cross-Request Wait (waitAtMost)
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+    x="48"
+    y="80"
+  >
+    Cloudflare workerd cancelled-request hazard on shared module-level bridge
+    quote cache
+  </text>
+  <line stroke="#1e293b" stroke-width="1.5" x1="48" x2="1232" y1="98" y2="98" />
+
+  <!-- ================= BEFORE PANEL (LEFT) ================= -->
+  <rect
+    fill="#131926"
+    height="552"
+    rx="14"
+    stroke="#7f1d1d"
+    stroke-width="1.5"
+    width="572"
+    x="48"
+    y="120"
+  />
+  <rect fill="#2a1215" height="44" rx="14" width="572" x="48" y="120" />
+  <rect fill="#2a1215" height="14" width="572" x="48" y="150" />
+  <circle cx="76" cy="142" fill="#dc2626" r="11" />
+  <path
+    d="M72 138 L80 146 M80 138 L72 146"
+    stroke="#fff"
+    stroke-linecap="round"
+    stroke-width="2.2"
+  />
+  <text
+    fill="#fca5a5"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="17"
+    font-weight="700"
+    x="98"
+    y="148"
+  >
+    BEFORE — Unbounded shared promise
+  </text>
+
+  <!-- Timeline axis left -->
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="72"
+    y="192"
+  >
+    t=0s
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="225"
+    y="192"
+  >
+    t=1s
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="305"
+    y="192"
+  >
+    t=10s
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="435"
+    y="192"
+  >
+    t=45s
+  </text>
+  <text
+    fill="#f87171"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="530"
+    y="192"
+  >
+    t=100s+
+  </text>
+  <line
+    stroke="#334155"
+    stroke-dasharray="4 4"
+    stroke-width="1"
+    x1="72"
+    x2="594"
+    y1="202"
+    y2="202"
+  />
+
+  <!-- Req A lane -->
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="72"
+    y="232"
+  >
+    Req A
+  </text>
+  <rect
+    fill="#1e3a5f"
+    height="24"
+    rx="6"
+    stroke="#38bdf8"
+    stroke-width="1.2"
+    width="98"
+    x="128"
+    y="216"
+  />
+  <text
+    fill="#bae6fd"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="177"
+    y="232"
+  >
+    POST /quotes
+  </text>
+  <circle cx="240" cy="228" fill="#dc2626" r="10" />
+  <text
+    fill="#fff"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="240"
+    y="232"
+  >
+    !
+  </text>
+  <text
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    x="256"
+    y="232"
+  >
+    Cancelled by workerd
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="256"
+    y="248"
+  >
+    fetch &amp; AbortSignal dropped (never settle)
+  </text>
+
+  <!-- Cache state bar BEFORE -->
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="72"
+    y="294"
+  >
+    Cache
+  </text>
+  <rect
+    fill="url(#redBar)"
+    height="28"
+    opacity="0.85"
+    rx="6"
+    width="456"
+    x="128"
+    y="276"
+  />
+  <text
+    fill="#fff"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+    x="356"
+    y="295"
+  >
+    entry.miss = false (treated fresh for 100 s!)
+  </text>
+  <line
+    marker-end="url(#arrowMuted)"
+    stroke="#64748b"
+    stroke-width="1.5"
+    x1="177"
+    x2="177"
+    y1="242"
+    y2="272"
+  />
+
+  <!-- Req B lane BEFORE -->
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="72"
+    y="352"
+  >
+    Req B
+  </text>
+  <line
+    marker-end="url(#arrowRed)"
+    stroke="#f87171"
+    stroke-width="1.5"
+    x1="316"
+    x2="316"
+    y1="306"
+    y2="334"
+  />
+  <rect
+    fill="#450a0a"
+    height="26"
+    rx="6"
+    stroke="#ef4444"
+    stroke-width="1.4"
+    width="292"
+    x="292"
+    y="336"
+  />
+  <text
+    fill="#fecaca"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    text-anchor="middle"
+    x="438"
+    y="353"
+  >
+    await entry.quote -&gt; HANGS FOREVER
+  </text>
+
+  <!-- Req C..H lane BEFORE -->
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="72"
+    y="396"
+  >
+    Req C..H
+  </text>
+  <rect
+    fill="#450a0a"
+    height="26"
+    rx="6"
+    stroke="#ef4444"
+    stroke-dasharray="5 3"
+    stroke-width="1.2"
+    width="254"
+    x="330"
+    y="380"
+  />
+  <text
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    text-anchor="middle"
+    x="457"
+    y="397"
+  >
+    join dead entry -&gt; HANG FOREVER
+  </text>
+
+  <!-- DB Slot meter BEFORE (8/8 RED) -->
+  <rect
+    fill="#1c1117"
+    height="96"
+    rx="10"
+    stroke="#7f1d1d"
+    stroke-width="1"
+    width="522"
+    x="72"
+    y="438"
+  />
+  <text
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="700"
+    x="92"
+    y="464"
+  >
+    Per-Isolate DB Request Slots (8 / 8 pinned)
+  </text>
+  <g transform="translate(92, 478)">
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="0" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="58" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="116" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="174" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="232" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="290" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="348" y="0" />
+    <rect fill="#dc2626" height="24" rx="4" width="48" x="406" y="0" />
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="24"
+      y="16"
+    >
+      1
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="82"
+      y="16"
+    >
+      2
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="140"
+      y="16"
+    >
+      3
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="198"
+      y="16"
+    >
+      4
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="256"
+      y="16"
+    >
+      5
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="314"
+      y="16"
+    >
+      6
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="372"
+      y="16"
+    >
+      7
+    </text>
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="430"
+      y="16"
+    >
+      8
+    </text>
+  </g>
+  <text
+    fill="#f87171"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="92"
+    y="522"
+  >
+    Result: 503 DATABASE_CAPACITY until process restart
+  </text>
+
+  <!-- Footer stats BEFORE -->
+  <line stroke="#1e293b" stroke-width="1" x1="72" x2="594" y1="560" y2="560" />
+  <text
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="72"
+    y="588"
+  >
+    In-flight TTL: 100 s (same as settled hit)
+  </text>
+  <text
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="72"
+    y="614"
+  >
+    Waiter bound: NONE (unbounded Promise.all)
+  </text>
+  <text
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="72"
+    y="640"
+  >
+    Cache recovery: None until 100 s sweep
+  </text>
+
+  <!-- ================= AFTER PANEL (RIGHT) ================= -->
+  <rect
+    fill="#131926"
+    height="552"
+    rx="14"
+    stroke="#166534"
+    stroke-width="1.5"
+    width="572"
+    x="660"
+    y="120"
+  />
+  <rect fill="#0d2618" height="44" rx="14" width="572" x="660" y="120" />
+  <rect fill="#0d2618" height="14" width="572" x="660" y="150" />
+  <circle cx="688" cy="142" fill="#16a34a" r="11" />
+  <path
+    d="M683 142 L687 146 L694 138"
+    fill="none"
+    stroke="#fff"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="2.2"
+  />
+  <text
+    fill="#86efac"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="17"
+    font-weight="700"
+    x="710"
+    y="148"
+  >
+    AFTER — waitAtMost + 45 s in-flight TTL
+  </text>
+
+  <!-- Timeline axis right -->
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="684"
+    y="192"
+  >
+    t=0s
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="837"
+    y="192"
+  >
+    t=1s
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="917"
+    y="192"
+  >
+    t=10s
+  </text>
+  <text
+    fill="#facc15"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="1047"
+    y="192"
+  >
+    t=45s
+  </text>
+  <text
+    fill="#4ade80"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="1142"
+    y="192"
+  >
+    t=46s
+  </text>
+  <line
+    stroke="#334155"
+    stroke-dasharray="4 4"
+    stroke-width="1"
+    x1="684"
+    x2="1206"
+    y1="202"
+    y2="202"
+  />
+  <line
+    stroke="#eab308"
+    stroke-dasharray="5 3"
+    stroke-width="1.4"
+    x1="1062"
+    x2="1062"
+    y1="202"
+    y2="418"
+  />
+
+  <!-- Req A lane AFTER -->
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="684"
+    y="232"
+  >
+    Req A
+  </text>
+  <rect
+    fill="#1e3a5f"
+    height="24"
+    rx="6"
+    stroke="#38bdf8"
+    stroke-width="1.2"
+    width="98"
+    x="740"
+    y="216"
+  />
+  <text
+    fill="#bae6fd"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="789"
+    y="232"
+  >
+    POST /quotes
+  </text>
+  <circle cx="852" cy="228" fill="#dc2626" r="10" />
+  <text
+    fill="#fff"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="852"
+    y="232"
+  >
+    !
+  </text>
+  <text
+    fill="#fca5a5"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    x="868"
+    y="232"
+  >
+    Cancelled by workerd
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="868"
+    y="248"
+  >
+    entry.result stays null (in-flight)
+  </text>
+
+  <!-- Cache state bar AFTER -->
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="684"
+    y="294"
+  >
+    Cache
+  </text>
+  <rect
+    fill="url(#amberBar)"
+    height="28"
+    opacity="0.9"
+    rx="6"
+    width="322"
+    x="740"
+    y="276"
+  />
+  <text
+    fill="#0b0f17"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="901"
+    y="295"
+  >
+    in-flight TTL = 45 s (evicted on timeout)
+  </text>
+  <rect
+    fill="url(#greenBar)"
+    height="28"
+    opacity="0.9"
+    rx="6"
+    width="128"
+    x="1070"
+    y="276"
+  />
+  <text
+    fill="#fff"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1134"
+    y="295"
+  >
+    fresh ibkr_live
+  </text>
+  <line
+    marker-end="url(#arrowMuted)"
+    stroke="#64748b"
+    stroke-width="1.5"
+    x1="789"
+    x2="789"
+    y1="242"
+    y2="272"
+  />
+
+  <!-- Req B lane AFTER -->
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="684"
+    y="352"
+  >
+    Req B
+  </text>
+  <line
+    marker-end="url(#arrowGold)"
+    stroke="#facc15"
+    stroke-width="1.5"
+    x1="928"
+    x2="928"
+    y1="306"
+    y2="334"
+  />
+  <rect
+    fill="#2e2408"
+    height="26"
+    rx="6"
+    stroke="#eab308"
+    stroke-width="1.4"
+    width="158"
+    x="904"
+    y="336"
+  />
+  <text
+    fill="#fef08a"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="983"
+    y="353"
+  >
+    waitAtMost (35s)
+  </text>
+  <line
+    marker-end="url(#arrowGreen)"
+    stroke="#4ade80"
+    stroke-width="1.6"
+    x1="1062"
+    x2="1086"
+    y1="349"
+    y2="349"
+  />
+  <text
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="1092"
+    y="353"
+  >
+    null + evict
+  </text>
+
+  <!-- Req C lane AFTER -->
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="600"
+    x="684"
+    y="396"
+  >
+    Req C
+  </text>
+  <rect
+    fill="#052e16"
+    height="26"
+    rx="6"
+    stroke="#22c55e"
+    stroke-width="1.4"
+    width="128"
+    x="1070"
+    y="380"
+  />
+  <text
+    fill="#bbf7d0"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    text-anchor="middle"
+    x="1134"
+    y="397"
+  >
+    new read -&gt; live
+  </text>
+
+  <!-- DB Slot meter AFTER (healthy free slots) -->
+  <rect
+    fill="#0b1d15"
+    height="96"
+    rx="10"
+    stroke="#166534"
+    stroke-width="1"
+    width="522"
+    x="684"
+    y="438"
+  />
+  <text
+    fill="#86efac"
+    font-family="system-ui, sans-serif"
+    font-size="14"
+    font-weight="700"
+    x="704"
+    y="464"
+  >
+    Per-Isolate DB Request Slots (freed on timeout)
+  </text>
+  <g transform="translate(704, 478)">
+    <rect fill="#16a34a" height="24" rx="4" width="48" x="0" y="0" />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="58"
+      y="0"
+    />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="116"
+      y="0"
+    />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="174"
+      y="0"
+    />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="232"
+      y="0"
+    />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="290"
+      y="0"
+    />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="348"
+      y="0"
+    />
+    <rect
+      fill="#1e293b"
+      height="24"
+      rx="4"
+      stroke="#334155"
+      width="48"
+      x="406"
+      y="0"
+    />
+    <text
+      fill="#fff"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="24"
+      y="16"
+    >
+      1
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="82"
+      y="16"
+    >
+      free
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="140"
+      y="16"
+    >
+      free
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="198"
+      y="16"
+    >
+      free
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="256"
+      y="16"
+    >
+      free
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="314"
+      y="16"
+    >
+      free
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="372"
+      y="16"
+    >
+      free
+    </text>
+    <text
+      fill="#64748b"
+      font-family="ui-monospace, monospace"
+      font-size="11"
+      text-anchor="middle"
+      x="430"
+      y="16"
+    >
+      free
+    </text>
+  </g>
+  <text
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="704"
+    y="522"
+  >
+    Result: fail-closed null quote, slot released, cache self-heals
+  </text>
+
+  <!-- Footer stats AFTER -->
+  <line
+    stroke="#1e293b"
+    stroke-width="1"
+    x1="684"
+    x2="1206"
+    y1="560"
+    y2="560"
+  />
+  <text
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="684"
+    y="588"
+  >
+    In-flight TTL: 45 s (settled hit 100 s / miss 10 s)
+  </text>
+  <text
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="684"
+    y="614"
+  >
+    Waiter bound: waitAtMost(remaining &lt;= 45 s), clears timer
+  </text>
+  <text
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    x="684"
+    y="640"
+  >
+    Settled hits: synchronous entry.result.value (0 timers)
+  </text>
+</svg>

@@ -111,6 +111,7 @@ describe("toExpectedMoveCone", () => {
         { message: null, source: "quantdata", status: "off" },
         { message: null, source: "ibkr", status: "used" },
         { message: null, source: "yahoo", status: "used" },
+        { message: null, source: "nasdaq", status: "off" },
       ],
       spot: 600,
       spotSource: "ibkr",

@@ -1,6 +1,14 @@
 // Read-only QuantData HTTP client (port of Gamma Forge QuantDataProvider).
 // - POST JSON with a bearer key; the key and URL never appear in messages.
-// - One request start per `minIntervalMs` (default 1 s) per client, serialized.
+// - One request start per `minIntervalMs` (default 1 s) per client, one step at a time, first come
+//   first served: a finished step hands the turn to the first waiter. The turn is a time lease, not
+//   a promise chain (as `vertex-orders.ts#onePlacementAtATime`): in workerd a step belongs to the
+//   request that runs it, and when that request's context ends the step can stay pending for good
+//   and its own timeout timer never fires. A waiter therefore bounds its wait with its own timer
+//   and takes the turn when the running step is older than `stepDeadlineMs`
+//   (`minIntervalMs + timeoutMs + 2 s`), or when the first waiter did not claim a handed-over turn
+//   within 2 s (its request ended). A slow live step past that can overlap the next one; the
+//   spacing and the per-minute budget are checked before every start.
 // - At most `maxRequestsPerMinute` (default 54) request starts in any 60 s window. Measured over
 //   10 trading days (2026-11-10 to 2026-11-23): market-watch-gex peaks at 122 req / 60 s at the
 //   open, leaving 240 - 122 - 60 (25% margin) = 58 req / 60 s; cap 54 keeps 64 req / 60 s (26.7%)
@@ -20,13 +28,21 @@
 //   refused with the reason "reserved" when fewer than `keepFree` starts of the window would stay free.
 //   The flow collector uses `withCallerReserve(client, 6)`, so /charts option reads (keepFree 0) always
 //   find 6 starts free; `freeStarts()` reports the starts left in the current 60 s window. One
-//   uncached symbol costs 5 of them: 3 for the options snapshot and 2 for the Greek heatmap.
+//   uncached symbol costs 5 of them: 3 for the options snapshot and 2 for the Greek heatmap. The
+//   options chain reads the same term structure and 24 h order flow as the snapshot, so it adds
+//   none, also when the three read at the same time (see the cache line below).
 // - HTTP 429 starts a cooldown (Retry-After seconds, else 60 s); requests during it fail fast.
 // - HTTP 401/403 starts an auth-failure cooldown (default 300 s) and classifies as "auth_failed"
 //   so repeated ticks and UI loads fail fast instead of hammering QuantData with a rejected key,
 //   while keeping `cooldownSeconds()` dedicated to rate-limit waits.
-// - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`.
+// - Successful bodies are cached per endpoint+payload (or endpoint+cacheKey) for `ttlMs`. A read
+//   checks the cache when it is called and again when it gets its turn, so two
+//   identical reads that overlap make one request start: the second gets the answer of the first
+//   (a failure is not cached, so a failed first read does not feed the second). `ttlMs` 0 never
+//   gives a cache hit.
 // - Timeout, 2 MiB body cap, redirects never followed.
+
+import { waitAtMost } from "./bounded-wait.ts";
 
 const QUANTDATA_DEFAULT_BASE_URL = "https://api.quantdata.us";
 export const QUANTDATA_ENDPOINTS = {
@@ -48,6 +64,31 @@ const WINDOW_MS = WINDOW_S * 1000;
 export const DEFAULT_MAX_PER_MINUTE = 54;
 const DEFAULT_QUOTA_RESERVE = 60;
 const WHOLE_NUMBER = /^\d+$/u;
+// Added to `minIntervalMs + timeoutMs` (the longest a live step takes) before a waiter takes the turn.
+const STEP_DEADLINE_MARGIN_MS = 2000;
+
+// One step's turn. NO_TURN: no step runs (it is older than any deadline).
+type Turn = Readonly<{ startedAt: number }>;
+const NO_TURN: Turn = Object.freeze({ startedAt: Number.NEGATIVE_INFINITY });
+
+// How long the first waiter has to claim a turn that a finished step handed to it.
+const CLAIM_WINDOW_MS = 2000;
+
+// A caller waiting for the turn; a finished step sets `granted` and wakes it.
+interface TurnWaiter {
+  granted: boolean;
+  wake: () => void;
+}
+
+// A promise and the function that settles it: one wait of a TurnWaiter.
+const wakeSignal = (): [Promise<void>, () => void] => {
+  // Executor form: the ES2023 lib has no Promise.withResolvers.
+  let wake!: () => void;
+  const woken = new Promise<void>((resolve) => {
+    wake = resolve;
+  });
+  return [woken, wake];
+};
 
 export type QuantDataConfig = Readonly<{ baseUrl: string; apiKey: string }>;
 
@@ -200,7 +241,60 @@ export const createQuantDataClient = (
   const starts: number[] = [];
   let lastStart: number | null = null;
   let lastRemaining: number | null = null;
-  let queue: Promise<unknown> = Promise.resolve();
+  // The running step (when it started) and the callers waiting for a turn, first come first
+  // served (see the header).
+  let running: Turn = NO_TURN;
+  const waiting: TurnWaiter[] = [];
+  const stepDeadlineMs = minInterval + timeoutMs + STEP_DEADLINE_MARGIN_MS;
+
+  const startTurn = (startedAt = Date.now()): Turn => {
+    const turn = Object.freeze({ startedAt });
+    running = turn;
+    return turn;
+  };
+
+  // Ends a turn. The first waiter gets it at once, before anyone can call again, so the order
+  // of the waits holds. The turn it gets is a claim of CLAIM_WINDOW_MS: in workerd a waiter whose
+  // request context ended never wakes, so every waiter is woken to measure that short claim, and
+  // the next one takes over when it passes. A step that ends after a waiter took over changes
+  // nothing.
+  const endTurn = (turn: Turn): void => {
+    if (running !== turn) return;
+    const next = waiting.shift();
+    if (next === undefined) {
+      running = NO_TURN;
+      return;
+    }
+    next.granted = true;
+    startTurn(Date.now() - stepDeadlineMs + CLAIM_WINDOW_MS);
+    next.wake();
+    for (const other of waiting) other.wake();
+  };
+
+  // Takes the turn now, or waits in line. A waiter also takes the turn when the running step
+  // (or an unclaimed hand-off) is older than `stepDeadlineMs`. Wall time (`Date.now`) and the
+  // global timer, not the injected `now`/`sleep`: an injected clock that jumps must not hand the
+  // turn over early.
+  const takeTurn = async (): Promise<Turn> => {
+    if (running === NO_TURN) return startTurn();
+    let [woken, wake] = wakeSignal();
+    const me: TurnWaiter = { granted: false, wake };
+    waiting.push(me);
+    for (;;) {
+      // Claimed: a full turn from now. If a waiter took over first, both steps run; the spacing
+      // and the budget are checked before each start.
+      if (me.granted) return startTurn();
+      const left = running.startedAt + stepDeadlineMs - Date.now();
+      if (left <= 0) {
+        // Not granted, so still in line: leave it and take over.
+        waiting.splice(waiting.indexOf(me), 1);
+        return startTurn();
+      }
+      await waitAtMost(woken, left);
+      [woken, wake] = wakeSignal();
+      me.wake = wake;
+    }
+  };
 
   const cooldownSeconds = (): number =>
     Math.max(0, (Math.max(cooldownUntil, yieldUntil) - now()) / 1000);
@@ -406,6 +500,31 @@ export const createQuantDataClient = (
     }
   };
 
+  // A live cache entry of `key`, as the answer QuantData gave (it keeps its `fetchedAt`).
+  const cached = (key: string): QuantDataResult | null => {
+    const hit = cache.get(key);
+    if (hit === undefined || hit.expires <= now()) return null;
+    return {
+      body: hit.body,
+      data: hit.body["data"],
+      fetchedAt: hit.fetchedAt,
+      ok: true,
+    };
+  };
+
+  const store = (
+    key: string,
+    body: Record<string, unknown>,
+    ttlMs: number
+  ): void => {
+    cache.delete(key);
+    cache.set(key, { body, expires: now() + ttlMs, fetchedAt: now() });
+    for (const oldest of cache.keys()) {
+      if (cache.size <= MAX_CACHE_ENTRIES) break;
+      cache.delete(oldest);
+    }
+  };
+
   const request: QuantDataClient["request"] = async (
     endpoint,
     payload,
@@ -414,34 +533,25 @@ export const createQuantDataClient = (
     keepFree = 0
   ) => {
     const key = `${endpoint} ${cacheKey === undefined ? JSON.stringify(payload) : `key ${cacheKey}`}`;
-    const hit = cache.get(key);
-    if (hit !== undefined && hit.expires > now())
-      return {
-        body: hit.body,
-        data: hit.body["data"],
-        fetchedAt: hit.fetchedAt,
-        ok: true,
-      };
+    const hit = cached(key);
+    if (hit !== null) return hit;
     const held = blocked(endpoint);
     if (held !== null) return held;
     const kept = Math.min(Math.max(0, keepFree), maxPerMinute - 1);
-    const run = queue.then(() => send(endpoint, payload, kept));
-    // Keep the queue alive even if `send` throws unexpectedly (for example an injected clock).
-    queue = run.catch(() => undefined);
-    const result = await run;
-    if (result.ok) {
-      cache.delete(key);
-      cache.set(key, {
-        body: result.body,
-        expires: now() + ttlMs,
-        fetchedAt: now(),
-      });
-      for (const oldest of cache.keys()) {
-        if (cache.size <= MAX_CACHE_ENTRIES) break;
-        cache.delete(oldest);
-      }
+    const turn = await takeTurn();
+    try {
+      // With the turn, check the cache again: an identical read ahead of this one may have
+      // filled it while this one waited. Its entry keeps its expiry time. Each step fills the
+      // cache itself, so the next read sees the answer.
+      const filled = cached(key);
+      if (filled !== null) return filled;
+      const result = await send(endpoint, payload, kept);
+      if (result.ok) store(key, result.body, ttlMs);
+      return result;
+    } finally {
+      // Also when the step throws unexpectedly (for example an injected clock).
+      endTurn(turn);
     }
-    return result;
   };
 
   return Object.freeze({ cooldownSeconds, freeStarts, request });

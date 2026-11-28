@@ -127,7 +127,9 @@ export const createPostHogAnalyticsPort = (
         const response = await transport(endpoint, {
           method: "POST",
           credentials: "omit",
-          redirect: "error",
+          // workerd rejects redirect "error"; "manual" returns a 3xx as-is and the 2xx check
+          // below refuses it, so a redirect is never followed.
+          redirect: "manual",
           referrerPolicy: "no-referrer",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
